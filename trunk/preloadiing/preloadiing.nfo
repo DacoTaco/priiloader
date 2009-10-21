@@ -1,0 +1,162 @@
+preloader v0.30 (source) by crediar (10/6/2009)
+-------------------------------------------------------------------------------------
+
+Many tanks to ajd4096 who donated me an USBGecko!
+
+First of all I want to thank 'zouzzz zzzuoz', AlexLH, GizmoTheGreen and SquidMan.
+Thanks to svpe for the ES_DIVerfiy patch.
+Thanks to marcan for the stub code (stub.S)
+
+
+IMPORTANT NOTE:
+-------------------------------------------------------------------------------------
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation version 2.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+NOTE:
+-------------------------------------------------------------------------------------
+Since there is still a high demand for preloader and I don't really want to work on
+it anymore I thought it would be the best to release the source.
+
+
+Note on compiling:
+-------------------------------------------------------------------------------------
+Code has been tested on the latest devkitPro with devkitPPC and should compile fine.
+
+Before you can compile anything you need to place a certs.bin into the data directory.
+
+
+What is preloader and what the hell does it do:
+-------------------------------------------------------------------------------------
+preloader is a small application which places itself before the system menu.
+
+It's main feature is to directly boot the Homebrew Channel or a file you can install
+from a FAT device.
+
+preloader is also able to apply memory patches the system menu to remove limitations
+or other things.
+
+Since preloader places itself before the system menu any problems that would cause
+the system menu to fail are not causing your whole wii to stop working.
+
+If autoboot is enabled and you want to access preloader's menu simply hold RESET
+while powering the wii on.
+
+
+Hacks:
+-------------------------------------------------------------------------------------
+To install additional System Menu patches, simply copy the "hacks.ini" file
+included with preloader into the root of your SD card.
+Then,boot into preloader's settings, and chose to enable or disable the patches
+in the Hack Settings menu. 
+
+Once applied, your patches are placed in NAND, so feel free to erase the file
+on your SD card. 
+
+The format for adding additional hacks, or patches, to your hacks.ini file is simple
+and should explain itself.
+
+see http://wiibrew.org/wiki/Preloader/hacks for many user created hacks!
+
+
+Uninstall:
+-------------------------------------------------------------------------------------
+The simplest and safest way to remove preloader is to reinstall the System Menu
+using AnyRegion Changer or a WAD installer.
+
+http://wiibrew.org/wiki/AnyRegion_Changer
+http://wiibrew.org/wiki/WadImport
+
+
+Greetings:
+-------------------------------------------------------------------------------------
+(in random order)
+there are way to many people to greet and before I forget
+some I just don't list any :P
+
+devkitPro
+Team Twiizers
+
+#todXXX the sanctuary!
+#playground
+#wiidev (both of them!)
+#dsidev
+#gamingexposed
+
+Changelog:
+-------------------------------------------------------------------------------------
+0.30 Edits By DacoTaco:
+	-added autoboot Bootmii IOS
+	-added Bootmii IOS booting option
+	-let preloader remount sd on several occasions
+	-try and boot the HAXX Homebrew channel Title ID if JODI isn't found
+0.30:
+	-added SDHC support
+	-added a new option to the "return to" setting; "return to: autoboot"
+	-fixed a bug where enabled autoboot overwrote the "return to preloader" setting
+	-removed netcode, online update check, online update code.
+
+0.29:
+	-added a feature to load the system menu with any IOS version you want.
+	-The installer includes an IOS patcher which when found patches IOS60
+	 so preloader can fully work with system menu 4.0
+	-Moved some text around for better visibility on 4:3 screens
+	-fixed a bug which let the disc endlessly spin when wc24 was enabled
+	 and the wii got turned off
+	-fixed a bug which broke system menu loading when the system got formated
+
+0.28: 
+	-rewrote the hacks parser, it's more solid now
+	 and detects syntax errors much better
+	-added a new font 
+	-optimized the menu layout 
+	-you can now add unlimited offsets/value in one hack entry 
+	-added beta version related code 
+	-added a setting which allows to always turn you Wii off
+	 even when standby is enabled 
+	-fixed that when shutting down from the System Menu,
+	 the Wii always got powered down instead of using the set shutdownmode. 
+	-fixed a bug which prevented updating to a non beta version during beta testing 
+	-fixed a bug in the System Menu hacks scrolling code 
+
+0.27
+	-added a setting to stop the disc when autoboot is disabled 
+	-added a setting to return to preloader when Wii titles
+	 are using the switch off state 
+	-added a setting to show beta updates 
+	-added a setting to disable lighting the drive slot on an error 
+	-added one message to make the online update not look frozen 
+	-errors when parsing the hacks.ini now show the line 
+	-preloader now regards the shutdownmode (OFF/Standby) 
+	-fixed that under certain circumstances hacks from another version were applied 
+	-fixed a settings related bug 
+
+0.26:
+	-added elf-loading (able to load white-linux!) 
+	-added an option to load preloader or the System Menu
+	 when the return-to state is used. 
+	-made the hacks list scrollable, allowing an unlimited amount of hacks 
+	-rewrote the installer 
+	-added some interface improvements 
+	-fixed the online update 
+	-fixed returning to the System Menu, which loaded preloader instead 
+	-fixed shutting down from System Menu, which loaded preloader instead 
+	-fixed a bug in the "Install/Load File" menu that allowed users
+	 to move out of the list 
+	-fixed System Menu loading for all System Menu versions 
+	-fixed the stuck-systemmenuhack-option bug 
+	-fixed the bug that when a nunchuck was connected the System Menu wouldn't load 
+	-fixed a bug which caused the Wii to freeze when power was pressed 
+	-fixed a bug where only the first Wiimote was powered down
+	 when the Wii got turned off
