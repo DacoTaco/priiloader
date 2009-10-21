@@ -2074,11 +2074,11 @@ int main(int argc, char **argv)
 			{
 				PrintFormat( 0, 160, 480-48, "preloader v%d.%d(beta v%d)", (BETAVERSION>>16)&0xFF, BETAVERSION>>8, BETAVERSION&0xFF );
 			} else {
-				PrintFormat( 0, 160, 480-48, "preloadiing v%d.%d%s", VERSION>>8, VERSION&0xFF,SUBVERSION );
+				PrintFormat( 0, 160, 480-48, "priiloader v%d.%d%s", VERSION>>8, VERSION&0xFF,SUBVERSION );
 			}
 			PrintFormat( 0, 16, 480-64, "IOS v%d", (*(vu32*)0x80003140)>>16 );
 			PrintFormat( 0, 16, 480-48, "Systemmenu v%d", SysVersion );			
-			PrintFormat( 0, 16, 480, "Preloadiing is a mod of Preloader 0.30");
+			PrintFormat( 0, 16, 480, "priiloader is a mod of Preloader 0.30");
 #endif
 			// ((640/2)-(strlen("Systemmenu")*13/2))>>1
 			

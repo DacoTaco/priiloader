@@ -119,7 +119,7 @@ $(OUTPUT).dol: $(OUTPUT).elf
 $(OUTPUT).elf: $(OFILES)
 
 #---------------------------------------------------------------------------------
-# This rule links in binary data with the .jpg extension
+# This rule links in binary data with the .bin,tik,tmd & app extension
 #---------------------------------------------------------------------------------
 %.bin.o	:	%.bin
 #---------------------------------------------------------------------------------
