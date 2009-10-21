@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 #define VERSION		30
+#define SUBVERSION "b"
 //#define BETAVERSION	0x00001E02
 #define BETAVERSION	0
 
@@ -56,6 +57,7 @@ enum {
 enum {
 		AUTOBOOT_DISABLED,
 		AUTOBOOT_HBC,
+		AUTOBOOT_BOOTMII_IOS,
 		AUTOBOOT_SYS,
 		AUTOBOOT_FILE,
 		AUTOBOOT_ERROR
