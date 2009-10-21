@@ -97,7 +97,8 @@ export OUTPUT	:=	$(CURDIR)/$(TARGET)
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
-	wiiload $(OUTPUT).dol
+	#wiiload $(OUTPUT).dol
+	dolboot $(OUTPUT).dol ../Installer/data/preloadiing.app
 
 #---------------------------------------------------------------------------------
 clean:

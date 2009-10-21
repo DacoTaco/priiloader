@@ -40,7 +40,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "su_tmd.h"
 
 // Preloader Application
-#include "preloader_app.h"
+#include "preloadiing_app.h"
 
 static GXRModeObj *vmode = NULL;
 static void *xfb = NULL;
@@ -50,7 +50,7 @@ s32 __IOS_LoadStartupIOS()
 {
 	return 0;
 }
-const char* abort(const char* msg)
+const char* abort(const char* msg, ...)
 {
 	printf("  %s, aborting mission...", msg);
 	ISFS_Deinitialize();
@@ -133,7 +133,7 @@ int main(int argc, char **argv)
 		VIDEO_WaitVSync();
 
 	printf("\x1b[2;0H");
-	printf("                  Preloader v0.30 Installation / Removal Tool\n\n\n\n");
+	printf("       Preloadiing alpha (preloader v0.30b) Installation / Removal Tool\n\n\n\n");
 	printf("                          PLEASE READ THIS CAREFULLY\n\n\n\n");
 	printf("                THIS PROGRAM/TOOL COMES WITHOUT ANY WARRANTIES!\n");
 	printf("               YOU ACCEPT THAT YOU INSTALL THIS AT YOUR OWN RISK\n\n\n");
@@ -169,19 +169,34 @@ int main(int argc, char **argv)
 			fd = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)su_tmd, su_tmd_size, (signed_blob *)su_tik, su_tik_size, &tmp_ikey);
 			if(fd > 0)
 			{
-				printf("ES_Identify failed, error %u. ios not patched yet with ES_DIVerify?\n",fd);
+				printf("ES_Identify failed, error %u. ios36 not patched with ES_DIVerify?\n",fd);
 				printf("will continue but chances are it WILL fail\n");
 				printf("using cios (holding b and then pressing + or - ) will probably solve this. NOTE: you need CIOS for this.");
 			}
 			else
-				printf("  logged in as su!\n");
+				printf("  Logged in as su!\n");
 			if (ISFS_Initialize() < 0)
 				abort("Failed to get root");
 			printf("  Got ROOT!\n");
 			fd = ISFS_Open("/title/00000001/00000002/content/ticket", ISFS_OPEN_READ);
 			if (fd < 0)
-				abort("Unable to read ticket");
+			{
+				switch(fd)
+				{
+					case ISFS_EINVAL:
+						abort("Unable to read ticket.ticket file not found or access denied for opening");
+						break;
+				
+					case ISFS_ENOMEM:
+						abort("Unable to read ticket.(Out of memory)");
+						break;
+				
+					default:
+						abort("Unable to read ticket. error %d",fd);
+						break;
+				}
 
+			}
 			fstats * status = (fstats*)memalign(32,sizeof(fstats));
 			fs = ISFS_GetFileStats(fd,status);
 			if (fs < 0)
@@ -282,7 +297,7 @@ int main(int argc, char **argv)
 						printf("  Installing preloader...\n");
 						ISFS_CreateFile(file,0,3,3,3);
 						fd = ISFS_Open(file,ISFS_OPEN_RW);
-						ISFS_Write(fd,preloader_app,preloader_app_size);
+						ISFS_Write(fd,preloadiing_app,preloadiing_app_size);
 						ISFS_Close(fd);
 						printf("  Install done, exiting to loader... waiting 5s...\n");
 						ISFS_Deinitialize();
@@ -301,7 +316,7 @@ int main(int argc, char **argv)
 					printf("  Updating preloader...\n");
 					ISFS_CreateFile(file,0,3,3,3);
 					fd = ISFS_Open(file,ISFS_OPEN_RW);
-					ISFS_Write(fd,preloader_app,preloader_app_size);
+					ISFS_Write(fd,preloadiing_app,preloadiing_app_size);
 					ISFS_Close(fd);
 					printf("  Update done, exiting to loader... waiting 5s...\n");
 					ISFS_Deinitialize();
@@ -328,7 +343,7 @@ int main(int argc, char **argv)
 						ISFS_Close(fd);
 						ISFS_CreateFile(file,0,3,3,3);
 						fd = ISFS_Open(file,ISFS_OPEN_RW);
-						ISFS_Write(fd,preloader_app,preloader_app_size);
+						ISFS_Write(fd,preloadiing_app,preloadiing_app_size);
 						ISFS_Close(fd);
 						abort("Unable to restore the system menu");
 					}

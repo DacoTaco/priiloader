@@ -732,9 +732,7 @@ void BootMainSysMenu( void )
 	static u32 tmd_size ATTRIBUTE_ALIGN(32);
 	static u32 tempKeyID ATTRIBUTE_ALIGN(32);
 	s32 r = 0;
-	r = ES_Identify((signed_blob*)certs_bin, certs_bin_size, (signed_blob*)su_tmd, su_tmd_size, (signed_blob*)su_tik, su_tik_size, &tempKeyID);
-	if (r < 0)
-		return;
+
 	ISFS_Deinitialize();
 	if( ISFS_Initialize() < 0 )
 	{
@@ -859,12 +857,8 @@ void BootMainSysMenu( void )
 	memset(file, 0, 256 );
 
 	sprintf( file, "/title/00000001/00000002/content/%08x.app", fileID );
-	//small fix that Phpgeek didn't forget by i did
+	//small fix that Phpgeek didn't forget but i did
 	file[33] = '1'; // installing preloader renamed system menu so we change the app file to have the right name
-
-#ifdef NBOOT
-	file[33] = '1'; // Booting renamed system menu so we rename character 33!
-#endif
 
 	fd = ISFS_Open( file, 1 );
 #ifdef DEBUG
@@ -1808,6 +1802,7 @@ void DVDStopDisc( void )
 
 	DCFlushRange(inbuf, 0x20);
 	IOS_IoctlAsync( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20, NULL, NULL);
+	IOS_Close(di_fd);
 
 	free( outbuf );
 	free( inbuf );
@@ -1865,7 +1860,7 @@ int main(int argc, char **argv)
 				{
 					*(vu32*)0xCD8000C0 &= ~0x20;
 					DVDStopDisc();
-        				WPAD_Shutdown();
+        			WPAD_Shutdown();
 
 					if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
 					{
@@ -2105,9 +2100,12 @@ int main(int argc, char **argv)
 		if( Shutdown )
 		{
 			*(vu32*)0xCD8000C0 &= ~0x20;
+			//when we are in preloader itself we should make the video black before the user thinks its not shutting down...
+			//TODO : fade to black if possible without a gfx lib?
+			VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
 			DVDStopDisc();
-
 			WPAD_Shutdown();
+
 			if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
 			{
 				STM_ShutdownToStandby();
