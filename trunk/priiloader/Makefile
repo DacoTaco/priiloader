@@ -98,7 +98,7 @@ $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 	#wiiload $(OUTPUT).dol
-	dolboot $(OUTPUT).dol ../Installer/data/preloadiing.app
+	dolboot $(OUTPUT).dol ../Installer/data/priiloader.app
 
 #---------------------------------------------------------------------------------
 clean:
@@ -121,7 +121,7 @@ $(OUTPUT).dol: $(OUTPUT).elf
 $(OUTPUT).elf: $(OFILES)
 
 #---------------------------------------------------------------------------------
-# This rule links in binary data with the .jpg extension
+# This rule links in binary data with the .bin,tik & tmd extension
 #---------------------------------------------------------------------------------
 %.bin.o	:	%.bin
 #---------------------------------------------------------------------------------

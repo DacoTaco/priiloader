@@ -40,7 +40,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "su_tmd.h"
 
 // Preloader Application
-#include "preloadiing_app.h"
+#include "priiloader.h"
 
 static GXRModeObj *vmode = NULL;
 static void *xfb = NULL;
@@ -133,7 +133,7 @@ int main(int argc, char **argv)
 		VIDEO_WaitVSync();
 
 	printf("\x1b[2;0H");
-	printf("       Preloadiing alpha (preloader v0.30b) Installation / Removal Tool\n\n\n\n");
+	printf("       priiloader alpha (preloader v0.30b) Installation / Removal Tool\n\n\n\n");
 	printf("                          PLEASE READ THIS CAREFULLY\n\n\n\n");
 	printf("                THIS PROGRAM/TOOL COMES WITHOUT ANY WARRANTIES!\n");
 	printf("               YOU ACCEPT THAT YOU INSTALL THIS AT YOUR OWN RISK\n\n\n");
@@ -297,7 +297,7 @@ int main(int argc, char **argv)
 						printf("  Installing preloader...\n");
 						ISFS_CreateFile(file,0,3,3,3);
 						fd = ISFS_Open(file,ISFS_OPEN_RW);
-						ISFS_Write(fd,preloadiing_app,preloadiing_app_size);
+						ISFS_Write(fd,priiloader_app,priiloader_app_size);
 						ISFS_Close(fd);
 						printf("  Install done, exiting to loader... waiting 5s...\n");
 						ISFS_Deinitialize();
@@ -316,7 +316,7 @@ int main(int argc, char **argv)
 					printf("  Updating preloader...\n");
 					ISFS_CreateFile(file,0,3,3,3);
 					fd = ISFS_Open(file,ISFS_OPEN_RW);
-					ISFS_Write(fd,preloadiing_app,preloadiing_app_size);
+					ISFS_Write(fd,priiloader_app,priiloader_app_size);
 					ISFS_Close(fd);
 					printf("  Update done, exiting to loader... waiting 5s...\n");
 					ISFS_Deinitialize();
@@ -343,7 +343,7 @@ int main(int argc, char **argv)
 						ISFS_Close(fd);
 						ISFS_CreateFile(file,0,3,3,3);
 						fd = ISFS_Open(file,ISFS_OPEN_RW);
-						ISFS_Write(fd,preloadiing_app,preloadiing_app_size);
+						ISFS_Write(fd,priiloader_app,priiloader_app_size);
 						ISFS_Close(fd);
 						abort("Unable to restore the system menu");
 					}
