@@ -84,7 +84,12 @@ u32 LoadHacks( void )
 	s32 fd=0;
 	char *buf=NULL;
 
-	FILE *in = fopen("/preloader/hacks.ini", "rb");
+	FILE *in = fopen("sd:/preloader/hacks.ini", "rb" );
+	if (!in)
+	{
+		fclose(in);
+		in = fopen ("sd:/hacks.ini","rb");
+	}
 	if( in == NULL )
 	{
 		fd = ISFS_Open("/title/00000001/00000002/data/hacks.ini", 1 );

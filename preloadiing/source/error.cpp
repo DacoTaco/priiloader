@@ -66,6 +66,9 @@ void ShowError ( void )
 			case ERROR_BOOT_HBC:
 				PrintFormat( 0, 16, 352, "Error autobooting HBC, maybe title not installed?");
 			break;
+			case ERROR_BOOT_BOOTMII:
+				PrintFormat( 0, 16, 352, "Error booting Bootmii IOS, maybe Bootmii ios is not installed?");
+			break;
 			case ERROR_BOOT_ERROR:
 				PrintFormat( 0, 16, 352, "Error autobooting due problems with the settings.ini!");
 			break;
@@ -104,7 +107,7 @@ void ShowError ( void )
 			break;
 			case ERROR_SYSMENU_ESDIVERFIY_FAILED:
 				PrintFormat( 0, 16, 352, "Error autobooting systemmenu!");
-				PrintFormat( 0, 16, 368, "ES_DiVerfiy failed!");
+				PrintFormat( 0, 16, 368, "ES_DiVerfiy failed! no ios with it patched?");
 			break;
 			case ERROR_SYSMENU_GETTMDSIZEFAILED:
 				PrintFormat( 0, 16, 352, "Error autobooting systemmenu!");
