@@ -27,7 +27,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <gccore.h>
 #include <wiiuse/wpad.h>
 #include <sdcard/wiisd_io.h>
-
 #include <fat.h>
 #include <sys/dir.h>
 #include <unistd.h>
@@ -99,11 +98,14 @@ extern s32 __IOS_ShutdownSubsystems();
 
 void gprintf( const char *str, ... );
 void CheckForGecko( void );
-void MountSD(void)
+s32 MountSD(void)
 {
 	__io_wiisd.startup();
-	fatMountSimple("sd", &__io_wiisd);
-	return;
+	s16 ret;
+	ret = fatMountSimple("sd", &__io_wiisd);
+	if (!ret)
+		return -1;
+	return 1;
 }
 void RemountSD( void )
 {
@@ -131,7 +133,7 @@ void SysHackSettings( void )
 
 	u32 HackCount=0;
 	u32 SysVersion=GetSysMenuVersion();
-
+	RemountSD();
 	for( unsigned int i=0; i<hacks.size(); ++i)
 	{
 		if( hacks[i].version == SysVersion )
@@ -623,23 +625,22 @@ void SetSettings( void )
 			switch(settings->autoboot)
 			{
 				case AUTOBOOT_DISABLED:
-					PrintFormat( cur_off==0, 0, 112,    "              autoboot:          Disabled        ");
+					PrintFormat( cur_off==0, 0, 112,    "              Autoboot:          Disabled        ");
 				break;
 
 				case AUTOBOOT_SYS:
-					PrintFormat( cur_off==0, 0, 112,    "              autoboot:          Systemmenu      ");
+					PrintFormat( cur_off==0, 0, 112,    "              Autoboot:          System Menu     ");
 				break;
-
 				case AUTOBOOT_HBC:
-					PrintFormat( cur_off==0, 0, 112,    "              autoboot:          Homebrew Channel");
+					PrintFormat( cur_off==0, 0, 112,    "              Autoboot:          Homebrew Channel");
 				break;
 
 				case AUTOBOOT_BOOTMII_IOS:
-					PrintFormat( cur_off==0, 0, 112,	"              autoboot:          BootMii IOS     ");
+					PrintFormat( cur_off==0, 0, 112,    "              Autoboot:          BootMii IOS     ");
 				break;
 
 				case AUTOBOOT_FILE:
-					PrintFormat( cur_off==0, 0, 112,    "              autoboot:          File            ");
+					PrintFormat( cur_off==0, 0, 112,    "              Autoboot:          Installed File  ");
 				break;
 				default:
 					settings->autoboot = AUTOBOOT_DISABLED;
@@ -652,16 +653,16 @@ void SetSettings( void )
 					PrintFormat( cur_off==1, 0, 128,    "             Return to:          System Menu");
 				break;
 				case RETURNTO_PRELOADER:
-					PrintFormat( cur_off==1, 0, 128,    "             Return to:          preloader  ");
+					PrintFormat( cur_off==1, 0, 128,    "             Return to:          Preloader  ");
 				break;
 				case RETURNTO_AUTOBOOT:
-					PrintFormat( cur_off==1, 0, 128,    "             Return to:          autoboot   ");
+					PrintFormat( cur_off==1, 0, 128,    "             Return to:          Autoboot   ");
 				break;
 			}
 			
 			//PrintFormat( 0, 16, 64, "Pos:%d", ((640/2)-(strlen("settings saved")*13/2))>>1);
 
-			PrintFormat( cur_off==2, 0, 128+16, "           Shutdown to:          %s", settings->ShutdownToPreloader?"preloader":"off      ");
+			PrintFormat( cur_off==2, 0, 128+16, "           Shutdown to:          %s", settings->ShutdownToPreloader?"Preloader":"off      ");
 			PrintFormat( cur_off==3, 0, 128+32, "             Stop disc:          %s", settings->StopDisc?"on ":"off");
 			PrintFormat( cur_off==4, 0, 128+48, "   Light slot on error:          %s", settings->LidSlotOnError?"on ":"off");
 			PrintFormat( cur_off==5, 0, 128+64, "Ignore standby setting:          %s", settings->IgnoreShutDownMode?"on ":"off");
@@ -698,7 +699,7 @@ void LoadHBC( void )
 		ES_LaunchTitle(TitleID, &views[0]);
 	}
 }
-void LoadBootmii( void )
+void LoadBootMii( void )
 {
 	RemountSD();
 	//when this was coded on 6th of Oct 2009 Bootmii was IOS 254
@@ -731,7 +732,9 @@ void BootMainSysMenu( void )
 	static u32 tmd_size ATTRIBUTE_ALIGN(32);
 	static u32 tempKeyID ATTRIBUTE_ALIGN(32);
 	s32 r = 0;
-
+	r = ES_Identify((signed_blob*)certs_bin, certs_bin_size, (signed_blob*)su_tmd, su_tmd_size, (signed_blob*)su_tik, su_tik_size, &tempKeyID);
+	if (r < 0)
+		return;
 	ISFS_Deinitialize();
 	if( ISFS_Initialize() < 0 )
 	{
@@ -855,9 +858,13 @@ void BootMainSysMenu( void )
 
 	memset(file, 0, 256 );
 
-	sprintf( file, "/title/00000001/00000002/content/%08x.app", fileID );	
+	sprintf( file, "/title/00000001/00000002/content/%08x.app", fileID );
 	//small fix that Phpgeek didn't forget by i did
 	file[33] = '1'; // installing preloader renamed system menu so we change the app file to have the right name
+
+#ifdef NBOOT
+	file[33] = '1'; // Booting renamed system menu so we rename character 33!
+#endif
 
 	fd = ISFS_Open( file, 1 );
 #ifdef DEBUG
@@ -1058,13 +1065,12 @@ void BootMainSysMenu( void )
 }
 void InstallLoadDOL( void )
 {
-	char filename[MAXPATHLEN];
+	char filename[MAXPATHLEN], filepath[MAXPATHLEN];
 	std::vector<char*> names;
 
 	struct stat st;
 	DIR_ITER* dir;
-	
-	//remount SD :)
+
 	RemountSD();
 	dir = diropen ("/");
 	if( dir == NULL )
@@ -1120,7 +1126,8 @@ void InstallLoadDOL( void )
 		{
 			ClearScreen();
 			//Install file
-			FILE *dol = fopen( names[cur_off], "rb" );
+			sprintf(filepath, "sd:/%s", names[cur_off]);
+			FILE *dol = fopen(filepath, "rb" );
 			if( dol == NULL )
 			{
 				PrintFormat( 1, ((640/2)-((strlen("Could not open:\"%s\" for reading")+strlen(names[cur_off]))*13/2))>>1, 208, "Could not open:\"%s\" for reading", names[cur_off]);
@@ -1173,7 +1180,8 @@ void InstallLoadDOL( void )
 			ClearScreen();
 
 			//Load dol
-			FILE *dol = fopen( names[cur_off], "rb");
+			sprintf(filepath, "sd:/%s", names[cur_off]);
+			FILE *dol = fopen(filepath, "rb" );
 			if( dol == NULL )
 			{
 				PrintFormat( 1, ((640/2)-((strlen("Could not open:\"%s\" for reading")+strlen(names[cur_off]))*13/2))>>1, 208, "Could not open:\"%s\" for reading", names[cur_off]);
@@ -1320,9 +1328,16 @@ void InstallLoadDOL( void )
 				entrypoint = (void (*)())(hdr.entrypoint);
 			}
 
+			__STM_Close();
+			__io_wiisd.shutdown();
+			__IOS_ShutdownSubsystems();
+			mtmsr(mfmsr() & ~0x8000);
+			mtmsr(mfmsr() | 0x2002);
+			ICSync();
+			entrypoint();
+			
 
 			//u32 level;
-
 			//__IOS_ShutdownSubsystems();
 			//_CPU_ISR_Disable (level);
 			//mtmsr(mfmsr() & ~0x8000);
@@ -1666,6 +1681,7 @@ void AutoBootDol( void )
 					error = ERROR_BOOT_DOL_SEEK;
 					return;
 				}
+				
 				//if( hdr->addressText[i] & (~31) )
 				//{
 				//	u8 *tbuf = (u8*)memalign(32, (hdr->sizeText[i]+32)&(~31) );
@@ -1744,7 +1760,6 @@ void AutoBootDol( void )
 	__STM_Close();
 	ISFS_Deinitialize();
 	__io_wiisd.shutdown();
-	
 	__IOS_ShutdownSubsystems();
 	//IOS_ReloadIOS(IOS_GetPreferredVersion());
 	//__ES_Init();
@@ -1836,6 +1851,7 @@ int main(int argc, char **argv)
 	//Check reset button state
 	if( ((*(vu32*)0xCC003000)>>16)&1 )
 	{
+		//Check autoboot settings
 		int cBootState = CheckBootState();
 
 		if( cBootState < 0 )
@@ -1843,68 +1859,19 @@ int main(int argc, char **argv)
 
 		switch( cBootState )
 		{
-			case 3:
-				ClearState();
-				if( SGetSetting(SETTING_RETURNTO) == RETURNTO_SYSMENU )
-					BootMainSysMenu();
-
-				if( SGetSetting(SETTING_RETURNTO) == RETURNTO_AUTOBOOT )
-				{
-					switch( SGetSetting(SETTING_AUTBOOT) )
-					{
-						case AUTOBOOT_SYS:
-						//TODO: replace with simpel mount
-							fatInitDefault();
-							RemountSD();
-							gprintf("AutoBoot:System Menu\n");
-							BootMainSysMenu();
-							break;
-
-						case AUTOBOOT_HBC:
-							gprintf("AutoBoot:Homebrew Channel\n");
-							LoadHBC();
-							error=ERROR_BOOT_HBC;
-							break;
-
-						case AUTOBOOT_BOOTMII_IOS:
-						//TODO: replace with simpel mount
-							fatInitDefault();
-							RemountSD();
-							gprintf("AutoBoot:BootMii IOS\n");
-							LoadBootmii();
-							error=ERROR_BOOT_BOOTMII;
-							break;
-
-						case AUTOBOOT_FILE:
-							gprintf("AutoBoot:Installed File\n");
-							AutoBootDol();
-							break;
-
-						case AUTOBOOT_ERROR:
-							error=ERROR_BOOT_ERROR;
-							break;
-
-						case AUTOBOOT_DISABLED:
-						default:
-							break;
-					}
-				}
-
-				break;
-
 			case 5:
 				ClearState();
 				if(!SGetSetting(SETTING_SHUTDOWNTOPRELOADER))
 				{
+					*(vu32*)0xCD8000C0 &= ~0x20;
+					DVDStopDisc();
+        				WPAD_Shutdown();
+
 					if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
 					{
-						DVDStopDisc();
-						WPAD_Shutdown();
 						STM_ShutdownToStandby();
 
 					} else {
-						DVDStopDisc();
-						WPAD_Shutdown();
 						if( CONF_GetShutdownMode() == CONF_SHUTDOWN_STANDBY )
 							STM_ShutdownToStandby();
 						else
@@ -1912,18 +1879,24 @@ int main(int argc, char **argv)
 					}
 				}
 				break;
+			case 3:
+				ClearState();
+				if( SGetSetting(SETTING_RETURNTO) == RETURNTO_SYSMENU )
+					BootMainSysMenu();
 
+				if( SGetSetting(SETTING_RETURNTO) != RETURNTO_AUTOBOOT )
+				{
+					break;
+				}
+				//falltrough to default : loading autoboot settings.
 			default :
 				switch( SGetSetting(SETTING_AUTBOOT) )
 				{
 					case AUTOBOOT_SYS:
-					//TODO: replace with simpel mount
-						fatInitDefault();
-						RemountSD();
+						MountSD();
 						gprintf("AutoBoot:System Menu\n");
 						BootMainSysMenu();
 						break;
-
 					case AUTOBOOT_HBC:
 						gprintf("AutoBoot:Homebrew Channel\n");
 						LoadHBC();
@@ -1931,11 +1904,8 @@ int main(int argc, char **argv)
 						break;
 
 					case AUTOBOOT_BOOTMII_IOS:
-					//TODO: replace with simpel mount
-						fatInitDefault();
-						RemountSD();
 						gprintf("AutoBoot:BootMii IOS\n");
-						LoadBootmii();
+						LoadBootMii();
 						error=ERROR_BOOT_BOOTMII;
 						break;
 
@@ -1951,7 +1921,7 @@ int main(int argc, char **argv)
 					case AUTOBOOT_DISABLED:
 					default:
 						break;
-				}
+					}
 				break;
 		}
 	}
@@ -1978,10 +1948,8 @@ int main(int argc, char **argv)
 	if(rmode->viTVMode&VI_NON_INTERLACE)
 		VIDEO_WaitVSync();
 
-	//TODO: replace with simpel mount
-	r = fatInitDefault();
+	r = MountSD();
 	gprintf("SDCard_Init():%d\n", r );
-	RemountSD();
 
 	r = PAD_Init();
 	gprintf("PAD_Init():%d\n", r );
@@ -2042,11 +2010,13 @@ int main(int argc, char **argv)
 					//oops, error'd
 					error=ERROR_BOOT_HBC;
 				} break;
-				case 2: //Boot the Bootmii IOS
-					LoadBootmii();
-					//well that failed
+				case 2: //Load Bootmii
+				{
+					LoadBootMii();
+					//well that failed...
 					error=ERROR_BOOT_BOOTMII;
 					break;
+				}
 				case 3:		//load main.dol from /shared2 dir
 					AutoBootDol();
 				break;
@@ -2078,7 +2048,7 @@ int main(int argc, char **argv)
 					cur_off = 0;
 			}else {
 
-				if( cur_off >= 7)
+				if( cur_off >=7)
 					cur_off = 0;
 			}
 
@@ -2091,9 +2061,9 @@ int main(int argc, char **argv)
 			{
 				if( error == ERROR_UPDATE )
 				{
-					cur_off=8-1;
+					cur_off=8-1; //phpgeek said 11-1 why 11?
 				} else {
-					cur_off=7-1;
+					cur_off=7-1; //phpgeek said 10-1?
 				}
 			}
 
@@ -2109,10 +2079,11 @@ int main(int argc, char **argv)
 			{
 				PrintFormat( 0, 160, 480-48, "preloader v%d.%d(beta v%d)", (BETAVERSION>>16)&0xFF, BETAVERSION>>8, BETAVERSION&0xFF );
 			} else {
-				PrintFormat( 0, 160, 480-48, "preloader v%d.%d%s(DacoTaco)", VERSION>>8, VERSION&0xFF,SUBVERSION );
+				PrintFormat( 0, 160, 480-48, "preloadiing v%d.%d%s", VERSION>>8, VERSION&0xFF,SUBVERSION );
 			}
 			PrintFormat( 0, 16, 480-64, "IOS v%d", (*(vu32*)0x80003140)>>16 );
 			PrintFormat( 0, 16, 480-48, "Systemmenu v%d", SysVersion );			
+			PrintFormat( 0, 16, 480, "Preloadiing is a mod of Preloader 0.30");
 #endif
 			// ((640/2)-(strlen("Systemmenu")*13/2))>>1
 			
@@ -2137,7 +2108,6 @@ int main(int argc, char **argv)
 			DVDStopDisc();
 
 			WPAD_Shutdown();
-
 			if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
 			{
 				STM_ShutdownToStandby();
@@ -2151,10 +2121,10 @@ int main(int argc, char **argv)
 			}
 
 		}
-	}
 
 
 		VIDEO_WaitVSync();
+	}
 
 	return 0;
 }
