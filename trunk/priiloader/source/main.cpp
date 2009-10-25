@@ -98,24 +98,19 @@ extern s32 __IOS_ShutdownSubsystems();
 
 void gprintf( const char *str, ... );
 void CheckForGecko( void );
-s32 MountSD(void)
+bool MountSD(void)
 {
 	__io_wiisd.startup();
-	s16 ret;
-	ret = fatMountSimple("sd", &__io_wiisd);
-	if (!ret)
-		return -1;
-	return 1;
+	return fatMountSimple("sd", &__io_wiisd);
 }
-void RemountSD( void )
+bool RemountSD( void )
 {
 	//unmount SD & shutdown the port ...
 	fatUnmount("sd");
 	__io_wiisd.shutdown();
 	//and start it up & mount...
 	__io_wiisd.startup();
-	fatMountSimple("sd", &__io_wiisd);
-	return;
+	return fatMountSimple("sd", &__io_wiisd);
 }
 void ClearScreen()
 {
@@ -990,7 +985,7 @@ void BootMainSysMenu( void )
 	WPAD_Shutdown();
 	//all this code isn't needed anymore. no ios reloading or ES_DIVerify needed. note that booting system menu
 	//will only work if preloader is booted as system menu. if booted from HBC it'll use shitty ios36
-	//which can't boot the system menu correct
+	//which can't boot the system menu correct. maybe i should make it optional to reload or not...
 	/*__ES_Close();
 	__ES_Init();
 	if( SGetSetting(SETTING_SYSTEMMENUIOS) == 0 )
@@ -1065,15 +1060,19 @@ void InstallLoadDOL( void )
 	struct stat st;
 	DIR_ITER* dir;
 
-	RemountSD();
-	dir = diropen ("/");
-	if( dir == NULL )
+	if (!RemountSD())
 	{
 		PrintFormat( 1, ((640/2)-((strlen("NO SD card found!"))*13/2))>>1, 208, "NO SD card found!");
 		sleep(5);
 		return;
 	}
-
+	dir = diropen ("sd:/");
+	if( dir == NULL )
+	{
+		PrintFormat( 1, ((640/2)-((strlen("Failed to open root of SD!"))*13/2))>>1, 208, "Failed to open root of SD");
+		sleep(5);
+		return;
+	}
 	//get all files names
 	while( dirnext (dir, filename, &st) != -1 )
 	{
@@ -1943,7 +1942,7 @@ int main(int argc, char **argv)
 	if(rmode->viTVMode&VI_NON_INTERLACE)
 		VIDEO_WaitVSync();
 
-	r = MountSD();
+	r = (s32)MountSD();
 	gprintf("SDCard_Init():%d\n", r );
 
 	r = PAD_Init();
@@ -2102,6 +2101,7 @@ int main(int argc, char **argv)
 			*(vu32*)0xCD8000C0 &= ~0x20;
 			//when we are in preloader itself we should make the video black before the user thinks its not shutting down...
 			//TODO : fade to black if possible without a gfx lib?
+			//STM_SetVIForceDimming ?
 			VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
 			DVDStopDisc();
 			WPAD_Shutdown();

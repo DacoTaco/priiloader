@@ -40,16 +40,16 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "su_tmd.h"
 
 // Preloader Application
-#include "priiloader.h"
+#include "priiloader_app.h"
 
 static GXRModeObj *vmode = NULL;
 static void *xfb = NULL;
 
 //a must have in every app
-s32 __IOS_LoadStartupIOS()
+/*s32 __IOS_LoadStartupIOS()
 {
 	return 0;
-}
+}*/
 const char* abort(const char* msg, ...)
 {
 	printf("  %s, aborting mission...", msg);
@@ -115,10 +115,19 @@ s32 nand_copy(char file1[1024], char file2[1024])
         free(buffer);
         return 0;
 }
+//a nice function found in muppen64gc
+static inline char* getAlignedName(char* name){
+	static char alignedBuf[64] __attribute__((aligned(32)));
+	if((int)name % 32){
+		strncpy(alignedBuf, name, 64);
+		return alignedBuf;
+	} else return name;
+}
+
 
 int main(int argc, char **argv)
 {
-	bool UseSD = false;
+	bool CopyTitle = false;
 	VIDEO_Init();
 	WPAD_Init();
 	vmode = VIDEO_GetPreferredMode(NULL);
@@ -178,24 +187,46 @@ int main(int argc, char **argv)
 			if (ISFS_Initialize() < 0)
 				abort("Failed to get root");
 			printf("  Got ROOT!\n");
-			fd = ISFS_Open("/title/00000001/00000002/content/ticket", ISFS_OPEN_READ);
-			if (fd < 0)
+			fd = ISFS_Open(getAlignedName("/title/00000001/00000002/content/ticket"),ISFS_OPEN_READ);
+			if (fd <0)
 			{
-				switch(fd)
+				printf("  preloader < 0.30 system ticket not found/access denied. trying to read original ticket...\n");
+				ISFS_Close(fd);
+				fd = ISFS_Open(getAlignedName("/ticket/00000001/00000002.tik"),ISFS_OPEN_READ);
+				//"/ticket/00000001/00000002.tik" -> original path which should be there on every wii.
+				//however needs nand permissions which SU doesn't have without trucha? >_>
+				//we need mini if we want to be patch free...
+				if (fd < 0)
 				{
-					case ISFS_EINVAL:
-						abort("Unable to read ticket.ticket file not found or access denied for opening");
-						break;
-				
-					case ISFS_ENOMEM:
-						abort("Unable to read ticket.(Out of memory)");
-						break;
-				
-					default:
-						abort("Unable to read ticket. error %d",fd);
-						break;
-				}
+					switch(fd)
+					{
+						case ISFS_EINVAL:
+							abort("Unable to read ticket.path is wrong/to long or ISFS isn't init yet?");
+							break;
+						case ISFS_ENOMEM:
+							abort("Unable to read ticket.(Out of memory)");
+							break;
+						case -106:
+							abort("ticket not found");
+							break;
+						case -102:
+							abort("unautorised to get ticket");
+							break;
+						default:
+							printf("Unable to read ticket. error %d. ",fd);
+							abort("");
+							break;
+					}
 
+				}
+				else
+				{
+					CopyTitle = true;
+				}
+			}
+			else
+			{
+				printf("  preloader < 0.30 system ticket found\n");
 			}
 			fstats * status = (fstats*)memalign(32,sizeof(fstats));
 			fs = ISFS_GetFileStats(fd,status);
@@ -285,6 +316,13 @@ int main(int argc, char **argv)
 				if (fd < 0)
 				{
 					printf("  Preloader not found, moving the system menu...\n");
+					if(CopyTitle)
+					{
+						if (nand_copy("/ticket/00000001/00000002.tik","/title/00000001/00000002/content/ticket") < 0)
+						{
+							abort("Unable to copy the system menu ticket");
+						}
+					}
 					if (nand_copy(file,load) < 0)
 					{
 						abort("Unable to move the system menu");
@@ -311,6 +349,13 @@ int main(int argc, char **argv)
 					ISFS_Close(fd);
 					printf("  Preloader installation found, skipping moving the system menu.\n");
 					printf("  Skipped!\n");
+					if(CopyTitle)
+					{
+						if (nand_copy("/ticket/00000001/00000002.tik","/title/00000001/00000002/content/ticket") < 0)
+						{
+							abort("Unable to copy the system menu ticket");
+						}
+					}
 					ISFS_Delete(file);
 					ISFS_Delete("/title/00000001/00000002/data/loader.ini");
 					printf("  Updating preloader...\n");
@@ -353,6 +398,8 @@ int main(int argc, char **argv)
 						ISFS_Close(fd);
 						ISFS_Delete(load);
 						ISFS_Delete("/title/00000001/00000002/data/loader.ini");
+						//its best we delete that ticket altho its completely useless lol
+						ISFS_Delete("/title/00000001/00000002/content/ticket");
 						ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini");
 						ISFS_Delete("/title/00000001/00000002/data/hacks.ini");
 						ISFS_Delete("/title/00000001/00000002/data/main.bin");
