@@ -171,7 +171,6 @@ int main(int argc, char **argv)
 			{
 				WPAD_Shutdown();
         		IOS_ReloadIOS(249);
-				UseSD = false;
         		WPAD_Init();
         	}
         	__ES_Init();
@@ -190,7 +189,7 @@ int main(int argc, char **argv)
 			fd = ISFS_Open(getAlignedName("/title/00000001/00000002/content/ticket"),ISFS_OPEN_READ);
 			if (fd <0)
 			{
-				printf("  preloader < 0.30 system ticket not found/access denied. trying to read original ticket...\n");
+				printf("  preloader < 0.30 system ticket not found/access denied.\n  trying to read original ticket...\n");
 				ISFS_Close(fd);
 				fd = ISFS_Open(getAlignedName("/ticket/00000001/00000002.tik"),ISFS_OPEN_READ);
 				//"/ticket/00000001/00000002.tik" -> original path which should be there on every wii.
@@ -221,6 +220,7 @@ int main(int argc, char **argv)
 				}
 				else
 				{
+					printf("  Original ticket loaded & set for copy\n");
 					CopyTitle = true;
 				}
 			}
