@@ -52,7 +52,13 @@ static void *xfb = NULL;
 }*/
 const char* abort(const char* msg, ...)
 {
-	printf("  %s, aborting mission...", msg);
+	va_list args;
+	char text[ 40032 ];
+	va_start( args, msg );
+	strcpy( text + vsprintf( text,msg,args ),""); 
+	va_end( args );
+
+	printf("  %s, aborting mission...", text);
 	ISFS_Deinitialize();
 	__ES_Close();
 	sleep(5);
@@ -166,6 +172,7 @@ int main(int argc, char **argv)
 			u32 id = 0;
 
 			printf("\x1b[2J\x1b[2;0H");
+			printf("IOS %d rev %d\n\n\n\n\n",IOS_GetVersion(),IOS_GetRevision());
 			fflush(stdout);
 			if (pHeld & WPAD_BUTTON_B)
 			{
@@ -177,19 +184,19 @@ int main(int argc, char **argv)
 			fd = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)su_tmd, su_tmd_size, (signed_blob *)su_tik, su_tik_size, &tmp_ikey);
 			if(fd > 0)
 			{
-				printf("ES_Identify failed, error %u. ios36 not patched with ES_DIVerify?\n",fd);
+				printf("ES_Identify failed, error %u. ios%d not patched with ES_DIVerify?\n",fd,IOS_GetVersion());
 				printf("will continue but chances are it WILL fail\n");
 				printf("using cios (holding b and then pressing + or - ) will probably solve this. NOTE: you need CIOS for this.");
 			}
 			else
-				printf("  Logged in as su!\n");
+				printf("  Logged in as \"su\"!\n");
 			if (ISFS_Initialize() < 0)
 				abort("Failed to get root");
 			printf("  Got ROOT!\n");
 			fd = ISFS_Open(getAlignedName("/title/00000001/00000002/content/ticket"),ISFS_OPEN_READ);
 			if (fd <0)
 			{
-				printf("  preloader < 0.30 system ticket not found/access denied.\n  trying to read original ticket...\n");
+				printf("  preloader system ticket not found/access denied.\n  trying to read original ticket...\n");
 				ISFS_Close(fd);
 				fd = ISFS_Open(getAlignedName("/ticket/00000001/00000002.tik"),ISFS_OPEN_READ);
 				//"/ticket/00000001/00000002.tik" -> original path which should be there on every wii.
@@ -209,7 +216,7 @@ int main(int argc, char **argv)
 							abort("ticket not found");
 							break;
 						case -102:
-							abort("unautorised to get ticket");
+							abort("unautorised to get ticket. is ios%d trucha signed?",IOS_GetVersion());
 							break;
 						default:
 							printf("Unable to read ticket. error %d. ",fd);
@@ -226,7 +233,7 @@ int main(int argc, char **argv)
 			}
 			else
 			{
-				printf("  preloader < 0.30 system ticket found\n");
+				printf("  preloader system ticket found\n");
 			}
 			fstats * status = (fstats*)memalign(32,sizeof(fstats));
 			fs = ISFS_GetFileStats(fd,status);
