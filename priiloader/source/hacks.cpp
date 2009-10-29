@@ -141,7 +141,7 @@ u32 LoadHacks( void )
 		ISFS_GetFileStats( fd, status);
 		size = status->file_length;
 		free( status );
-
+		free( buf );
 		buf = (char*)memalign( 32, (size+32+1)&(~31) );
 		if( buf == NULL )
 		{

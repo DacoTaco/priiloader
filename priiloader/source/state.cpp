@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <gccore.h>
 #include <string.h>
 #include <malloc.h>
@@ -30,22 +31,20 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 s32 CheckBootState( void )
 {
+	//the memalign has random crashes -> short on memory?
 	StateFlags *sf = (StateFlags *)memalign( 32, sizeof(StateFlags) );
 	memset( sf, 0, sizeof(StateFlags) );
-
 	s32 fd = ISFS_Open("/title/00000001/00000002/data/state.dat", 1);
 	if(fd < 0)
 		return 0;
-	
 	s32 ret = ISFS_Read(fd, sf, sizeof(StateFlags));
 	IOS_Close(fd);
-
 	if(ret != sizeof(StateFlags))
+	{
 		return 0;
-	
+	}
 	s32 r = sf->type;
 	free( sf );
-
 	return r;
 }
 u32 CalcStateChk(u32 *buf, u32 size)
@@ -83,7 +82,8 @@ s32 ClearState( void )
 		return -4;
 
 	IOS_Close(fd);
-
+	//not sure if should free this or not...
+	//free(sf);
 	return 1;
 
 }

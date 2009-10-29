@@ -51,8 +51,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 //Bin includes
 #include "certs_bin.h"
-#include "su_tik.h"
-#include "su_tmd.h"
 
 //#define DEBUG
 
@@ -100,17 +98,21 @@ void gprintf( const char *str, ... );
 void CheckForGecko( void );
 bool MountSD(void)
 {
-	__io_wiisd.startup();
-	return fatMountSimple("sd", &__io_wiisd);
+	//apparently, mount already does __io_wiisd.startup();
+	//fatsimple (or the cache 4) seems to crash some wii's :/
+	//return fatMountSimple("sd", &__io_wiisd);
+	return fatMount("sd", &__io_wiisd, 0, 8, 64);
 }
 bool RemountSD( void )
 {
 	//unmount SD & shutdown the port ...
-	fatUnmount("sd");
+	fatUnmount("sd:/");
+	//not so sure if its safe to remove shutdown...
 	__io_wiisd.shutdown();
-	//and start it up & mount...
-	__io_wiisd.startup();
-	return fatMountSimple("sd", &__io_wiisd);
+	//and mount (also starts up the io )...
+	//see mount on why we use 8 as cache...
+	//return fatMountSimple("sd", &__io_wiisd);
+	return fatMount("sd", &__io_wiisd, 0, 8, 64);
 }
 void ClearScreen()
 {
@@ -121,6 +123,7 @@ void ClearScreen()
 }
 void SysHackSettings( void )
 {
+	bool SDFound = RemountSD();
 	if(!LoadHacks())
 		return;
 
@@ -128,7 +131,6 @@ void SysHackSettings( void )
 
 	u32 HackCount=0;
 	u32 SysVersion=GetSysMenuVersion();
-	RemountSD();
 	for( unsigned int i=0; i<hacks.size(); ++i)
 	{
 		if( hacks[i].version == SysVersion )
@@ -139,10 +141,19 @@ void SysHackSettings( void )
 
 	if( HackCount == 0 )
 	{
-		PrintFormat( 1, ((640/2)-((strlen("Couldn't find any hacks for"))*13/2))>>1, 208, "Couldn't find any hacks for");
-		PrintFormat( 1, ((640/2)-((strlen("System Menu version:vxxx"))*13/2))>>1, 228, "System Menu version:v%d", SysVersion );
-		sleep(5);
-		return;
+		if(SDFound)
+		{
+			PrintFormat( 1, ((640/2)-((strlen("Couldn't find any hacks for"))*13/2))>>1, 208, "Couldn't find any hacks for");
+			PrintFormat( 1, ((640/2)-((strlen("System Menu version:vxxx"))*13/2))>>1, 228, "System Menu version:v%d", SysVersion );
+			sleep(5);
+			return;
+		}
+		else
+		{
+			PrintFormat( 1, ((640/2)-((strlen("Failed to mount SD card"))*13/2))>>1, 208, "Failed to mount SD card");
+			sleep(5);
+			return;
+		}
 	}
 
 	u32 DispCount=HackCount;
@@ -150,9 +161,9 @@ void SysHackSettings( void )
 	if( DispCount > 20 )
 		DispCount = 20;
 
-	s32 cur_off=0;
+	s16 cur_off=0;
 	s32 menu_off=0;
-	u32 redraw=1;
+	bool redraw=true;
  
 	while(1)
 	{
@@ -178,78 +189,85 @@ void SysHackSettings( void )
 			if( cur_off == DispCount)
 			{
 				//first try to open the file on the SD card, if we found it copy it, other wise skip
-				u32 fail = 0;
-				RemountSD();
-				FILE *in = fopen("sd:/preloader/hacks.ini", "rb" );
-				if (!in)
+				s16 fail = 0;
+				if (!RemountSD())
 				{
-					fclose(in);
-					in = fopen ("sd:/hacks.ini","rb");
+					PrintFormat( 1, ((640/2)-((strlen("NO SD card found!"))*13/2))>>1, 208, "NO SD card found!");
+					sleep(5);
 				}
-				if( in != NULL )
+				else
 				{
-					//Read in whole file
-					fseek( in, 0, SEEK_END );
-					u32 size = ftell(in);
-					fseek( in, 0, 0);
+					FILE *in = fopen("sd:/preloader/hacks.ini", "rb" );
+					if (!in)
+					{
+						in = fopen ("sd:/hacks.ini","rb");
+					}
+					if( in != NULL )
+					{
+						//Read in whole file
+						fseek( in, 0, SEEK_END );
+						u32 size = ftell(in);
+						fseek( in, 0, 0);
 
-					char *buf = (char*)memalign( 32, (size+31)&(~31) );
-					memset( buf, 0, (size+31)&(~31) );
-					fread( buf, sizeof( char ), size, in );
+						char *buf = (char*)memalign( 32, (size+31)&(~31) );
+						memset( buf, 0, (size+31)&(~31) );
+						fread( buf, sizeof( char ), size, in );
 
-					fclose(in);
+						fclose(in);
 
-					s32 fd = ISFS_Open("/title/00000001/00000002/data/hacks.ini", 1|2 );
+						s32 fd = ISFS_Open("/title/00000001/00000002/data/hacks.ini", 1|2 );
+						if( fd >= 0 )
+						{
+							//File already exists, delete and recreate!
+							ISFS_Close( fd );
+							if(ISFS_Delete("/title/00000001/00000002/data/hacks.ini")<0)
+								fail=1;
+						}
+						if(ISFS_CreateFile("/title/00000001/00000002/data/hacks.ini", 0, 3, 3, 3)<0)
+							fail=2;
+						fd = ISFS_Open("/title/00000001/00000002/data/hacks.ini", 1|2 );
+						if( fd < 0 )
+							fail=3;
+
+						if(ISFS_Write( fd, buf, size )<0)
+							fail = 4;
+						ISFS_Close( fd );
+						free(buf);
+					}
+
+					s32 fd = ISFS_Open("/title/00000001/00000002/data/hacks_s.ini", 1|2 );
+
 					if( fd >= 0 )
 					{
 						//File already exists, delete and recreate!
 						ISFS_Close( fd );
-						if(ISFS_Delete("/title/00000001/00000002/data/hacks.ini")<0)
-							fail=1;
+						if(ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini")<0)
+							fail = 5;
 					}
-					if(ISFS_CreateFile("/title/00000001/00000002/data/hacks.ini", 0, 3, 3, 3)<0)
-						fail=2;
-					fd = ISFS_Open("/title/00000001/00000002/data/hacks.ini", 1|2 );
+
+					if(ISFS_CreateFile("/title/00000001/00000002/data/hacks_s.ini", 0, 3, 3, 3)<0)
+						fail = 6;
+					fd = ISFS_Open("/title/00000001/00000002/data/hacks_s.ini", 1|2 );
 					if( fd < 0 )
-						fail=3;
+						fail=7;
+					
+					if(ISFS_Write( fd, states, sizeof( u32 ) * hacks.size() )<0)
+						fail = 8;
 
-					if(ISFS_Write( fd, buf, size )<0)
-						fail = 4;
 					ISFS_Close( fd );
-					free(buf);
+
+					if( fail )
+						PrintFormat( 0, 114, 480-48, "saving failed:%d", fail);
+					else
+						PrintFormat( 0, 118, 480-48, "settings saved");
 				}
+			} 
+			else 
+			{
 
-				s32 fd = ISFS_Open("/title/00000001/00000002/data/hacks_s.ini", 1|2 );
-
-				if( fd >= 0 )
-				{
-					//File already exists, delete and recreate!
-					ISFS_Close( fd );
-					if(ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini")<0)
-						fail = 5;
-				}
-
-				if(ISFS_CreateFile("/title/00000001/00000002/data/hacks_s.ini", 0, 3, 3, 3)<0)
-					fail = 6;
-				fd = ISFS_Open("/title/00000001/00000002/data/hacks_s.ini", 1|2 );
-				if( fd < 0 )
-					fail=7;
-				
-				if(ISFS_Write( fd, states, sizeof( u32 ) * hacks.size() )<0)
-					fail = 8;
-
-				ISFS_Close( fd );
-
-				if( fail )
-					PrintFormat( 0, 114, 480-48, "saving failed:%d", fail);
-				else
-					PrintFormat( 0, 118, 480-48, "settings saved");
-
-			} else {
-
-				u32 i=0;
-				u32 j=0;
-				for( i=0; i<hacks.size(); ++i)
+				s32 j = 0;
+				u32 i = 0;
+				for(i=0; i<hacks.size(); ++i)
 				{
 					if( hacks[i].version == SysVersion )
 					{
@@ -266,7 +284,7 @@ void SysHackSettings( void )
 				else 
 					states[i]=1;
 
-				redraw = 1;
+				redraw = true;
 			}
 		}
 
@@ -280,13 +298,13 @@ void SysHackSettings( void )
 				menu_off++;
 			}
 
-			if( cur_off+menu_off > HackCount )
+			if( cur_off+menu_off > (s32)HackCount )
 			{
 				cur_off = 0;
 				menu_off= 0;
 			}
 			
-			redraw=1;
+			redraw=true;
 		} else if ( (WPAD_Pressed & WPAD_BUTTON_UP) || (PAD_Pressed & PAD_BUTTON_UP) )
 		{
 			cur_off--;
@@ -314,7 +332,7 @@ void SysHackSettings( void )
 				}
 			}
 	
-			redraw=1;
+			redraw=true;
 		}
 
 		if( redraw )
@@ -352,7 +370,7 @@ void SysHackSettings( void )
 
 			PrintFormat( 0, 114, 480-32, "                 ");
 
-			redraw = 0;
+			redraw = false;
 		}
 
 		VIDEO_WaitVSync();
@@ -404,7 +422,7 @@ void SetSettings( void )
 
 
 	int cur_off=0;
-	int redraw=1;
+	int redraw=true;
  
 	while(1)
 	{
@@ -434,14 +452,14 @@ void SetSettings( void )
 						settings->autoboot = AUTOBOOT_FILE;
 					else
 						settings->autoboot--;
-					redraw=1;
+					redraw=true;
 				}else if ( (WPAD_Pressed & WPAD_BUTTON_RIGHT) || (PAD_Pressed & PAD_BUTTON_RIGHT) )
 				{
 					if( settings->autoboot == AUTOBOOT_FILE )
 						settings->autoboot = AUTOBOOT_DISABLED;
 					else
 						settings->autoboot++;
-					redraw=1;
+					redraw=true;
 				}
 			} break;
 			case 1:
@@ -456,7 +474,7 @@ void SetSettings( void )
 					if( settings->ReturnTo > RETURNTO_AUTOBOOT )
 						settings->ReturnTo = RETURNTO_SYSMENU;
 
-					redraw=1;
+					redraw=true;
 				} else if ( (WPAD_Pressed & WPAD_BUTTON_LEFT) || (PAD_Pressed & PAD_BUTTON_LEFT) ) {
 
 					if( settings->ReturnTo == RETURNTO_SYSMENU )
@@ -464,7 +482,7 @@ void SetSettings( void )
 					else
 						settings->ReturnTo--;
 
-					redraw=1;
+					redraw=true;
 				}
 
 
@@ -484,7 +502,7 @@ void SetSettings( void )
 					else 
 						settings->ShutdownToPreloader = 1;
 
-					redraw=1;
+					redraw=true;
 				}
 
 
@@ -504,7 +522,7 @@ void SetSettings( void )
 					else 
 						settings->StopDisc = 1;
 
-					redraw=1;
+					redraw=true;
 				}
 
 			} break;
@@ -523,7 +541,7 @@ void SetSettings( void )
 					else 
 						settings->LidSlotOnError = 1;
 				
-					redraw=1;
+					redraw=true;
 				}
 
 
@@ -543,12 +561,34 @@ void SetSettings( void )
 					else 
 						settings->IgnoreShutDownMode = 1;
 				
-					redraw=1;
+					redraw=true;
 				}
 
 
 			} break;
-			case 6:		//	System Menu IOS
+			case 6: //ignore ios reloading for system menu?
+			{
+				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT)	||
+					 (PAD_Pressed & PAD_BUTTON_LEFT)	||
+					 (WPAD_Pressed & WPAD_BUTTON_RIGHT)	||
+					 (PAD_Pressed & PAD_BUTTON_RIGHT)	||
+					 (WPAD_Pressed & WPAD_BUTTON_A)		||
+					 (PAD_Pressed & PAD_BUTTON_A)
+					)
+				{
+					if( settings->UseSystemMenuIOS )
+					{
+						settings->UseSystemMenuIOS = false;
+					}
+					else
+					{
+						settings->UseSystemMenuIOS = true;
+					}
+					redraw=true;
+				}
+			}
+			break;
+			case 7:		//	System Menu IOS
 			{
 				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT) || (PAD_Pressed & PAD_BUTTON_LEFT) )
 				{
@@ -563,7 +603,7 @@ void SetSettings( void )
 
 					settings->SystemMenuIOS = (u32)(TitleIDs[IOS_off]&0xFFFFFFFF);
 
-					redraw=1;
+					redraw=true;
 				} else if( (WPAD_Pressed & WPAD_BUTTON_RIGHT) || (PAD_Pressed & PAD_BUTTON_RIGHT) ) 
 				{
 					while(1)
@@ -577,11 +617,11 @@ void SetSettings( void )
 
 					settings->SystemMenuIOS = (u32)(TitleIDs[IOS_off]&0xFFFFFFFF);
 
-					redraw=1;
+					redraw=true;
 				}
 
 			} break;
-			case 7:
+			case 8:
 			{
 				if ( (WPAD_Pressed & WPAD_BUTTON_A) || (PAD_Pressed & PAD_BUTTON_A) )
 				{
@@ -600,19 +640,21 @@ void SetSettings( void )
 		if ( (WPAD_Pressed & WPAD_BUTTON_DOWN) || (PAD_Pressed & PAD_BUTTON_DOWN) )
 		{
 			cur_off++;
-
-			if( cur_off >= 8)
+			if( (settings->UseSystemMenuIOS) && (cur_off == 7))
+				cur_off++;
+			if( cur_off >= 9)
 				cur_off = 0;
 			
-			redraw=1;
+			redraw=true;
 		} else if ( (WPAD_Pressed & WPAD_BUTTON_UP) || (PAD_Pressed & PAD_BUTTON_UP) )
 		{
 			cur_off--;
-
+			if( (settings->UseSystemMenuIOS) && (cur_off == 7))
+				cur_off--;
 			if( cur_off < 0 )
-				cur_off = 8-1;
+				cur_off = 8;
 			
-			redraw=1;
+			redraw=true;
 		}
 
 		if( redraw )
@@ -661,12 +703,19 @@ void SetSettings( void )
 			PrintFormat( cur_off==3, 0, 128+32, "             Stop disc:          %s", settings->StopDisc?"on ":"off");
 			PrintFormat( cur_off==4, 0, 128+48, "   Light slot on error:          %s", settings->LidSlotOnError?"on ":"off");
 			PrintFormat( cur_off==5, 0, 128+64, "Ignore standby setting:          %s", settings->IgnoreShutDownMode?"on ":"off");
-			PrintFormat( cur_off==6, 0, 128+80, "       System Menu IOS:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
-			PrintFormat( cur_off==7, 118, 128+128, "save settings");
-
+			PrintFormat( cur_off==6, 0, 128+80, "   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
+			if(!settings->UseSystemMenuIOS)
+			{
+				PrintFormat( cur_off==7, 0, 128+96, "     IOS to use for SM:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
+			}
+			else
+			{
+				PrintFormat( cur_off==7,0,128+96,	"                                        ");
+			}
+			PrintFormat( cur_off==8, 118, 128+128, "save settings");
 			PrintFormat( 0, 114, 256+96, "                 ");
 
-			redraw = 0;
+			redraw = false;
 		}
 
 		VIDEO_WaitVSync();
@@ -683,8 +732,8 @@ void LoadHBC( void )
 	ES_GetNumTicketViews(TitleID, &cnt);
 	tikview *views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
 	ES_GetTicketViews(TitleID, views, cnt);
-	s32 result = ES_LaunchTitle(TitleID, &views[0]);
-	if (result < 0)
+	//s32 result = ES_LaunchTitle(TitleID, &views[0]);
+	if (ES_LaunchTitle(TitleID, &views[0]) < 0)
 	{
 		//boot old HBC ID :)
 		TitleID = 0x0001000148415858LL;
@@ -696,13 +745,18 @@ void LoadHBC( void )
 }
 void LoadBootMii( void )
 {
-	RemountSD();
+	if (!RemountSD())
+	{
+		PrintFormat( 1, ((640/2)-((strlen("Could not mount SD card"))*13/2))>>1, 208, "Could not mount SD card");
+		sleep(5);
+		return;
+	}
 	//when this was coded on 6th of Oct 2009 Bootmii was IOS 254
 	FILE* BootmiiFile = fopen("sd:/bootmii/armboot.bin","r");
 	if (!BootmiiFile)
 	{
 		PrintFormat( 1, ((640/2)-((strlen("Could not find sd:/bootmii/armboot.bin"))*13/2))>>1, 208, "Could not find sd:/bootmii/armboot.bin");
-		sleep(1);
+		sleep(5);
 		fclose(BootmiiFile);
 		return;
 	}
@@ -713,13 +767,17 @@ void LoadBootMii( void )
 		if(!BootmiiFile)
 		{
 			PrintFormat( 1, ((640/2)-((strlen("Could not find sd:/bootmii/ppcboot.elf"))*13/2))>>1, 208, "Could not find sd:/bootmii/ppcboot.elf");
-			sleep(1);
+			sleep(5);
 			fclose(BootmiiFile);
 			return;
 		}
 	}
 	fclose(BootmiiFile);
+	u16 currentIOS = IOS_GetVersion();
 	__IOS_LaunchNewIOS(254);
+	//launching bootmii failed. lets wait a bit for the launch and then load the other ios back
+	sleep(5);
+	__IOS_LaunchNewIOS(currentIOS);
 }
 void BootMainSysMenu( void )
 {
@@ -983,30 +1041,23 @@ void BootMainSysMenu( void )
 
 	LoadHacks();
 	WPAD_Shutdown();
-	//all this code isn't needed anymore. no ios reloading or ES_DIVerify needed. note that booting system menu
-	//will only work if preloader is booted as system menu. if booted from HBC it'll use shitty ios36
-	//which can't boot the system menu correct. maybe i should make it optional to reload or not...
-	/*__ES_Close();
-	__ES_Init();
-	if( SGetSetting(SETTING_SYSTEMMENUIOS) == 0 )
-		__IOS_LaunchNewIOS(rTMD->sys_version);
-	else
+	if( !SGetSetting( SETTING_USESYSTEMMENUIOS ) )
+	{
+		__ES_Close();
+		__ES_Init();
 		__IOS_LaunchNewIOS(SGetSetting(SETTING_SYSTEMMENUIOS));
-	//__IOS_LaunchNewIOS(rTMD->sys_version);
-	//__IOS_LaunchNewIOS(249);
-	//__IOS_LoadStartupIOS();
-#ifdef DEBUG
-	printf("Loading IOS: %08X\n", rTMD->sys_version );
-	sleep(5);
-#endif
-	__IOS_InitializeSubsystems();
-	r = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size, (signed_blob *)buf, tstatus->file_length, &tempKeyID);
-	if( r < 0 )
-	{	error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
-		WPAD_Init();
-		return;
-	}*/
-
+		//__IOS_LaunchNewIOS(rTMD->sys_version);
+		//__IOS_LaunchNewIOS(249);
+		//__IOS_LoadStartupIOS();
+		__IOS_InitializeSubsystems();
+		r = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size, (signed_blob *)buf, tstatus->file_length, &tempKeyID);
+		if( r < 0 )
+		{	error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
+			WPAD_Init();
+			__IOS_LaunchNewIOS(rTMD->sys_version);
+			return;
+		}
+	}
 	ES_SetUID(TitleID);
 	free(TMD);
 	free( status );
@@ -1162,7 +1213,7 @@ void InstallLoadDOL( void )
 
 			sleep(5);
 			ClearScreen();
-			redraw=1;
+			redraw=true;
 			ISFS_Close( fd );
 			free( buf );
 
@@ -1366,7 +1417,7 @@ void InstallLoadDOL( void )
 			if( cur_off >= names.size())
 				cur_off = 0;
 			
-			redraw=1;
+			redraw=true;
 		} else if ( (WPAD_Pressed & WPAD_BUTTON_UP) || (PAD_Pressed & PAD_BUTTON_UP) )
 		{
 			cur_off--;
@@ -1374,7 +1425,7 @@ void InstallLoadDOL( void )
 			if( cur_off < 0 )
 				cur_off=names.size()-1;
 			
-			redraw=1;
+			redraw=true;
 		}
 
 		if( redraw )
@@ -1384,7 +1435,7 @@ void InstallLoadDOL( void )
 
 			PrintFormat( 0, 33, 480-64, "press A to install, 1(Z) to load a file");
 
-			redraw = 0;
+			redraw = false;
 		}
 
 		VIDEO_WaitVSync();
@@ -1810,7 +1861,7 @@ int main(int argc, char **argv)
 {
 	CheckForGecko();
 
-	gprintf("preloader\n");
+	gprintf("priiloader\n");
 	gprintf("Built   : %s %s\n", __DATE__, __TIME__ );
 	gprintf("Version : %d.%db\n", VERSION>>16, VERSION&0xFFFF );
 	gprintf("Firmware: %d.%d.%d\n", *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143 );
@@ -1837,21 +1888,34 @@ int main(int argc, char **argv)
 		*(vu32*)0xCD8000C0 |= 0x20;
 		error=ERROR_ISFS_INIT;
 	}
+	//do video init first so we can see the bloody crash screens
+	VIDEO_Init();
+
+	rmode = VIDEO_GetPreferredMode(NULL);
+
+	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
+	
+	console_init( xfb, 20, 20, rmode->fbWidth, rmode->xfbHeight, rmode->fbWidth*VI_DISPLAY_PIX_SZ );
+
+	VIDEO_Configure(rmode);
+	VIDEO_SetNextFramebuffer(xfb);
+	VIDEO_SetBlack(FALSE);
+	VIDEO_Flush();
+
+	VIDEO_WaitVSync();
+	if(rmode->viTVMode&VI_NON_INTERLACE)
+		VIDEO_WaitVSync();
 
 	LoadSetttings();
-
-	gprintf("BootState:%d\n", CheckBootState() );
-
+	s16 Bootstate = CheckBootState();
+	gprintf("BootState:%d\n", Bootstate );
 	//Check reset button state
 	if( ((*(vu32*)0xCC003000)>>16)&1 )
 	{
 		//Check autoboot settings
-		int cBootState = CheckBootState();
-
-		if( cBootState < 0 )
+		if( Bootstate < 0 )
 			ClearState();
-
-		switch( cBootState )
+		switch( Bootstate )
 		{
 			case 5:
 				ClearState();
@@ -1902,7 +1966,6 @@ int main(int argc, char **argv)
 						LoadBootMii();
 						error=ERROR_BOOT_BOOTMII;
 						break;
-
 					case AUTOBOOT_FILE:
 						gprintf("AutoBoot:Installed File\n");
 						AutoBootDol();
@@ -1925,23 +1988,6 @@ int main(int argc, char **argv)
 	AUDIO_StopDMA();
 	AUDIO_RegisterDMACallback(NULL);
 
-	VIDEO_Init();
-
-	rmode = VIDEO_GetPreferredMode(NULL);
-
-	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
-	
-	console_init( xfb, 20, 20, rmode->fbWidth, rmode->xfbHeight, rmode->fbWidth*VI_DISPLAY_PIX_SZ );
-
-	VIDEO_Configure(rmode);
-	VIDEO_SetNextFramebuffer(xfb);
-	VIDEO_SetBlack(FALSE);
-	VIDEO_Flush();
-
-	VIDEO_WaitVSync();
-	if(rmode->viTVMode&VI_NON_INTERLACE)
-		VIDEO_WaitVSync();
-
 	r = (s32)MountSD();
 	gprintf("SDCard_Init():%d\n", r );
 
@@ -1957,7 +2003,7 @@ int main(int argc, char **argv)
 	ClearScreen();
 
 	s32 cur_off=0;
-	u32 redraw=1;
+	u32 redraw=true;
 	u32 SysVersion=GetSysMenuVersion();
 
 	if( SGetSetting(SETTING_STOPDISC) )
@@ -2029,7 +2075,7 @@ int main(int argc, char **argv)
 			}
 
 			ClearScreen();
-			redraw=1;
+			redraw=true;
 		}
 
 		if ( (WPAD_Pressed & WPAD_BUTTON_DOWN) || (PAD_Pressed & PAD_BUTTON_DOWN) )
@@ -2046,7 +2092,7 @@ int main(int argc, char **argv)
 					cur_off = 0;
 			}
 
-			redraw=1;
+			redraw=true;
 		} else if ( (WPAD_Pressed & WPAD_BUTTON_UP) || (PAD_Pressed & PAD_BUTTON_UP) )
 		{
 			cur_off--;
@@ -2061,7 +2107,7 @@ int main(int argc, char **argv)
 				}
 			}
 
-			redraw=1;
+			redraw=true;
 		}
 
 		if( redraw )
@@ -2093,7 +2139,7 @@ int main(int argc, char **argv)
 
 			ShowError();
 			
-			redraw = 0;
+			redraw = false;
 		}
 
 		if( Shutdown )

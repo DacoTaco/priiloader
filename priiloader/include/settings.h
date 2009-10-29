@@ -37,11 +37,10 @@ typedef struct {
 	unsigned int LidSlotOnError;
 	unsigned int IgnoreShutDownMode;
 	unsigned int BetaVersion;
-	unsigned int unused;
 	unsigned int SystemMenuIOS;
 	char		padding[16];
+	bool UseSystemMenuIOS;
 } Settings;
-
 enum {
 		SETTING_AUTBOOT,
 		SETTING_RETURNTO,
@@ -51,7 +50,8 @@ enum {
 		SETTING_LIDSLOTONERROR,
 		SETTING_IGNORESHUTDOWNMODE,
 		SETTING_BETAVERSION,
-		SETTING_SYSTEMMENUIOS
+		SETTING_SYSTEMMENUIOS,
+		SETTING_USESYSTEMMENUIOS
 };
 
 enum {
