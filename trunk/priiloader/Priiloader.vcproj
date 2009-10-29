@@ -124,14 +124,6 @@
 				RelativePath=".\data\certs.bin"
 				>
 			</File>
-			<File
-				RelativePath=".\data\su.tik"
-				>
-			</File>
-			<File
-				RelativePath=".\data\su.tmd"
-				>
-			</File>
 		</Filter>
 		<File
 			RelativePath=".\Makefile"

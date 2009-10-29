@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <gccore.h>
 #include <string.h>
 #include <malloc.h>
@@ -130,7 +131,8 @@ u32 SGetSetting( u32 s )
 
 		case SETTING_SYSTEMMENUIOS:
 			return settings->SystemMenuIOS;
-	
+		case SETTING_USESYSTEMMENUIOS:
+			return settings->UseSystemMenuIOS;
 		default:
 			return 0;
 		break;
@@ -138,15 +140,14 @@ u32 SGetSetting( u32 s )
 }
 void LoadSetttings( void )
 {
-	//read config file
 	settings = (Settings*)memalign( 32, sizeof( Settings ) );
 	memset( settings, 0, sizeof( Settings ) );
-
+	
 	s32 fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", 1|2 );
 
 	if( fd < 0 )
 	{
-		//file not found crete a new one
+		//file not found create a new one
 		ISFS_CreateFile("/title/00000001/00000002/data/loader.ini", 0, 3, 3, 3);
 		fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", 1|2 );
 
@@ -182,27 +183,27 @@ void LoadSetttings( void )
 	}
 
 	ISFS_Close( fd );
-
 	return;
 }
 int SaveSettings( void )
 {
 	s32 fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", 1|2 );
-
+	
 	if( fd < 0 )
 	{
 		// musn't happen!
+		error = ERROR_SETTING_OPEN;
 		return 0;
 	}
 
 	ISFS_Seek( fd, 0, 0 );
 
 	s32 r = ISFS_Write( fd, settings, sizeof( Settings ) );
-
+	
 	ISFS_Close( fd );
 
 	if( r == sizeof( Settings ) )
 		return 1;
-
+	error = ERROR_SETTING_WRITE;
 	return r;
 }
