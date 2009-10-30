@@ -33,7 +33,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 Settings *settings=NULL;
 u32 ShowUpdate=0;
 extern u32 error;
-
 u32 GetSysMenuVersion( void )
 {
 	//Get sysversion from TMD
@@ -140,8 +139,13 @@ u32 SGetSetting( u32 s )
 }
 void LoadSetttings( void )
 {
-	settings = (Settings*)memalign( 32, sizeof( Settings ) );
+	if(!settings)
+	{
+		//the settings still need to be aligned/allocated. so lets do that
+		settings = (Settings*)memalign( 32, sizeof( Settings ) );
+	}
 	memset( settings, 0, sizeof( Settings ) );
+	
 	
 	s32 fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", 1|2 );
 
@@ -156,7 +160,6 @@ void LoadSetttings( void )
 			error = ERROR_SETTING_OPEN;
 			return;
 		}
-
 		settings->version = VERSION;
 		if(ISFS_Write( fd, settings, sizeof( Settings ) )<0)
 		{

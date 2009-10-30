@@ -133,7 +133,7 @@ static inline char* getAlignedName(char* name){
 
 int main(int argc, char **argv)
 {
-	bool CopyTitle = false;
+	bool CopyTicket = false;
 	VIDEO_Init();
 	WPAD_Init();
 	vmode = VIDEO_GetPreferredMode(NULL);
@@ -228,7 +228,7 @@ int main(int argc, char **argv)
 				else
 				{
 					printf("  Original ticket loaded & set for copy\n");
-					CopyTitle = true;
+					CopyTicket = true;
 				}
 			}
 			else
@@ -323,19 +323,20 @@ int main(int argc, char **argv)
 				if (fd < 0)
 				{
 					printf("  Preloader not found, moving the system menu...\n");
-					if(CopyTitle)
-					{
-						if (nand_copy("/ticket/00000001/00000002.tik","/title/00000001/00000002/content/ticket") < 0)
-						{
-							abort("Unable to copy the system menu ticket");
-						}
-					}
 					if (nand_copy(file,load) < 0)
 					{
 						abort("Unable to move the system menu");
 					}
 					else
 					{
+						if(CopyTicket)
+						{
+							printf("  Copying Ticket...\n");
+							if (nand_copy("/ticket/00000001/00000002.tik","/title/00000001/00000002/content/ticket") < 0)
+							{
+								abort("Unable to copy the system menu ticket");
+							}
+						}
 						printf("  Done!\n");
 						ISFS_Delete(file);
 						ISFS_Delete("/title/00000001/00000002/data/loader.ini");
@@ -356,7 +357,7 @@ int main(int argc, char **argv)
 					ISFS_Close(fd);
 					printf("  Preloader installation found, skipping moving the system menu.\n");
 					printf("  Skipped!\n");
-					if(CopyTitle)
+					if(CopyTicket)
 					{
 						if (nand_copy("/ticket/00000001/00000002.tik","/title/00000001/00000002/content/ticket") < 0)
 						{

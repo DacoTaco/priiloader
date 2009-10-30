@@ -96,10 +96,13 @@ extern s32 __IOS_ShutdownSubsystems();
 
 void gprintf( const char *str, ... );
 void CheckForGecko( void );
-bool MountSD(void)
+bool MountDevices(void)
 {
 	//apparently, mount already does __io_wiisd.startup();
 	//fatsimple (or the cache 4) seems to crash some wii's :/
+	fatInitDefault();
+	fatUnmount("sd:/");
+	__io_wiisd.shutdown();
 	//return fatMountSimple("sd", &__io_wiisd);
 	return fatMount("sd", &__io_wiisd, 0, 8, 64);
 }
@@ -731,17 +734,23 @@ void LoadHBC( void )
 	u32 cnt ATTRIBUTE_ALIGN(32);
 	ES_GetNumTicketViews(TitleID, &cnt);
 	tikview *views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
-	ES_GetTicketViews(TitleID, views, cnt);
-	//s32 result = ES_LaunchTitle(TitleID, &views[0]);
-	if (ES_LaunchTitle(TitleID, &views[0]) < 0)
+	if (ES_GetTicketViews(TitleID, views, cnt) < 0)
 	{
-		//boot old HBC ID :)
+		//title isnt there D: lets retry everything but with the old id...
+		free(views);
 		TitleID = 0x0001000148415858LL;
 		ES_GetNumTicketViews(TitleID, &cnt);
 		tikview *views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
 		ES_GetTicketViews(TitleID, views, cnt);
 		ES_LaunchTitle(TitleID, &views[0]);
+		free(views);
 	}
+	else
+	{
+		//new title found apparently :P
+		ES_LaunchTitle(TitleID, &views[0]);
+	}
+	free(views);
 }
 void LoadBootMii( void )
 {
@@ -1951,7 +1960,7 @@ int main(int argc, char **argv)
 				switch( SGetSetting(SETTING_AUTBOOT) )
 				{
 					case AUTOBOOT_SYS:
-						MountSD();
+						MountDevices();
 						gprintf("AutoBoot:System Menu\n");
 						BootMainSysMenu();
 						break;
@@ -1988,7 +1997,7 @@ int main(int argc, char **argv)
 	AUDIO_StopDMA();
 	AUDIO_RegisterDMACallback(NULL);
 
-	r = (s32)MountSD();
+	r = (s32)MountDevices();
 	gprintf("SDCard_Init():%d\n", r );
 
 	r = PAD_Init();
