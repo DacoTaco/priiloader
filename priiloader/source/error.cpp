@@ -34,7 +34,7 @@ u32 error = 0;
 
 void ShowError ( void )
 {
-	if( error > 0 )
+	if( error >= 0 )
 	{
 		if( SGetSetting( SETTING_LIDSLOTONERROR ) )
 			*(vu32*)0xCD8000C0 |= 0x20;
@@ -67,7 +67,7 @@ void ShowError ( void )
 				PrintFormat( 0, 16, 352, "Error autobooting HBC, maybe title not installed?");
 			break;
 			case ERROR_BOOT_BOOTMII:
-				PrintFormat( 0, 16, 352, "Error booting Bootmii IOS, maybe Bootmii ios is not installed?");
+				PrintFormat( 0, 16, 352, "Error booting Bootmii IOS!");
 			break;
 			case ERROR_BOOT_ERROR:
 				PrintFormat( 0, 16, 352, "Error autobooting due problems with the settings.ini!");

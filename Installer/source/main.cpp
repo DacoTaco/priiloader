@@ -34,6 +34,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <fat.h>
 #include <sdcard/wiisd_io.h>
 
+//rev version
+#include "../../Shared/svnrev.h"
+
 // Bin Files
 #include "certs_bin.h"
 #include "su_tik.h"
@@ -46,10 +49,10 @@ static GXRModeObj *vmode = NULL;
 static void *xfb = NULL;
 
 //a must have in every app
-/*s32 __IOS_LoadStartupIOS()
+s32 __IOS_LoadStartupIOS()
 {
 	return 0;
-}*/
+}
 const char* abort(const char* msg, ...)
 {
 	va_list args;
@@ -148,7 +151,7 @@ int main(int argc, char **argv)
 		VIDEO_WaitVSync();
 
 	printf("\x1b[2;0H");
-	printf("       priiloader alpha (preloader v0.30b) Installation / Removal Tool\n\n\n\n");
+	printf("       priiloader %d (preloader v0.30b) Installation / Removal Tool\n\n\n\n",SVN_REV);
 	printf("                          PLEASE READ THIS CAREFULLY\n\n\n\n");
 	printf("                THIS PROGRAM/TOOL COMES WITHOUT ANY WARRANTIES!\n");
 	printf("               YOU ACCEPT THAT YOU INSTALL THIS AT YOUR OWN RISK\n\n\n");

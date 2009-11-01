@@ -87,7 +87,6 @@ u32 LoadHacks( void )
 	FILE *in = fopen("sd:/preloader/hacks.ini", "rb" );
 	if (!in)
 	{
-		fclose(in);
 		in = fopen ("sd:/hacks.ini","rb");
 	}
 	if( in == NULL )
