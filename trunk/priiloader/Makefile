@@ -92,9 +92,16 @@ export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib) \
 
 export OUTPUT	:=	$(CURDIR)/$(TARGET)
 .PHONY: $(BUILD) clean
-
 #---------------------------------------------------------------------------------
+#lets see what OS we are on
+UNAME := $(shell uname)
+#and now make the build list
 $(BUILD):
+ifeq ($(UNAME),Linux)
+	../Shared/makesvnrev.sh
+else
+	../Shared/SubWCRev.exe "../." "../Shared/svnrev_template.h" "../Shared/svnrev.h"
+endif
 	@[ -d $@ ] || mkdir -p $@
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 	wiiload $(OUTPUT).dol

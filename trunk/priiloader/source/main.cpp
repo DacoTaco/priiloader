@@ -48,6 +48,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "error.h"
 #include "hacks.h"
 #include "font.h"
+#include "../../Shared/svnrev.h"
 
 //Bin includes
 #include "certs_bin.h"
@@ -98,24 +99,39 @@ void gprintf( const char *str, ... );
 void CheckForGecko( void );
 bool MountDevices(void)
 {
-	//apparently, mount already does __io_wiisd.startup();
-	//fatsimple (or the cache 4) seems to crash some wii's :/
-	fatInitDefault();
-	fatUnmount("sd:/");
-	__io_wiisd.shutdown();
-	//return fatMountSimple("sd", &__io_wiisd);
-	return fatMount("sd", &__io_wiisd, 0, 8, 64);
+	__io_wiisd.startup();
+	if (__io_wiisd.isInserted())
+	{
+		//apparently, mount already does __io_wiisd.startup() in libfat 1.0.5...
+		//fatsimple (or the cache 4) seems to crash some wii's apparently :/
+		return fatMount("sd", &__io_wiisd, 0, 8);
+		// for DevKitppc rev 18/libfat 1.0.5 that line should be changed to & remove the startup/if
+		//return fatMount("sd", &__io_wiisd, 0, 8, 64);
+	}
+	else
+	{
+		return false;
+	}
 }
 bool RemountSD( void )
 {
-	//unmount SD & shutdown the port ...
-	fatUnmount("sd:/");
-	//not so sure if its safe to remove shutdown...
-	__io_wiisd.shutdown();
-	//and mount (also starts up the io )...
-	//see mount on why we use 8 as cache...
-	//return fatMountSimple("sd", &__io_wiisd);
-	return fatMount("sd", &__io_wiisd, 0, 8, 64);
+	if ( __io_wiisd.isInserted() )
+	{
+		//unmount SD & shutdown the port ...
+		fatUnmount("sd:/");
+		//pune said to remove the shutdown, im not so sure if its safe or even bug free...
+		//without an shutdown & startup the mounting failed if sd got removed and put back in...
+		__io_wiisd.shutdown();
+		__io_wiisd.startup();
+		return fatMount("sd", &__io_wiisd, 0,8);
+		// for DevKitppc rev 18/libfat 1.0.5 that line should be changed to & remove the shutdown/startup
+		//return fatMount("sd", &__io_wiisd, 0, 8, 64);
+	}
+	else
+	{
+		//its not there so ye, return false
+		return false;
+	}
 }
 void ClearScreen()
 {
@@ -383,16 +399,17 @@ void SysHackSettings( void )
 }
 void SetSettings( void )
 {
+	
+	//Load Setting
 	LoadSetttings();
-
+	
 	//get a list of all installed IOSs
 	u32 TitleCount = 0;
 	ES_GetNumTitles(&TitleCount);
 	u64 *TitleIDs=(u64*)memalign(32, TitleCount * sizeof(u64) );
 	ES_GetTitles(TitleIDs, TitleCount);
 
-	//Load Setting
-
+	//get ios
 	unsigned int IOS_off=0;
 	if( SGetSetting(SETTING_SYSTEMMENUIOS) == 0 )
 	{
@@ -426,7 +443,6 @@ void SetSettings( void )
 
 	int cur_off=0;
 	int redraw=true;
- 
 	while(1)
 	{
 		WPAD_ScanPads();
@@ -443,7 +459,6 @@ void SetSettings( void )
 #endif
 		if ( (WPAD_Pressed & WPAD_BUTTON_B) || (PAD_Pressed & PAD_BUTTON_B) )
 			break;
-		
 		
 		switch( cur_off )
 		{
@@ -639,7 +654,6 @@ void SetSettings( void )
 				break;
 		}
 
-
 		if ( (WPAD_Pressed & WPAD_BUTTON_DOWN) || (PAD_Pressed & PAD_BUTTON_DOWN) )
 		{
 			cur_off++;
@@ -659,7 +673,6 @@ void SetSettings( void )
 			
 			redraw=true;
 		}
-
 		if( redraw )
 		{
 			switch(settings->autoboot)
@@ -766,7 +779,6 @@ void LoadBootMii( void )
 	{
 		PrintFormat( 1, ((640/2)-((strlen("Could not find sd:/bootmii/armboot.bin"))*13/2))>>1, 208, "Could not find sd:/bootmii/armboot.bin");
 		sleep(5);
-		fclose(BootmiiFile);
 		return;
 	}
 	else
@@ -777,7 +789,6 @@ void LoadBootMii( void )
 		{
 			PrintFormat( 1, ((640/2)-((strlen("Could not find sd:/bootmii/ppcboot.elf"))*13/2))>>1, 208, "Could not find sd:/bootmii/ppcboot.elf");
 			sleep(5);
-			fclose(BootmiiFile);
 			return;
 		}
 	}
@@ -2128,7 +2139,7 @@ int main(int argc, char **argv)
 			{
 				PrintFormat( 0, 160, 480-48, "preloader v%d.%d(beta v%d)", (BETAVERSION>>16)&0xFF, BETAVERSION>>8, BETAVERSION&0xFF );
 			} else {
-				PrintFormat( 0, 160, 480-48, "priiloader v%d.%d %s", VERSION>>8, VERSION&0xFF,SUBVERSION );
+				PrintFormat( 0, 160, 480-48, "priiloader v%d.%d (r%d)", VERSION>>8, VERSION&0xFF,SVN_REV );
 			}
 			PrintFormat( 0, 16, 480-64, "IOS v%d", (*(vu32*)0x80003140)>>16 );
 			PrintFormat( 0, 16, 480-48, "Systemmenu v%d", SysVersion );			
@@ -2146,8 +2157,11 @@ int main(int argc, char **argv)
 			PrintFormat( cur_off==5, 108, 160, "System Menu Hacks");
 			PrintFormat( cur_off==6, 134, 176, "Settings");
 
-			ShowError();
-			
+			if (error > 0)
+			{
+				ShowError();
+				error = ERROR_NONE;
+			}
 			redraw = false;
 		}
 
