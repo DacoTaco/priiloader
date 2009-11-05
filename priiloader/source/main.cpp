@@ -130,7 +130,7 @@ bool RemountSD( void )
 		__io_wiisd.startup();
 		if ( __io_wiisd.isInserted() )
 		{
-			return fatMountSimple("sd",&__io_wiisd);/
+			return fatMountSimple("sd",&__io_wiisd);
 		}
 		else
 		{
