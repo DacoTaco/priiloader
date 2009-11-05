@@ -72,5 +72,5 @@ enum {
 u32 GetSysMenuVersion( void );
 u32 GetSysMenuIOS( void );
 u32 SGetSetting( u32 s );
-void LoadSetttings( void );
+void LoadSettings( void );
 int SaveSettings( void );

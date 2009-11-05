@@ -77,18 +77,27 @@ char *GetLine( char *&astr, unsigned int len )
 }
 u32 LoadHacks( void )
 {
-	if( hacks.size() )	//Hacks already loaded
+	if( hacks.size() ) //Hacks already loaded
+	{
 		return 1;
+	}
 
 	u32 mode = 1;
 	s32 fd=0;
 	char *buf=NULL;
-
+#ifndef libELM
 	FILE *in = fopen("sd:/preloader/hacks.ini", "rb" );
 	if (!in)
 	{
 		in = fopen ("sd:/hacks.ini","rb");
 	}
+#else
+	FILE *in = fopen("elm:/sd/preloader/hacks.ini", "rb" );
+	if (!in)
+	{
+		in = fopen ("elm:/sd/hacks.ini","rb");
+	}
+#endif
 	if( in == NULL )
 	{
 		fd = ISFS_Open("/title/00000001/00000002/data/hacks.ini", 1 );
@@ -102,7 +111,6 @@ u32 LoadHacks( void )
 		} 
 		mode = 0;
 	}
-
 	unsigned int size=0;
 
 	if( mode )	//read file from FAT
@@ -368,7 +376,7 @@ u32 LoadHacks( void )
 
 	if( fd < 0 )
 	{
-		//file not found crete a new one
+		//file not found create a new one
 		if(ISFS_CreateFile("/title/00000001/00000002/data/hacks_s.ini", 0, 3, 3, 3)<0)
 			return 0;
 

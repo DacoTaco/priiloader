@@ -19,6 +19,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 */
+// To use libELM define libELM in the priiloader project
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,7 +28,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <gccore.h>
 #include <wiiuse/wpad.h>
 #include <sdcard/wiisd_io.h>
+#ifndef libELM
 #include <fat.h>
+#else
+#include "elm_old.h"
+#endif
 #include <sys/dir.h>
 #include <unistd.h>
 #include <string.h>
@@ -54,7 +59,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "certs_bin.h"
 
 //#define DEBUG
-
 
 extern "C"
 {
@@ -100,13 +104,17 @@ void CheckForGecko( void );
 bool MountDevices(void)
 {
 	__io_wiisd.startup();
-	if (__io_wiisd.isInserted())
+	if ( __io_wiisd.isInserted() )
 	{
-		//apparently, mount already does __io_wiisd.startup() in libfat 1.0.5...
-		//fatsimple (or the cache 4) seems to crash some wii's apparently :/
-		return fatMount("sd", &__io_wiisd, 0, 8);
-		// for DevKitppc rev 18/libfat 1.0.5 that line should be changed to & remove the startup/if
-		//return fatMount("sd", &__io_wiisd, 0, 8, 64);
+
+#ifndef libELM
+		return fatMountSimple("sd",&__io_wiisd);
+#else
+		if ( ELM_MountDevice(ELM_SD) < 0)
+			return false
+		else
+			return true;
+#endif
 	}
 	else
 	{
@@ -115,23 +123,40 @@ bool MountDevices(void)
 }
 bool RemountSD( void )
 {
-	if ( __io_wiisd.isInserted() )
-	{
+#ifndef libELM
 		//unmount SD & shutdown the port ...
 		fatUnmount("sd:/");
-		//pune said to remove the shutdown, im not so sure if its safe or even bug free...
-		//without an shutdown & startup the mounting failed if sd got removed and put back in...
 		__io_wiisd.shutdown();
 		__io_wiisd.startup();
-		return fatMount("sd", &__io_wiisd, 0,8);
-		// for DevKitppc rev 18/libfat 1.0.5 that line should be changed to & remove the shutdown/startup
-		//return fatMount("sd", &__io_wiisd, 0, 8, 64);
-	}
-	else
-	{
-		//its not there so ye, return false
-		return false;
-	}
+		if ( __io_wiisd.isInserted() )
+		{
+			return fatMountSimple("sd",&__io_wiisd);/
+		}
+		else
+		{
+			//its not there so ye, return false
+			return false;
+		}
+#else
+		if ( __io_wiisd.isInserted() )
+		{
+			//unmount SD & shutdown the port ...
+			//ELM_Unmount();
+			ELM_UnmountDevice(ELM_SD);
+			__io_wiisd.shutdown();
+			__io_wiisd.startup();
+			if ( ELM_MountDevice(ELM_SD) < 0)
+				return false
+			else
+				return true;
+		}
+		else
+		{
+			//its not there so ye, return false
+			return false;
+		}
+#endif
+		return true;
 }
 void ClearScreen()
 {
@@ -209,18 +234,26 @@ void SysHackSettings( void )
 			{
 				//first try to open the file on the SD card, if we found it copy it, other wise skip
 				s16 fail = 0;
-				if (!RemountSD())
+				if (!SDFound)
 				{
 					PrintFormat( 1, ((640/2)-((strlen("NO SD card found!"))*13/2))>>1, 208, "NO SD card found!");
 					sleep(5);
 				}
 				else
 				{
+#ifndef libELM
 					FILE *in = fopen("sd:/preloader/hacks.ini", "rb" );
 					if (!in)
 					{
 						in = fopen ("sd:/hacks.ini","rb");
 					}
+#else
+					FILE *in = fopen("elm:/sd/preloader/hacks.ini", "rb" );
+					if (!in)
+					{
+						in = fopen ("elm:/sd/hacks.ini","rb");
+					}
+#endif
 					if( in != NULL )
 					{
 						//Read in whole file
@@ -401,7 +434,7 @@ void SetSettings( void )
 {
 	
 	//Load Setting
-	LoadSetttings();
+	LoadSettings();
 	
 	//get a list of all installed IOSs
 	u32 TitleCount = 0;
@@ -774,7 +807,11 @@ void LoadBootMii( void )
 		return;
 	}
 	//when this was coded on 6th of Oct 2009 Bootmii was IOS 254
+#ifndef libELM
 	FILE* BootmiiFile = fopen("sd:/bootmii/armboot.bin","r");
+#else
+	FILE* BootmiiFile = fopen("elm:/sd/bootmii/armboot.bin","r");
+#endif
 	if (!BootmiiFile)
 	{
 		PrintFormat( 1, ((640/2)-((strlen("Could not find sd:/bootmii/armboot.bin"))*13/2))>>1, 208, "Could not find sd:/bootmii/armboot.bin");
@@ -784,7 +821,11 @@ void LoadBootMii( void )
 	else
 	{
 		fclose(BootmiiFile);
+#ifndef libELM
 		BootmiiFile = fopen("sd:/bootmii/ppcboot.elf","r");
+#else
+		BootmiiFile = fopen("elm:/sd/bootmii/ppcboot.elf","r");
+#endif
 		if(!BootmiiFile)
 		{
 			PrintFormat( 1, ((640/2)-((strlen("Could not find sd:/bootmii/ppcboot.elf"))*13/2))>>1, 208, "Could not find sd:/bootmii/ppcboot.elf");
@@ -1058,7 +1099,6 @@ void BootMainSysMenu( void )
 
 	sleep(5);
 #endif
-
 	LoadHacks();
 	WPAD_Shutdown();
 	if( !SGetSetting( SETTING_USESYSTEMMENUIOS ) )
@@ -1073,12 +1113,14 @@ void BootMainSysMenu( void )
 		r = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size, (signed_blob *)buf, tstatus->file_length, &tempKeyID);
 		if( r < 0 )
 		{	error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
-			WPAD_Init();
+			__IOS_ShutdownSubsystems();
 			__IOS_LaunchNewIOS(rTMD->sys_version);
+			__IOS_InitializeSubsystems();
+			WPAD_Init();
 			return;
 		}
 	}
-	ES_SetUID(TitleID);
+	//ES_SetUID(TitleID);
 	free(TMD);
 	free( status );
 	free( tstatus );
@@ -1127,17 +1169,21 @@ void InstallLoadDOL( void )
 {
 	char filename[MAXPATHLEN], filepath[MAXPATHLEN];
 	std::vector<char*> names;
-
+	
 	struct stat st;
 	DIR_ITER* dir;
 
-	if (!RemountSD())
+	if (!RemountSD() )
 	{
 		PrintFormat( 1, ((640/2)-((strlen("NO SD card found!"))*13/2))>>1, 208, "NO SD card found!");
 		sleep(5);
 		return;
 	}
+#ifndef libELM
 	dir = diropen ("sd:/");
+#else
+	dir = diropen("elm:/sd/");
+#endif
 	if( dir == NULL )
 	{
 		PrintFormat( 1, ((640/2)-((strlen("Failed to open root of SD!"))*13/2))>>1, 208, "Failed to open root of SD");
@@ -1184,13 +1230,19 @@ void InstallLoadDOL( void )
 			exit(0);
 #endif
 		if ( (WPAD_Pressed & WPAD_BUTTON_B) || (PAD_Pressed & PAD_BUTTON_B) )
+		{
 			break;
+		}
 
 		if ( (WPAD_Pressed & WPAD_BUTTON_A) || (PAD_Pressed & PAD_BUTTON_A) )
 		{
 			ClearScreen();
 			//Install file
+#ifndef libELM
 			sprintf(filepath, "sd:/%s", names[cur_off]);
+#else
+			sprintf(filepath, "elm:/sd/%s",names[cur_off]);
+#endif
 			FILE *dol = fopen(filepath, "rb" );
 			if( dol == NULL )
 			{
@@ -1244,7 +1296,11 @@ void InstallLoadDOL( void )
 			ClearScreen();
 
 			//Load dol
+#ifndef libELM
 			sprintf(filepath, "sd:/%s", names[cur_off]);
+#else
+			sprintf(filepath, "elm:/sd/%s", names[cur_off]);
+#endif
 			FILE *dol = fopen(filepath, "rb" );
 			if( dol == NULL )
 			{
@@ -1464,8 +1520,7 @@ void InstallLoadDOL( void )
 	//free memory
 	for( u32 i=0; i<names.size(); ++i )
 		delete names[i];
-	
-	names.empty();
+	names.clear();
 
 	return;
 }
@@ -1925,8 +1980,7 @@ int main(int argc, char **argv)
 	VIDEO_WaitVSync();
 	if(rmode->viTVMode&VI_NON_INTERLACE)
 		VIDEO_WaitVSync();
-
-	LoadSetttings();
+	LoadSettings();
 	s16 Bootstate = CheckBootState();
 	gprintf("BootState:%d\n", Bootstate );
 	//Check reset button state
@@ -2058,10 +2112,10 @@ int main(int argc, char **argv)
 		if ( (WPAD_Pressed & WPAD_BUTTON_A) || (PAD_Pressed & PAD_BUTTON_A) )
 		{
 			ClearScreen();
-
 			switch(cur_off)
 			{
 				case 0:
+					RemountSD();
 					BootMainSysMenu();
 				break;
 				case 1:		//Load HBC
@@ -2139,11 +2193,11 @@ int main(int argc, char **argv)
 			{
 				PrintFormat( 0, 160, 480-48, "preloader v%d.%d(beta v%d)", (BETAVERSION>>16)&0xFF, BETAVERSION>>8, BETAVERSION&0xFF );
 			} else {
-				PrintFormat( 0, 160, 480-48, "priiloader v%d.%d (r%d)", VERSION>>8, VERSION&0xFF,SVN_REV );
+				PrintFormat( 0, 160, 480-48, "priiloader v%d.%d (r%s)", VERSION>>8, VERSION&0xFF,SVN_REV_STR );
 			}
 			PrintFormat( 0, 16, 480-64, "IOS v%d", (*(vu32*)0x80003140)>>16 );
 			PrintFormat( 0, 16, 480-48, "Systemmenu v%d", SysVersion );			
-			PrintFormat( 0, 16, 480, "priiloader is a mod of Preloader 0.30");
+			PrintFormat( 0, 16, 480-16, "priiloader is a mod of Preloader 0.30");
 #endif
 			// ((640/2)-(strlen("Systemmenu")*13/2))>>1
 			
@@ -2198,7 +2252,7 @@ int main(int argc, char **argv)
 u32 GeckoFound = 0;
 void CheckForGecko( void )
 {
-	GeckoFound = usb_isgeckoalive( 1 );
+	GeckoFound = usb_isgeckoalive( EXI_CHANNEL_1 );
 }
 void gprintf( const char *str, ... )
 {

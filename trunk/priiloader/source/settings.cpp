@@ -137,7 +137,7 @@ u32 SGetSetting( u32 s )
 		break;
 	}
 }
-void LoadSetttings( void )
+void LoadSettings( void )
 {
 	if(!settings)
 	{
@@ -161,6 +161,7 @@ void LoadSetttings( void )
 			return;
 		}
 		settings->version = VERSION;
+		settings->UseSystemMenuIOS = true;
 		if(ISFS_Write( fd, settings, sizeof( Settings ) )<0)
 		{
 			ISFS_Close( fd );

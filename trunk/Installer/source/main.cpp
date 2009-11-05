@@ -151,7 +151,7 @@ int main(int argc, char **argv)
 		VIDEO_WaitVSync();
 
 	printf("\x1b[2;0H");
-	printf("       priiloader %d (preloader v0.30b) Installation / Removal Tool\n\n\n\n",SVN_REV);
+	printf("       priiloader rev %d (preloader v0.30b) Installation / Removal Tool\n\n\n\n",SVN_REV);
 	printf("                          PLEASE READ THIS CAREFULLY\n\n\n\n");
 	printf("                THIS PROGRAM/TOOL COMES WITHOUT ANY WARRANTIES!\n");
 	printf("               YOU ACCEPT THAT YOU INSTALL THIS AT YOUR OWN RISK\n\n\n");
@@ -175,7 +175,6 @@ int main(int argc, char **argv)
 			u32 id = 0;
 
 			printf("\x1b[2J\x1b[2;0H");
-			printf("IOS %d rev %d\n\n\n\n\n",IOS_GetVersion(),IOS_GetRevision());
 			fflush(stdout);
 			if (pHeld & WPAD_BUTTON_B)
 			{
@@ -183,6 +182,7 @@ int main(int argc, char **argv)
         		IOS_ReloadIOS(249);
         		WPAD_Init();
         	}
+			printf("IOS %d rev %d\n\n\n\n\n",IOS_GetVersion(),IOS_GetRevision());
         	__ES_Init();
 			fd = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)su_tmd, su_tmd_size, (signed_blob *)su_tik, su_tik_size, &tmp_ikey);
 			if(fd > 0)
@@ -326,20 +326,20 @@ int main(int argc, char **argv)
 				if (fd < 0)
 				{
 					printf("  Preloader not found, moving the system menu...\n");
+					if(CopyTicket)
+					{
+						printf("  Copying Ticket...\n");
+						if (nand_copy("/ticket/00000001/00000002.tik","/title/00000001/00000002/content/ticket") < 0)
+						{
+							abort("Unable to copy the system menu ticket");
+						}
+					}
 					if (nand_copy(file,load) < 0)
 					{
 						abort("Unable to move the system menu");
 					}
 					else
 					{
-						if(CopyTicket)
-						{
-							printf("  Copying Ticket...\n");
-							if (nand_copy("/ticket/00000001/00000002.tik","/title/00000001/00000002/content/ticket") < 0)
-							{
-								abort("Unable to copy the system menu ticket");
-							}
-						}
 						printf("  Done!\n");
 						ISFS_Delete(file);
 						ISFS_Delete("/title/00000001/00000002/data/loader.ini");
