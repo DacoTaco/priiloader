@@ -32,6 +32,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <ctype.h>
 #include <unistd.h>
 
+#include "settings.h"
 #include "font.h"
 
 void PrintCharY( int xx, int yy, char c )
@@ -48,7 +49,10 @@ void PrintCharY( int xx, int yy, char c )
 	{
 		for( int y=0; y<16; ++y)
 		{
-			fb[(x+xx)+(y+yy)*320] = wii_font_r_Bitmap[x+(y+(c-' ')*16)*8];
+			if( SGetSetting(SETTING_BLACKBACKGROUND))
+				fb[(x+xx)+(y+yy)*320] = wii_font_r_Bitmap_black[x+(y+(c-' ')*16)*8];
+			else
+				fb[(x+xx)+(y+yy)*320] = wii_font_r_Bitmap[x+(y+(c-' ')*16)*8];
 		}
 	}
 }
@@ -66,7 +70,10 @@ void PrintCharW( int xx, int yy, char c )
 	{
 		for( int y=0; y<16; ++y)
 		{
-			fb[(x+xx)+(y+yy)*320] = wii_font_Bitmap[x+(y+(c-' ')*16)*8];
+			if( SGetSetting(SETTING_BLACKBACKGROUND))
+				fb[(x+xx)+(y+yy)*320] = wii_font_Bitmap_black[x+(y+(c-' ')*16)*8];
+			else
+				fb[(x+xx)+(y+yy)*320] = wii_font_Bitmap[x+(y+(c-' ')*16)*8];
 		}
 	}
 }

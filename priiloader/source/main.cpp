@@ -160,7 +160,10 @@ bool RemountSD( void )
 }
 void ClearScreen()
 {
-	VIDEO_ClearFrameBuffer( rmode, xfb, 0xFF80FF80);//COLOR_BLACK);
+	if( !SGetSetting(SETTING_BLACKBACKGROUND))
+		VIDEO_ClearFrameBuffer( rmode, xfb, 0xFF80FF80);
+	else
+		VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
 
 	VIDEO_WaitVSync();
 	printf("\n");
@@ -617,7 +620,30 @@ void SetSettings( void )
 
 
 			} break;
-			case 6: //ignore ios reloading for system menu?
+			case 6:
+			{
+				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT)	||
+					 (PAD_Pressed & PAD_BUTTON_LEFT)	||
+					 (WPAD_Pressed & WPAD_BUTTON_RIGHT)	||
+					 (PAD_Pressed & PAD_BUTTON_RIGHT)	||
+					 (WPAD_Pressed & WPAD_BUTTON_A)		||
+					 (PAD_Pressed & PAD_BUTTON_A)
+					)
+				{
+					if( settings->BlackBackground )
+					{
+						settings->BlackBackground = false;
+					}
+					else
+					{
+						settings->BlackBackground = true;
+					}
+					ClearScreen();
+					redraw=true;
+				}
+			}
+			break;
+			case 7: //ignore ios reloading for system menu?
 			{
 				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT)	||
 					 (PAD_Pressed & PAD_BUTTON_LEFT)	||
@@ -639,7 +665,7 @@ void SetSettings( void )
 				}
 			}
 			break;
-			case 7:		//	System Menu IOS
+			case 8:		//	System Menu IOS
 			{
 				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT) || (PAD_Pressed & PAD_BUTTON_LEFT) )
 				{
@@ -672,7 +698,7 @@ void SetSettings( void )
 				}
 
 			} break;
-			case 8:
+			case 9:
 			{
 				if ( (WPAD_Pressed & WPAD_BUTTON_A) || (PAD_Pressed & PAD_BUTTON_A) )
 				{
@@ -682,6 +708,7 @@ void SetSettings( void )
 						PrintFormat( 0, 118, 256+96, "saving failed");
 				}
 			} break;
+
 			default:
 				cur_off = 0;
 				break;
@@ -690,19 +717,19 @@ void SetSettings( void )
 		if ( (WPAD_Pressed & WPAD_BUTTON_DOWN) || (PAD_Pressed & PAD_BUTTON_DOWN) )
 		{
 			cur_off++;
-			if( (settings->UseSystemMenuIOS) && (cur_off == 7))
+			if( (settings->UseSystemMenuIOS) && (cur_off == 8))
 				cur_off++;
-			if( cur_off >= 9)
+			if( cur_off >= 10)
 				cur_off = 0;
 			
 			redraw=true;
 		} else if ( (WPAD_Pressed & WPAD_BUTTON_UP) || (PAD_Pressed & PAD_BUTTON_UP) )
 		{
 			cur_off--;
-			if( (settings->UseSystemMenuIOS) && (cur_off == 7))
+			if( (settings->UseSystemMenuIOS) && (cur_off == 8))
 				cur_off--;
 			if( cur_off < 0 )
-				cur_off = 8;
+				cur_off = 9;
 			
 			redraw=true;
 		}
@@ -752,16 +779,17 @@ void SetSettings( void )
 			PrintFormat( cur_off==3, 0, 128+32, "             Stop disc:          %s", settings->StopDisc?"on ":"off");
 			PrintFormat( cur_off==4, 0, 128+48, "   Light slot on error:          %s", settings->LidSlotOnError?"on ":"off");
 			PrintFormat( cur_off==5, 0, 128+64, "Ignore standby setting:          %s", settings->IgnoreShutDownMode?"on ":"off");
-			PrintFormat( cur_off==6, 0, 128+80, "   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
+			PrintFormat( cur_off==6, 0, 128+80, "      Background Color:          %s", settings->BlackBackground?"Black":"White");
+			PrintFormat( cur_off==7, 0, 128+96, "   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
 			if(!settings->UseSystemMenuIOS)
 			{
-				PrintFormat( cur_off==7, 0, 128+96, "     IOS to use for SM:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
+				PrintFormat( cur_off==8, 0, 128+112, "     IOS to use for SM:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
 			}
 			else
 			{
-				PrintFormat( cur_off==7,0,128+96,	"                                        ");
+				PrintFormat( cur_off==8, 0, 128+112,	"                                        ");
 			}
-			PrintFormat( cur_off==8, 118, 128+128, "save settings");
+			PrintFormat( cur_off==9, 118, 128+128, "save settings");
 			PrintFormat( 0, 114, 256+96, "                 ");
 
 			redraw = false;
@@ -1094,11 +1122,8 @@ void BootMainSysMenu( void )
 	}
 
 	entrypoint = (void (*)())(hdr->entrypoint);
-#ifdef DEBUG
-	printf("entrypoint: %08X\n", entrypoint );
+	gprintf("entrypoint: %08X\n", entrypoint );
 
-	sleep(5);
-#endif
 	LoadHacks();
 	WPAD_Shutdown();
 	if( !SGetSetting( SETTING_USESYSTEMMENUIOS ) )
@@ -1106,9 +1131,9 @@ void BootMainSysMenu( void )
 		__ES_Close();
 		__ES_Init();
 		__IOS_LaunchNewIOS(SGetSetting(SETTING_SYSTEMMENUIOS));
+		gprintf("launched ios %d for system menu\n",IOS_GetVersion());
 		//__IOS_LaunchNewIOS(rTMD->sys_version);
 		//__IOS_LaunchNewIOS(249);
-		//__IOS_LoadStartupIOS();
 		__IOS_InitializeSubsystems();
 		r = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size, (signed_blob *)buf, tstatus->file_length, &tempKeyID);
 		if( r < 0 )
@@ -1129,9 +1154,7 @@ void BootMainSysMenu( void )
 	*(vu32*)0x800000F8 = 0x0E7BE2C0;				// Bus Clock Speed
 	*(vu32*)0x800000FC = 0x2B73A840;				// CPU Clock Speed
 
-#ifdef DEBUG
-	printf("Hacks:%d\n", hacks.size() );
-#endif
+	gprintf("Hacks:%d\n", hacks.size() );
 	//Apply patches
 	for( u32 i=0; i<hacks.size(); ++i)
 	{
@@ -1934,11 +1957,11 @@ void DVDStopDisc( void )
 }
 int main(int argc, char **argv)
 {
-	
 	CheckForGecko();
+
 	gprintf("priiloader\n");
 	gprintf("Built   : %s %s\n", __DATE__, __TIME__ );
-	gprintf("Version : %d.%d\n", VERSION>>16, VERSION&0xFFFF );
+	gprintf("Version : %d.%d (rev %s)\n", VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
 	gprintf("Firmware: %d.%d.%d\n", *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143 );
 
 	*(vu32*)0x80000020 = 0x0D15EA5E;				// Magic word (how did the console boot?)
@@ -1980,7 +2003,6 @@ int main(int argc, char **argv)
 	VIDEO_WaitVSync();
 	if(rmode->viTVMode&VI_NON_INTERLACE)
 		VIDEO_WaitVSync();
-
 	LoadSettings();
 	s16 Bootstate = CheckBootState();
 	gprintf("BootState:%d\n", Bootstate );
