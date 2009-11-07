@@ -1934,11 +1934,11 @@ void DVDStopDisc( void )
 }
 int main(int argc, char **argv)
 {
+	
 	CheckForGecko();
-
 	gprintf("priiloader\n");
 	gprintf("Built   : %s %s\n", __DATE__, __TIME__ );
-	gprintf("Version : %d.%db\n", VERSION>>16, VERSION&0xFFFF );
+	gprintf("Version : %d.%d\n", VERSION>>16, VERSION&0xFFFF );
 	gprintf("Firmware: %d.%d.%d\n", *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143 );
 
 	*(vu32*)0x80000020 = 0x0D15EA5E;				// Magic word (how did the console boot?)
@@ -1980,6 +1980,7 @@ int main(int argc, char **argv)
 	VIDEO_WaitVSync();
 	if(rmode->viTVMode&VI_NON_INTERLACE)
 		VIDEO_WaitVSync();
+
 	LoadSettings();
 	s16 Bootstate = CheckBootState();
 	gprintf("BootState:%d\n", Bootstate );
@@ -2271,5 +2272,5 @@ void gprintf( const char *str, ... )
 
 	va_end(ap);
 
-	usb_sendbuffer_safe( 1, astr, strlen(astr) );
+	usb_sendbuffer( 1, astr, strlen(astr) );
 }

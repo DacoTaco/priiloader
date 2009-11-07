@@ -1,11 +1,11 @@
-preloader v0.30 (source) by crediar (10/6/2009)
+priiloader v0.1 by DacoTaco & Phpgeek (10/6/2009)
 -------------------------------------------------------------------------------------
+Thanks go to crediar for preloader & source, phpgeek for app info & installer & MANY thanks to wntrmute for bug killing
+that i couldn't figure out
+Oldboy & F_GOD for testing.
 
-Many tanks to ajd4096 who donated me an USBGecko!
-
-First of all I want to thank 'zouzzz zzzuoz', AlexLH, GizmoTheGreen and SquidMan.
-Thanks to svpe for the ES_DIVerfiy patch.
-Thanks to marcan for the stub code (stub.S)
+also greetings to
+devkitPro & Team Twiizers
 
 
 IMPORTANT NOTE:
@@ -24,34 +24,17 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-NOTE:
--------------------------------------------------------------------------------------
-Since there is still a high demand for preloader and I don't really want to work on
-it anymore I thought it would be the best to release the source.
-
-
-Note on compiling:
--------------------------------------------------------------------------------------
-Code has been tested on the latest devkitPro with devkitPPC and should compile fine.
-
-Before you can compile anything you need to place a certs.bin into the data directory.
-
 
 What is preloader and what the hell does it do:
 -------------------------------------------------------------------------------------
-preloader is a small application which places itself before the system menu.
+What is Priiloader ?
 
-It's main feature is to directly boot the Homebrew Channel or a file you can install
-from a FAT device.
+Priiloader is a modded version of Preloader. just like preloader, Priiloader places it on boot sequence before the system menu. by this priiloader has the ability to:
 
-preloader is also able to apply memory patches the system menu to remove limitations
-or other things.
-
-Since preloader places itself before the system menu any problems that would cause
-the system menu to fail are not causing your whole wii to stop working.
-
-If autoboot is enabled and you want to access preloader's menu simply hold RESET
-while powering the wii on.
+    * patch memory just like StartPatch or Preloader. hacks.ini should be on the sd root and can be found here
+    * save wii from banner & other kind of bricks that aren't ios/boot2/nand corruption related 
+	
+	if autoboot is enabled, hold reset while starting the wii to boot priiloader.
 
 
 Hacks:
@@ -72,35 +55,25 @@ see http://wiibrew.org/wiki/Preloader/hacks for many user created hacks!
 
 Uninstall:
 -------------------------------------------------------------------------------------
-The simplest and safest way to remove preloader is to reinstall the System Menu
-using AnyRegion Changer or a WAD installer.
-
-http://wiibrew.org/wiki/AnyRegion_Changer
-http://wiibrew.org/wiki/WadImport
-
-
-Greetings:
--------------------------------------------------------------------------------------
-(in random order)
-there are way to many people to greet and before I forget
-some I just don't list any :P
-
-devkitPro
-Team Twiizers
-
-#todXXX the sanctuary!
-#playground
-#wiidev (both of them!)
-#dsidev
-#gamingexposed
+run the installer again but this time press the - button
 
 Changelog:
 -------------------------------------------------------------------------------------
-0.30 Edits By DacoTaco:
-	-added autoboot Bootmii IOS
-	-added Bootmii IOS booting option
-	-let preloader remount sd on several occasions
-	-try and boot the HAXX Homebrew channel Title ID if JODI isn't found
+	Priiloader Changelog
+	---------------------
+0.1:
+	*added autoboot Bootmii IOS
+	*added Bootmii IOS booting option to menu
+	*let Priiloader remount SD on a lot of occasions
+	*try and boot the HAXX [[Homebrew Channel]] title ID if JODI isn't found
+	*various file access bug fixes
+	*priiloader no longer needs ES_DIVerify for system menu booting. 
+	 however if a different ios is chosen to run system menu with it still needs the hack/patch
+	*killed the DVD spin bug (crediar forgot to close the dvd drive in ios)
+	*fixed file booting (thx phpgeek)
+	
+	Preloader Changelog:
+	---------------------
 0.30:
 	-added SDHC support
 	-added a new option to the "return to" setting; "return to: autoboot"

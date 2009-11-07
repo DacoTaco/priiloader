@@ -151,13 +151,17 @@ int main(int argc, char **argv)
 		VIDEO_WaitVSync();
 
 	printf("\x1b[2;0H");
+	printf("IOS %d rev %d\n\n",IOS_GetVersion(),IOS_GetRevision());
 	printf("       priiloader rev %d (preloader v0.30b) Installation / Removal Tool\n\n\n\n",SVN_REV);
-	printf("                          PLEASE READ THIS CAREFULLY\n\n\n\n");
+	printf("                          PLEASE READ THIS CAREFULLY\n\n");
 	printf("                THIS PROGRAM/TOOL COMES WITHOUT ANY WARRANTIES!\n");
 	printf("               YOU ACCEPT THAT YOU INSTALL THIS AT YOUR OWN RISK\n\n\n");
 	printf("      THE AUTHOR(S) CANNOT BE HELD LIABLE FOR ANY DAMAGE IT MIGHT CAUSE\n\n");
 	printf("            IF YOU DO NOT AGREE WITH THESE TERMS TURN YOUR WII OFF\n\n\n\n");
-	printf("                PLEASE PRESS PLUS TO INSTALL OR MINUS TO REMOVE\n\n\n\n\n");
+	printf("					Press (+) to install or update Priiloader\n");
+	printf("			  Press (-) to remove Priiloader and restore system menu\n");
+	printf("			 Hold Down (B) with any above options to use IOS249 (cios)\n");
+	printf("				Press (HOME) to chicken out and quit the installer!\n\n");
 	printf("							Enjoy! DacoTaco & /phpgeek\n							");
 
 	while(1)
