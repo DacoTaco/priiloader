@@ -2253,6 +2253,9 @@ u32 GeckoFound = 0;
 void CheckForGecko( void )
 {
 	GeckoFound = usb_isgeckoalive( EXI_CHANNEL_1 );
+	if(GeckoFound)
+		usb_flush(EXI_CHANNEL_1);
+	return;
 }
 void gprintf( const char *str, ... )
 {
