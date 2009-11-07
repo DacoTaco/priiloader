@@ -39,6 +39,7 @@ typedef struct {
 	unsigned int SystemMenuIOS;
 	char		padding[16];
 	bool UseSystemMenuIOS;
+	bool BlackBackground;
 } Settings;
 enum {
 		SETTING_AUTBOOT,
@@ -50,7 +51,8 @@ enum {
 		SETTING_IGNORESHUTDOWNMODE,
 		SETTING_BETAVERSION,
 		SETTING_SYSTEMMENUIOS,
-		SETTING_USESYSTEMMENUIOS
+		SETTING_USESYSTEMMENUIOS,
+		SETTING_BLACKBACKGROUND
 };
 
 enum {

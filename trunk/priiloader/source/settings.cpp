@@ -132,6 +132,8 @@ u32 SGetSetting( u32 s )
 			return settings->SystemMenuIOS;
 		case SETTING_USESYSTEMMENUIOS:
 			return settings->UseSystemMenuIOS;
+		case SETTING_BLACKBACKGROUND:
+			return settings->BlackBackground;
 		default:
 			return 0;
 		break;
@@ -153,6 +155,8 @@ void LoadSettings( void )
 	{
 		//file not found create a new one
 		ISFS_CreateFile("/title/00000001/00000002/data/loader.ini", 0, 3, 3, 3);
+		settings->version = VERSION;
+		settings->UseSystemMenuIOS = true;
 		fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", 1|2 );
 
 		if( fd < 0 )
@@ -160,8 +164,6 @@ void LoadSettings( void )
 			error = ERROR_SETTING_OPEN;
 			return;
 		}
-		settings->version = VERSION;
-		settings->UseSystemMenuIOS = true;
 		if(ISFS_Write( fd, settings, sizeof( Settings ) )<0)
 		{
 			ISFS_Close( fd );
