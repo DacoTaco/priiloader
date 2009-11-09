@@ -19,7 +19,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 */
-// To use libELM define libELM in the priiloader project
+// To use libELM define libELM in the priiloader project & dont forget to link it in the makefile
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -789,7 +789,7 @@ void SetSettings( void )
 			{
 				PrintFormat( cur_off==8, 0, 128+112,	"                                        ");
 			}
-			PrintFormat( cur_off==9, 118, 128+128, "save settings");
+			PrintFormat( cur_off==9, 118, 128+144, "save settings");
 			PrintFormat( 0, 114, 256+96, "                 ");
 
 			redraw = false;
@@ -1295,7 +1295,7 @@ void InstallLoadDOL( void )
 				ISFS_Delete("/title/00000001/00000002/data/main.bin");
 			}
 
-			//file not found crete a new one
+			//file not found create a new one
 			ISFS_CreateFile("/title/00000001/00000002/data/main.bin", 0, 3, 3, 3);
 			fd = ISFS_Open("/title/00000001/00000002/data/main.bin", 1|2 );
 
@@ -1324,7 +1324,9 @@ void InstallLoadDOL( void )
 #else
 			sprintf(filepath, "elm:/sd/%s", names[cur_off]);
 #endif
+			gprintf("loading %s\n",filepath);
 			FILE *dol = fopen(filepath, "rb" );
+			gprintf("opening %s\n",filepath);
 			if( dol == NULL )
 			{
 				PrintFormat( 1, ((640/2)-((strlen("Could not open:\"%s\" for reading")+strlen(names[cur_off]))*13/2))>>1, 208, "Could not open:\"%s\" for reading", names[cur_off]);
@@ -1474,6 +1476,7 @@ void InstallLoadDOL( void )
 			__STM_Close();
 			__io_wiisd.shutdown();
 			__IOS_ShutdownSubsystems();
+			WPAD_Shutdown();
 			mtmsr(mfmsr() & ~0x8000);
 			mtmsr(mfmsr() | 0x2002);
 			ICSync();
@@ -1493,7 +1496,7 @@ void InstallLoadDOL( void )
 			__STM_Close();
 			ISFS_Deinitialize();
 			__io_wiisd.shutdown();
-			
+			WPAD_Shutdown();
 			__IOS_ShutdownSubsystems();
 			//IOS_ReloadIOS(IOS_GetPreferredVersion());
 			//__ES_Init();
@@ -2038,45 +2041,46 @@ int main(int argc, char **argv)
 				ClearState();
 				if( SGetSetting(SETTING_RETURNTO) == RETURNTO_SYSMENU )
 					BootMainSysMenu();
-
-				if( SGetSetting(SETTING_RETURNTO) != RETURNTO_AUTOBOOT )
-				{
-					break;
-				}
-				//falltrough to default : loading autoboot settings.
 			default :
-				switch( SGetSetting(SETTING_AUTBOOT) )
-				{
-					case AUTOBOOT_SYS:
-						MountDevices();
-						gprintf("AutoBoot:System Menu\n");
-						BootMainSysMenu();
-						break;
-					case AUTOBOOT_HBC:
-						gprintf("AutoBoot:Homebrew Channel\n");
-						LoadHBC();
-						error=ERROR_BOOT_HBC;
-						break;
-
-					case AUTOBOOT_BOOTMII_IOS:
-						gprintf("AutoBoot:BootMii IOS\n");
-						LoadBootMii();
-						error=ERROR_BOOT_BOOTMII;
-						break;
-					case AUTOBOOT_FILE:
-						gprintf("AutoBoot:Installed File\n");
-						AutoBootDol();
-						break;
-
-					case AUTOBOOT_ERROR:
-						error=ERROR_BOOT_ERROR;
-						break;
-
-					case AUTOBOOT_DISABLED:
-					default:
-						break;
-					}
+				if( ClearState() < 0 )
+					error = ERROR_STATE_CLEAR;
+			case 0: 
 				break;
+	
+		}
+		if( SGetSetting(SETTING_RETURNTO) == RETURNTO_AUTOBOOT )
+		{
+			switch( SGetSetting(SETTING_AUTBOOT) )
+			{
+				case AUTOBOOT_SYS:
+					MountDevices();
+					gprintf("AutoBoot:System Menu\n");
+					BootMainSysMenu();
+					break;
+				case AUTOBOOT_HBC:
+					gprintf("AutoBoot:Homebrew Channel\n");
+					LoadHBC();
+					error=ERROR_BOOT_HBC;
+					break;
+
+				case AUTOBOOT_BOOTMII_IOS:
+					gprintf("AutoBoot:BootMii IOS\n");
+					LoadBootMii();
+					error=ERROR_BOOT_BOOTMII;
+					break;
+				case AUTOBOOT_FILE:
+					gprintf("AutoBoot:Installed File\n");
+					AutoBootDol();
+					break;
+
+				case AUTOBOOT_ERROR:
+					error=ERROR_BOOT_ERROR;
+					break;
+
+				case AUTOBOOT_DISABLED:
+				default:
+					break;
+			}
 		}
 	}
 
