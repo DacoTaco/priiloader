@@ -203,7 +203,7 @@ int main(int argc, char **argv)
 			fd = ISFS_Open(getAlignedName("/title/00000001/00000002/content/ticket"),ISFS_OPEN_READ);
 			if (fd <0)
 			{
-				printf("  preloader system ticket not found/access denied.\n  trying to read original ticket...\n");
+				printf("  priiloader system menu ticket not found/access denied.\n  trying to read original ticket...\n");
 				ISFS_Close(fd);
 				fd = ISFS_Open(getAlignedName("/ticket/00000001/00000002.tik"),ISFS_OPEN_READ);
 				//"/ticket/00000001/00000002.tik" -> original path which should be there on every wii.
@@ -237,10 +237,6 @@ int main(int argc, char **argv)
 					printf("  Original ticket loaded & set for copy\n");
 					CopyTicket = true;
 				}
-			}
-			else
-			{
-				printf("  preloader system ticket found\n");
 			}
 			fstats * status = (fstats*)memalign(32,sizeof(fstats));
 			fs = ISFS_GetFileStats(fd,status);
@@ -338,6 +334,10 @@ int main(int argc, char **argv)
 							abort("Unable to copy the system menu ticket");
 						}
 					}
+					else
+					{
+						printf("  priiloader system menu ticket found\n");
+					}
 					if (nand_copy(file,load) < 0)
 					{
 						abort("Unable to move the system menu");
@@ -370,6 +370,10 @@ int main(int argc, char **argv)
 						{
 							abort("Unable to copy the system menu ticket");
 						}
+					}
+					else
+					{
+						printf("  skipping copy of priiloader system menu ticket\n");
 					}
 					ISFS_Delete(file);
 					ISFS_Delete("/title/00000001/00000002/data/loader.ini");
