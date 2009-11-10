@@ -1128,21 +1128,28 @@ void BootMainSysMenu( void )
 	WPAD_Shutdown();
 	if( !SGetSetting( SETTING_USESYSTEMMENUIOS ) )
 	{
-		__ES_Close();
-		__ES_Init();
-		__IOS_LaunchNewIOS(SGetSetting(SETTING_SYSTEMMENUIOS));
-		gprintf("launched ios %d for system menu\n",IOS_GetVersion());
-		//__IOS_LaunchNewIOS(rTMD->sys_version);
-		//__IOS_LaunchNewIOS(249);
-		__IOS_InitializeSubsystems();
-		r = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size, (signed_blob *)buf, tstatus->file_length, &tempKeyID);
-		if( r < 0 )
-		{	error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
-			__IOS_ShutdownSubsystems();
-			__IOS_LaunchNewIOS(rTMD->sys_version);
+		if ((s32)SGetSetting(SETTING_SYSTEMMENUIOS) != IOS_GetVersion())
+		{
+			__ES_Close();
+			__ES_Init();
+			__IOS_LaunchNewIOS(SGetSetting(SETTING_SYSTEMMENUIOS));
+			gprintf("launched ios %d for system menu\n",IOS_GetVersion());
+			//__IOS_LaunchNewIOS(rTMD->sys_version);
+			//__IOS_LaunchNewIOS(249);
 			__IOS_InitializeSubsystems();
-			WPAD_Init();
-			return;
+			r = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size, (signed_blob *)buf, tstatus->file_length, &tempKeyID);
+			if( r < 0 )
+			{	error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
+				__IOS_ShutdownSubsystems();
+				__IOS_LaunchNewIOS(rTMD->sys_version);
+				__IOS_InitializeSubsystems();
+				WPAD_Init();
+				return;
+			}
+		}
+		else
+		{
+			gprintf("set to use the same ios as system ios. skipping reload...\n");
 		}
 	}
 	//ES_SetUID(TitleID);
@@ -1961,7 +1968,6 @@ void DVDStopDisc( void )
 int main(int argc, char **argv)
 {
 	CheckForGecko();
-
 	gprintf("priiloader\n");
 	gprintf("Built   : %s %s\n", __DATE__, __TIME__ );
 	gprintf("Version : %d.%d (rev %s)\n", VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
@@ -2009,8 +2015,9 @@ int main(int argc, char **argv)
 	LoadSettings();
 	s16 Bootstate = CheckBootState();
 	gprintf("BootState:%d\n", Bootstate );
-	//Check reset button state
-	if( ((*(vu32*)0xCC003000)>>16)&1 )
+	gprintf("\"Magic Priiloader word\": %x\n",*(vu32*)0x8132FFFB);
+	//Check reset button state or magic word
+	if( ((*(vu32*)0xCC003000)>>16)&1 && *(vu32*)0x8132FFFB != 0x4461636f) //0x4461636f = "Daco" in hex
 	{
 		//Check autoboot settings
 		if( Bootstate < 0 )
@@ -2040,50 +2047,93 @@ int main(int argc, char **argv)
 			case 3:
 				ClearState();
 				if( SGetSetting(SETTING_RETURNTO) == RETURNTO_SYSMENU )
+					gprintf("ReturnTo:System Menu\n");
 					BootMainSysMenu();
+				if( SGetSetting(SETTING_RETURNTO) == RETURNTO_AUTOBOOT )
+				{
+					switch( SGetSetting(SETTING_AUTBOOT) )
+					{
+						case AUTOBOOT_SYS:
+							MountDevices();
+							gprintf("AutoBoot:System Menu\n");
+							BootMainSysMenu();
+							break;
+						case AUTOBOOT_HBC:
+							gprintf("AutoBoot:Homebrew Channel\n");
+							LoadHBC();
+							error=ERROR_BOOT_HBC;
+							break;
+
+						case AUTOBOOT_BOOTMII_IOS:
+							gprintf("AutoBoot:BootMii IOS\n");
+							LoadBootMii();
+							error=ERROR_BOOT_BOOTMII;
+							break;
+						case AUTOBOOT_FILE:
+							gprintf("AutoBoot:Installed File\n");
+							AutoBootDol();
+							break;
+
+						case AUTOBOOT_ERROR:
+							error=ERROR_BOOT_ERROR;
+							break;
+
+						case AUTOBOOT_DISABLED:
+						default:
+							break;
+					}
+				}
+				break;
 			default :
 				if( ClearState() < 0 )
 					error = ERROR_STATE_CLEAR;
 			case 0: 
+				switch( SGetSetting(SETTING_AUTBOOT) )
+				{
+					case AUTOBOOT_SYS:
+						MountDevices();
+						gprintf("AutoBoot:System Menu\n");
+						BootMainSysMenu();
+						break;
+					case AUTOBOOT_HBC:
+						gprintf("AutoBoot:Homebrew Channel\n");
+						LoadHBC();
+						error=ERROR_BOOT_HBC;
+						break;
+
+					case AUTOBOOT_BOOTMII_IOS:
+						gprintf("AutoBoot:BootMii IOS\n");
+						LoadBootMii();
+						error=ERROR_BOOT_BOOTMII;
+						break;
+					case AUTOBOOT_FILE:
+						gprintf("AutoBoot:Installed File\n");
+						AutoBootDol();
+						break;
+
+					case AUTOBOOT_ERROR:
+						error=ERROR_BOOT_ERROR;
+						break;
+
+					case AUTOBOOT_DISABLED:
+					default:
+						break;
+				}
 				break;
-	
-		}
-		if( SGetSetting(SETTING_RETURNTO) == RETURNTO_AUTOBOOT )
-		{
-			switch( SGetSetting(SETTING_AUTBOOT) )
-			{
-				case AUTOBOOT_SYS:
-					MountDevices();
-					gprintf("AutoBoot:System Menu\n");
-					BootMainSysMenu();
-					break;
-				case AUTOBOOT_HBC:
-					gprintf("AutoBoot:Homebrew Channel\n");
-					LoadHBC();
-					error=ERROR_BOOT_HBC;
-					break;
 
-				case AUTOBOOT_BOOTMII_IOS:
-					gprintf("AutoBoot:BootMii IOS\n");
-					LoadBootMii();
-					error=ERROR_BOOT_BOOTMII;
-					break;
-				case AUTOBOOT_FILE:
-					gprintf("AutoBoot:Installed File\n");
-					AutoBootDol();
-					break;
-
-				case AUTOBOOT_ERROR:
-					error=ERROR_BOOT_ERROR;
-					break;
-
-				case AUTOBOOT_DISABLED:
-				default:
-					break;
-			}
 		}
 	}
-
+	else
+	{
+		gprintf("reset or magic priiloader word found!\n");
+	}
+	//remove the "Magic Priiloader word" cause it has done its purpose
+	if(*(vu32*)0x8132FFFB == 0x4461636f)
+	{
+		gprintf("clearing memory of the \"Magic Priiloader Word\"\n");
+		*(vu32*)0x8132FFFB = 0x00000000;
+		DCFlushRange((void*)0x8132FFFB,4);
+	}
 	AUDIO_Init (NULL);
 	DSP_Init ();
 	AUDIO_StopDMA();
@@ -2111,7 +2161,6 @@ int main(int argc, char **argv)
 	{
 		DVDStopDisc();
 	}
-
 	while(1)
 	{
 		WPAD_ScanPads();
