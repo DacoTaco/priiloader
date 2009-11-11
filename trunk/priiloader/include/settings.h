@@ -1,6 +1,6 @@
 /*
 
-preloader 0.30 - A tool which allows to change the default boot up sequence on the Wii console
+priiloader/preloader 0.30 - A tool which allows to change the default boot up sequence on the Wii console
 
 Copyright (C) 2008-2009  crediar
 
@@ -21,7 +21,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 
-#define VERSION		01
+#define VERSION		02
 //#define BETAVERSION	0x00001E02
 #define BETAVERSION	0
 

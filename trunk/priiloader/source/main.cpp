@@ -1,6 +1,6 @@
 /*
 
-preloader 0.30 - A tool which allows to change the default boot up sequence on the Wii console
+priiloader/preloader 0.30 - A tool which allows to change the default boot up sequence on the Wii console
 
 Copyright (C) 2008-2009  crediar
 
@@ -1353,24 +1353,23 @@ void InstallLoadDOL( void )
 				ElfHdr.e_ident[EI_MAG2] == 'L' ||
 				ElfHdr.e_ident[EI_MAG3] == 'F' )
 			{
+				gprintf("ELF Found\n");
 #ifdef DEBUG
-				printf("ELF found\n");
+				gprintf("Type:      \t%04X\n", ElfHdr.e_type );
+				gprintf("Machine:   \t%04X\n", ElfHdr.e_machine );
+				gprintf("Version:  %08X\n", ElfHdr.e_version );
+				gprintf("Entry:    %08X\n", ElfHdr.e_entry );
+				gprintf("Flags:    %08X\n", ElfHdr.e_flags );
+				gprintf("EHsize:    \t%04X\n\n", ElfHdr.e_ehsize );
 
-				printf("Type:      \t%04X\n", ElfHdr.e_type );
-				printf("Machine:   \t%04X\n", ElfHdr.e_machine );
-				printf("Version:  %08X\n", ElfHdr.e_version );
-				printf("Entry:    %08X\n", ElfHdr.e_entry );
-				printf("Flags:    %08X\n", ElfHdr.e_flags );
-				printf("EHsize:    \t%04X\n\n", ElfHdr.e_ehsize );
+				gprintf("PHoff:    %08X\n",	ElfHdr.e_phoff );
+				gprintf("PHentsize: \t%04X\n",	ElfHdr.e_phentsize );
+				gprintf("PHnum:     \t%04X\n\n",ElfHdr.e_phnum );
 
-				printf("PHoff:    %08X\n",	ElfHdr.e_phoff );
-				printf("PHentsize: \t%04X\n",	ElfHdr.e_phentsize );
-				printf("PHnum:     \t%04X\n\n",ElfHdr.e_phnum );
-
-				printf("SHoff:    %08X\n",	ElfHdr.e_shoff );
-				printf("SHentsize: \t%04X\n",	ElfHdr.e_shentsize );
-				printf("SHnum:     \t%04X\n",	ElfHdr.e_shnum );
-				printf("SHstrndx:  \t%04X\n\n",ElfHdr.e_shstrndx );
+				gprintf("SHoff:    %08X\n",	ElfHdr.e_shoff );
+				gprintf("SHentsize: \t%04X\n",	ElfHdr.e_shentsize );
+				gprintf("SHnum:     \t%04X\n",	ElfHdr.e_shnum );
+				gprintf("SHstrndx:  \t%04X\n\n",ElfHdr.e_shstrndx );
 #endif
 
 				if( ElfHdr.e_phnum == 0 )
@@ -1590,24 +1589,23 @@ void AutoBootDol( void )
 		ElfHdr->e_ident[EI_MAG2] == 'L' ||
 		ElfHdr->e_ident[EI_MAG3] == 'F' )
 	{
+		gprintf("ELF Found\n");
 #ifdef DEBUG
-		printf("ELF found\n");
+		gprintf("Type:      \t%04X\n", ElfHdr->e_type );
+		gprintf("Machine:   \t%04X\n", ElfHdr->e_machine );
+		gprintf("Version:  %08X\n", ElfHdr->e_version );
+		gprintf("Entry:    %08X\n", ElfHdr->e_entry );
+		gprintf("Flags:    %08X\n", ElfHdr->e_flags );
+		gprintf("EHsize:    \t%04X\n\n", ElfHdr->e_ehsize );
 
-		printf("Type:      \t%04X\n", ElfHdr->e_type );
-		printf("Machine:   \t%04X\n", ElfHdr->e_machine );
-		printf("Version:  %08X\n", ElfHdr->e_version );
-		printf("Entry:    %08X\n", ElfHdr->e_entry );
-		printf("Flags:    %08X\n", ElfHdr->e_flags );
-		printf("EHsize:    \t%04X\n\n", ElfHdr->e_ehsize );
+		gprintf("PHoff:    %08X\n",	ElfHdr->e_phoff );
+		gprintf("PHentsize: \t%04X\n",	ElfHdr->e_phentsize );
+		gprintf("PHnum:     \t%04X\n\n",ElfHdr->e_phnum );
 
-		printf("PHoff:    %08X\n",	ElfHdr->e_phoff );
-		printf("PHentsize: \t%04X\n",	ElfHdr->e_phentsize );
-		printf("PHnum:     \t%04X\n\n",ElfHdr->e_phnum );
-
-		printf("SHoff:    %08X\n",	ElfHdr->e_shoff );
-		printf("SHentsize: \t%04X\n",	ElfHdr->e_shentsize );
-		printf("SHnum:     \t%04X\n",	ElfHdr->e_shnum );
-		printf("SHstrndx:  \t%04X\n\n",ElfHdr->e_shstrndx );
+		gprintf("SHoff:    %08X\n",	ElfHdr->e_shoff );
+		gprintf("SHentsize: \t%04X\n",	ElfHdr->e_shentsize );
+		gprintf("SHnum:     \t%04X\n",	ElfHdr->e_shnum );
+		gprintf("SHstrndx:  \t%04X\n\n",ElfHdr->e_shstrndx );
 #endif
 
 		if( ElfHdr->e_phnum == 0 )
@@ -1640,7 +1638,7 @@ void AutoBootDol( void )
 					return;
 				}
 #ifdef DEBUG
-				printf("Type:%08X Offset:%08X VAdr:%08X PAdr:%08X FileSz:%08X\n", phdr->p_type, phdr->p_offset, phdr->p_vaddr, phdr->p_paddr, phdr->p_filesz );
+				gprintf("Type:%08X Offset:%08X VAdr:%08X PAdr:%08X FileSz:%08X\n", phdr->p_type, phdr->p_offset, phdr->p_vaddr, phdr->p_paddr, phdr->p_filesz );
 #endif
 				r = ISFS_Seek( fd, phdr->p_offset, 0 );
 				if( r < 0 )
@@ -1652,42 +1650,50 @@ void AutoBootDol( void )
 					return;
 				}
 
-				//Check if target address is aligned by 32, otherwise create a temp buffer and load it from there!
-
-				if(phdr->p_vaddr&(~31))
+				//DacoTaco : hacky check, i know
+				if ( (phdr->p_vaddr != 0) && (phdr->p_filesz != 0) )
 				{
-					u8 *tbuf = (u8*)memalign(32, (phdr->p_filesz+32)&(~31) );
-
-					r = ISFS_Read( fd, tbuf, phdr->p_filesz);
-					if( r < 0 )
+					//Check if target address is aligned by 32, otherwise create a temp buffer and load it from there!
+					if( phdr->p_vaddr&(~31))
 					{
+						u8 *tbuf = (u8*)memalign(32, (phdr->p_filesz+32)&(~31) );
+
+						r = ISFS_Read( fd, tbuf, phdr->p_filesz);
+						if( r < 0 )
+						{
 #ifdef DEBUG
-						sleep(10);
+							sleep(10);
 #endif
-						error = ERROR_BOOT_DOL_READ;
-						return;
-					}
+							gprintf("read failed of the program section addr(%u). error 1.%d\n",phdr->p_vaddr,r);
+							error = ERROR_BOOT_DOL_READ;
+							return;
+						}
 
-					memcpy( (void*)(phdr->p_vaddr | 0x80000000), tbuf, phdr->p_filesz );
+						memcpy( (void*)(phdr->p_vaddr | 0x80000000), tbuf, phdr->p_filesz );
 
-					free( tbuf);
-				} else {
+						free( tbuf);
+					} else {
 
-					r = ISFS_Read( fd, (void*)(phdr->p_vaddr | 0x80000000), phdr->p_filesz);
-					if( r < 0 )
-					{
+						r = ISFS_Read( fd, (void*)(phdr->p_vaddr | 0x80000000), phdr->p_filesz);
+						if( r < 0 )
+						{
 #ifdef DEBUG
-						sleep(10);
+							sleep(10);
 #endif
-						error = ERROR_BOOT_DOL_READ;
-						return;
+							gprintf("read failed of the program section addr(%u). error 2.%d\n",phdr->p_vaddr,r);
+							error = ERROR_BOOT_DOL_READ;
+							return;
+						}
 					}
+				}
+				else
+				{
+					gprintf("warning! program section nr %d address is 0!(%u - %u)\n",i,phdr->p_vaddr, phdr->p_filesz);
 				}
 
 				free( phdr );
 			}
 		}
-
 		if( ElfHdr->e_shnum == 0 )
 		{
 #ifdef DEBUG
@@ -1743,8 +1749,7 @@ void AutoBootDol( void )
 
 
 				//Check if target address is aligned by 32, otherwise create a temp buffer and load it from there!
-
-				if(shdr->sh_size&(~31))
+				if( (shdr->sh_addr == 0) || shdr->sh_addr&(~31) )
 				{
 					u8 *tbuf = (u8*)memalign(32, (shdr->sh_size+32)&(~31) );
 
@@ -1754,6 +1759,7 @@ void AutoBootDol( void )
 #ifdef DEBUG
 						sleep(10);
 #endif
+						gprintf("error reading file, error code 5.%d\n",r);
 						error = ERROR_BOOT_DOL_READ;
 						return;
 					}
@@ -1769,6 +1775,7 @@ void AutoBootDol( void )
 #ifdef DEBUG
 						sleep(10);
 #endif
+						gprintf("error reading file, error code 6.%d\n",r);
 						error = ERROR_BOOT_DOL_READ;
 						return;
 					}
@@ -1779,7 +1786,6 @@ void AutoBootDol( void )
 		}
 
 		ISFS_Close( fd );
-
 		entrypoint = (void (*)())(ElfHdr->e_entry | 0x80000000);
 
 		//sleep(20);
@@ -1897,15 +1903,16 @@ void AutoBootDol( void )
 		entrypoint = (void (*)())(hdr->entrypoint);
 
 	}
-
 	if( entrypoint == 0x00000000 )
 	{
 		error = ERROR_BOOT_DOL_ENTRYPOINT;
 		return;
 	}
-
+	for(int i=0;i<WPAD_MAX_WIIMOTES;i++) {
+		WPAD_Flush(i);
+		WPAD_Disconnect(i);
+	}
 	WPAD_Shutdown();
-
 	gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
 	//sleep(1);
 	//Shutdown everything
@@ -2045,7 +2052,11 @@ int main(int argc, char **argv)
 				}
 				break;
 			case 3:
-				ClearState();
+				if( ClearState() < 0 )
+				{
+					gprintf("failed to clear state\n");
+					error = ERROR_STATE_CLEAR;
+				}
 				if( SGetSetting(SETTING_RETURNTO) == RETURNTO_SYSMENU )
 					gprintf("ReturnTo:System Menu\n");
 					BootMainSysMenu();
@@ -2346,6 +2357,6 @@ void gprintf( const char *str, ... )
 	vsprintf( astr, str, ap );
 
 	va_end(ap);
-
+	
 	usb_sendbuffer( 1, astr, strlen(astr) );
 }
