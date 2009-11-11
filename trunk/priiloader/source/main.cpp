@@ -1664,7 +1664,7 @@ void AutoBootDol( void )
 #ifdef DEBUG
 							sleep(10);
 #endif
-							gprintf("read failed of the program section addr(%u). error 1.%d\n",phdr->p_vaddr,r);
+							gprintf("read failed of the program section addr(%u). error 1.%d.%u\n",phdr->p_vaddr,r,phdr->p_filesz);
 							error = ERROR_BOOT_DOL_READ;
 							return;
 						}
@@ -1680,7 +1680,7 @@ void AutoBootDol( void )
 #ifdef DEBUG
 							sleep(10);
 #endif
-							gprintf("read failed of the program section addr(%u). error 2.%d\n",phdr->p_vaddr,r);
+							gprintf("read failed of the program section addr(%u). error 2.%d.%u\n",phdr->p_vaddr,r,phdr->p_filesz);
 							error = ERROR_BOOT_DOL_READ;
 							return;
 						}
