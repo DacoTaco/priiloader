@@ -103,60 +103,49 @@ void gprintf( const char *str, ... );
 void CheckForGecko( void );
 bool MountDevices(void)
 {
+#ifndef libELM
+	return fatInitDefault();
+#else
 	__io_wiisd.startup();
 	if ( __io_wiisd.isInserted() )
 	{
-
-#ifndef libELM
-		return fatMountSimple("sd",&__io_wiisd);
-#else
 		if ( ELM_MountDevice(ELM_SD) < 0)
 			return false
 		else
 			return true;
+	}
+	else
+		return false;
 #endif
+}
+bool RemountDevices( void )
+{
+#ifndef libELM
+	//unmount device and try and mount again.
+	//note : SD will first get an attempt to mount and then usb :)
+	fatUnmount("/");
+	return fatInitDefault();
+#else
+	__io_wiisd.shutdown();
+	__io_wiisd.startup();
+	if ( __io_wiisd.isInserted() )
+	{
+		//unmount SD & shutdown the port ...
+		//ELM_Unmount();
+		ELM_UnmountDevice(ELM_SD);
+		__io_wiisd.shutdown();
+		__io_wiisd.startup();
+		if ( ELM_MountDevice(ELM_SD) < 0)
+			return false
+		else
+			return true;
 	}
 	else
 	{
+		//its not there so ye, return false
 		return false;
 	}
-}
-bool RemountSD( void )
-{
-#ifndef libELM
-		//unmount SD & shutdown the port ...
-		fatUnmount("sd:/");
-		__io_wiisd.shutdown();
-		__io_wiisd.startup();
-		if ( __io_wiisd.isInserted() )
-		{
-			return fatMountSimple("sd",&__io_wiisd);
-		}
-		else
-		{
-			//its not there so ye, return false
-			return false;
-		}
-#else
-		if ( __io_wiisd.isInserted() )
-		{
-			//unmount SD & shutdown the port ...
-			//ELM_Unmount();
-			ELM_UnmountDevice(ELM_SD);
-			__io_wiisd.shutdown();
-			__io_wiisd.startup();
-			if ( ELM_MountDevice(ELM_SD) < 0)
-				return false
-			else
-				return true;
-		}
-		else
-		{
-			//its not there so ye, return false
-			return false;
-		}
 #endif
-		return true;
 }
 void ClearScreen()
 {
@@ -170,7 +159,7 @@ void ClearScreen()
 }
 void SysHackSettings( void )
 {
-	bool SDFound = RemountSD();
+	bool DeviceFound = RemountDevices();
 	if(!LoadHacks())
 		return;
 
@@ -188,7 +177,7 @@ void SysHackSettings( void )
 
 	if( HackCount == 0 )
 	{
-		if(SDFound)
+		if(DeviceFound)
 		{
 			PrintFormat( 1, ((640/2)-((strlen("Couldn't find any hacks for"))*13/2))>>1, 208, "Couldn't find any hacks for");
 			PrintFormat( 1, ((640/2)-((strlen("System Menu version:vxxx"))*13/2))>>1, 228, "System Menu version:v%d", SysVersion );
@@ -197,7 +186,7 @@ void SysHackSettings( void )
 		}
 		else
 		{
-			PrintFormat( 1, ((640/2)-((strlen("Failed to mount SD card"))*13/2))>>1, 208, "Failed to mount SD card");
+			PrintFormat( 1, ((640/2)-((strlen("Failed to mount fat device"))*13/2))>>1, 208, "Failed to mount fat device");
 			sleep(5);
 			return;
 		}
@@ -235,20 +224,22 @@ void SysHackSettings( void )
 		{
 			if( cur_off == DispCount)
 			{
-				//first try to open the file on the SD card, if we found it copy it, other wise skip
+				//first try to open the file on the SD card/USB, if we found it copy it, other wise skip
 				s16 fail = 0;
-				if (!SDFound)
+				if (!DeviceFound)
 				{
-					PrintFormat( 1, ((640/2)-((strlen("NO SD card found!"))*13/2))>>1, 208, "NO SD card found!");
-					sleep(5);
+					ClearScreen();
+					PrintFormat( 1, ((640/2)-((strlen("no FAT device found!"))*13/2))>>1, 208, "no FAT device found!");
+					sleep(3);
+					redraw = true;
 				}
 				else
 				{
 #ifndef libELM
-					FILE *in = fopen("sd:/preloader/hacks.ini", "rb" );
+					FILE *in = fopen("/preloader/hacks.ini", "rb" );
 					if (!in)
 					{
-						in = fopen ("sd:/hacks.ini","rb");
+						in = fopen ("/hacks.ini","rb");
 					}
 #else
 					FILE *in = fopen("elm:/sd/preloader/hacks.ini", "rb" );
@@ -828,21 +819,21 @@ void LoadHBC( void )
 }
 void LoadBootMii( void )
 {
-	if (!RemountSD())
+	if (!RemountDevices())
 	{
-		PrintFormat( 1, ((640/2)-((strlen("Could not mount SD card"))*13/2))>>1, 208, "Could not mount SD card");
+		PrintFormat( 1, ((640/2)-((strlen("Could not mount any FAT device"))*13/2))>>1, 208, "Could not mount any FAT device");
 		sleep(5);
 		return;
 	}
 	//when this was coded on 6th of Oct 2009 Bootmii was IOS 254
 #ifndef libELM
-	FILE* BootmiiFile = fopen("sd:/bootmii/armboot.bin","r");
+	FILE* BootmiiFile = fopen("/bootmii/armboot.bin","r");
 #else
 	FILE* BootmiiFile = fopen("elm:/sd/bootmii/armboot.bin","r");
 #endif
 	if (!BootmiiFile)
 	{
-		PrintFormat( 1, ((640/2)-((strlen("Could not find sd:/bootmii/armboot.bin"))*13/2))>>1, 208, "Could not find sd:/bootmii/armboot.bin");
+		PrintFormat( 1, ((640/2)-((strlen("Could not find fat:/bootmii/armboot.bin"))*13/2))>>1, 208, "Could not find fat:/bootmii/armboot.bin");
 		sleep(5);
 		return;
 	}
@@ -850,13 +841,13 @@ void LoadBootMii( void )
 	{
 		fclose(BootmiiFile);
 #ifndef libELM
-		BootmiiFile = fopen("sd:/bootmii/ppcboot.elf","r");
+		BootmiiFile = fopen("/bootmii/ppcboot.elf","r");
 #else
 		BootmiiFile = fopen("elm:/sd/bootmii/ppcboot.elf","r");
 #endif
 		if(!BootmiiFile)
 		{
-			PrintFormat( 1, ((640/2)-((strlen("Could not find sd:/bootmii/ppcboot.elf"))*13/2))>>1, 208, "Could not find sd:/bootmii/ppcboot.elf");
+			PrintFormat( 1, ((640/2)-((strlen("Could not find fat:/bootmii/ppcboot.elf"))*13/2))>>1, 208, "Could not find fat:/bootmii/ppcboot.elf");
 			sleep(5);
 			return;
 		}
@@ -1197,26 +1188,29 @@ void BootMainSysMenu( void )
 }
 void InstallLoadDOL( void )
 {
-	char filename[MAXPATHLEN], filepath[MAXPATHLEN];
+	char filename[MAXPATHLEN];
+#ifdef libELM
+	char filepath[MAXPATHLEN];
+#endif
 	std::vector<char*> names;
 	
 	struct stat st;
 	DIR_ITER* dir;
 
-	if (!RemountSD() )
+	if (!RemountDevices() )
 	{
-		PrintFormat( 1, ((640/2)-((strlen("NO SD card found!"))*13/2))>>1, 208, "NO SD card found!");
+		PrintFormat( 1, ((640/2)-((strlen("NO fat device found found!"))*13/2))>>1, 208, "NO fat device found found!");
 		sleep(5);
 		return;
 	}
 #ifndef libELM
-	dir = diropen ("sd:/");
+	dir = diropen ("/");
 #else
 	dir = diropen("elm:/sd/");
 #endif
 	if( dir == NULL )
 	{
-		PrintFormat( 1, ((640/2)-((strlen("Failed to open root of SD!"))*13/2))>>1, 208, "Failed to open root of SD");
+		PrintFormat( 1, ((640/2)-((strlen("Failed to open root of Device!"))*13/2))>>1, 208, "Failed to open root of Device!");
 		sleep(5);
 		return;
 	}
@@ -1239,7 +1233,7 @@ void InstallLoadDOL( void )
 	if( names.size() == 0 )
 	{
 		PrintFormat( 1, ((640/2)-((strlen("Couldn't find any executable files"))*13/2))>>1, 208, "Couldn't find any executable files");
-		PrintFormat( 1, ((640/2)-((strlen("in the root of the SD card!"))*13/2))>>1, 228, "in the root of the SD card!");
+		PrintFormat( 1, ((640/2)-((strlen("in the root of the FAT device!"))*13/2))>>1, 228, "in the root of the FAT device!");
 		sleep(5);
 		return;
 	}
@@ -1268,12 +1262,12 @@ void InstallLoadDOL( void )
 		{
 			ClearScreen();
 			//Install file
-#ifndef libELM
-			sprintf(filepath, "sd:/%s", names[cur_off]);
-#else
+#ifdef libELM
 			sprintf(filepath, "elm:/sd/%s",names[cur_off]);
-#endif
 			FILE *dol = fopen(filepath, "rb" );
+#else
+			FILE *dol = fopen(names[cur_off], "rb" );
+#endif
 			if( dol == NULL )
 			{
 				PrintFormat( 1, ((640/2)-((strlen("Could not open:\"%s\" for reading")+strlen(names[cur_off]))*13/2))>>1, 208, "Could not open:\"%s\" for reading", names[cur_off]);
@@ -1326,26 +1320,25 @@ void InstallLoadDOL( void )
 			ClearScreen();
 
 			//Load dol
-#ifndef libELM
-			sprintf(filepath, "sd:/%s", names[cur_off]);
-#else
+#ifdef libELM
 			sprintf(filepath, "elm:/sd/%s", names[cur_off]);
-#endif
-			gprintf("loading %s\n",filepath);
 			FILE *dol = fopen(filepath, "rb" );
-			gprintf("opening %s\n",filepath);
+#else
+			FILE *dol = fopen(names[cur_off],"rb");
+#endif
+			gprintf("opening %s\n",names[cur_off]);
 			if( dol == NULL )
 			{
 				PrintFormat( 1, ((640/2)-((strlen("Could not open:\"%s\" for reading")+strlen(names[cur_off]))*13/2))>>1, 208, "Could not open:\"%s\" for reading", names[cur_off]);
 				sleep(5);
 				break;
 			}
-
+			gprintf("loading %s\n",names[cur_off]);
 			PrintFormat( 0, ((640/2)-((strlen("Loading file...")+strlen(names[cur_off]))*13/2))>>1, 208, "Loading file...", names[cur_off]);
-
 			void	(*entrypoint)();
-	
+
 			Elf32_Ehdr ElfHdr;
+
 			fread( &ElfHdr, sizeof( ElfHdr ), 1, dol );
 
 			if( ElfHdr.e_ident[EI_MAG0] == 0x7F ||
@@ -1434,7 +1427,6 @@ void InstallLoadDOL( void )
 			//	printf("DOL found\n");
 
 				//Load the dol!, TODO: maybe add sanity checks?
-
 				//read the header
 				dolhdr hdr;
 				fseek( dol, 0, 0);
@@ -1473,9 +1465,7 @@ void InstallLoadDOL( void )
 
 				memset ((void *) hdr.addressBSS, 0, hdr.sizeBSS);
 				DCFlushRange((void *) hdr.addressBSS, hdr.sizeBSS);
-
 				fclose( dol );
-				
 				entrypoint = (void (*)())(hdr.entrypoint);
 			}
 
@@ -1486,8 +1476,7 @@ void InstallLoadDOL( void )
 			mtmsr(mfmsr() & ~0x8000);
 			mtmsr(mfmsr() | 0x2002);
 			ICSync();
-			entrypoint();
-			
+			entrypoint();		
 
 			//u32 level;
 			//__IOS_ShutdownSubsystems();
@@ -1513,7 +1502,7 @@ void InstallLoadDOL( void )
 			mtmsr(mfmsr() | 0x2002);
 			//sleep(5);
 			ICSync();
-			//printf("Entrypoint: %08X\n", (u32)(entrypoint) );
+			gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
 			//sleep(1);
 			entrypoint();
 		}
@@ -1908,6 +1897,7 @@ void AutoBootDol( void )
 		error = ERROR_BOOT_DOL_ENTRYPOINT;
 		return;
 	}
+	gprintf("killing wiimotes...\n");
 	for(int i=0;i<WPAD_MAX_WIIMOTES;i++) {
 		WPAD_Flush(i);
 		WPAD_Disconnect(i);
@@ -2022,13 +2012,16 @@ int main(int argc, char **argv)
 	LoadSettings();
 	s16 Bootstate = CheckBootState();
 	gprintf("BootState:%d\n", Bootstate );
+	if( ClearState() < 0 )
+	{
+		gprintf("failed to clear state\n");
+		error = ERROR_STATE_CLEAR;
+	}
 	gprintf("\"Magic Priiloader word\": %x\n",*(vu32*)0x8132FFFB);
 	//Check reset button state or magic word
 	if( ((*(vu32*)0xCC003000)>>16)&1 && *(vu32*)0x8132FFFB != 0x4461636f) //0x4461636f = "Daco" in hex
 	{
 		//Check autoboot settings
-		if( Bootstate < 0 )
-			ClearState();
 		switch( Bootstate )
 		{
 			case 5:
@@ -2052,11 +2045,6 @@ int main(int argc, char **argv)
 				}
 				break;
 			case 3:
-				if( ClearState() < 0 )
-				{
-					gprintf("failed to clear state\n");
-					error = ERROR_STATE_CLEAR;
-				}
 				if( SGetSetting(SETTING_RETURNTO) == RETURNTO_SYSMENU )
 					gprintf("ReturnTo:System Menu\n");
 					BootMainSysMenu();
@@ -2151,7 +2139,7 @@ int main(int argc, char **argv)
 	AUDIO_RegisterDMACallback(NULL);
 
 	r = (s32)MountDevices();
-	gprintf("SDCard_Init():%d\n", r );
+	gprintf("FAT_Init():%d\n", r );
 
 	r = PAD_Init();
 	gprintf("PAD_Init():%d\n", r );
@@ -2202,7 +2190,7 @@ int main(int argc, char **argv)
 			switch(cur_off)
 			{
 				case 0:
-					RemountSD();
+					RemountDevices();
 					BootMainSysMenu();
 				break;
 				case 1:		//Load HBC
