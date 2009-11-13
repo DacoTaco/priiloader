@@ -82,23 +82,15 @@ u32 LoadHacks( void )
 		return 1;
 	}
 
-	u32 mode = 1;
+	bool mode = true;
 	s32 fd=0;
 	char *buf=NULL;
 #ifndef libELM
-	FILE *in = fopen("/preloader/hacks.ini", "rb" );
-	if (!in)
-	{
-		in = fopen ("/hacks.ini","rb");
-	}
+	FILE* in = fopen ("fat:/hacks.ini","rb");
 #else
-	FILE *in = fopen("elm:/sd/preloader/hacks.ini", "rb" );
-	if (!in)
-	{
-		in = fopen ("elm:/sd/hacks.ini","rb");
-	}
+	FILE* in = fopen ("elm:/sd/hacks.ini","rb");
 #endif
-	if( in == NULL )
+	if( !in )
 	{
 		fd = ISFS_Open("/title/00000001/00000002/data/hacks.ini", 1 );
 		if( fd < 0 )
@@ -109,7 +101,7 @@ u32 LoadHacks( void )
 			sleep(5);
 			return 0;
 		} 
-		mode = 0;
+		mode = false;
 	}
 	unsigned int size=0;
 
@@ -364,11 +356,14 @@ u32 LoadHacks( void )
 		return 0;
 
 	//load hack states (on/off)
-	states = (u32*)memalign( 32, ((sizeof( u32 ) * hacks.size())+32)&(~31) );
-	if( states == NULL )
+	if ( states == NULL )
 	{
-		error = ERROR_MALLOC;
-		return 0;
+		states = (u32*)memalign( 32, ((sizeof( u32 ) * hacks.size())+32)&(~31) );
+		if( states == NULL )
+		{
+			error = ERROR_MALLOC;
+			return 0;
+		}
 	}
 	memset( states, 0, ((sizeof( u32 ) * hacks.size())+32)&(~31) );
 
