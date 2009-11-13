@@ -86,10 +86,10 @@ u32 LoadHacks( void )
 	s32 fd=0;
 	char *buf=NULL;
 #ifndef libELM
-	FILE *in = fopen("sd:/preloader/hacks.ini", "rb" );
+	FILE *in = fopen("/preloader/hacks.ini", "rb" );
 	if (!in)
 	{
-		in = fopen ("sd:/hacks.ini","rb");
+		in = fopen ("/hacks.ini","rb");
 	}
 #else
 	FILE *in = fopen("elm:/sd/preloader/hacks.ini", "rb" );
