@@ -30,8 +30,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <sdcard/wiisd_io.h>
 #ifndef libELM
 #include <fat.h>
+#include <ogc/usbstorage.h>
 #else
-#include "elm_old.h"
+#include "elm.h"
 #endif
 #include <sys/dir.h>
 #include <unistd.h>
@@ -88,13 +89,8 @@ extern u32 *states;
 u32 result=0;
 u32 Shutdown=0;
 
-//a must have in every app
 s32 __IOS_LoadStartupIOS()
 {
-		/*int res;
-		res = __ES_Init();
-		if(res < 0)
-			return res;*/
         return 0;
 }
 extern s32 __IOS_ShutdownSubsystems();
@@ -104,7 +100,25 @@ void CheckForGecko( void );
 bool MountDevices(void)
 {
 #ifndef libELM
-	return fatInitDefault();
+	if (!fatMountSimple("fat",&__io_wiisd))
+	{
+		//sd mounting failed. lets go usb
+		if(!fatMountSimple("fat", &__io_usbstorage))
+		{
+			//usb failed too :(
+			return false;
+		}
+		else
+		{
+			//usb worked!
+			return true;
+		}
+	}
+	else
+	{
+		//it was ok. SD GO!
+		return true;
+	}
 #else
 	__io_wiisd.startup();
 	if ( __io_wiisd.isInserted() )
@@ -122,9 +136,27 @@ bool RemountDevices( void )
 {
 #ifndef libELM
 	//unmount device and try and mount again.
-	//note : SD will first get an attempt to mount and then usb :)
-	fatUnmount("/");
-	return fatInitDefault();
+	fatUnmount("fat:/");
+	//fatUnmount("usb:/");
+	if (!fatMountSimple("fat",&__io_wiisd))
+	{
+		//sd mounting failed. lets go usb
+		if(!fatMountSimple("fat", &__io_usbstorage))
+		{
+			//usb failed too :(
+			return false;
+		}
+		else
+		{
+			//usb worked!
+			return true;
+		}
+	}
+	else
+	{
+		//it was ok. SD GO!
+		return true;
+	}
 #else
 	__io_wiisd.shutdown();
 	__io_wiisd.startup();
@@ -146,6 +178,7 @@ bool RemountDevices( void )
 		return false;
 	}
 #endif
+	return false;
 }
 void ClearScreen()
 {
@@ -236,17 +269,9 @@ void SysHackSettings( void )
 				else
 				{
 #ifndef libELM
-					FILE *in = fopen("/preloader/hacks.ini", "rb" );
-					if (!in)
-					{
-						in = fopen ("/hacks.ini","rb");
-					}
+					FILE *in = fopen ("fat:/hacks.ini","rb");
 #else
-					FILE *in = fopen("elm:/sd/preloader/hacks.ini", "rb" );
-					if (!in)
-					{
-						in = fopen ("elm:/sd/hacks.ini","rb");
-					}
+					FILE *in = fopen ("elm:/sd/hacks.ini","rb");
 #endif
 					if( in != NULL )
 					{
@@ -788,7 +813,7 @@ void SetSettings( void )
 
 		VIDEO_WaitVSync();
 	}
-
+	free(TitleIDs);
 	return;
 }
 void LoadHBC( void )
@@ -827,7 +852,7 @@ void LoadBootMii( void )
 	}
 	//when this was coded on 6th of Oct 2009 Bootmii was IOS 254
 #ifndef libELM
-	FILE* BootmiiFile = fopen("/bootmii/armboot.bin","r");
+	FILE* BootmiiFile = fopen("fat:/bootmii/armboot.bin","r");
 #else
 	FILE* BootmiiFile = fopen("elm:/sd/bootmii/armboot.bin","r");
 #endif
@@ -841,7 +866,7 @@ void LoadBootMii( void )
 	{
 		fclose(BootmiiFile);
 #ifndef libELM
-		BootmiiFile = fopen("/bootmii/ppcboot.elf","r");
+		BootmiiFile = fopen("fat:/bootmii/ppcboot.elf","r");
 #else
 		BootmiiFile = fopen("elm:/sd/bootmii/ppcboot.elf","r");
 #endif
@@ -1182,16 +1207,12 @@ void BootMainSysMenu( void )
 	__IOS_ShutdownSubsystems();
 	mtmsr(mfmsr() & ~0x8000);
 	mtmsr(mfmsr() | 0x2002);
-
 	_unstub_start();
 
 }
 void InstallLoadDOL( void )
 {
-	char filename[MAXPATHLEN];
-#ifdef libELM
-	char filepath[MAXPATHLEN];
-#endif
+	char filename[MAXPATHLEN],filepath[MAXPATHLEN];
 	std::vector<char*> names;
 	
 	struct stat st;
@@ -1204,7 +1225,7 @@ void InstallLoadDOL( void )
 		return;
 	}
 #ifndef libELM
-	dir = diropen ("/");
+	dir = diropen ("fat:/");
 #else
 	dir = diropen("elm:/sd/");
 #endif
@@ -1266,7 +1287,8 @@ void InstallLoadDOL( void )
 			sprintf(filepath, "elm:/sd/%s",names[cur_off]);
 			FILE *dol = fopen(filepath, "rb" );
 #else
-			FILE *dol = fopen(names[cur_off], "rb" );
+			sprintf(filepath, "fat:/",names[cur_off]);
+			FILE *dol = fopen(filepath, "rb" );
 #endif
 			if( dol == NULL )
 			{
@@ -1324,16 +1346,16 @@ void InstallLoadDOL( void )
 			sprintf(filepath, "elm:/sd/%s", names[cur_off]);
 			FILE *dol = fopen(filepath, "rb" );
 #else
-			FILE *dol = fopen(names[cur_off],"rb");
+			sprintf(filepath, "fat:/%s", names[cur_off]);
+			FILE *dol = fopen(filepath,"rb");
 #endif
-			gprintf("opening %s\n",names[cur_off]);
+			gprintf("laoding %s\n",names[cur_off]);
 			if( dol == NULL )
 			{
 				PrintFormat( 1, ((640/2)-((strlen("Could not open:\"%s\" for reading")+strlen(names[cur_off]))*13/2))>>1, 208, "Could not open:\"%s\" for reading", names[cur_off]);
 				sleep(5);
 				break;
 			}
-			gprintf("loading %s\n",names[cur_off]);
 			PrintFormat( 0, ((640/2)-((strlen("Loading file...")+strlen(names[cur_off]))*13/2))>>1, 208, "Loading file...", names[cur_off]);
 			void	(*entrypoint)();
 
@@ -1897,7 +1919,6 @@ void AutoBootDol( void )
 		error = ERROR_BOOT_DOL_ENTRYPOINT;
 		return;
 	}
-	gprintf("killing wiimotes...\n");
 	for(int i=0;i<WPAD_MAX_WIIMOTES;i++) {
 		WPAD_Flush(i);
 		WPAD_Disconnect(i);
