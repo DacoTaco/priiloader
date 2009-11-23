@@ -55,6 +55,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\source\gecko.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\source\hacks.cpp"
 				>
 			</File>
@@ -90,6 +94,10 @@
 			</File>
 			<File
 				RelativePath=".\include\font.h"
+				>
+			</File>
+			<File
+				RelativePath=".\include\gecko.h"
 				>
 			</File>
 			<File
