@@ -46,6 +46,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <ogc/ios.h>
 
 //Project files
+#include "../../Shared/svnrev.h"
 #include "settings.h"
 #include "state.h"
 #include "elf.h"
@@ -54,7 +55,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "error.h"
 #include "hacks.h"
 #include "font.h"
-#include "../../Shared/svnrev.h"
+#include "gecko.h"
 
 //Bin includes
 #include "certs_bin.h"
@@ -95,11 +96,11 @@ s32 __IOS_LoadStartupIOS()
 }
 extern s32 __IOS_ShutdownSubsystems();
 
-void gprintf( const char *str, ... );
-void CheckForGecko( void );
 bool MountDevices(void)
 {
 #ifndef libELM
+	__io_wiisd.startup();
+	__io_usbstorage.startup();
 	if (!fatMountSimple("fat",&__io_wiisd))
 	{
 		//sd mounting failed. lets go usb
@@ -132,53 +133,24 @@ bool MountDevices(void)
 		return false;
 #endif
 }
-bool RemountDevices( void )
+void ShutdownDevices()
 {
 #ifndef libELM
-	//unmount device and try and mount again.
+	//unmount device
 	fatUnmount("fat:/");
-	//fatUnmount("usb:/");
-	if (!fatMountSimple("fat",&__io_wiisd))
-	{
-		//sd mounting failed. lets go usb
-		if(!fatMountSimple("fat", &__io_usbstorage))
-		{
-			//usb failed too :(
-			return false;
-		}
-		else
-		{
-			//usb worked!
-			return true;
-		}
-	}
-	else
-	{
-		//it was ok. SD GO!
-		return true;
-	}
-#else
+	//shutdown ports
 	__io_wiisd.shutdown();
-	__io_wiisd.startup();
-	if ( __io_wiisd.isInserted() )
-	{
-		//unmount SD & shutdown the port ...
-		//ELM_Unmount();
-		ELM_UnmountDevice(ELM_SD);
-		__io_wiisd.shutdown();
-		__io_wiisd.startup();
-		if ( ELM_MountDevice(ELM_SD) < 0)
-			return false
-		else
-			return true;
-	}
-	else
-	{
-		//its not there so ye, return false
-		return false;
-	}
+	__io_usbstorage.shutdown();
+#else
+	//only SD support atm, srry
+	ELM_UnmountDevice(ELM_SD);
+	__io_wiisd.shutdown();
 #endif
-	return false;
+}
+bool RemountDevices( void )
+{
+	ShutdownDevices();
+	return MountDevices();
 }
 void ClearScreen()
 {
@@ -259,79 +231,77 @@ void SysHackSettings( void )
 			{
 				//first try to open the file on the SD card/USB, if we found it copy it, other wise skip
 				s16 fail = 0;
-				if (!DeviceFound)
+				FILE *in = NULL;
+				if (RemountDevices())
 				{
-					ClearScreen();
-					PrintFormat( 1, ((640/2)-((strlen("no FAT device found!"))*13/2))>>1, 208, "no FAT device found!");
-					sleep(3);
-					redraw = true;
+#ifndef libELM
+					in = fopen ("fat:/hacks.ini","rb");
+#else
+					in = fopen ("elm:/sd/hacks.ini","rb");
+#endif
 				}
 				else
 				{
-#ifndef libELM
-					FILE *in = fopen ("fat:/hacks.ini","rb");
-#else
-					FILE *in = fopen ("elm:/sd/hacks.ini","rb");
-#endif
-					if( in != NULL )
-					{
-						//Read in whole file
-						fseek( in, 0, SEEK_END );
-						u32 size = ftell(in);
-						fseek( in, 0, 0);
+					gprintf("no FAT device found to look for hacks.ini\n");
+				}
+				if( in != NULL )
+				{
+					//Read in whole file & create it on nand
+					fseek( in, 0, SEEK_END );
+					u32 size = ftell(in);
+					fseek( in, 0, 0);
 
-						char *buf = (char*)memalign( 32, (size+31)&(~31) );
-						memset( buf, 0, (size+31)&(~31) );
-						fread( buf, sizeof( char ), size, in );
+					char *buf = (char*)memalign( 32, (size+31)&(~31) );
+					memset( buf, 0, (size+31)&(~31) );
+					fread( buf, sizeof( char ), size, in );
 
-						fclose(in);
+					fclose(in);
 
-						s32 fd = ISFS_Open("/title/00000001/00000002/data/hacks.ini", 1|2 );
-						if( fd >= 0 )
-						{
-							//File already exists, delete and recreate!
-							ISFS_Close( fd );
-							if(ISFS_Delete("/title/00000001/00000002/data/hacks.ini")<0)
-								fail=1;
-						}
-						if(ISFS_CreateFile("/title/00000001/00000002/data/hacks.ini", 0, 3, 3, 3)<0)
-							fail=2;
-						fd = ISFS_Open("/title/00000001/00000002/data/hacks.ini", 1|2 );
-						if( fd < 0 )
-							fail=3;
-
-						if(ISFS_Write( fd, buf, size )<0)
-							fail = 4;
-						ISFS_Close( fd );
-						free(buf);
-					}
-
-					s32 fd = ISFS_Open("/title/00000001/00000002/data/hacks_s.ini", 1|2 );
-
+					s32 fd = ISFS_Open("/title/00000001/00000002/data/hacks.ini", 1|2 );
 					if( fd >= 0 )
 					{
 						//File already exists, delete and recreate!
 						ISFS_Close( fd );
-						if(ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini")<0)
-							fail = 5;
+						if(ISFS_Delete("/title/00000001/00000002/data/hacks.ini")<0)
+							fail=1;
 					}
-
-					if(ISFS_CreateFile("/title/00000001/00000002/data/hacks_s.ini", 0, 3, 3, 3)<0)
-						fail = 6;
-					fd = ISFS_Open("/title/00000001/00000002/data/hacks_s.ini", 1|2 );
+					if(ISFS_CreateFile("/title/00000001/00000002/data/hacks.ini", 0, 3, 3, 3)<0)
+						fail=2;
+					fd = ISFS_Open("/title/00000001/00000002/data/hacks.ini", 1|2 );
 					if( fd < 0 )
-						fail=7;
-					
-					if(ISFS_Write( fd, states, sizeof( u32 ) * hacks.size() )<0)
-						fail = 8;
+						fail=3;
 
+					if(ISFS_Write( fd, buf, size )<0)
+						fail = 4;
 					ISFS_Close( fd );
-
-					if( fail )
-						PrintFormat( 0, 114, 480-48, "saving failed:%d", fail);
-					else
-						PrintFormat( 0, 118, 480-48, "settings saved");
+					free(buf);
 				}
+
+				s32 fd = ISFS_Open("/title/00000001/00000002/data/hacks_s.ini", 1|2 );
+
+				if( fd >= 0 )
+				{
+					//File already exists, delete and recreate!
+					ISFS_Close( fd );
+					if(ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini")<0)
+						fail = 5;
+				}
+
+				if(ISFS_CreateFile("/title/00000001/00000002/data/hacks_s.ini", 0, 3, 3, 3)<0)
+					fail = 6;
+				fd = ISFS_Open("/title/00000001/00000002/data/hacks_s.ini", 1|2 );
+				if( fd < 0 )
+					fail=7;
+				
+				if(ISFS_Write( fd, states, sizeof( u32 ) * hacks.size() )<0)
+					fail = 8;
+
+				ISFS_Close( fd );
+
+				if( fail )
+					PrintFormat( 0, 114, 480-48, "saving failed:%d", fail);
+				else
+					PrintFormat( 0, 118, 480-48, "settings saved");
 			} 
 			else 
 			{
@@ -1287,7 +1257,7 @@ void InstallLoadDOL( void )
 			sprintf(filepath, "elm:/sd/%s",names[cur_off]);
 			FILE *dol = fopen(filepath, "rb" );
 #else
-			sprintf(filepath, "fat:/",names[cur_off]);
+			sprintf(filepath, "fat:/%s",names[cur_off]);
 			FILE *dol = fopen(filepath, "rb" );
 #endif
 			if( dol == NULL )
@@ -2052,6 +2022,7 @@ int main(int argc, char **argv)
 					*(vu32*)0xCD8000C0 &= ~0x20;
 					DVDStopDisc();
         			WPAD_Shutdown();
+					ShutdownDevices();
 
 					if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
 					{
@@ -2143,16 +2114,17 @@ int main(int argc, char **argv)
 
 		}
 	}
-	else
-	{
-		gprintf("reset or magic priiloader word found!\n");
-	}
 	//remove the "Magic Priiloader word" cause it has done its purpose
 	if(*(vu32*)0x8132FFFB == 0x4461636f)
 	{
+		gprintf("\"Magic Priiloader Word\" found!\n");
 		gprintf("clearing memory of the \"Magic Priiloader Word\"\n");
 		*(vu32*)0x8132FFFB = 0x00000000;
 		DCFlushRange((void*)0x8132FFFB,4);
+	}
+	else
+	{
+		gprintf("Reset Button is hold down\n");
 	}
 	AUDIO_Init (NULL);
 	DSP_Init ();
@@ -2324,6 +2296,7 @@ int main(int argc, char **argv)
 			VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
 			DVDStopDisc();
 			WPAD_Shutdown();
+			ShutdownDevices();
 
 			if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
 			{
@@ -2344,28 +2317,4 @@ int main(int argc, char **argv)
 	}
 
 	return 0;
-}
-u32 GeckoFound = 0;
-void CheckForGecko( void )
-{
-	GeckoFound = usb_isgeckoalive( EXI_CHANNEL_1 );
-	if(GeckoFound)
-		usb_flush(EXI_CHANNEL_1);
-	return;
-}
-void gprintf( const char *str, ... )
-{
-	if(!GeckoFound)
-		return;
-
-	char astr[4096];
-
-	va_list ap;
-	va_start(ap,str);
-
-	vsprintf( astr, str, ap );
-
-	va_end(ap);
-	
-	usb_sendbuffer( 1, astr, strlen(astr) );
 }
