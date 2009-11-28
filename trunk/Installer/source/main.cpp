@@ -33,6 +33,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <ogc/ios.h>
 #include <fat.h>
 #include <sdcard/wiisd_io.h>
+#include <usbgecko.h>
 
 //rev version
 #include "../../Shared/svnrev.h"
@@ -47,11 +48,37 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 static GXRModeObj *vmode = NULL;
 static void *xfb = NULL;
-
+bool GeckoFound = false;
 //a must have in every app
 s32 __IOS_LoadStartupIOS()
 {
 	return 0;
+}
+void gprintf( const char *str, ... )
+{
+	if(!GeckoFound)
+		return;
+
+	char astr[4096];
+
+	va_list ap;
+	va_start(ap,str);
+
+	vsprintf( astr, str, ap );
+
+	va_end(ap);
+	
+	usb_sendbuffer( 1, astr, strlen(astr) );
+}
+void CheckForGecko( void )
+{
+	GeckoFound = usb_isgeckoalive( EXI_CHANNEL_1 );
+	if(GeckoFound)
+	{
+		usb_flush(EXI_CHANNEL_1);
+		gprintf("gecko found\n");
+	}
+	return;
 }
 const char* abort(const char* msg, ...)
 {
@@ -67,62 +94,62 @@ const char* abort(const char* msg, ...)
 	sleep(5);
 	exit(0);
 }
-s32 nand_copy(char file1[1024], char file2[1024])
+s32 nand_copy(char source[1024], char destination[1024])
 {
-	u8 *buffer;
-        int f1;
-        s32 f2,ret;
+    u8 *buffer;
+    int f1;
+    s32 f2,ret;
 
-        f1 = ISFS_Open(file1,ISFS_OPEN_READ);
-        if (f1 < 0)
-                return f1;
-       
-        ISFS_Delete(file2);
-        ISFS_CreateFile(file2,0,3,3,3);
-        f2 = ISFS_Open(file2,ISFS_OPEN_RW);
-        if (!f2)
-		return -1;
+    f1 = ISFS_Open(source,ISFS_OPEN_READ);
+    if (f1 < 0)
+            return f1;
+   
+    ISFS_Delete(destination);
+    ISFS_CreateFile(destination,0,3,3,3);
+    f2 = ISFS_Open(destination,ISFS_OPEN_RW);
+    if (!f2)
+            return -1;
 
-        fstats * status = (fstats*)memalign(32,sizeof(fstats));
-        ret = ISFS_GetFileStats(f1,status);
-        if (ret < 0)
-        {
-                ISFS_Close(f1);
-                ISFS_Close(f2);
-                ISFS_Delete(file2);
-                free(status);
-                return ret;
-        }
+    fstats * status = (fstats*)memalign(32,sizeof(fstats));
+    ret = ISFS_GetFileStats(f1,status);
+    if (ret < 0)
+    {
+            ISFS_Close(f1);
+            ISFS_Close(f2);
+            ISFS_Delete(destination);
+            free(status);
+            return ret;
+    }
 
-        buffer = (u8 *)memalign(32,status->file_length);
+    buffer = (u8 *)memalign(32,status->file_length);
 
-        ret = ISFS_Read(f1,buffer,status->file_length);
-        if (ret < 0)
-        {
-                ISFS_Close(f1);
-                ISFS_Close(f2);
-                ISFS_Delete(file2);
-                free(status);
-                free(buffer);
-                return ret;
-        }
+    ret = ISFS_Read(f1,buffer,status->file_length);
+    if (ret < 0)
+    {
+            ISFS_Close(f1);
+            ISFS_Close(f2);
+            ISFS_Delete(destination);
+            free(status);
+            free(buffer);
+            return ret;
+    }
 
-	ret = ISFS_Write(f2,buffer,status->file_length);
-        if (!ret)
-        {
-                ISFS_Close(f1);
-                ISFS_Close(f2);
-                ISFS_Delete(file2);
-                free(status);
-                free(buffer);
-                return ret;
-        }
+    ret = ISFS_Write(f2,buffer,status->file_length);
+    if (!ret)
+    {
+            ISFS_Close(f1);
+            ISFS_Close(f2);
+            ISFS_Delete(destination);
+            free(status);
+            free(buffer);
+            return ret;
+    }
 
-        ISFS_Close(f1);
-        ISFS_Close(f2);
-        free(status);
-        free(buffer);
-        return 0;
+    ISFS_Close(f1);
+    ISFS_Close(f2);
+    free(status);
+    free(buffer);
+    return 0;
 }
 //a nice function found in muppen64gc
 static inline char* getAlignedName(char* name){
@@ -149,7 +176,7 @@ int main(int argc, char **argv)
 	VIDEO_WaitVSync();
 	if (vmode->viTVMode&VI_NON_INTERLACE)
 		VIDEO_WaitVSync();
-
+	CheckForGecko();
 	printf("\x1b[2;0H");
 	printf("IOS %d rev %d\n\n",IOS_GetVersion(),IOS_GetRevision());
 	printf("       priiloader rev %d (preloader v0.30b) Installation / Removal Tool\n\n\n\n",SVN_REV);
@@ -336,7 +363,7 @@ int main(int argc, char **argv)
 					}
 					else
 					{
-						printf("  priiloader system menu ticket found\n");
+						printf("  Priiloader system menu ticket found\n");
 					}
 					if (nand_copy(file,load) < 0)
 					{
@@ -375,14 +402,25 @@ int main(int argc, char **argv)
 					{
 						printf("  skipping copy of priiloader system menu ticket\n");
 					}
+					printf("  Removing old settings & Hacks file...");
 					ISFS_Delete(file);
-					ISFS_Delete("/title/00000001/00000002/data/loader.ini");
-					printf("  Updating preloader...\n");
+					s16 ret = 0;
+
+					ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
+					gprintf("loader.ini deletion returned %d\n",ret);
+
+					ret = ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini");
+					gprintf("hacks_s.ini deletion returned %d\n",ret);
+
+					ret = ISFS_Delete("/title/00000001/00000002/data/hacks.ini");
+					gprintf("hacks.ini deletion returned %d\n",ret);
+
+					printf("Done!\n  Updating preloader...");
 					ISFS_CreateFile(file,0,3,3,3);
 					fd = ISFS_Open(file,ISFS_OPEN_RW);
 					ISFS_Write(fd,priiloader_app,priiloader_app_size);
 					ISFS_Close(fd);
-					printf("  Update done, exiting to loader... waiting 5s...\n");
+					printf("Done!\n  Update done, exiting to loader... waiting 5s...\n");
 					ISFS_Deinitialize();
 					__ES_Close();
 					sleep(5);
