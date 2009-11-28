@@ -262,17 +262,29 @@ void SysHackSettings( void )
 					{
 						//File already exists, delete and recreate!
 						ISFS_Close( fd );
-						if(ISFS_Delete("/title/00000001/00000002/data/hacks.ini")<0)
+						if(ISFS_Delete("/title/00000001/00000002/data/hacks.ini") <0)
+						{
+							gprintf("delete of hacks.ini failed.\n");
 							fail=1;
+						}
 					}
 					if(ISFS_CreateFile("/title/00000001/00000002/data/hacks.ini", 0, 3, 3, 3)<0)
+					{
 						fail=2;
+						gprintf("create of hacks.ini failed\n");
+					}
 					fd = ISFS_Open("/title/00000001/00000002/data/hacks.ini", 1|2 );
 					if( fd < 0 )
+					{
+						gprintf("hacks.ini open failure\n");
 						fail=3;
+					}
 
 					if(ISFS_Write( fd, buf, size )<0)
+					{
+						gprintf("hacks.ini writing failure\n");
 						fail = 4;
+					}
 					ISFS_Close( fd );
 					free(buf);
 				}
@@ -284,17 +296,28 @@ void SysHackSettings( void )
 					//File already exists, delete and recreate!
 					ISFS_Close( fd );
 					if(ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini")<0)
+					{
+						gprintf("removal of hacks_s.ini failed.\n");
 						fail = 5;
+					}
 				}
 
 				if(ISFS_CreateFile("/title/00000001/00000002/data/hacks_s.ini", 0, 3, 3, 3)<0)
+				{
+					gprintf("hacks_s.ini creating failure\n");
 					fail = 6;
+				}
 				fd = ISFS_Open("/title/00000001/00000002/data/hacks_s.ini", 1|2 );
 				if( fd < 0 )
+				{
+					gprintf("hacks_s.ini open failure\n");
 					fail=7;
-				
+				}
 				if(ISFS_Write( fd, states, sizeof( u32 ) * hacks.size() )<0)
+				{
+					gprintf("hacks_s.ini writing failure\n");
 					fail = 8;
+				}
 
 				ISFS_Close( fd );
 
@@ -2038,6 +2061,7 @@ int main(int argc, char **argv)
 				break;
 			case 3:
 				if( SGetSetting(SETTING_RETURNTO) == RETURNTO_SYSMENU )
+					MountDevices();
 					gprintf("ReturnTo:System Menu\n");
 					BootMainSysMenu();
 				if( SGetSetting(SETTING_RETURNTO) == RETURNTO_AUTOBOOT )
