@@ -1042,7 +1042,7 @@ void BootMainSysMenu( void )
 	printf("ISFS_GetFileStats(%d, %08X):%d\n", fd, status, r );
 	sleep(1);
 #endif
-	if( fd < 0 )
+	if( r < 0 || status->file_length == 0)
 	{
 		free( TMD );
 		free( buf );
@@ -2026,11 +2026,6 @@ int main(int argc, char **argv)
 	LoadSettings();
 	s16 Bootstate = CheckBootState();
 	gprintf("BootState:%d\n", Bootstate );
-	if( ClearState() < 0 )
-	{
-		gprintf("failed to clear state\n");
-		error = ERROR_STATE_CLEAR;
-	}
 	gprintf("\"Magic Priiloader word\": %x\n",*(vu32*)0x8132FFFB);
 	//Check reset button state or magic word
 	if( ((*(vu32*)0xCC003000)>>16)&1 && *(vu32*)0x8132FFFB != 0x4461636f) //0x4461636f = "Daco" in hex
@@ -2039,7 +2034,11 @@ int main(int argc, char **argv)
 		switch( Bootstate )
 		{
 			case 5:
-				ClearState();
+				if( ClearState() < 0 )
+				{
+					gprintf("failed to clear state\n");
+					error = ERROR_STATE_CLEAR;
+				}
 				if(!SGetSetting(SETTING_SHUTDOWNTOPRELOADER))
 				{
 					*(vu32*)0xCD8000C0 &= ~0x20;
@@ -2098,6 +2097,11 @@ int main(int argc, char **argv)
 							break;
 					}
 				}
+				if( ClearState() < 0 )
+				{
+					gprintf("failed to clear state\n");
+					error = ERROR_STATE_CLEAR;
+				}
 				break;
 			default :
 				if( ClearState() < 0 )
@@ -2133,6 +2137,11 @@ int main(int argc, char **argv)
 					case AUTOBOOT_DISABLED:
 					default:
 						break;
+				}
+				if( ClearState() < 0 )
+				{
+					gprintf("failed to clear state\n");
+					error = ERROR_STATE_CLEAR;
 				}
 				break;
 

@@ -33,7 +33,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <ogc/ios.h>
 #include <fat.h>
 #include <sdcard/wiisd_io.h>
-#include <usbgecko.h>
+#include <ogc/usbgecko.h>
 
 //rev version
 #include "../../Shared/svnrev.h"
@@ -97,56 +97,59 @@ const char* abort(const char* msg, ...)
 s32 nand_copy(char source[1024], char destination[1024])
 {
     u8 *buffer;
-    int f1;
-    s32 f2,ret;
+    s32 source_handler, dest_handler, ret;
 
-    f1 = ISFS_Open(source,ISFS_OPEN_READ);
-    if (f1 < 0)
-            return f1;
+    source_handler = ISFS_Open(source,ISFS_OPEN_READ);
+    if (source_handler < 0)
+            return source_handler;
    
     ISFS_Delete(destination);
     ISFS_CreateFile(destination,0,3,3,3);
-    f2 = ISFS_Open(destination,ISFS_OPEN_RW);
-    if (!f2)
-            return -1;
+    dest_handler = ISFS_Open(destination,ISFS_OPEN_RW);
+    if (dest_handler < 0)
+            return dest_handler;
 
     fstats * status = (fstats*)memalign(32,sizeof(fstats));
-    ret = ISFS_GetFileStats(f1,status);
+    ret = ISFS_GetFileStats(source_handler,status);
     if (ret < 0)
     {
-            ISFS_Close(f1);
-            ISFS_Close(f2);
+            ISFS_Close(source_handler);
+            ISFS_Close(dest_handler);
             ISFS_Delete(destination);
             free(status);
             return ret;
     }
+	if ( status->file_length == 0 )
+	{
+		abort("system menu app is reported as 0kB...");
+	}
 
     buffer = (u8 *)memalign(32,status->file_length);
 
-    ret = ISFS_Read(f1,buffer,status->file_length);
+    ret = ISFS_Read(source_handler,buffer,status->file_length);
     if (ret < 0)
     {
-            ISFS_Close(f1);
-            ISFS_Close(f2);
+            ISFS_Close(source_handler);
+            ISFS_Close(dest_handler);
             ISFS_Delete(destination);
             free(status);
             free(buffer);
             return ret;
     }
 
-    ret = ISFS_Write(f2,buffer,status->file_length);
+    ret = ISFS_Write(dest_handler,buffer,status->file_length);
     if (!ret)
     {
-            ISFS_Close(f1);
-            ISFS_Close(f2);
+            ISFS_Close(source_handler);
+            ISFS_Close(dest_handler);
             ISFS_Delete(destination);
             free(status);
             free(buffer);
             return ret;
     }
 
-    ISFS_Close(f1);
-    ISFS_Close(f2);
+    ISFS_Close(source_handler);
+    ISFS_Close(dest_handler);
     free(status);
     free(buffer);
     return 0;
@@ -331,132 +334,132 @@ int main(int argc, char **argv)
 				abort("Unable to retrieve title id");
 			}
 
-			char * file = (char*)memalign(32,256);
-			char * load = (char*)memalign(32,256);
-			if (file == NULL || load == NULL)
+			char * original_app = (char*)memalign(32,256);
+			char * copy_app = (char*)memalign(32,256);
+			if (original_app == NULL || copy_app == NULL)
 			{
 				free(TMD);
 				free(buffer);
 				abort("Unable to prepare title for memory");
 			}
 
-			memset(file,0,256);
-			memset(load,0,256);
-			sprintf(file, "/title/00000001/00000002/content/%08x.app",id);
-			sprintf(load, "/title/00000001/00000002/content/%08x.app",id);
-			load[33] = '1';
+			memset(original_app,0,256);
+			memset(copy_app,0,256);
+			sprintf(original_app, "/title/00000001/00000002/content/%08x.app",id);
+			sprintf(copy_app, "/title/00000001/00000002/content/%08x.app",id);
+			copy_app[33] = '1';
 
 			if (pDown & WPAD_BUTTON_PLUS)
 			{
+				bool Priiloader_found = false;
 				printf("  Checking for preloader...\n");
-				fd = ISFS_Open(load,ISFS_OPEN_RW);
+				fd = ISFS_Open(copy_app,ISFS_OPEN_RW);
 				if (fd < 0)
 				{
-					printf("  Preloader not found, moving the system menu...\n");
-					if(CopyTicket)
+					Priiloader_found = false;
+				}
+				else
+				{
+					fstats * status = (fstats*)memalign(32,sizeof(fstats));
+					if (ISFS_GetFileStats(fd,status) < 0)
 					{
-						printf("  Copying Ticket...\n");
-						if (nand_copy("/ticket/00000001/00000002.tik","/title/00000001/00000002/content/ticket") < 0)
-						{
-							abort("Unable to copy the system menu ticket");
-						}
+						printf("\n\nWARNING: failed to get stats of %s. ignoring priiloader \"installation\"...\n\n",copy_app);
+						ISFS_Close(fd);
+						Priiloader_found = false;
+					}
+					if ( status->file_length == 0 )
+					{
+						printf("\n\nWARNING: %s is reported as 0kB. ignoring priiloader \"installation\"...\n\n",copy_app);
+						Priiloader_found = false;
 					}
 					else
-					{
-						printf("  Priiloader system menu ticket found\n");
-					}
-					if (nand_copy(file,load) < 0)
+						Priiloader_found = true;
+					free(status);
+					ISFS_Close(fd);
+				}
+				if(!Priiloader_found)
+				{
+					printf("  Preloader not found, moving the system menu...");
+					if (nand_copy(original_app,copy_app) < 0)
 					{
 						abort("Unable to move the system menu");
 					}
 					else
 					{
-						printf("  Done!\n");
-						ISFS_Delete(file);
-						ISFS_Delete("/title/00000001/00000002/data/loader.ini");
-						printf("  Installing preloader...\n");
-						ISFS_CreateFile(file,0,3,3,3);
-						fd = ISFS_Open(file,ISFS_OPEN_RW);
-						ISFS_Write(fd,priiloader_app,priiloader_app_size);
-						ISFS_Close(fd);
-						printf("  Install done, exiting to loader... waiting 5s...\n");
-						ISFS_Deinitialize();
-						__ES_Close();
-						sleep(5);
-						exit(0);
+						printf("Done!\n");
+						printf("  Installing priiloader...\n\n\n");
 					}
 				}
 				else
 				{
-					ISFS_Close(fd);
 					printf("  Preloader installation found, skipping moving the system menu.\n");
-					printf("  Skipped!\n");
-					if(CopyTicket)
-					{
-						if (nand_copy("/ticket/00000001/00000002.tik","/title/00000001/00000002/content/ticket") < 0)
-						{
-							abort("Unable to copy the system menu ticket");
-						}
-					}
-					else
-					{
-						printf("  skipping copy of priiloader system menu ticket\n");
-					}
-					printf("  Removing old settings & Hacks file...");
-					ISFS_Delete(file);
-					s16 ret = 0;
-
-					ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
-					gprintf("loader.ini deletion returned %d\n",ret);
-
-					ret = ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini");
-					gprintf("hacks_s.ini deletion returned %d\n",ret);
-
-					ret = ISFS_Delete("/title/00000001/00000002/data/hacks.ini");
-					gprintf("hacks.ini deletion returned %d\n",ret);
-
-					printf("Done!\n  Updating preloader...");
-					ISFS_CreateFile(file,0,3,3,3);
-					fd = ISFS_Open(file,ISFS_OPEN_RW);
-					ISFS_Write(fd,priiloader_app,priiloader_app_size);
-					ISFS_Close(fd);
-					printf("Done!\n  Update done, exiting to loader... waiting 5s...\n");
-					ISFS_Deinitialize();
-					__ES_Close();
-					sleep(5);
-					exit(0);
+					printf("  Updating priiloader...\n\n\n");	
 				}
+				if(CopyTicket)
+				{
+					printf("coping system menu ticket...");
+					if (nand_copy("/ticket/00000001/00000002.tik","/title/00000001/00000002/content/ticket") < 0)
+					{
+						abort("Unable to copy the system menu ticket");
+					}
+					printf("Done!\n");
+				}
+				else
+				{
+					printf("  Skipping copy of priiloader system menu ticket\n");
+				}
+				
+				s16 ret = 0;
+				ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
+				gprintf("loader.ini deletion returned %d\n",ret);
+
+
+				ISFS_Delete(original_app);
+				ISFS_CreateFile(original_app,0,3,3,3);
+				fd = ISFS_Open(original_app,ISFS_OPEN_RW);
+				ISFS_Write(fd,priiloader_app,priiloader_app_size);
+				ISFS_Close(fd);
+				if(Priiloader_found)
+					printf("  Update done, exiting to loader... waiting 5s...\n");
+				else
+					printf("  Install done, exiting to loader... waiting 5s...\n");
+				ISFS_Deinitialize();
+				__ES_Close();
+				sleep(5);
+				exit(0);
 			}
 
 			else if (pDown & WPAD_BUTTON_MINUS)
 			{
 				printf("  Checking for preloader...\n");
-				fd = ISFS_Open(load,ISFS_OPEN_RW);
+				fd = ISFS_Open(copy_app,ISFS_OPEN_RW);
 				if (fd < 0)
 				{
 					abort("Preloader not found");
 				}
 				else
 				{
-					printf("  Preloader installation found, restoring the system menu.\n");
-					ISFS_Delete(file);
-					if (nand_copy(load,file) < 0)
+					printf("  Preloader installation found, restoring the system menu...");
+					ISFS_Delete(original_app);
+					s32 ret = nand_copy(copy_app,original_app);
+					if (ret < 0)
 					{
 						ISFS_Close(fd);
-						ISFS_CreateFile(file,0,3,3,3);
-						fd = ISFS_Open(file,ISFS_OPEN_RW);
+						ISFS_CreateFile(original_app,0,3,3,3);
+						fd = ISFS_Open(original_app,ISFS_OPEN_RW);
 						ISFS_Write(fd,priiloader_app,priiloader_app_size);
 						ISFS_Close(fd);
-						abort("Unable to restore the system menu");
+						abort("Unable to restore the system menu! (ret = %d)",ret);
 					}
 					else
 					{
-						printf("  Done!\n");
+						printf("Done!\n");
 						ISFS_Close(fd);
-						ISFS_Delete(load);
+						ISFS_Delete(copy_app);
 						ISFS_Delete("/title/00000001/00000002/data/loader.ini");
-						//its best we delete that ticket altho its completely useless lol
-						ISFS_Delete("/title/00000001/00000002/content/ticket");
+						//its best we delete that ticket but its completely useless and will only get in our 
+						//way when installing again later...
+						//ISFS_Delete("/title/00000001/00000002/content/ticket");
 						ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini");
 						ISFS_Delete("/title/00000001/00000002/data/hacks.ini");
 						ISFS_Delete("/title/00000001/00000002/data/main.bin");
