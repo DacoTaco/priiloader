@@ -98,9 +98,8 @@ UNAME := $(shell uname)
 #and now make the build list
 $(BUILD):
 ifeq ($(UNAME),Linux)
-	cd ../Shared
+	chmod 555 ../Shared/makesvnrev.sh
 	../Shared/makesvnrev.sh
-	cd ../priiloader
 else
 	../Shared/SubWCRev.exe "../." "../Shared/svnrev_template.h" "../Shared/svnrev.h"
 endif
