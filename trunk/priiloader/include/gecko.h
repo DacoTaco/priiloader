@@ -34,3 +34,4 @@ void CheckForGecko( void );
 void gprintf( const char *str, ... );
 
 #endif
+
