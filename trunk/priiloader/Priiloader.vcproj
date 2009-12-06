@@ -121,15 +121,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\include\wii-font-r_black.h"
-				>
-			</File>
-			<File
 				RelativePath=".\include\wii-font.h"
-				>
-			</File>
-			<File
-				RelativePath=".\include\wii-font_black.h"
 				>
 			</File>
 		</Filter>

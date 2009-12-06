@@ -93,6 +93,9 @@ void ShowError ( void )
 			case ERROR_STATE_CLEAR:
 				PrintFormat( 0, 16, 352, "failed to clear state!");
 			break;
+			case ERROR_SYSMENU_GENERAL:
+				PrintFormat( 0, 16, 352, "Failed to load system menu!");
+			break;
 			case ERROR_SYSMENU_TIKNOTFOUND:
 				PrintFormat( 0, 16, 352, "Error autobooting systemmenu!");
 				PrintFormat( 0, 16, 368, "Ticket not found!");

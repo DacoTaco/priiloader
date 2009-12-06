@@ -130,10 +130,13 @@ u32 SGetSetting( u32 s )
 
 		case SETTING_SYSTEMMENUIOS:
 			return settings->SystemMenuIOS;
+
 		case SETTING_USESYSTEMMENUIOS:
 			return settings->UseSystemMenuIOS;
+
 		case SETTING_BLACKBACKGROUND:
 			return settings->BlackBackground;
+
 		default:
 			return 0;
 		break;

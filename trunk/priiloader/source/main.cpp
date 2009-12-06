@@ -67,9 +67,6 @@ extern "C"
 	extern void _unstub_start(void);
 }
 
-static void *xfb = NULL;
-static GXRModeObj *rmode = NULL;
-
 typedef struct {
 	unsigned int offsetText[7];
 	unsigned int offsetData[11];
@@ -90,6 +87,9 @@ extern u32 *states;
 u32 result=0;
 u32 Shutdown=0;
 
+static void *xfb = NULL;
+static GXRModeObj *rmode = NULL;
+
 s32 __IOS_LoadStartupIOS()
 {
         return 0;
@@ -104,16 +104,7 @@ bool MountDevices(void)
 	if (!fatMountSimple("fat",&__io_wiisd))
 	{
 		//sd mounting failed. lets go usb
-		if(!fatMountSimple("fat", &__io_usbstorage))
-		{
-			//usb failed too :(
-			return false;
-		}
-		else
-		{
-			//usb worked!
-			return true;
-		}
+		return fatMountSimple("fat", &__io_usbstorage);
 	}
 	else
 	{
@@ -162,6 +153,39 @@ void ClearScreen()
 	VIDEO_WaitVSync();
 	printf("\n");
 }
+bool isIOSstub(u8 ios_number)
+{
+    u32 tmd_size = NULL;
+    tmd *ios_tmd ATTRIBUTE_ALIGN(32);
+
+    ES_GetStoredTMDSize(0x0000000100000000ULL | ios_number, &tmd_size);
+	if (!tmd_size)
+	{
+		//getting size failed. invalid or fake tmd for sure!
+		return true;
+	}
+	signed_blob *ios_tmd_buf = (signed_blob *)memalign( 32, (tmd_size+32)&(~31) );
+	memset(ios_tmd_buf, 0, tmd_size);
+
+    ES_GetStoredTMD(0x0000000100000000ULL | ios_number, ios_tmd_buf, tmd_size);
+    ios_tmd = (tmd *)SIGNATURE_PAYLOAD(ios_tmd_buf);//(tmd *)(ios_tmd_buf+(0x140/sizeof(tmd *)));//(tmd *)SIGNATURE_PAYLOAD(ios_tmd_buf);
+	free(ios_tmd_buf);
+
+	gprintf("ios %d is %d with tmd size off %u\n",ios_number,ios_tmd->title_version,tmd_size);
+	//stubs are most of the time rev 65280. 0 if its invalid (my bugzzz :P) or 65535 if you are wanker and choose ffff
+	//the only IOS i noticed that went trough the check is IOS 21 with its tmd size...
+	if ( ios_tmd->title_version < 65280 && ios_tmd->title_version > 0 && ios_tmd->title_version != 65535 )
+	{
+		if (tmd_size != 592)
+		{
+			gprintf("IOS %d is active\n",ios_number);
+			return false;
+		}
+	}
+	gprintf("IOS %d is a stub\n",ios_number);
+	return true;
+}
+
 void SysHackSettings( void )
 {
 	bool DeviceFound = RemountDevices();
@@ -184,14 +208,14 @@ void SysHackSettings( void )
 	{
 		if(DeviceFound)
 		{
-			PrintFormat( 1, ((640/2)-((strlen("Couldn't find any hacks for"))*13/2))>>1, 208, "Couldn't find any hacks for");
-			PrintFormat( 1, ((640/2)-((strlen("System Menu version:vxxx"))*13/2))>>1, 228, "System Menu version:v%d", SysVersion );
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Couldn't find any hacks for"))*13/2))>>1, 208, "Couldn't find any hacks for");
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("System Menu version:vxxx"))*13/2))>>1, 228, "System Menu version:v%d", SysVersion );
 			sleep(5);
 			return;
 		}
 		else
 		{
-			PrintFormat( 1, ((640/2)-((strlen("Failed to mount fat device"))*13/2))>>1, 208, "Failed to mount fat device");
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to mount fat device"))*13/2))>>1, 208, "Failed to mount fat device");
 			sleep(5);
 			return;
 		}
@@ -322,9 +346,9 @@ void SysHackSettings( void )
 				ISFS_Close( fd );
 
 				if( fail )
-					PrintFormat( 0, 114, 480-48, "saving failed:%d", fail);
+					PrintFormat( 0, 114, rmode->viHeight-48, "saving failed:%d", fail);
 				else
-					PrintFormat( 0, 118, 480-48, "settings saved");
+					PrintFormat( 0, 118, rmode->viHeight-48, "settings saved");
 			} 
 			else 
 			{
@@ -430,9 +454,9 @@ void SysHackSettings( void )
 					break;
 			}
 
-			PrintFormat( cur_off==DispCount, 118, 480-64, "save settings");
+			PrintFormat( cur_off==DispCount, 118, rmode->viHeight-64, "save settings");
 
-			PrintFormat( 0, 114, 480-32, "                 ");
+			PrintFormat( 0, 114, rmode->viHeight-32, "                 ");
 
 			redraw = false;
 		}
@@ -702,7 +726,9 @@ void SetSettings( void )
 					}
 
 					settings->SystemMenuIOS = (u32)(TitleIDs[IOS_off]&0xFFFFFFFF);
-
+#ifdef DEBUG
+					isIOSstub(settings->SystemMenuIOS);
+#endif
 					redraw=true;
 				}
 
@@ -782,7 +808,7 @@ void SetSettings( void )
 				break;
 			}
 			
-			//PrintFormat( 0, 16, 64, "Pos:%d", ((640/2)-(strlen("settings saved")*13/2))>>1);
+			//PrintFormat( 0, 16, 64, "Pos:%d", ((rmode->viWidth /2)-(strlen("settings saved")*13/2))>>1);
 
 			PrintFormat( cur_off==2, 0, 128+16, "           Shutdown to:          %s", settings->ShutdownToPreloader?"Preloader":"off      ");
 			PrintFormat( cur_off==3, 0, 128+32, "             Stop disc:          %s", settings->StopDisc?"on ":"off");
@@ -837,13 +863,15 @@ void LoadHBC( void )
 }
 void LoadBootMii( void )
 {
+	//when this was coded on 6th of Oct 2009 Bootmii was IOS 254
+	if(isIOSstub(254))
+		return;
 	if (!RemountDevices())
 	{
-		PrintFormat( 1, ((640/2)-((strlen("Could not mount any FAT device"))*13/2))>>1, 208, "Could not mount any FAT device");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not mount any FAT device"))*13/2))>>1, 208, "Could not mount any FAT device");
 		sleep(5);
 		return;
 	}
-	//when this was coded on 6th of Oct 2009 Bootmii was IOS 254
 #ifndef libELM
 	FILE* BootmiiFile = fopen("fat:/bootmii/armboot.bin","r");
 #else
@@ -851,7 +879,7 @@ void LoadBootMii( void )
 #endif
 	if (!BootmiiFile)
 	{
-		PrintFormat( 1, ((640/2)-((strlen("Could not find fat:/bootmii/armboot.bin"))*13/2))>>1, 208, "Could not find fat:/bootmii/armboot.bin");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not find fat:/bootmii/armboot.bin"))*13/2))>>1, 208, "Could not find fat:/bootmii/armboot.bin");
 		sleep(5);
 		return;
 	}
@@ -865,17 +893,17 @@ void LoadBootMii( void )
 #endif
 		if(!BootmiiFile)
 		{
-			PrintFormat( 1, ((640/2)-((strlen("Could not find fat:/bootmii/ppcboot.elf"))*13/2))>>1, 208, "Could not find fat:/bootmii/ppcboot.elf");
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not find fat:/bootmii/ppcboot.elf"))*13/2))>>1, 208, "Could not find fat:/bootmii/ppcboot.elf");
 			sleep(5);
 			return;
 		}
 	}
 	fclose(BootmiiFile);
 	u16 currentIOS = IOS_GetVersion();
-	__IOS_LaunchNewIOS(254);
-	//launching bootmii failed. lets wait a bit for the launch and then load the other ios back
+	IOS_ReloadIOS(254);
+	//launching bootmii failed. lets wait a bit for the launch(it could be delayed) and then load the other ios back
 	sleep(5);
-	__IOS_LaunchNewIOS(currentIOS);
+	IOS_ReloadIOS(currentIOS);
 }
 void BootMainSysMenu( void )
 {
@@ -888,7 +916,7 @@ void BootMainSysMenu( void )
 	if( ISFS_Initialize() < 0 )
 	{
 		//printf("ISFS_Initialize() failed!\n");
-		PrintFormat( 1, ((640/2)-((strlen("ISFS_Initialize() failed!"))*13/2))>>1, 208, "ISFS_Initialize() failed!" );
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("ISFS_Initialize() failed!"))*13/2))>>1, 208, "ISFS_Initialize() failed!" );
 		sleep( 5 );
 		return;
 	}
@@ -973,7 +1001,6 @@ void BootMainSysMenu( void )
 #endif
 
 	//get main.dol filename
-
 	u32 fileID = 0;
 	for(u32 z=0; z < rTMD->num_contents; ++z)
 	{
@@ -1065,7 +1092,6 @@ void BootMainSysMenu( void )
 #endif
 	if( r < 0 )
 		return;
-
 	if( hdr->entrypoint != 0x3400 )
 	{
 #ifdef DEBUG
@@ -1129,7 +1155,6 @@ void BootMainSysMenu( void )
 		}
 
 	}
-
 	entrypoint = (void (*)())(hdr->entrypoint);
 	gprintf("entrypoint: %08X\n", entrypoint );
 
@@ -1137,28 +1162,38 @@ void BootMainSysMenu( void )
 	WPAD_Shutdown();
 	if( !SGetSetting( SETTING_USESYSTEMMENUIOS ) )
 	{
-		if ((s32)SGetSetting(SETTING_SYSTEMMENUIOS) != IOS_GetVersion())
+		gprintf("checking ios for stub...\n");
+		if (!isIOSstub(SGetSetting(SETTING_SYSTEMMENUIOS)))
 		{
-			__ES_Close();
-			__ES_Init();
-			__IOS_LaunchNewIOS(SGetSetting(SETTING_SYSTEMMENUIOS));
-			gprintf("launched ios %d for system menu\n",IOS_GetVersion());
-			//__IOS_LaunchNewIOS(rTMD->sys_version);
-			//__IOS_LaunchNewIOS(249);
-			__IOS_InitializeSubsystems();
-			r = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size, (signed_blob *)buf, tstatus->file_length, &tempKeyID);
-			if( r < 0 )
-			{	error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
-				__IOS_ShutdownSubsystems();
-				__IOS_LaunchNewIOS(rTMD->sys_version);
-				__IOS_InitializeSubsystems();
-				WPAD_Init();
+			if ( (s32)SGetSetting(SETTING_SYSTEMMENUIOS) != IOS_GetVersion())
+			{
+				__ES_Close();
+				__ES_Init();
+				//__IOS_LaunchNewIOS(SGetSetting(SETTING_SYSTEMMENUIOS));
+				gprintf("launched ios %d for system menu\n",IOS_GetVersion());
 				return;
+				//__IOS_LaunchNewIOS(rTMD->sys_version);
+				//__IOS_LaunchNewIOS(249);
+				__IOS_InitializeSubsystems();
+				r = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size, (signed_blob *)buf, tstatus->file_length, &tempKeyID);
+				if( r < 0 )
+				{	error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
+					__IOS_ShutdownSubsystems();
+					__IOS_LaunchNewIOS(rTMD->sys_version);
+					__IOS_InitializeSubsystems();
+					WPAD_Init();
+					return;
+					//IOS_ReloadIOS(rTMD->sys_version);
+				}
+			}
+			else
+			{
+				gprintf("set to use the same ios as system ios. skipping reload...\n");
 			}
 		}
 		else
 		{
-			gprintf("set to use the same ios as system ios. skipping reload...\n");
+			gprintf("Going to load a stub ios, skipping reload\n");
 		}
 	}
 	//ES_SetUID(TitleID);
@@ -1213,7 +1248,7 @@ void InstallLoadDOL( void )
 
 	if (!RemountDevices() )
 	{
-		PrintFormat( 1, ((640/2)-((strlen("NO fat device found found!"))*13/2))>>1, 208, "NO fat device found found!");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("NO fat device found found!"))*13/2))>>1, 208, "NO fat device found found!");
 		sleep(5);
 		return;
 	}
@@ -1224,7 +1259,7 @@ void InstallLoadDOL( void )
 #endif
 	if( dir == NULL )
 	{
-		PrintFormat( 1, ((640/2)-((strlen("Failed to open root of Device!"))*13/2))>>1, 208, "Failed to open root of Device!");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to open root of Device!"))*13/2))>>1, 208, "Failed to open root of Device!");
 		sleep(5);
 		return;
 	}
@@ -1246,8 +1281,8 @@ void InstallLoadDOL( void )
 
 	if( names.size() == 0 )
 	{
-		PrintFormat( 1, ((640/2)-((strlen("Couldn't find any executable files"))*13/2))>>1, 208, "Couldn't find any executable files");
-		PrintFormat( 1, ((640/2)-((strlen("in the root of the FAT device!"))*13/2))>>1, 228, "in the root of the FAT device!");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Couldn't find any executable files"))*13/2))>>1, 208, "Couldn't find any executable files");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("in the root of the FAT device!"))*13/2))>>1, 228, "in the root of the FAT device!");
 		sleep(5);
 		return;
 	}
@@ -1285,11 +1320,11 @@ void InstallLoadDOL( void )
 #endif
 			if( dol == NULL )
 			{
-				PrintFormat( 1, ((640/2)-((strlen("Could not open:\"%s\" for reading")+strlen(names[cur_off]))*13/2))>>1, 208, "Could not open:\"%s\" for reading", names[cur_off]);
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not open:\"%s\" for reading")+strlen(names[cur_off]))*13/2))>>1, 208, "Could not open:\"%s\" for reading", names[cur_off]);
 				sleep(5);
 				break;
 			}
-			PrintFormat( 0, ((640/2)-((strlen("Installing \"%s\"...")+strlen(names[cur_off]))*13/2))>>1, 208, "Installing \"%s\"...", names[cur_off]);
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("Installing \"%s\"...")+strlen(names[cur_off]))*13/2))>>1, 208, "Installing \"%s\"...", names[cur_off]);
 
 			//get size
 			fseek( dol, 0, SEEK_END );
@@ -1317,9 +1352,9 @@ void InstallLoadDOL( void )
 
 			if( ISFS_Write( fd, buf, sizeof( char ) * size ) != sizeof( char ) * size )
 			{
-				PrintFormat( 1, ((640/2)-((strlen("Writing file failed!"))*13/2))>>1, 240, "Writing file failed!");
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Writing file failed!"))*13/2))>>1, 240, "Writing file failed!");
 			} else {
-				PrintFormat( 0, ((640/2)-((strlen("\"%s\" installed")+strlen(names[cur_off]))*13/2))>>1, 240, "\"%s\" installed", names[cur_off]);
+				PrintFormat( 0, ((rmode->viWidth /2)-((strlen("\"%s\" installed")+strlen(names[cur_off]))*13/2))>>1, 240, "\"%s\" installed", names[cur_off]);
 			}
 
 			sleep(5);
@@ -1345,11 +1380,11 @@ void InstallLoadDOL( void )
 			gprintf("laoding %s\n",names[cur_off]);
 			if( dol == NULL )
 			{
-				PrintFormat( 1, ((640/2)-((strlen("Could not open:\"%s\" for reading")+strlen(names[cur_off]))*13/2))>>1, 208, "Could not open:\"%s\" for reading", names[cur_off]);
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not open:\"%s\" for reading")+strlen(names[cur_off]))*13/2))>>1, 208, "Could not open:\"%s\" for reading", names[cur_off]);
 				sleep(5);
 				break;
 			}
-			PrintFormat( 0, ((640/2)-((strlen("Loading file...")+strlen(names[cur_off]))*13/2))>>1, 208, "Loading file...", names[cur_off]);
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("Loading file...")+strlen(names[cur_off]))*13/2))>>1, 208, "Loading file...", names[cur_off]);
 			void	(*entrypoint)();
 
 			Elf32_Ehdr ElfHdr;
@@ -1545,7 +1580,7 @@ void InstallLoadDOL( void )
 			for( u32 i=0; i<names.size(); ++i )
 				PrintFormat( cur_off==i, 16, 64+i*16, "%s", names[i]);
 
-			PrintFormat( 0, 33, 480-64, "press A to install, 1(Z) to load a file");
+			PrintFormat( 0, 33, rmode->viHeight-64, "press A to install, 1(Z) to load a file");
 
 			redraw = false;
 		}
@@ -2010,6 +2045,11 @@ int main(int argc, char **argv)
 	VIDEO_Init();
 
 	rmode = VIDEO_GetPreferredMode(NULL);
+	if( CONF_GetAspectRatio() ) //Widescreen (and pal60/NTSC ?) fix
+	{
+		//sad and hacky way around the issue >_>
+		rmode->viHeight -= 32;
+	}
 
 	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
 	
@@ -2023,6 +2063,7 @@ int main(int argc, char **argv)
 	VIDEO_WaitVSync();
 	if(rmode->viTVMode&VI_NON_INTERLACE)
 		VIDEO_WaitVSync();
+	gprintf("resolution is %dx%d\n",rmode->viWidth,rmode->viHeight);
 	LoadSettings();
 	s16 Bootstate = CheckBootState();
 	gprintf("BootState:%d\n", Bootstate );
@@ -2037,7 +2078,6 @@ int main(int argc, char **argv)
 				if( ClearState() < 0 )
 				{
 					gprintf("failed to clear state\n");
-					error = ERROR_STATE_CLEAR;
 				}
 				if(!SGetSetting(SETTING_SHUTDOWNTOPRELOADER))
 				{
@@ -2058,54 +2098,62 @@ int main(int argc, char **argv)
 					}
 				}
 				break;
+			case 2:
+				//unknown what it really stands for, only seen once but im guessing it acts like reset
 			case 3:
-				if( SGetSetting(SETTING_RETURNTO) == RETURNTO_SYSMENU )
-					MountDevices();
-					gprintf("ReturnTo:System Menu\n");
-					BootMainSysMenu();
-				if( SGetSetting(SETTING_RETURNTO) == RETURNTO_AUTOBOOT )
+				switch( SGetSetting(SETTING_RETURNTO) )
 				{
-					switch( SGetSetting(SETTING_AUTBOOT) )
-					{
-						case AUTOBOOT_SYS:
-							MountDevices();
-							gprintf("AutoBoot:System Menu\n");
-							BootMainSysMenu();
-							break;
-						case AUTOBOOT_HBC:
-							gprintf("AutoBoot:Homebrew Channel\n");
-							LoadHBC();
-							error=ERROR_BOOT_HBC;
-							break;
+					case RETURNTO_SYSMENU:
+						MountDevices();
+						gprintf("ReturnTo:System Menu\n");
+						BootMainSysMenu();
+					break;
 
-						case AUTOBOOT_BOOTMII_IOS:
-							gprintf("AutoBoot:BootMii IOS\n");
-							LoadBootMii();
-							error=ERROR_BOOT_BOOTMII;
-							break;
-						case AUTOBOOT_FILE:
-							gprintf("AutoBoot:Installed File\n");
-							AutoBootDol();
-							break;
+					case RETURNTO_AUTOBOOT:
+						switch( SGetSetting(SETTING_AUTBOOT) )
+						{
+							case AUTOBOOT_SYS:
+								MountDevices();
+								gprintf("AutoBoot:System Menu\n");
+								BootMainSysMenu();
+								break;
+							case AUTOBOOT_HBC:
+								gprintf("AutoBoot:Homebrew Channel\n");
+								LoadHBC();
+								error=ERROR_BOOT_HBC;
+								break;
 
-						case AUTOBOOT_ERROR:
-							error=ERROR_BOOT_ERROR;
-							break;
+							case AUTOBOOT_BOOTMII_IOS:
+								gprintf("AutoBoot:BootMii IOS\n");
+								LoadBootMii();
+								error=ERROR_BOOT_BOOTMII;
+								break;
+							case AUTOBOOT_FILE:
+								gprintf("AutoBoot:Installed File\n");
+								AutoBootDol();
+								break;
 
-						case AUTOBOOT_DISABLED:
-						default:
-							break;
-					}
-				}
-				if( ClearState() < 0 )
-				{
-					gprintf("failed to clear state\n");
-					error = ERROR_STATE_CLEAR;
+							case AUTOBOOT_ERROR:
+								error=ERROR_BOOT_ERROR;
+								break;
+
+							case AUTOBOOT_DISABLED:
+							default:
+								break;
+						}
+					break;
+
+					default:
+					break;
 				}
 				break;
 			default :
 				if( ClearState() < 0 )
+				{
 					error = ERROR_STATE_CLEAR;
+					gprintf("failed to clear state\n");
+				}
+				break;
 			case 0: 
 				switch( SGetSetting(SETTING_AUTBOOT) )
 				{
@@ -2138,11 +2186,6 @@ int main(int argc, char **argv)
 					default:
 						break;
 				}
-				if( ClearState() < 0 )
-				{
-					gprintf("failed to clear state\n");
-					error = ERROR_STATE_CLEAR;
-				}
 				break;
 
 		}
@@ -2155,7 +2198,7 @@ int main(int argc, char **argv)
 		*(vu32*)0x8132FFFB = 0x00000000;
 		DCFlushRange((void*)0x8132FFFB,4);
 	}
-	else
+	else if ( SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED )
 	{
 		gprintf("Reset Button is hold down\n");
 	}
@@ -2218,6 +2261,8 @@ int main(int argc, char **argv)
 				case 0:
 					RemountDevices();
 					BootMainSysMenu();
+					if(!error)
+						error=ERROR_SYSMENU_GENERAL;
 				break;
 				case 1:		//Load HBC
 				{
@@ -2292,17 +2337,17 @@ int main(int argc, char **argv)
 #else
 			if( BETAVERSION > 0 )
 			{
-				PrintFormat( 0, 160, 480-48, "preloader v%d.%d(beta v%d)", (BETAVERSION>>16)&0xFF, BETAVERSION>>8, BETAVERSION&0xFF );
+				PrintFormat( 0, 160, rmode->viHeight-48, "preloader v%d.%d(beta v%d)", (BETAVERSION>>16)&0xFF, BETAVERSION>>8, BETAVERSION&0xFF );
 			} else {
-				PrintFormat( 0, 160, 480-48, "priiloader v%d.%d (r%s)", VERSION>>8, VERSION&0xFF,SVN_REV_STR );
+				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d (r%s)", VERSION>>8, VERSION&0xFF,SVN_REV_STR );
 			}
-			PrintFormat( 0, 16, 480-64, "IOS v%d", (*(vu32*)0x80003140)>>16 );
-			PrintFormat( 0, 16, 480-48, "Systemmenu v%d", SysVersion );			
-			PrintFormat( 0, 16, 480-16, "priiloader is a mod of Preloader 0.30");
+			PrintFormat( 0, 16, rmode->viHeight-64, "IOS v%d", (*(vu32*)0x80003140)>>16 );
+			PrintFormat( 0, 16, rmode->viHeight-48, "Systemmenu v%d", SysVersion );			
+			PrintFormat( 0, 16, rmode->viHeight-16, "priiloader is a mod of Preloader 0.30");
 #endif
-			// ((640/2)-(strlen("Systemmenu")*13/2))>>1
+			// ((rmode->viWidth /2)-(strlen("Systemmenu")*13/2))>>1
 			
-			//PrintFormat( 0, 16, 64, "Pos:%d", ((640/2)-(strlen("Update")*13/2))>>1);
+			//PrintFormat( 0, 16, 64, "Pos:%d", ((rmode->viWidth /2)-(strlen("Update")*13/2))>>1);
 
 			PrintFormat( cur_off==0, 127, 64, "System Menu");
 			PrintFormat( cur_off==1, 108, 80, "Homebrew Channel");

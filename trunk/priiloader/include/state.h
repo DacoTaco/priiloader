@@ -44,3 +44,4 @@ typedef struct {
 
 s32 CheckBootState( void );
 s32 ClearState( void );
+u32 CheckReturnTo( void );
