@@ -37,6 +37,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 void PrintCharY( int xx, int yy, char c )
 {
+	//selected text
 	unsigned long* fb = (unsigned long*)VIDEO_GetCurrentFramebuffer();
 
 	if( fb == NULL )
@@ -44,13 +45,19 @@ void PrintCharY( int xx, int yy, char c )
 
 	if( c >= 0x7F || c < 0x20)
 		c = ' ';
-
 	for( int x=1; x <7; ++x)
 	{
 		for( int y=0; y<16; ++y)
 		{
 			if( SGetSetting(SETTING_BLACKBACKGROUND))
-				fb[(x+xx)+(y+yy)*320] = wii_font_r_Bitmap_black[x+(y+(c-' ')*16)*8];
+			{
+				if (wii_font_r_Bitmap[x+(y+(c-' ')*16)*8] == 0xFF80FF80)
+					fb[(x+xx)+(y+yy)*320] = 0x00800080;
+				else
+				{
+					fb[(x+xx)+(y+yy)*320] = 0xFFFFFFFF - wii_font_r_Bitmap[x+(y+(c-' ')*16)*8]; //+ 0x000B0FFD;
+				}
+			}
 			else
 				fb[(x+xx)+(y+yy)*320] = wii_font_r_Bitmap[x+(y+(c-' ')*16)*8];
 		}
@@ -71,7 +78,12 @@ void PrintCharW( int xx, int yy, char c )
 		for( int y=0; y<16; ++y)
 		{
 			if( SGetSetting(SETTING_BLACKBACKGROUND))
-				fb[(x+xx)+(y+yy)*320] = wii_font_Bitmap_black[x+(y+(c-' ')*16)*8];
+			{
+				if (wii_font_r_Bitmap[x+(y+(c-' ')*16)*8] == 0xFF80FF80)
+					fb[(x+xx)+(y+yy)*320] = 0x00800080;
+				else
+					fb[(x+xx)+(y+yy)*320] = 0xFFFFFFFF - wii_font_Bitmap[x+(y+(c-' ')*16)*8];
+			}
 			else
 				fb[(x+xx)+(y+yy)*320] = wii_font_Bitmap[x+(y+(c-' ')*16)*8];
 		}

@@ -43,7 +43,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "su_tik.h"
 #include "su_tmd.h"
 
-// Preloader Application
+// Priiloader Application
 #include "priiloader_app.h"
 
 static GXRModeObj *vmode = NULL;
@@ -88,7 +88,7 @@ const char* abort(const char* msg, ...)
 	strcpy( text + vsprintf( text,msg,args ),""); 
 	va_end( args );
 
-	printf("  %s, aborting mission...", text);
+	printf("   %s, aborting mission...", text);
 	ISFS_Deinitialize();
 	__ES_Close();
 	sleep(5);
@@ -113,15 +113,18 @@ s32 nand_copy(char source[1024], char destination[1024])
     ret = ISFS_GetFileStats(source_handler,status);
     if (ret < 0)
     {
-            ISFS_Close(source_handler);
-            ISFS_Close(dest_handler);
-            ISFS_Delete(destination);
-            free(status);
-            return ret;
+		printf("\n\n  Failed to get information about %s!\n",source);
+		sleep(2);
+        ISFS_Close(source_handler);
+        ISFS_Close(dest_handler);
+        ISFS_Delete(destination);
+        free(status);
+        return ret;
     }
 	if ( status->file_length == 0 )
 	{
-		abort("system menu app is reported as 0kB...");
+		printf("\n\n  source file of nand_copy is reported as 0kB!\n");
+		return -1;
 	}
 
     buffer = (u8 *)memalign(32,status->file_length);
@@ -129,23 +132,25 @@ s32 nand_copy(char source[1024], char destination[1024])
     ret = ISFS_Read(source_handler,buffer,status->file_length);
     if (ret < 0)
     {
-            ISFS_Close(source_handler);
-            ISFS_Close(dest_handler);
-            ISFS_Delete(destination);
-            free(status);
-            free(buffer);
-            return ret;
+		printf("\n\nFailed to Read Data from %s!\n",source);
+		sleep(2);
+		ISFS_Close(source_handler);
+        ISFS_Close(dest_handler);
+        ISFS_Delete(destination);
+        free(status);
+        free(buffer);
+        return ret;
     }
 
     ret = ISFS_Write(dest_handler,buffer,status->file_length);
-    if (!ret)
+    if (ret < 0)
     {
-            ISFS_Close(source_handler);
-            ISFS_Close(dest_handler);
-            ISFS_Delete(destination);
-            free(status);
-            free(buffer);
-            return ret;
+        ISFS_Close(source_handler);
+        ISFS_Close(dest_handler);
+        ISFS_Delete(destination);
+        free(status);
+        free(buffer);
+        return ret;
     }
 
     ISFS_Close(source_handler);
@@ -180,9 +185,10 @@ int main(int argc, char **argv)
 	if (vmode->viTVMode&VI_NON_INTERLACE)
 		VIDEO_WaitVSync();
 	CheckForGecko();
+	gprintf("resolution is %dx%d\n",vmode->viWidth,vmode->viHeight);
 	printf("\x1b[2;0H");
-	printf("IOS %d rev %d\n\n",IOS_GetVersion(),IOS_GetRevision());
-	printf("       priiloader rev %d (preloader v0.30b) Installation / Removal Tool\n\n\n\n",SVN_REV);
+	printf("  IOS %d rev %d\n\n",IOS_GetVersion(),IOS_GetRevision());
+	printf("       priiloader rev %d (preloader v0.30 mod) Installation / Removal Tool\n\n\n\n",SVN_REV);
 	printf("                          PLEASE READ THIS CAREFULLY\n\n");
 	printf("                THIS PROGRAM/TOOL COMES WITHOUT ANY WARRANTIES!\n");
 	printf("               YOU ACCEPT THAT YOU INSTALL THIS AT YOUR OWN RISK\n\n\n");
@@ -208,22 +214,22 @@ int main(int argc, char **argv)
 			s32 fd,fs;
 			u32 id = 0;
 
-			printf("\x1b[2J\x1b[2;0H");
-			fflush(stdout);
 			if (pHeld & WPAD_BUTTON_B)
 			{
 				WPAD_Shutdown();
         		IOS_ReloadIOS(249);
         		WPAD_Init();
         	}
-			printf("IOS %d rev %d\n\n\n\n\n",IOS_GetVersion(),IOS_GetRevision());
+			printf("\x1b[2J\x1b[2;0H");
+			fflush(stdout);
+			printf("  IOS %d rev %d\n\n\n\n\n",IOS_GetVersion(),IOS_GetRevision());
         	__ES_Init();
 			fd = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)su_tmd, su_tmd_size, (signed_blob *)su_tik, su_tik_size, &tmp_ikey);
 			if(fd > 0)
 			{
-				printf("ES_Identify failed, error %u. ios%d not patched with ES_DIVerify?\n",fd,IOS_GetVersion());
-				printf("will continue but chances are it WILL fail\n");
-				printf("using cios (holding b and then pressing + or - ) will probably solve this. NOTE: you need CIOS for this.");
+				printf("  ES_Identify failed, error %u. ios%d not patched with ES_DIVerify?\n",fd,IOS_GetVersion());
+				printf("  will continue but chances are it WILL fail\n");
+				printf("  using cios (holding b and then pressing + or - ) will probably solve this. NOTE: you need CIOS for this.");
 			}
 			else
 				printf("  Logged in as \"su\"!\n");
@@ -233,7 +239,7 @@ int main(int argc, char **argv)
 			fd = ISFS_Open(getAlignedName("/title/00000001/00000002/content/ticket"),ISFS_OPEN_READ);
 			if (fd <0)
 			{
-				printf("  priiloader system menu ticket not found/access denied.\n  trying to read original ticket...\n");
+				printf("  Priiloader system menu ticket not found/access denied.\n  trying to read original ticket...\n");
 				ISFS_Close(fd);
 				fd = ISFS_Open(getAlignedName("/ticket/00000001/00000002.tik"),ISFS_OPEN_READ);
 				//"/ticket/00000001/00000002.tik" -> original path which should be there on every wii.
@@ -250,14 +256,13 @@ int main(int argc, char **argv)
 							abort("Unable to read ticket.(Out of memory)");
 							break;
 						case -106:
-							abort("ticket not found");
+							abort("Ticket not found");
 							break;
 						case -102:
-							abort("unautorised to get ticket. is ios%d trucha signed?",IOS_GetVersion());
+							abort("Unautorised to get ticket. is ios%d trucha signed?",IOS_GetVersion());
 							break;
 						default:
-							printf("Unable to read ticket. error %d. ",fd);
-							abort("");
+							abort("Unable to read ticket. error %d. ",fd);
 							break;
 					}
 
@@ -352,7 +357,7 @@ int main(int argc, char **argv)
 			if (pDown & WPAD_BUTTON_PLUS)
 			{
 				bool Priiloader_found = false;
-				printf("  Checking for preloader...\n");
+				printf("  Checking for Priiloader...\n");
 				fd = ISFS_Open(copy_app,ISFS_OPEN_RW);
 				if (fd < 0)
 				{
@@ -363,41 +368,33 @@ int main(int argc, char **argv)
 					fstats * status = (fstats*)memalign(32,sizeof(fstats));
 					if (ISFS_GetFileStats(fd,status) < 0)
 					{
-						printf("\n\nWARNING: failed to get stats of %s. ignoring priiloader \"installation\"...\n\n",copy_app);
-						ISFS_Close(fd);
-						Priiloader_found = false;
-					}
-					if ( status->file_length == 0 )
-					{
-						printf("\n\nWARNING: %s is reported as 0kB. ignoring priiloader \"installation\"...\n\n",copy_app);
+						printf("\n\n  WARNING: failed to get stats of %s. ignoring priiloader \"installation\"...\n\n",copy_app);
 						Priiloader_found = false;
 					}
 					else
-						Priiloader_found = true;
+					{
+						if ( status->file_length == 0 )
+						{
+							printf("\n\n  WARNING: %s is reported as 0kB. ignoring priiloader \"installation\"...\n\n",copy_app);
+							Priiloader_found = false;
+						}
+						else
+							Priiloader_found = true;
+					}
 					free(status);
 					ISFS_Close(fd);
 				}
 				if(!Priiloader_found)
 				{
-					printf("  Preloader not found, moving the system menu...");
-					if (nand_copy(original_app,copy_app) < 0)
-					{
-						abort("Unable to move the system menu");
-					}
-					else
-					{
-						printf("Done!\n");
-						printf("  Installing priiloader...\n\n\n");
-					}
+					printf("  Priiloader not found.\n  Installing Priiloader...\n\n\n");
 				}
 				else
 				{
-					printf("  Preloader installation found, skipping moving the system menu.\n");
-					printf("  Updating priiloader...\n\n\n");	
+					printf("  Priiloader installation found\n  Updating Priiloader...\n\n\n");
 				}
 				if(CopyTicket)
 				{
-					printf("coping system menu ticket...");
+					printf("  Coping system menu ticket...");
 					if (nand_copy("/ticket/00000001/00000002.tik","/title/00000001/00000002/content/ticket") < 0)
 					{
 						abort("Unable to copy the system menu ticket");
@@ -406,19 +403,64 @@ int main(int argc, char **argv)
 				}
 				else
 				{
-					printf("  Skipping copy of priiloader system menu ticket\n");
+					printf("  Skipping copy of system menu ticket...\n");
 				}
-				
-				s16 ret = 0;
+				if(!Priiloader_found)
+				{
+					printf("  Moving System Menu app...");
+					if (nand_copy(original_app,copy_app) < 0)
+					{
+						abort("\n  Unable to move the system menu");
+					}
+					else
+						printf("Done!\n");
+				}
+				else
+				{
+					printf("  Skipping Moving of System menu app...\n");
+				}				
+				s32 ret = 0;
 				ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
 				gprintf("loader.ini deletion returned %d\n",ret);
-
-
+				
+				printf("  Writing Priiloader app...");
 				ISFS_Delete(original_app);
 				ISFS_CreateFile(original_app,0,3,3,3);
 				fd = ISFS_Open(original_app,ISFS_OPEN_RW);
-				ISFS_Write(fd,priiloader_app,priiloader_app_size);
-				ISFS_Close(fd);
+				if (fd < 0)
+				{
+					nand_copy(copy_app,original_app);
+					abort("\n  Failed to open file for Priiloader writing.");
+				}
+				ret = ISFS_Write(fd,priiloader_app,priiloader_app_size);
+				if (ret < 0 ) //check if the app was writen correctly				
+				{
+					ISFS_Close(fd);
+					nand_copy(copy_app,original_app);
+					gprintf("Write failed. ret %d\n",ret);
+					abort("\n  Write of Priiloader app failed.");
+				}
+				//ISFS_Close(fd);
+				printf("Done\n");
+				printf("  Checking Priiloader Installation...");
+				fstats * status = (fstats*)memalign(32,sizeof(fstats));
+				if (ISFS_GetFileStats(fd,status) < 0)
+				{
+					ISFS_Close(fd);
+					nand_copy(copy_app,original_app);
+					abort("\n  Failed to get stats of %s. System Menu Recovered.",original_app);
+				}
+				else
+				{
+					if ( status->file_length != priiloader_app_size )
+					{
+						ISFS_Close(fd);
+						nand_copy(copy_app,original_app);
+						abort("\n  Written Priiloader app isn't the correct size.");
+					}
+				}
+				free(status);
+				printf("Done\n\n");
 				if(Priiloader_found)
 					printf("  Update done, exiting to loader... waiting 5s...\n");
 				else
@@ -431,16 +473,17 @@ int main(int argc, char **argv)
 
 			else if (pDown & WPAD_BUTTON_MINUS)
 			{
-				printf("  Checking for preloader...\n");
+				printf("  Checking for Priiloader...\n");
 				fd = ISFS_Open(copy_app,ISFS_OPEN_RW);
 				if (fd < 0)
 				{
-					abort("Preloader not found");
+					abort("Priiloader not found");
 				}
 				else
 				{
-					printf("  Preloader installation found, restoring the system menu...");
+					printf("  Priiloader installation found.removing...\n\n  Removing Priiloader...");
 					ISFS_Delete(original_app);
+					printf("Done!\n  Restoring System menu app...");
 					s32 ret = nand_copy(copy_app,original_app);
 					if (ret < 0)
 					{
@@ -449,20 +492,27 @@ int main(int argc, char **argv)
 						fd = ISFS_Open(original_app,ISFS_OPEN_RW);
 						ISFS_Write(fd,priiloader_app,priiloader_app_size);
 						ISFS_Close(fd);
-						abort("Unable to restore the system menu! (ret = %d)",ret);
+						abort("\n  Unable to restore the system menu! (ret = %d)",ret);
 					}
 					else
 					{
-						printf("Done!\n");
 						ISFS_Close(fd);
 						ISFS_Delete(copy_app);
-						ISFS_Delete("/title/00000001/00000002/data/loader.ini");
+						printf("Done!\n");
+						printf("  Deleting extra Priiloader files...");
+						s32 ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
+						gprintf("loader.ini : %d\n",ret);
 						//its best we delete that ticket but its completely useless and will only get in our 
 						//way when installing again later...
-						//ISFS_Delete("/title/00000001/00000002/content/ticket");
-						ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini");
-						ISFS_Delete("/title/00000001/00000002/data/hacks.ini");
-						ISFS_Delete("/title/00000001/00000002/data/main.bin");
+						//ret = ISFS_Delete("/title/00000001/00000002/content/ticket");
+						//gprintf("ticket : %d\n",ret);
+						ret = ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini");
+						gprintf("hacks_s.ini : %d\n",ret);
+						ret = ISFS_Delete("/title/00000001/00000002/data/hacks.ini");
+						gprintf("hacks.ini : %d\n",ret);
+						ret = ISFS_Delete("/title/00000001/00000002/data/main.bin");
+						gprintf("main.bin : %d\n",ret);
+						printf("Done!\n\n");
 						printf("  Removal done, exiting to loader... waiting 5s...\n");
 						ISFS_Deinitialize();
 						__ES_Close();
