@@ -1169,9 +1169,8 @@ void BootMainSysMenu( void )
 			{
 				__ES_Close();
 				__ES_Init();
-				//__IOS_LaunchNewIOS(SGetSetting(SETTING_SYSTEMMENUIOS));
+				__IOS_LaunchNewIOS(SGetSetting(SETTING_SYSTEMMENUIOS));
 				gprintf("launched ios %d for system menu\n",IOS_GetVersion());
-				return;
 				//__IOS_LaunchNewIOS(rTMD->sys_version);
 				//__IOS_LaunchNewIOS(249);
 				__IOS_InitializeSubsystems();
@@ -2371,6 +2370,7 @@ int main(int argc, char **argv)
 			//when we are in preloader itself we should make the video black before the user thinks its not shutting down...
 			//TODO : fade to black if possible without a gfx lib?
 			//STM_SetVIForceDimming ?
+			ClearState();
 			VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
 			DVDStopDisc();
 			WPAD_Shutdown();
