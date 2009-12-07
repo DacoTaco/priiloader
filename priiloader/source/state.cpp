@@ -35,14 +35,18 @@ s32 CheckBootState( void )
 	memset( sf, 0, sizeof(StateFlags) );
 	s32 fd = ISFS_Open("/title/00000001/00000002/data/state.dat", 1);
 	if(fd < 0)
+	{
+		free(sf);
 		return 0;
+	}
 	s32 ret = ISFS_Read(fd, sf, sizeof(StateFlags));
 	IOS_Close(fd);
 	if(ret != sizeof(StateFlags))
 	{
+		free(sf);
 		return 0;
 	}
-	s32 r = sf->type;
+	u8 r = sf->type;
 	free( sf );
 	return r;
 }
@@ -52,14 +56,18 @@ u32 CheckReturnTo( void )
 	memset( sf, 0, sizeof(StateFlags) );
 	s32 fd = ISFS_Open("/title/00000001/00000002/data/state.dat", 1);
 	if(fd < 0)
+	{
+		free(sf);
 		return fd;
+	}
 	s32 ret = ISFS_Read(fd, sf, sizeof(StateFlags));
 	IOS_Close(fd);
 	if(ret != sizeof(StateFlags))
 	{
+		free(sf);
 		return -1;
 	}
-	s32 r = sf->returnto;
+	u8 r = sf->returnto;
 	free( sf );
 	return r;
 }

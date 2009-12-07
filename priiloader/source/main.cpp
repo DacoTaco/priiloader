@@ -2073,13 +2073,15 @@ int main(int argc, char **argv)
 		//Check autoboot settings
 		switch( Bootstate )
 		{
-			case 5:
+			case TYPE_UNKNOWN: //255, only seen when shutting down from MIOS... unknown
+			case TYPE_SHUTDOWNSYSTEM: // 5 - shutdown
 				if( ClearState() < 0 )
 				{
 					gprintf("failed to clear state\n");
 				}
 				if(!SGetSetting(SETTING_SHUTDOWNTOPRELOADER))
 				{
+					gprintf("Shutting down...\n");
 					*(vu32*)0xCD8000C0 &= ~0x20;
 					DVDStopDisc();
         			WPAD_Shutdown();
@@ -2097,9 +2099,9 @@ int main(int argc, char **argv)
 					}
 				}
 				break;
-			case 2:
+			case RETURN_TO_ARGS: //2 - normal reboot which funny enough doesn't happen very often
 				//unknown what it really stands for, only seen once but im guessing it acts like reset
-			case 3:
+			case TYPE_RETURN: //3 - return to system menu
 				switch( SGetSetting(SETTING_RETURNTO) )
 				{
 					case RETURNTO_SYSMENU:
@@ -2146,14 +2148,9 @@ int main(int argc, char **argv)
 					break;
 				}
 				break;
-			default :
-				if( ClearState() < 0 )
-				{
-					error = ERROR_STATE_CLEAR;
-					gprintf("failed to clear state\n");
-				}
-				break;
-			case 0: 
+			case TYPE_NANDBOOT: // 4 - unknown. guessing its like 0 >_>
+			case RETURN_TO_SETTINGS: // 1 - Boot when fully shutdown & wiiconnect24 is off. why its called RETURN_TO_SETTINGS i have no clue...
+			case RETURN_TO_MENU: // 0 - boot when standby.
 				switch( SGetSetting(SETTING_AUTBOOT) )
 				{
 					case AUTOBOOT_SYS:
@@ -2166,7 +2163,6 @@ int main(int argc, char **argv)
 						LoadHBC();
 						error=ERROR_BOOT_HBC;
 						break;
-
 					case AUTOBOOT_BOOTMII_IOS:
 						gprintf("AutoBoot:BootMii IOS\n");
 						LoadBootMii();
@@ -2176,14 +2172,19 @@ int main(int argc, char **argv)
 						gprintf("AutoBoot:Installed File\n");
 						AutoBootDol();
 						break;
-
 					case AUTOBOOT_ERROR:
 						error=ERROR_BOOT_ERROR;
 						break;
-
 					case AUTOBOOT_DISABLED:
 					default:
 						break;
+				}
+				break;
+			default :
+				if( ClearState() < 0 )
+				{
+					error = ERROR_STATE_CLEAR;
+					gprintf("failed to clear state\n");
 				}
 				break;
 
