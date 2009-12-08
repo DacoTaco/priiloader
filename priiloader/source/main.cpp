@@ -162,6 +162,7 @@ bool isIOSstub(u8 ios_number)
 	if (!tmd_size)
 	{
 		//getting size failed. invalid or fake tmd for sure!
+		gprintf("failed to get tmd for ios %d\n",ios_number);
 		return true;
 	}
 	signed_blob *ios_tmd_buf = (signed_blob *)memalign( 32, (tmd_size+32)&(~31) );
@@ -170,16 +171,36 @@ bool isIOSstub(u8 ios_number)
     ES_GetStoredTMD(0x0000000100000000ULL | ios_number, ios_tmd_buf, tmd_size);
     ios_tmd = (tmd *)SIGNATURE_PAYLOAD(ios_tmd_buf);//(tmd *)(ios_tmd_buf+(0x140/sizeof(tmd *)));//(tmd *)SIGNATURE_PAYLOAD(ios_tmd_buf);
 	free(ios_tmd_buf);
-
-	gprintf("ios %d is %d with tmd size off %u\n",ios_number,ios_tmd->title_version,tmd_size);
+#ifdef DEBUG
+	gprintf("contents for IOS %d :\n",ios_number);
+	for(int i = 0; i < ios_tmd->num_contents;i++)
+	{
+		gprintf("content %d : id %u , type %x\n",ios_tmd->contents[i].index,ios_tmd->contents[i].cid,ios_tmd->contents[i].type);
+	}
+#endif
+	gprintf("IOS %d is %d with tmd size off %u and %u contents\n",ios_number,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
 	//stubs are most of the time rev 65280. 0 if its invalid (my bugzzz :P) or 65535 if you are wanker and choose ffff
 	//the only IOS i noticed that went trough the check is IOS 21 with its tmd size...
-	if ( ios_tmd->title_version < 65280 && ios_tmd->title_version > 0 && ios_tmd->title_version != 65535 )
+	if ( (ios_tmd->title_version < 65280 && ios_tmd->title_version > 0) || ( ios_tmd->title_version == 65535 ) )
 	{
 		if (tmd_size != 592)
 		{
 			gprintf("IOS %d is active\n",ios_number);
 			return false;
+		}
+		else if ( ios_tmd->num_contents == 3)
+		{
+			//lets check contents. if its really a stub it should have 1 own app and 2 shared
+			if (ios_tmd->contents[0].type == 1 && ios_tmd->contents[1].type == 0x8001 && ios_tmd->contents[2].type == 0x8001)
+			{
+				gprintf("IOS %d is a stub\n",ios_number);
+				return true;
+			}
+			else
+			{
+				gprintf("IOS %d is active\n",ios_number);
+				return false;
+			}
 		}
 	}
 	gprintf("IOS %d is a stub\n",ios_number);
@@ -712,6 +733,9 @@ void SetSettings( void )
 					}
 
 					settings->SystemMenuIOS = (u32)(TitleIDs[IOS_off]&0xFFFFFFFF);
+#ifdef DEBUG
+					isIOSstub(settings->SystemMenuIOS);
+#endif
 
 					redraw=true;
 				} else if( (WPAD_Pressed & WPAD_BUTTON_RIGHT) || (PAD_Pressed & PAD_BUTTON_RIGHT) ) 
@@ -1957,6 +1981,7 @@ void AutoBootDol( void )
 	__STM_Close();
 	ISFS_Deinitialize();
 	__io_wiisd.shutdown();
+	__io_usbstorage.shutdown();
 	__IOS_ShutdownSubsystems();
 	//IOS_ReloadIOS(IOS_GetPreferredVersion());
 	//__ES_Init();
@@ -2277,7 +2302,7 @@ int main(int argc, char **argv)
 					error=ERROR_BOOT_BOOTMII;
 					break;
 				}
-				case 3:		//load main.dol from /shared2 dir
+				case 3:		//load main.dol from /title/00000001/00000002/data/ dir
 					AutoBootDol();
 				break;
 				case 4:
