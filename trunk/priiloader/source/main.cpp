@@ -2374,7 +2374,7 @@ int main(int argc, char **argv)
 			//PrintFormat( 0, 16, 64, "Pos:%d", ((rmode->viWidth /2)-(strlen("Update")*13/2))>>1);
 
 			PrintFormat( cur_off==0, ((rmode->viWidth /2)-((strlen("System Menu"))*13/2))>>1, 64, "System Menu");
-			PrintFormat( cur_off==0, ((rmode->viWidth /2)-((strlen("Homebrew Channel"))*13/2))>>1, 80, "Homebrew Channel");
+			PrintFormat( cur_off==1, ((rmode->viWidth /2)-((strlen("Homebrew Channel"))*13/2))>>1, 80, "Homebrew Channel");
 			PrintFormat( cur_off==2, ((rmode->viWidth /2)-((strlen("BootMii IOS"))*13/2))>>1, 96, "BootMii IOS");
 			PrintFormat( cur_off==3, ((rmode->viWidth /2)-((strlen("Installed File"))*13/2))>>1, 128, "Installed File");
 			PrintFormat( cur_off==4, ((rmode->viWidth /2)-((strlen("Load/Install File"))*13/2))>>1, 144, "Load/Install File");
