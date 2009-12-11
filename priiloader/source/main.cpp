@@ -210,6 +210,14 @@ bool isIOSstub(u8 ios_number)
 void SysHackSettings( void )
 {
 	bool DeviceFound = RemountDevices();
+
+	if(!DeviceFound)
+	{
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to mount fat device"))*13/2))>>1, 208, "Failed to mount fat device");
+		sleep(5);
+		return;
+	}
+
 	if(!LoadHacks())
 		return;
 
@@ -225,21 +233,12 @@ void SysHackSettings( void )
 		}
 	}
 
-	if( HackCount == 0 )
+	if( HackCount == 0 && DeviceFound)
 	{
-		if(DeviceFound)
-		{
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Couldn't find any hacks for"))*13/2))>>1, 208, "Couldn't find any hacks for");
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("System Menu version:vxxx"))*13/2))>>1, 228, "System Menu version:v%d", SysVersion );
-			sleep(5);
-			return;
-		}
-		else
-		{
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to mount fat device"))*13/2))>>1, 208, "Failed to mount fat device");
-			sleep(5);
-			return;
-		}
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Couldn't find any hacks for"))*13/2))>>1, 208, "Couldn't find any hacks for");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("System Menu version:vxxx"))*13/2))>>1, 228, "System Menu version:v%d", SysVersion );
+		sleep(5);
+		return;
 	}
 
 	u32 DispCount=HackCount;
@@ -2374,13 +2373,13 @@ int main(int argc, char **argv)
 			
 			//PrintFormat( 0, 16, 64, "Pos:%d", ((rmode->viWidth /2)-(strlen("Update")*13/2))>>1);
 
-			PrintFormat( cur_off==0, 127, 64, "System Menu");
-			PrintFormat( cur_off==1, 108, 80, "Homebrew Channel");
-			PrintFormat( cur_off==2, 127, 96, "BootMii IOS");
-			PrintFormat( cur_off==3, 114, 128, "Installed File");
-			PrintFormat( cur_off==4, 105, 144, "Load/Install File");
-			PrintFormat( cur_off==5, 108, 160, "System Menu Hacks");
-			PrintFormat( cur_off==6, 134, 176, "Settings");
+			PrintFormat( cur_off==0, ((rmode->viWidth /2)-((strlen("System Menu"))*13/2))>>1, 64, "System Menu");
+			PrintFormat( cur_off==0, ((rmode->viWidth /2)-((strlen("Homebrew Channel"))*13/2))>>1, 80, "Homebrew Channel");
+			PrintFormat( cur_off==2, ((rmode->viWidth /2)-((strlen("BootMii IOS"))*13/2))>>1, 96, "BootMii IOS");
+			PrintFormat( cur_off==3, ((rmode->viWidth /2)-((strlen("Installed File"))*13/2))>>1, 128, "Installed File");
+			PrintFormat( cur_off==4, ((rmode->viWidth /2)-((strlen("Load/Install File"))*13/2))>>1, 144, "Load/Install File");
+			PrintFormat( cur_off==5, ((rmode->viWidth /2)-((strlen("System Menu Hacks"))*13/2))>>1, 160, "System Menu Hacks");
+			PrintFormat( cur_off==6, ((rmode->viWidth /2)-((strlen("Settings"))*13/2))>>1, 176, "Settings");
 
 			if (error > 0)
 			{

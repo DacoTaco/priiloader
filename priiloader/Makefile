@@ -99,6 +99,7 @@ UNAME := $(shell uname)
 $(BUILD):
 ifeq ($(UNAME),Linux)
 	chmod 555 ../Shared/makesvnrev.sh
+	chmod +x ../Shared/makesvnrev.sh
 	../Shared/makesvnrev.sh
 else
 	../Shared/SubWCRev.exe "../." "../Shared/svnrev_template.h" "../Shared/svnrev.h"
@@ -106,7 +107,11 @@ endif
 	@[ -d $@ ] || mkdir -p $@
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 	wiiload $(OUTPUT).dol
+ifeq ($(UNAME),Linux)
+	wine dolboot.exe $(OUTPUT).dol ../Installer/data/priiloader.app
+else
 	dolboot $(OUTPUT).dol ../Installer/data/priiloader.app
+endif
 
 #---------------------------------------------------------------------------------
 clean:

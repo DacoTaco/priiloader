@@ -79,7 +79,7 @@ void PrintCharW( int xx, int yy, char c )
 		{
 			if( SGetSetting(SETTING_BLACKBACKGROUND))
 			{
-				if (wii_font_r_Bitmap[x+(y+(c-' ')*16)*8] == 0xFF80FF80)
+				if (wii_font_Bitmap[x+(y+(c-' ')*16)*8] == 0xFF80FF80)
 					fb[(x+xx)+(y+yy)*320] = 0x00800080;
 				else
 					fb[(x+xx)+(y+yy)*320] = 0xFFFFFFFF - wii_font_Bitmap[x+(y+(c-' ')*16)*8];
