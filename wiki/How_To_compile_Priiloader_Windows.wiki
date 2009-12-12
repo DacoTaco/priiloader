@@ -1,0 +1,22 @@
+#labels Featured
+= Introduction =
+So you wanted to compile the priiloader source eh? well, this wiki will explain how using Visual Studio 2008 or Visual C++
+
+= Prequsites =
+to compile the source is easy but you need quiet some stuff. what you'll need is :
+  * DevkitPPC found [http://www.devkitpro.org/downloads/ here]
+  * Visual Studio 2008 or Visual C++
+  * a SVN client to download source from. tortoiseSVN recommended
+  * A brain (o noez! i don't have one!)
+
+= Guide =
+
+  * Install DevkitPPC (or more if you feel like it) using the DevkitPro installer. note that there should be _NO SPACES IN THE DIRECTORY_ example: C:\DevkitPro
+  * Install your SVN Client, throughout the guide ill act like that is tortoiseSVN
+  * If Visual Studio/Visual C++ isn't installed yet, do that now
+
+  * Make a folder where the source should be. this should also _NOT_ contain any spaces
+  * Right click this folder and choose SVN Checkout. the url of the repository should be http://priiloader.googlecode.com/svn/trunk/ and the checkout directory should be set to the folder you just made. click ok and let it get the source from svn.
+  * Go into the folder and open the Priiloader.sln. it should open Visual Studio/Visual C++ with the projects of priiloader and the installer on the right. 
+  * Build :P QUICK NOTE : Debug only builds priiloader. Release builds both
+
