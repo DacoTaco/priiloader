@@ -88,7 +88,7 @@ const char* abort(const char* msg, ...)
 	strcpy( text + vsprintf( text,msg,args ),""); 
 	va_end( args );
 
-	printf("   %s, aborting mission...", text);
+	printf("  %s, aborting mission...", text);
 	ISFS_Deinitialize();
 	__ES_Close();
 	sleep(5);
@@ -104,7 +104,13 @@ s32 nand_copy(char source[1024], char destination[1024])
             return source_handler;
    
     ISFS_Delete(destination);
-    ISFS_CreateFile(destination,0,3,3,3);
+    ret = ISFS_CreateFile(destination,0,ISFS_OPEN_RW,ISFS_OPEN_RW,ISFS_OPEN_RW);
+	if (ret != ISFS_OK) 
+	{
+		printf("Failed to create file %s. ret = %d\n",destination,ret);
+		gprintf("Failed to create file %s. ret = %d\n",destination,ret);
+		return ret;
+	}
     dest_handler = ISFS_Open(destination,ISFS_OPEN_RW);
     if (dest_handler < 0)
             return dest_handler;
@@ -159,15 +165,30 @@ s32 nand_copy(char source[1024], char destination[1024])
     free(buffer);
     return 0;
 }
-//a nice function found in muppen64gc
-static inline char* getAlignedName(char* name){
-	static char alignedBuf[64] __attribute__((aligned(32)));
-	if((int)name % 32){
-		strncpy(alignedBuf, name, 64);
-		return alignedBuf;
-	} else return name;
+bool UserYesNoStop()
+{
+	u32 pDown;
+	while(1)
+	{
+		WPAD_ScanPads();
+		pDown = WPAD_ButtonsDown(0);
+		if (pDown & WPAD_BUTTON_A)
+		{
+			return true;
+		}
+		if (pDown & WPAD_BUTTON_B)
+		{
+			return false;
+		}
+		if (pDown & WPAD_BUTTON_HOME)
+		{
+			abort("User command.");
+			break;
+		}
+	}
+	//it should never get here, but to kill that silly warning... :)
+	return false;
 }
-
 
 int main(int argc, char **argv)
 {
@@ -236,12 +257,12 @@ int main(int argc, char **argv)
 			if (ISFS_Initialize() < 0)
 				abort("Failed to get root");
 			printf("  Got ROOT!\n");
-			fd = ISFS_Open(getAlignedName("/title/00000001/00000002/content/ticket"),ISFS_OPEN_READ);
+			fd = ISFS_Open("/title/00000001/00000002/content/ticket",ISFS_OPEN_READ);
 			if (fd <0)
 			{
-				printf("  Priiloader system menu ticket not found/access denied.\n  trying to read original ticket...\n");
+				printf("  Priiloader system menu ticket not found.\n  trying to read original ticket...\n");
 				ISFS_Close(fd);
-				fd = ISFS_Open(getAlignedName("/ticket/00000001/00000002.tik"),ISFS_OPEN_READ);
+				fd = ISFS_Open("/ticket/00000001/00000002.tik",ISFS_OPEN_READ);
 				//"/ticket/00000001/00000002.tik" -> original path which should be there on every wii.
 				//however needs nand permissions which SU doesn't have without trucha? >_>
 				//we need mini if we want to be patch free...
@@ -362,35 +383,53 @@ int main(int argc, char **argv)
 				if (fd < 0)
 				{
 					Priiloader_found = false;
+					printf("  Priiloader not found.\n  Installing Priiloader...\n\n\n");
 				}
 				else
 				{
 					fstats * status = (fstats*)memalign(32,sizeof(fstats));
 					if (ISFS_GetFileStats(fd,status) < 0)
 					{
-						printf("\n\n  WARNING: failed to get stats of %s. ignoring priiloader \"installation\"...\n\n",copy_app);
-						Priiloader_found = false;
+						printf("\n\n  WARNING: failed to get stats of %s.  Ignore Priiloader \"installation\" ?\n",copy_app);
+						printf("  A = Yes       B = No(Recommended if priiloader is installed)       Home = Exit\n");
+						if(UserYesNoStop())
+						{
+							printf("  Ignoring Priiloader Installation...\n\n");
+							Priiloader_found = false;
+						}
+						else
+						{
+							printf("  Using Current Priiloader Installation...\n\n");
+							Priiloader_found = true;
+						}
 					}
 					else
 					{
 						if ( status->file_length == 0 )
 						{
-							printf("\n\n  WARNING: %s is reported as 0kB. ignoring priiloader \"installation\"...\n\n",copy_app);
-							Priiloader_found = false;
+							printf("\n\n  WARNING: %s is reported as 0kB!\n  Ignore priiloader \"installation\" ?\n",copy_app);
+							printf("  It is recommended that you ignore the installation if Priiloader hasn't\n  succesfully installed yet\n");
+							printf("  A = Yes       B = No       Home = Exit\n");
+							if(UserYesNoStop())
+							{
+								printf("  Ignoring Priiloader \"Installation\"...\n\nReinstalling Priiloader...\n\n\n");
+								Priiloader_found = false;
+								break;
+							}
+							else
+							{
+								printf("  Using Current Priiloader \"Installation\"...\n\nUpdating Priiloader...\n\n\n");
+								Priiloader_found = true;
+							}
 						}
 						else
+						{
 							Priiloader_found = true;
+							printf("  Priiloader installation found\n  Updating Priiloader...\n\n\n");
+						}
 					}
 					free(status);
 					ISFS_Close(fd);
-				}
-				if(!Priiloader_found)
-				{
-					printf("  Priiloader not found.\n  Installing Priiloader...\n\n\n");
-				}
-				else
-				{
-					printf("  Priiloader installation found\n  Updating Priiloader...\n\n\n");
 				}
 				if(CopyTicket)
 				{
@@ -425,7 +464,7 @@ int main(int argc, char **argv)
 				
 				printf("  Writing Priiloader app...");
 				ISFS_Delete(original_app);
-				ISFS_CreateFile(original_app,0,3,3,3);
+				ISFS_CreateFile(original_app,0,ISFS_OPEN_RW,ISFS_OPEN_RW,ISFS_OPEN_RW);
 				fd = ISFS_Open(original_app,ISFS_OPEN_RW);
 				if (fd < 0)
 				{
@@ -456,7 +495,7 @@ int main(int argc, char **argv)
 					{
 						ISFS_Close(fd);
 						nand_copy(copy_app,original_app);
-						abort("\n  Written Priiloader app isn't the correct size.");
+						abort("\n  Written Priiloader app isn't the correct size.System Menu Recovered.");
 					}
 				}
 				free(status);
