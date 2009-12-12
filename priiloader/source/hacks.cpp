@@ -49,12 +49,15 @@ char *GetLine( char *&astr, unsigned int len )
 	if( strstr( astr, "\n" ) == NULL )
 	{
 		if( strstr( astr, "\0" ) == NULL )
+		{
 			return 0;
-
+		}
 		llen = strstr( astr, "\0" ) - astr;
 		if( llen == 0 )
 			return NULL;
-	} else {
+	}
+	else
+	{
 		llen = strstr( astr, "\n" ) - astr;
 		if( llen == 0 )
 			return NULL;
@@ -65,12 +68,23 @@ char *GetLine( char *&astr, unsigned int len )
 	char *lbuf = (char*)malloc( llen );
 	if( lbuf == NULL )
 	{
+		gprintf("malloc failed for lbuf\n",llen);
 		error = ERROR_MALLOC;
 		return 0;
 	}
-	memcpy( lbuf, astr, llen-1 );
-	lbuf[llen-1] = 0;
-
+	//silly fix for linux newlines...
+	if(strstr( astr, "\r\n" ) != NULL )
+	{
+		//must be a windows newline D:<
+		memcpy( lbuf, astr, llen -1);
+		lbuf[llen-1] = 0;
+	}
+	else
+	{
+		//linux it is
+		memcpy( lbuf, astr, llen);
+		lbuf[llen] = 0;
+	}
 	astr+=llen+1;
 	foff+=llen+1;
 

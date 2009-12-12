@@ -726,8 +726,8 @@ void SetSettings( void )
 					{
 						IOS_off++;
 						if( IOS_off >= TitleCount )
-							IOS_off = 0;
-						if( (u32)(TitleIDs[IOS_off]>>32) == 0x00000001 && (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) > 2  )
+							IOS_off = 3;
+						if( (u32)(TitleIDs[IOS_off]>>32) == 0x00000001 && (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) > 2 && (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) < 255 )
 							break;
 					}
 
@@ -744,7 +744,7 @@ void SetSettings( void )
 						IOS_off--;
 						if( (signed)IOS_off <= 0 )
 							IOS_off = TitleCount;
-						if( (u32)(TitleIDs[IOS_off]>>32) == 0x00000001 && (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) > 2  )
+						if( (u32)(TitleIDs[IOS_off]>>32) == 0x00000001 && (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) > 2  && (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) < 255 )
 							break;
 					}
 
@@ -2124,7 +2124,6 @@ int main(int argc, char **argv)
 				}
 				break;
 			case RETURN_TO_ARGS: //2 - normal reboot which funny enough doesn't happen very often
-				//unknown what it really stands for, only seen once but im guessing it acts like reset
 			case TYPE_RETURN: //3 - return to system menu
 				switch( SGetSetting(SETTING_RETURNTO) )
 				{
@@ -2144,22 +2143,26 @@ int main(int argc, char **argv)
 								break;
 							case AUTOBOOT_HBC:
 								gprintf("AutoBoot:Homebrew Channel\n");
+								ClearState();
 								LoadHBC();
 								error=ERROR_BOOT_HBC;
 								break;
 
 							case AUTOBOOT_BOOTMII_IOS:
 								gprintf("AutoBoot:BootMii IOS\n");
+								ClearState();
 								LoadBootMii();
 								error=ERROR_BOOT_BOOTMII;
 								break;
 							case AUTOBOOT_FILE:
 								gprintf("AutoBoot:Installed File\n");
+								ClearState();
 								AutoBootDol();
 								break;
 
 							case AUTOBOOT_ERROR:
 								error=ERROR_BOOT_ERROR;
+								ClearState();
 								break;
 
 							case AUTOBOOT_DISABLED:
