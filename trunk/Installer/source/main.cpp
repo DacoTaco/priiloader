@@ -434,7 +434,7 @@ int main(int argc, char **argv)
 				if(CopyTicket)
 				{
 					printf("  Coping system menu ticket...");
-					if (nand_copy("/ticket/00000001/00000002.tik","/title/00000001/00000002/content/ticket") < 0)
+					if (nand_copy((char *)&"/ticket/00000001/00000002.tik",(char *)&"/title/00000001/00000002/content/ticket") < 0)
 					{
 						abort("Unable to copy the system menu ticket");
 					}
@@ -480,7 +480,7 @@ int main(int argc, char **argv)
 					abort("\n  Write of Priiloader app failed.");
 				}
 				//ISFS_Close(fd);
-				printf("Done\n");
+				printf("Done!\n");
 				printf("  Checking Priiloader Installation...");
 				fstats * status = (fstats*)memalign(32,sizeof(fstats));
 				if (ISFS_GetFileStats(fd,status) < 0)
@@ -499,7 +499,7 @@ int main(int argc, char **argv)
 					}
 				}
 				free(status);
-				printf("Done\n\n");
+				printf("Done!!!\n\n");
 				if(Priiloader_found)
 					printf("  Update done, exiting to loader... waiting 5s...\n");
 				else

@@ -18,5 +18,11 @@ to compile the source is easy but you need quiet some stuff. what you'll need is
   * Make a folder where the source should be. this should also _NOT_ contain any spaces
   * Right click this folder and choose SVN Checkout. the url of the repository should be http://priiloader.googlecode.com/svn/trunk/ and the checkout directory should be set to the folder you just made. click ok and let it get the source from svn.
   * Go into the folder and open the Priiloader.sln. it should open Visual Studio/Visual C++ with the projects of priiloader and the installer on the right. 
+  * Get a cert.sys copy from your wii (its in the sys folder) and copy it to the data folder of the priiloader&installer source( priiloader/data & installer/data) and finally rename them to certs.bin 
   * Build :P QUICK NOTE : Debug only builds priiloader. Release builds both
+  
+  if you want you can also setup wiiload so the build wont error when trying to send the dol to your wii(not that its bad that it does error):
+  * Set the environment variable by going to your computer's Control Panel -> System 
+  * In the new window click the "Advance" tab Advanced and then click the Environment Variables button
+  * Click "new" under either category. The variable name is WIILOAD and the value is tcp:yourIP, where yourIP is the Wii's IP/hostname. Click "OK" here and in System Properties. 
 

@@ -169,7 +169,7 @@ bool isIOSstub(u8 ios_number)
 	memset(ios_tmd_buf, 0, tmd_size);
 
     ES_GetStoredTMD(0x0000000100000000ULL | ios_number, ios_tmd_buf, tmd_size);
-    ios_tmd = (tmd *)SIGNATURE_PAYLOAD(ios_tmd_buf);//(tmd *)(ios_tmd_buf+(0x140/sizeof(tmd *)));//(tmd *)SIGNATURE_PAYLOAD(ios_tmd_buf);
+    ios_tmd = (tmd *)SIGNATURE_PAYLOAD(ios_tmd_buf);
 	free(ios_tmd_buf);
 #ifdef DEBUG
 	gprintf("contents for IOS %d :\n",ios_number);
@@ -179,9 +179,8 @@ bool isIOSstub(u8 ios_number)
 	}
 #endif
 	gprintf("IOS %d is %d with tmd size off %u and %u contents\n",ios_number,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
-	//stubs are most of the time rev 65280. 0 if its invalid (my bugzzz :P) or 65535 if you are wanker and choose ffff
-	//the only IOS i noticed that went trough the check is IOS 21 with its tmd size...
-	if ( (ios_tmd->title_version < 65280 && ios_tmd->title_version > 0) || ( ios_tmd->title_version == 65535 ) )
+	//stubs are most of the time rev 65280. < 2 if its invalid (my bugzzz :P) or 65535 if you are wanker and choose ffff
+	if ( (ios_tmd->title_version < 65280 && ios_tmd->title_version > 2) || ( ios_tmd->title_version == 65535 ) )
 	{
 		if (tmd_size != 592)
 		{
@@ -246,7 +245,7 @@ void SysHackSettings( void )
 	if( DispCount > 20 )
 		DispCount = 20;
 
-	s16 cur_off=0;
+	u16 cur_off=0;
 	s32 menu_off=0;
 	bool redraw=true;
  
@@ -415,9 +414,7 @@ void SysHackSettings( void )
 			redraw=true;
 		} else if ( (WPAD_Pressed & WPAD_BUTTON_UP) || (PAD_Pressed & PAD_BUTTON_UP) )
 		{
-			cur_off--;
-
-			if( cur_off < 0 )
+			if( cur_off == 0 )
 			{
 				if( menu_off > 0 )
 				{
@@ -439,6 +436,8 @@ void SysHackSettings( void )
 					//}
 				}
 			}
+			else
+				cur_off--;
 	
 			redraw=true;
 		}
@@ -874,12 +873,20 @@ void LoadHBC( void )
 		ES_GetNumTicketViews(TitleID, &cnt);
 		tikview *views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
 		ES_GetTicketViews(TitleID, views, cnt);
+		if( ClearState() < 0 )
+		{
+			gprintf("failed to clear state\n");
+		}
 		ES_LaunchTitle(TitleID, &views[0]);
 		free(views);
 	}
 	else
 	{
 		//new title found apparently :P
+		if( ClearState() < 0 )
+		{
+			gprintf("failed to clear state\n");
+		}
 		ES_LaunchTitle(TitleID, &views[0]);
 	}
 	free(views);
@@ -923,6 +930,11 @@ void LoadBootMii( void )
 	}
 	fclose(BootmiiFile);
 	u16 currentIOS = IOS_GetVersion();
+	//clear the bootstate before going on
+	if( ClearState() < 0 )
+	{
+		gprintf("failed to clear state\n");
+	}
 	IOS_ReloadIOS(254);
 	//launching bootmii failed. lets wait a bit for the launch(it could be delayed) and then load the other ios back
 	sleep(5);
@@ -1310,7 +1322,7 @@ void InstallLoadDOL( void )
 	}
 
 	u32 redraw = 1;
-	s32 cur_off= 0;
+	u32 cur_off= 0;
 
 	while(1)
 	{
@@ -1589,9 +1601,9 @@ void InstallLoadDOL( void )
 			redraw=true;
 		} else if ( (WPAD_Pressed & WPAD_BUTTON_UP) || (PAD_Pressed & PAD_BUTTON_UP) )
 		{
-			cur_off--;
-
-			if( cur_off < 0 )
+			if ( cur_off != 0)
+				cur_off--;
+			else if ( cur_off == 0)
 				cur_off=names.size()-1;
 			
 			redraw=true;
@@ -1974,6 +1986,10 @@ void AutoBootDol( void )
 		WPAD_Disconnect(i);
 	}
 	WPAD_Shutdown();
+	if( ClearState() < 0 )
+	{
+		gprintf("failed to clear state\n");
+	}
 	gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
 	//sleep(1);
 	//Shutdown everything
@@ -2143,30 +2159,25 @@ int main(int argc, char **argv)
 								break;
 							case AUTOBOOT_HBC:
 								gprintf("AutoBoot:Homebrew Channel\n");
-								ClearState();
 								LoadHBC();
 								error=ERROR_BOOT_HBC;
 								break;
 
 							case AUTOBOOT_BOOTMII_IOS:
 								gprintf("AutoBoot:BootMii IOS\n");
-								ClearState();
 								LoadBootMii();
 								error=ERROR_BOOT_BOOTMII;
 								break;
 							case AUTOBOOT_FILE:
 								gprintf("AutoBoot:Installed File\n");
-								ClearState();
 								AutoBootDol();
 								break;
 
 							case AUTOBOOT_ERROR:
 								error=ERROR_BOOT_ERROR;
-								ClearState();
-								break;
-
 							case AUTOBOOT_DISABLED:
 							default:
+								ClearState();
 								break;
 						}
 					break;
@@ -2177,7 +2188,7 @@ int main(int argc, char **argv)
 				break;
 			case TYPE_NANDBOOT: // 4 - unknown. guessing its like 0 >_>
 			case RETURN_TO_SETTINGS: // 1 - Boot when fully shutdown & wiiconnect24 is off. why its called RETURN_TO_SETTINGS i have no clue...
-			case RETURN_TO_MENU: // 0 - boot when standby.
+			case RETURN_TO_MENU: // 0 - boot when wiiconnect24 is on
 				switch( SGetSetting(SETTING_AUTBOOT) )
 				{
 					case AUTOBOOT_SYS:
@@ -2304,7 +2315,7 @@ int main(int argc, char **argv)
 					error=ERROR_BOOT_BOOTMII;
 					break;
 				}
-				case 3:		//load main.dol from /title/00000001/00000002/data/ dir
+				case 3:		//load main.bin from /title/00000001/00000002/data/ dir
 					AutoBootDol();
 				break;
 				case 4:
