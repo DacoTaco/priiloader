@@ -94,7 +94,11 @@ u32 LoadHacks( void )
 {
 	if( hacks.size() ) //Hacks already loaded
 	{
-		return 1;
+// Delete old Hacks entries
+		hacks.resize(0);
+		delete[] states;
+		states = NULL;
+		foff=0;
 	}
 
 	bool mode = true;
