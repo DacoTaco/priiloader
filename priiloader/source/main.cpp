@@ -209,16 +209,18 @@ bool isIOSstub(u8 ios_number)
 void SysHackSettings( void )
 {
 	bool DeviceFound = RemountDevices();
+	bool found_device = true;
+	if( !DeviceFound )
+		found_device = false;
 
-	if(!DeviceFound)
+	if( !LoadHacks() )
 	{
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to mount fat device"))*13/2))>>1, 208, "Failed to mount fat device");
+		if(!found_device)
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to mount fat device"))*13/2))>>1, 208+16, "Failed to mount fat device");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Can't find Hacks.ini on NAND"))*13/2))>>1, 208+16+16, "Can't find Hacks.ini on NAND");
 		sleep(5);
 		return;
 	}
-
-	if(!LoadHacks())
-		return;
 
 //Count hacks for current sys version
 
@@ -232,7 +234,7 @@ void SysHackSettings( void )
 		}
 	}
 
-	if( HackCount == 0 && DeviceFound)
+	if( HackCount == 0 )
 	{
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Couldn't find any hacks for"))*13/2))>>1, 208, "Couldn't find any hacks for");
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("System Menu version:vxxx"))*13/2))>>1, 228, "System Menu version:v%d", SysVersion );
