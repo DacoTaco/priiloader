@@ -50,26 +50,27 @@ s32 CheckBootState( void )
 	free( sf );
 	return r;
 }
-u32 CheckReturnTo( void )
+StateFlags GetStateFlags( void )
 {
 	StateFlags *sf = (StateFlags *)memalign( 32, sizeof(StateFlags) );
+	StateFlags State;
 	memset( sf, 0, sizeof(StateFlags) );
 	s32 fd = ISFS_Open("/title/00000001/00000002/data/state.dat", 1);
 	if(fd < 0)
 	{
 		free(sf);
-		return fd;
+		return State;
 	}
 	s32 ret = ISFS_Read(fd, sf, sizeof(StateFlags));
 	IOS_Close(fd);
 	if(ret != sizeof(StateFlags))
 	{
 		free(sf);
-		return -1;
+		return State;
 	}
-	u8 r = sf->returnto;
+	memcpy((StateFlags*)&State,sf,sizeof(StateFlags));
 	free( sf );
-	return r;
+	return State;
 }
 u32 CalcStateChk(u32 *buf, u32 size)
 {
