@@ -30,7 +30,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <sdcard/wiisd_io.h>
 #ifndef libELM
 #include <fat.h>
-#include <ogc/usbstorage.h>
+#include <ogc/usb.h>
+#include "usbstorage.h"
 #else
 #include "elm.h"
 #endif
@@ -90,12 +91,11 @@ u32 Shutdown=0;
 static void *xfb = NULL;
 static GXRModeObj *rmode = NULL;
 
+extern s32 __IOS_ShutdownSubsystems();
 s32 __IOS_LoadStartupIOS()
 {
         return 0;
 }
-extern s32 __IOS_ShutdownSubsystems();
-
 bool MountDevices(void)
 {
 #ifndef libELM
@@ -209,13 +209,10 @@ bool isIOSstub(u8 ios_number)
 void SysHackSettings( void )
 {
 	bool DeviceFound = RemountDevices();
-	bool found_device = true;
-	if( !DeviceFound )
-		found_device = false;
 
 	if( !LoadHacks() )
 	{
-		if(!found_device)
+		if(!DeviceFound)
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to mount fat device"))*13/2))>>1, 208+16, "Failed to mount fat device");
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Can't find Hacks.ini on NAND"))*13/2))>>1, 208+16+16, "Can't find Hacks.ini on NAND");
 		sleep(5);
@@ -825,7 +822,7 @@ void SetSettings( void )
 					PrintFormat( cur_off==1, 0, 128,    "             Return to:          System Menu");
 				break;
 				case RETURNTO_PRELOADER:
-					PrintFormat( cur_off==1, 0, 128,    "             Return to:          Preloader  ");
+					PrintFormat( cur_off==1, 0, 128,    "             Return to:          Priiloader  ");
 				break;
 				case RETURNTO_AUTOBOOT:
 					PrintFormat( cur_off==1, 0, 128,    "             Return to:          Autoboot   ");
@@ -834,7 +831,7 @@ void SetSettings( void )
 			
 			//PrintFormat( 0, 16, 64, "Pos:%d", ((rmode->viWidth /2)-(strlen("settings saved")*13/2))>>1);
 
-			PrintFormat( cur_off==2, 0, 128+16, "           Shutdown to:          %s", settings->ShutdownToPreloader?"Preloader":"off      ");
+			PrintFormat( cur_off==2, 0, 128+16, "           Shutdown to:          %s", settings->ShutdownToPreloader?"Priiloader":"off      ");
 			PrintFormat( cur_off==3, 0, 128+32, "             Stop disc:          %s", settings->StopDisc?"on ":"off");
 			PrintFormat( cur_off==4, 0, 128+48, "   Light slot on error:          %s", settings->LidSlotOnError?"on ":"off");
 			PrintFormat( cur_off==5, 0, 128+64, "Ignore standby setting:          %s", settings->IgnoreShutDownMode?"on ":"off");
@@ -1266,13 +1263,20 @@ void BootMainSysMenu( void )
 #ifdef DEBUG
 	sleep(20);
 #endif
+	/*//original booting code from crediar
 	__io_wiisd.shutdown();
 	__STM_Close();
 	__IOS_ShutdownSubsystems();
 	mtmsr(mfmsr() & ~0x8000);
+	mtmsr(mfmsr() | 0x2002);*/
+	//modified code from USBLOADER GX. crediars code didn't fail, but this seems to load dols better :)
+	ISFS_Deinitialize();
+	ShutdownDevices();
+	__IOS_ShutdownSubsystems();
+	SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
+	mtmsr(mfmsr() & ~0x8000);
 	mtmsr(mfmsr() | 0x2002);
 	_unstub_start();
-
 }
 void InstallLoadDOL( void )
 {
@@ -1413,7 +1417,7 @@ void InstallLoadDOL( void )
 			sprintf(filepath, "fat:/%s", names[cur_off]);
 			FILE *dol = fopen(filepath,"rb");
 #endif
-			gprintf("laoding %s\n",names[cur_off]);
+			gprintf("loading fat:/%s\n",names[cur_off]);
 			if( dol == NULL )
 			{
 				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not open:\"%s\" for reading")+strlen(names[cur_off]))*13/2))>>1, 208, "Could not open:\"%s\" for reading", names[cur_off]);
@@ -1510,7 +1514,7 @@ void InstallLoadDOL( void )
 				//return;
 
 			} else {
-			//	printf("DOL found\n");
+				gprintf("DOL Detected\n");
 
 				//Load the dol!, TODO: maybe add sanity checks?
 				//read the header
@@ -1554,43 +1558,24 @@ void InstallLoadDOL( void )
 				fclose( dol );
 				entrypoint = (void (*)())(hdr.entrypoint);
 			}
-
-			__STM_Close();
-			__io_wiisd.shutdown();
-			__IOS_ShutdownSubsystems();
+			gprintf("binary loaded, starting dol...\n");
+			for (int i = 0;i < WPAD_MAX_WIIMOTES ;i++)
+			{
+				WPAD_Flush(i);
+				WPAD_Disconnect(i);
+			}
 			WPAD_Shutdown();
-			mtmsr(mfmsr() & ~0x8000);
-			mtmsr(mfmsr() | 0x2002);
-			ICSync();
-			entrypoint();		
-
-			//u32 level;
-			//__IOS_ShutdownSubsystems();
-			//_CPU_ISR_Disable (level);
-			//mtmsr(mfmsr() & ~0x8000);
-			//mtmsr(mfmsr() | 0x2002);
-			//entrypoint();
-			//_CPU_ISR_Restore (level);
-
-
-			//Shutdown everything
-			__STM_Close();
-			ISFS_Deinitialize();
-			__io_wiisd.shutdown();
-			WPAD_Shutdown();
-			__IOS_ShutdownSubsystems();
-			//IOS_ReloadIOS(IOS_GetPreferredVersion());
-			//__ES_Init();
-			//__IOS_LaunchNewIOS(30);
-			//__IOS_InitializeSubsystems();
-			//__ES_Close();
-			mtmsr(mfmsr() & ~0x8000);
-			mtmsr(mfmsr() | 0x2002);
-			//sleep(5);
-			ICSync();
+			ShutdownDevices();
 			gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
-			//sleep(1);
+			IOS_ReloadIOS(IOS_GetPreferredVersion());
+			__IOS_ShutdownSubsystems();
+			u32 level;
+			SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
+			_CPU_ISR_Disable (level);
+			mtmsr(mfmsr() & ~0x8000);
+			mtmsr(mfmsr() | 0x2002);
 			entrypoint();
+			_CPU_ISR_Restore (level);
 		}
 
 		if ( (WPAD_Pressed & WPAD_BUTTON_DOWN) || (PAD_Pressed & PAD_BUTTON_DOWN) )
@@ -1992,27 +1977,21 @@ void AutoBootDol( void )
 	{
 		gprintf("failed to clear state\n");
 	}
-	gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
-	//sleep(1);
-	//Shutdown everything
-	__STM_Close();
 	ISFS_Deinitialize();
-	__io_wiisd.shutdown();
-	__io_usbstorage.shutdown();
+	ShutdownDevices();
+	gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
+	IOS_ReloadIOS(IOS_GetPreferredVersion());
 	__IOS_ShutdownSubsystems();
-	//IOS_ReloadIOS(IOS_GetPreferredVersion());
-	//__ES_Init();
-	//__IOS_LaunchNewIOS(30);
-	//__IOS_InitializeSubsystems();
-	//__ES_Close();
+	//slightly modified loading code from USBLOADER GX...
+	u32 level;
+	SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
+	_CPU_ISR_Disable (level);
 	mtmsr(mfmsr() & ~0x8000);
 	mtmsr(mfmsr() | 0x2002);
-	//sleep(5);
-	ICSync();
-	//printf("Entrypoint: %08X\n", (u32)(entrypoint) );
-	//sleep(1);
 	entrypoint();
-	
+	_CPU_ISR_Restore (level);
+	//never gonna happen; but failsafe
+	ISFS_Initialize();
 	return;
 }
 void HandleWiiMoteEvent(s32 chan)
@@ -2052,6 +2031,40 @@ void DVDStopDisc( void )
 	free( outbuf );
 	free( inbuf );
 }
+void Autoboot_System( void )
+{
+	switch( SGetSetting(SETTING_AUTBOOT) )
+	{
+		case AUTOBOOT_SYS:
+			MountDevices();
+			gprintf("AutoBoot:System Menu\n");
+			BootMainSysMenu();
+			break;
+		case AUTOBOOT_HBC:
+			gprintf("AutoBoot:Homebrew Channel\n");
+			LoadHBC();
+			error=ERROR_BOOT_HBC;
+			break;
+
+		case AUTOBOOT_BOOTMII_IOS:
+			gprintf("AutoBoot:BootMii IOS\n");
+			LoadBootMii();
+			error=ERROR_BOOT_BOOTMII;
+			break;
+		case AUTOBOOT_FILE:
+			gprintf("AutoBoot:Installed File\n");
+			AutoBootDol();
+			break;
+
+		case AUTOBOOT_ERROR:
+			error=ERROR_BOOT_ERROR;
+		case AUTOBOOT_DISABLED:
+		default:
+			ClearState();
+			break;
+	}
+	return;
+}
 int main(int argc, char **argv)
 {
 	CheckForGecko();
@@ -2082,40 +2095,27 @@ int main(int argc, char **argv)
 		*(vu32*)0xCD8000C0 |= 0x20;
 		error=ERROR_ISFS_INIT;
 	}
-	//do video init first so we can see the bloody crash screens
-	VIDEO_Init();
-
-	rmode = VIDEO_GetPreferredMode(NULL);
-	if( CONF_GetAspectRatio() ) //Widescreen (and pal60/NTSC ?) fix
-	{
-		//sad and hacky way around the issue >_>
-		rmode->viHeight -= 32;
-	}
-
-	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
-	
-	console_init( xfb, 20, 20, rmode->fbWidth, rmode->xfbHeight, rmode->fbWidth*VI_DISPLAY_PIX_SZ );
-
-	VIDEO_Configure(rmode);
-	VIDEO_SetNextFramebuffer(xfb);
-	VIDEO_SetBlack(FALSE);
-	VIDEO_Flush();
-
-	VIDEO_WaitVSync();
-	if(rmode->viTVMode&VI_NON_INTERLACE)
-		VIDEO_WaitVSync();
-	gprintf("resolution is %dx%d\n",rmode->viWidth,rmode->viHeight);
+	gprintf("\"Magic Priiloader word\": %x\n",*(vu32*)0x8132FFFB);
 	LoadSettings();
 	s16 Bootstate = CheckBootState();
 	gprintf("BootState:%d\n", Bootstate );
-	gprintf("\"Magic Priiloader word\": %x\n",*(vu32*)0x8132FFFB);
+	
 	//Check reset button state or magic word
 	if( ((*(vu32*)0xCC003000)>>16)&1 && *(vu32*)0x8132FFFB != 0x4461636f) //0x4461636f = "Daco" in hex
 	{
 		//Check autoboot settings
+		StateFlags temp;
 		switch( Bootstate )
 		{
-			case TYPE_UNKNOWN: //255, only seen when shutting down from MIOS... unknown
+			case TYPE_UNKNOWN: //255, only seen when shutting down from MIOS or booting dol from HBC ... unknown
+				temp = GetStateFlags();
+				gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u\n",temp.type,temp.discstate,temp.returnto,temp.flags);
+				if( temp.flags != 130 ) //&& temp.discstate != 2)
+				{
+					Autoboot_System();
+					break;
+				}
+				//if the flag is 130, its probably shutdown from mios
 			case TYPE_SHUTDOWNSYSTEM: // 5 - shutdown
 				if( ClearState() < 0 )
 				{
@@ -2135,9 +2135,19 @@ int main(int argc, char **argv)
 
 					} else {
 						if( CONF_GetShutdownMode() == CONF_SHUTDOWN_STANDBY )
+						{
+							//standby = red = off							
 							STM_ShutdownToStandby();
+						}
 						else
+						{
+							//idle = orange = standby
+							s32 ret;
+							ret = CONF_GetIdleLedMode();
+							if (ret >= 0 && ret <= 2)
+								STM_SetLedMode(ret);
 							STM_ShutdownToIdle();
+						}
 					}
 				}
 				break;
@@ -2152,36 +2162,7 @@ int main(int argc, char **argv)
 					break;
 
 					case RETURNTO_AUTOBOOT:
-						switch( SGetSetting(SETTING_AUTBOOT) )
-						{
-							case AUTOBOOT_SYS:
-								MountDevices();
-								gprintf("AutoBoot:System Menu\n");
-								BootMainSysMenu();
-								break;
-							case AUTOBOOT_HBC:
-								gprintf("AutoBoot:Homebrew Channel\n");
-								LoadHBC();
-								error=ERROR_BOOT_HBC;
-								break;
-
-							case AUTOBOOT_BOOTMII_IOS:
-								gprintf("AutoBoot:BootMii IOS\n");
-								LoadBootMii();
-								error=ERROR_BOOT_BOOTMII;
-								break;
-							case AUTOBOOT_FILE:
-								gprintf("AutoBoot:Installed File\n");
-								AutoBootDol();
-								break;
-
-							case AUTOBOOT_ERROR:
-								error=ERROR_BOOT_ERROR;
-							case AUTOBOOT_DISABLED:
-							default:
-								ClearState();
-								break;
-						}
+						Autoboot_System();
 					break;
 
 					default:
@@ -2191,34 +2172,7 @@ int main(int argc, char **argv)
 			case TYPE_NANDBOOT: // 4 - unknown. guessing its like 0 >_>
 			case RETURN_TO_SETTINGS: // 1 - Boot when fully shutdown & wiiconnect24 is off. why its called RETURN_TO_SETTINGS i have no clue...
 			case RETURN_TO_MENU: // 0 - boot when wiiconnect24 is on
-				switch( SGetSetting(SETTING_AUTBOOT) )
-				{
-					case AUTOBOOT_SYS:
-						MountDevices();
-						gprintf("AutoBoot:System Menu\n");
-						BootMainSysMenu();
-						break;
-					case AUTOBOOT_HBC:
-						gprintf("AutoBoot:Homebrew Channel\n");
-						LoadHBC();
-						error=ERROR_BOOT_HBC;
-						break;
-					case AUTOBOOT_BOOTMII_IOS:
-						gprintf("AutoBoot:BootMii IOS\n");
-						LoadBootMii();
-						error=ERROR_BOOT_BOOTMII;
-						break;
-					case AUTOBOOT_FILE:
-						gprintf("AutoBoot:Installed File\n");
-						AutoBootDol();
-						break;
-					case AUTOBOOT_ERROR:
-						error=ERROR_BOOT_ERROR;
-						break;
-					case AUTOBOOT_DISABLED:
-					default:
-						break;
-				}
+				Autoboot_System();
 				break;
 			default :
 				if( ClearState() < 0 )
@@ -2242,6 +2196,31 @@ int main(int argc, char **argv)
 	{
 		gprintf("Reset Button is hold down\n");
 	}
+	
+	//do video init first so we can see the bloody crash screens
+	VIDEO_Init();
+
+	rmode = VIDEO_GetPreferredMode(NULL);
+	if( CONF_GetAspectRatio() ) //Widescreen (and pal60/NTSC ?) fix
+	{
+		//sad and hacky way around the issue >_>
+		rmode->viHeight -= 32;
+	}
+
+	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
+	
+	console_init( xfb, 20, 20, rmode->fbWidth, rmode->xfbHeight, rmode->fbWidth*VI_DISPLAY_PIX_SZ );
+
+	VIDEO_Configure(rmode);
+	VIDEO_SetNextFramebuffer(xfb);
+	VIDEO_SetBlack(FALSE);
+	VIDEO_Flush();
+
+	VIDEO_WaitVSync();
+	if(rmode->viTVMode&VI_NON_INTERLACE)
+		VIDEO_WaitVSync();
+	gprintf("resolution is %dx%d\n",rmode->viWidth,rmode->viHeight);
+
 	AUDIO_Init (NULL);
 	DSP_Init ();
 	AUDIO_StopDMA();
@@ -2424,9 +2403,19 @@ int main(int argc, char **argv)
 			else 
 			{
 				if( CONF_GetShutdownMode() == CONF_SHUTDOWN_STANDBY )
+				{
+					//standby = red = off							
 					STM_ShutdownToStandby();
+				}
 				else
+				{
+					//idle = orange = standby
+					s32 ret;
+					ret = CONF_GetIdleLedMode();
+					if (ret >= 0 && ret <= 2)
+						STM_SetLedMode(ret);
 					STM_ShutdownToIdle();
+				}
 			}
 
 		}

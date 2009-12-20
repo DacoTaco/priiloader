@@ -74,6 +74,10 @@
 				RelativePath=".\source\state.cpp"
 				>
 			</File>
+			<File
+				RelativePath=".\source\usbstorage.c"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
@@ -114,6 +118,10 @@
 			</File>
 			<File
 				RelativePath=".\include\state.h"
+				>
+			</File>
+			<File
+				RelativePath=".\include\usbstorage.h"
 				>
 			</File>
 			<File
