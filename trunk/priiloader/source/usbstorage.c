@@ -886,8 +886,11 @@ static bool __usbstorage_ClearStatus(void)
 
 static bool __usbstorage_Shutdown(void)
 {
-	USBStorage_Close(&__usbfd);
-	USB_Deinitialize();
+	if (__mounted)
+	{
+		USBStorage_Close(&__usbfd);
+		USB_Deinitialize();
+	}
 	__mounted = 0;
 	return true;
 }
