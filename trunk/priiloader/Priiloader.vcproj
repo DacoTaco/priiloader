@@ -140,6 +140,10 @@
 				RelativePath=".\data\certs.bin"
 				>
 			</File>
+			<File
+				RelativePath=".\data\stub.bin"
+				>
+			</File>
 		</Filter>
 		<File
 			RelativePath=".\Makefile"

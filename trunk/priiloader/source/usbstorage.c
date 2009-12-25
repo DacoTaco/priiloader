@@ -41,6 +41,7 @@ distribution.
 #include <ogc/disc_io.h>
 
 #include "usbstorage.h"
+#include "gecko.h"
 
 #define ROUNDDOWN32(v)				(((u32)(v)-0x1f)&~0x1f)
 
@@ -90,7 +91,7 @@ The following is for implementing a DISC_INTERFACE
 as used by libfat
 */
 
-static usbstorage_handle __usbfd;
+usbstorage_handle __usbfd;
 static u8 __lun = 0;
 static u8 __mounted = 0;
 static u16 __vid = 0;
@@ -462,10 +463,6 @@ static s32 __usbstorage_reset(usbstorage_handle *dev)
 end:
 	return retval;
 }
-usbstorage_handle USBStorage_GetHandle( void )
-{
-	return __usbfd;
-}
 s32 USBStorage_Open(usbstorage_handle *dev, const char *bus, u16 vid, u16 pid)
 {
 	s32 retval = -1;
@@ -611,7 +608,8 @@ free_and_return:
 
 s32 USBStorage_Close(usbstorage_handle *dev)
 {
-	USB_CloseDevice(&dev->usb_fd);
+	if (dev->usb_fd > 0)
+		USB_CloseDevice(&dev->usb_fd);
 	LWP_MutexDestroy(dev->lock);
 	SYS_RemoveAlarm(dev->alarm);
 	if(dev->sector_size!=NULL)
@@ -770,7 +768,9 @@ static bool __usbstorage_IsInserted(void)
 
 	buffer = __lwp_heap_allocate(&__heap, DEVLIST_MAXSIZE << 3);
 	if(buffer == NULL)
+	{
 		return false;
+	}
 	memset(buffer, 0, DEVLIST_MAXSIZE << 3);
 
 	if(USB_GetDeviceList("/dev/usb/oh0", buffer, DEVLIST_MAXSIZE, 0, &dummy) < 0)
@@ -817,9 +817,10 @@ static bool __usbstorage_IsInserted(void)
 		memcpy(&pid, (buffer + (i << 3) + 6), 2);
 		if(vid == 0 || pid == 0)
 			continue;
-
 		if(USBStorage_Open(&__usbfd, "oh0", vid, pid) < 0)
+		{
 			continue;
+		}
 
 		maxLun = USBStorage_GetMaxLUN(&__usbfd);
 		for(j = 0; j < maxLun; j++)
@@ -827,10 +828,12 @@ static bool __usbstorage_IsInserted(void)
 			retval = USBStorage_MountLUN(&__usbfd, j);
 
 			if(retval == USBSTORAGE_ETIMEDOUT)
+			{
 				break;
+			}
 			if(retval < 0)
 				continue;
-
+			
 			__mounted = 1;
 			__lun = j;
 			__vid = vid;
@@ -839,10 +842,14 @@ static bool __usbstorage_IsInserted(void)
 			break;
 		}
 	}
+
 	__lwp_heap_free(&__heap,buffer);
 	if(__mounted == 1)
+	{
 		return true;
-	return false;
+	}
+	else
+		return false;
 }
 
 static bool __usbstorage_ReadSectors(u32 sector, u32 numSectors, void *buffer)
@@ -886,11 +893,27 @@ static bool __usbstorage_ClearStatus(void)
 
 static bool __usbstorage_Shutdown(void)
 {
-	if (__mounted)
+	//"working" shutdown code. it "kills" (callback issues?) the usb on next startup tho >_>
+	/*if (__mounted)
 	{
-		USBStorage_Close(&__usbfd);
-		USB_Deinitialize();
-	}
+		if( (__usbfd.usb_fd > 0) )
+		{
+			gprintf("entering close code...\n");
+			//next code = USBStorage_Close(&__usbfd);
+			USB_CloseDevice(&__usbfd.usb_fd);
+			LWP_MutexDestroy(__usbfd.lock);
+			SYS_RemoveAlarm(__usbfd.alarm);
+			if(__usbfd.sector_size!=NULL)
+				free(__usbfd.sector_size);
+			if(__usbfd.buffer!=NULL)
+				__lwp_heap_free(&__heap, __usbfd.buffer);
+			memset(&__usbfd, 0, sizeof(__usbfd));
+		}
+		usb_inited = false;
+		__lun = 0;
+		__vid = 0;
+		__pid = 0;
+	}*/
 	__mounted = 0;
 	return true;
 }

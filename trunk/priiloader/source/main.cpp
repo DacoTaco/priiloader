@@ -60,6 +60,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 //Bin includes
 #include "certs_bin.h"
+#include "stub_bin.h"
 
 //#define DEBUG
 
@@ -84,6 +85,7 @@ extern Settings *settings;
 extern u32 error;
 extern std::vector<hack> hacks;
 extern u32 *states;
+extern usbstorage_handle __usbfd;
 
 u32 result=0;
 u32 Shutdown=0;
@@ -96,11 +98,14 @@ s32 __IOS_LoadStartupIOS()
 {
         return 0;
 }
+void LoadStub ( void )
+{
+	char *stubLoc = (char *)0x80001800;
+	memcpy(stubLoc, stub_bin, stub_bin_size);
+}
 bool MountDevices(void)
 {
 #ifndef libELM
-	__io_wiisd.startup();
-	__io_usbstorage.startup();
 	if (!fatMountSimple("fat",&__io_wiisd))
 	{
 		//sd mounting failed. lets go usb
@@ -486,10 +491,12 @@ void SysHackSettings( void )
 }
 void SetSettings( void )
 {
-	
 	//Load Setting
 	LoadSettings();
 	
+	//clear screen and reset the background
+	ClearScreen();
+
 	//get a list of all installed IOSs
 	u32 TitleCount = 0;
 	ES_GetNumTitles(&TitleCount);
@@ -1272,6 +1279,11 @@ void BootMainSysMenu( void )
 	//modified code from USBLOADER GX. crediars code didn't fail, but this seems to load dols better :)
 	ISFS_Deinitialize();
 	ShutdownDevices();
+	//butt ugly hack around the problem but i can't think of another way to fix it...
+	//TODO : make it less hacky by fixing the __io_usbstorage.shutdown()
+	if(__usbfd.usb_fd > 0)
+		USBStorage_Close(&__usbfd);
+	USB_Deinitialize();
 	__IOS_ShutdownSubsystems();
 	SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
 	mtmsr(mfmsr() & ~0x8000);
@@ -1288,7 +1300,7 @@ void InstallLoadDOL( void )
 
 	if (!RemountDevices() )
 	{
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("NO fat device found found!"))*13/2))>>1, 208, "NO fat device found found!");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("NO fat device found!"))*13/2))>>1, 208, "NO fat device found!");
 		sleep(5);
 		return;
 	}
@@ -2100,14 +2112,42 @@ int main(int argc, char **argv)
 	s16 Bootstate = CheckBootState();
 	gprintf("BootState:%d\n", Bootstate );
 	
+#ifdef DEBUG
+	MountDevices();
+	FILE *stub = fopen("fat:/stub1.bin","w");
+	if(stub)
+	{
+		gprintf("writing stub1...\n");
+		fwrite((void*)0x80001800,1,stub_bin_size,stub);
+		fclose(stub);
+	}
+	ShutdownDevices();
+#endif
+	LoadStub();
+	gprintf("loaded HBC stub\n");
+	
 	//Check reset button state or magic word
 	if( ((*(vu32*)0xCC003000)>>16)&1 && *(vu32*)0x8132FFFB != 0x4461636f) //0x4461636f = "Daco" in hex
 	{
+#ifdef DEBUG
+		MountDevices();
+		FILE* stub = fopen("fat:/stub2.bin","w");
+		if(stub)
+		{
+			gprintf("writing stub2...\n");
+			fwrite((void*)0x80001800,1,stub_bin_size,stub);
+			fclose(stub);
+		}
+		ShutdownDevices();
+		//gprintf("testing stub by crashing...\n");
+		//sprintf(argv[4],"%s",argv[20]);//(int*)0=1;
+#endif
+		
 		//Check autoboot settings
 		StateFlags temp;
 		switch( Bootstate )
 		{
-			case TYPE_UNKNOWN: //255, only seen when shutting down from MIOS or booting dol from HBC ... unknown
+			case TYPE_UNKNOWN: //255 or -1, only seen when shutting down from MIOS or booting dol from HBC ... unknown
 				temp = GetStateFlags();
 				gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u\n",temp.type,temp.discstate,temp.returnto,temp.flags);
 				if( temp.flags != 130 ) //&& temp.discstate != 2)
