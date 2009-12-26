@@ -1,7 +1,8 @@
 /*
-Preloader Installer - An installation utiltiy for preloader (c) 2008-2009 crediar
+Preloader/Priiloader Installer - An installation utiltiy for preloader (c) 2008-2009 crediar
 
 Copyright (c) 2009  phpgeek
+Edited by DacoTaco
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -37,7 +38,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 //rev version
 #include "../../Shared/svnrev.h"
-
 // Bin Files
 #include "certs_bin.h"
 #include "su_tik.h"
@@ -94,9 +94,50 @@ const char* abort(const char* msg, ...)
 	sleep(5);
 	exit(0);
 }
+bool CompareChecksum(u32 *Data1,u32 Data1_Size,u32 *Data2,u32 Data2_Size)
+{
+	u32 chksumD1 = 0;
+	u32 chksumD2 = 0;
+	if(Data1 == NULL || Data2 == NULL )
+	{
+		gprintf("Data1 or Data2 == NULL\n");
+		return false;
+	}
+	if(Data1_Size <= 0 || Data2_Size <= 0)
+	{
+		gprintf("Data1 or Data2 size == NULL\n");
+		return false;
+	}
+
+	for( u32 i=1; i<Data1_Size>>2; ++i )
+		chksumD1+= Data1[i];
+
+	for( u32 i=1; i<Data2_Size>>2; ++i )
+		chksumD2+= Data2[i];
+
+	if( chksumD1 == chksumD2 )
+	{
+		gprintf("Checksums are correct\n");
+		return true;
+	}
+	else
+	{
+#ifdef DEBUG
+		fatMountSimple("fat",&__io_wiisd);
+		FILE* temp = fopen("fat:/D1.app","w");
+		fwrite(Data1,1,Data1_Size,temp);
+		fclose(temp);
+		temp = fopen("fat:/D2.app","w");
+		fwrite(Data2,1,Data2_Size,temp);
+		fclose(temp);
+#endif
+		gprintf("Checksum D1 = %u , Checksum D2 = %u\n", chksumD1, chksumD2);
+	}
+	return false;
+}
 s32 nand_copy(char source[1024], char destination[1024])
 {
-    u8 *buffer;
+    u32 *buffer;
     s32 source_handler, dest_handler, ret;
 
     source_handler = ISFS_Open(source,ISFS_OPEN_READ);
@@ -133,7 +174,7 @@ s32 nand_copy(char source[1024], char destination[1024])
 		return -1;
 	}
 
-    buffer = (u8 *)memalign(32,status->file_length);
+    buffer = (u32 *)memalign(32,status->file_length);
 
     ret = ISFS_Read(source_handler,buffer,status->file_length);
     if (ret < 0)
@@ -158,11 +199,67 @@ s32 nand_copy(char source[1024], char destination[1024])
         free(buffer);
         return ret;
     }
-
-    ISFS_Close(source_handler);
+	gprintf("starting checksum...\n");
+	s32 temp = 0;
+	u32 *Data2 = NULL;
+	fstats * D2stat = (fstats*)memalign(32,sizeof(fstats));
+	if (D2stat != NULL)
+	{
+		ISFS_Close(dest_handler);
+		dest_handler = ISFS_Open(destination,ISFS_OPEN_READ);
+		if(dest_handler)
+		{
+			temp = ISFS_GetFileStats(dest_handler,D2stat);
+			if(temp >= 0)
+			{
+				Data2 = (u32*)memalign(32,D2stat->file_length);
+				if (Data2 != NULL)
+				{
+					if( ISFS_Read(dest_handler,Data2,D2stat->file_length) > 0 )
+					{
+						if( !CompareChecksum(buffer,status->file_length,Data2,D2stat->file_length))
+						{
+							temp = -1;
+						}
+					}
+					else
+					{
+						temp = -1;
+					}
+					free(Data2);
+				}
+				else
+					temp = -1;
+			}
+			else
+			{
+				gprintf("failed to get stats.error %d\n",temp);
+				temp = -1;
+			}
+		}
+		else
+		{
+			gprintf("failed to open destination...\n");
+			temp = -1;
+		}
+		free(D2stat);
+	}
+	else
+	{
+		temp = -1;
+	}
+	if(Data2 != NULL)
+		free(Data2);
+	if(D2stat != NULL)
+		free(D2stat);
+	ISFS_Close(source_handler);
+	if(dest_handler)
     ISFS_Close(dest_handler);
     free(status);
     free(buffer);
+	if (temp < 0)
+		return -80;
+
     return 0;
 }
 bool UserYesNoStop()
@@ -377,6 +474,7 @@ int main(int argc, char **argv)
 
 			if (pDown & WPAD_BUTTON_PLUS)
 			{
+				s32 ret = 0;
 				bool Priiloader_found = false;
 				printf("  Checking for Priiloader...\n");
 				fd = ISFS_Open(copy_app,ISFS_OPEN_RW);
@@ -447,9 +545,26 @@ int main(int argc, char **argv)
 				if(!Priiloader_found)
 				{
 					printf("  Moving System Menu app...");
-					if (nand_copy(original_app,copy_app) < 0)
+					ret = nand_copy(original_app,copy_app);
+					if (ret < 0)
 					{
-						abort("\n  Unable to move the system menu");
+						if (ret == -80)
+						{
+							//checksum issues
+							printf("\n  WARNING!!\n  Installer could not calculate the Checksum for the System menu app\n");
+							printf("Do you want the Continue ?\n");
+							printf("  A = Yes       B = No       Home = Exit\n  ");
+							if(!UserYesNoStop())
+							{
+								printf("reverting changes...\n");
+								ISFS_Delete(copy_app);
+								abort("System Menu Copying Failure");
+							}		
+							else
+								printf("\n  Done!\n");
+						}
+						else
+							abort("\n  Unable to move the system menu");
 					}
 					else
 						printf("Done!\n");
@@ -458,7 +573,6 @@ int main(int argc, char **argv)
 				{
 					printf("  Skipping Moving of System menu app...\n");
 				}				
-				s32 ret = 0;
 				ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
 				gprintf("loader.ini deletion returned %d\n",ret);
 				
@@ -479,15 +593,14 @@ int main(int argc, char **argv)
 					gprintf("Write failed. ret %d\n",ret);
 					abort("\n  Write of Priiloader app failed.");
 				}
-				//ISFS_Close(fd);
 				printf("Done!\n");
-				printf("  Checking Priiloader Installation...");
+				printf("\n  Checking Priiloader Installation...\n");
 				fstats * status = (fstats*)memalign(32,sizeof(fstats));
 				if (ISFS_GetFileStats(fd,status) < 0)
 				{
 					ISFS_Close(fd);
 					nand_copy(copy_app,original_app);
-					abort("\n  Failed to get stats of %s. System Menu Recovered.",original_app);
+					abort("Failed to get stats of %s. System Menu Recovered.",original_app);
 				}
 				else
 				{
@@ -495,11 +608,38 @@ int main(int argc, char **argv)
 					{
 						ISFS_Close(fd);
 						nand_copy(copy_app,original_app);
-						abort("\n  Written Priiloader app isn't the correct size.System Menu Recovered.");
+						abort("Written Priiloader app isn't the correct size.System Menu Recovered.");
 					}
+					else
+						printf("  Size Check Success!\n");
 				}
+				//reset fd. otherwise the read data isn't correct? (checked by writing data away before comparing) :-/
+				ISFS_Close(fd);
+				fd = ISFS_Open(original_app,ISFS_OPEN_READ);
+				u32 *AppData = (u32 *)memalign(32,status->file_length);
+				ret = ISFS_Read(fd,AppData,status->file_length);
+				if (ret < 0)
+				{
+					ISFS_Close(fd);
+					free(AppData);
+					free(status);
+					nand_copy(copy_app,original_app);
+					abort("Checksum comparison Failure! read of priiloader app returned %u\n",ret);
+				}
+				if(CompareChecksum((u32*)priiloader_app,priiloader_app_size,AppData,status->file_length))
+					printf("  Checksum comparison Success!\n");
+				else
+				{
+					ISFS_Close(fd);
+					free(AppData);
+					free(status);
+					nand_copy(copy_app,original_app);
+					abort("Checksum comparison Failure!\n");
+				}
+				free(AppData);
 				free(status);
-				printf("Done!!!\n\n");
+				ISFS_Close(fd);
+				printf("  Done!!!\n\n");
 				if(Priiloader_found)
 					printf("  Update done, exiting to loader... waiting 5s...\n");
 				else
@@ -526,38 +666,55 @@ int main(int argc, char **argv)
 					s32 ret = nand_copy(copy_app,original_app);
 					if (ret < 0)
 					{
-						ISFS_Close(fd);
-						ISFS_CreateFile(original_app,0,3,3,3);
-						fd = ISFS_Open(original_app,ISFS_OPEN_RW);
-						ISFS_Write(fd,priiloader_app,priiloader_app_size);
-						ISFS_Close(fd);
-						abort("\n  Unable to restore the system menu! (ret = %d)",ret);
+						if(ret == -80)
+						{
+							//checksum issues
+							printf("\n  WARNING!!\n  Installer could not calculate the Checksum when coping the System menu app back!\n");
+							printf("Do you want to Continue ?\n");
+							printf("  A = Yes       B = No       Home = Exit\n  ");
+							if(!UserYesNoStop())
+							{
+								printf("reverting changes...\n");
+								ISFS_Close(fd);
+								ISFS_CreateFile(original_app,0,3,3,3);
+								fd = ISFS_Open(original_app,ISFS_OPEN_RW);
+								ISFS_Write(fd,priiloader_app,priiloader_app_size);
+								ISFS_Close(fd);
+								abort("System Menu Copying Failure");
+							}		
+						}
+						else
+						{
+							ISFS_Close(fd);
+							ISFS_CreateFile(original_app,0,3,3,3);
+							fd = ISFS_Open(original_app,ISFS_OPEN_RW);
+							ISFS_Write(fd,priiloader_app,priiloader_app_size);
+							ISFS_Close(fd);
+							abort("\n  Unable to restore the system menu! (ret = %d)",ret);
+						}
 					}
-					else
-					{
-						ISFS_Close(fd);
-						ISFS_Delete(copy_app);
-						printf("Done!\n");
-						printf("  Deleting extra Priiloader files...");
-						s32 ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
-						gprintf("loader.ini : %d\n",ret);
-						//its best we delete that ticket but its completely useless and will only get in our 
-						//way when installing again later...
-						//ret = ISFS_Delete("/title/00000001/00000002/content/ticket");
-						//gprintf("ticket : %d\n",ret);
-						ret = ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini");
-						gprintf("hacks_s.ini : %d\n",ret);
-						ret = ISFS_Delete("/title/00000001/00000002/data/hacks.ini");
-						gprintf("hacks.ini : %d\n",ret);
-						ret = ISFS_Delete("/title/00000001/00000002/data/main.bin");
-						gprintf("main.bin : %d\n",ret);
-						printf("Done!\n\n");
-						printf("  Removal done, exiting to loader... waiting 5s...\n");
-						ISFS_Deinitialize();
-						__ES_Close();
-						sleep(5);
-						exit(0);
-					}
+					ISFS_Close(fd);
+					ISFS_Delete(copy_app);
+					printf("Done!\n");
+					printf("  Deleting extra Priiloader files...");
+					ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
+					gprintf("loader.ini : %d\n",ret);
+					//its best we delete that ticket but its completely useless and will only get in our 
+					//way when installing again later...
+					//ret = ISFS_Delete("/title/00000001/00000002/content/ticket");
+					//gprintf("ticket : %d\n",ret);
+					ret = ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini");
+					gprintf("hacks_s.ini : %d\n",ret);
+					ret = ISFS_Delete("/title/00000001/00000002/data/hacks.ini");
+					gprintf("hacks.ini : %d\n",ret);
+					ret = ISFS_Delete("/title/00000001/00000002/data/main.bin");
+					gprintf("main.bin : %d\n",ret);
+					printf("Done!\n\n");
+					printf("  Removal done, exiting to loader... waiting 5s...\n");
+					ISFS_Deinitialize();
+					__ES_Close();
+					sleep(5);
+					exit(0);
 				}
 			}
 		}
