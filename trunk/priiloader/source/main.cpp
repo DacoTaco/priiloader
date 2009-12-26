@@ -88,7 +88,7 @@ extern u32 *states;
 extern usbstorage_handle __usbfd;
 
 u32 result=0;
-u32 Shutdown=0;
+u8 Shutdown=0;
 
 static void *xfb = NULL;
 static GXRModeObj *rmode = NULL;
@@ -2014,11 +2014,10 @@ void HandleSTMEvent(u32 event)
 {
 	switch(event)
 	{
-		default:
-		case STM_EVENT_RESET:
-			break;
 		case STM_EVENT_POWER:
 			Shutdown=1;
+		case STM_EVENT_RESET:
+		default:
 			break;
 	}
 }
@@ -2107,7 +2106,6 @@ int main(int argc, char **argv)
 		*(vu32*)0xCD8000C0 |= 0x20;
 		error=ERROR_ISFS_INIT;
 	}
-	gprintf("\"Magic Priiloader word\": %x\n",*(vu32*)0x8132FFFB);
 	LoadSettings();
 	s16 Bootstate = CheckBootState();
 	gprintf("BootState:%d\n", Bootstate );
@@ -2126,8 +2124,8 @@ int main(int argc, char **argv)
 	LoadStub();
 	gprintf("loaded HBC stub\n");
 	
-	//Check reset button state or magic word
-	if( ((*(vu32*)0xCC003000)>>16)&1 && *(vu32*)0x8132FFFB != 0x4461636f) //0x4461636f = "Daco" in hex
+	//Check reset button state
+	if( ((*(vu32*)0xCC003000)>>16)&1 )
 	{
 #ifdef DEBUG
 		MountDevices();
@@ -2224,15 +2222,7 @@ int main(int argc, char **argv)
 
 		}
 	}
-	//remove the "Magic Priiloader word" cause it has done its purpose
-	if(*(vu32*)0x8132FFFB == 0x4461636f)
-	{
-		gprintf("\"Magic Priiloader Word\" found!\n");
-		gprintf("clearing memory of the \"Magic Priiloader Word\"\n");
-		*(vu32*)0x8132FFFB = 0x00000000;
-		DCFlushRange((void*)0x8132FFFB,4);
-	}
-	else if ( SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED )
+	else //( SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED )
 	{
 		gprintf("Reset Button is hold down\n");
 	}
