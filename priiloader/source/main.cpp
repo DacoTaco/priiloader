@@ -2106,6 +2106,7 @@ int main(int argc, char **argv)
 		*(vu32*)0xCD8000C0 |= 0x20;
 		error=ERROR_ISFS_INIT;
 	}
+	gprintf("\"Magic Priiloader word\": %x\n",*(vu32*)0x8132FFFB);
 	LoadSettings();
 	s16 Bootstate = CheckBootState();
 	gprintf("BootState:%d\n", Bootstate );
@@ -2125,7 +2126,7 @@ int main(int argc, char **argv)
 	gprintf("loaded HBC stub\n");
 	
 	//Check reset button state
-	if( ((*(vu32*)0xCC003000)>>16)&1 )
+	if( ((*(vu32*)0xCC003000)>>16)&1 && *(vu32*)0x8132FFFB != 0x4461636f) //0x4461636f = "Daco" in hex)
 	{
 #ifdef DEBUG
 		MountDevices();
@@ -2143,11 +2144,25 @@ int main(int argc, char **argv)
 		
 		//Check autoboot settings
 		StateFlags temp;
+#ifdef DEBUG
+		FILE* state;
+#endif
 		switch( Bootstate )
 		{
 			case TYPE_UNKNOWN: //255 or -1, only seen when shutting down from MIOS or booting dol from HBC ... unknown
 				temp = GetStateFlags();
 				gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u\n",temp.type,temp.discstate,temp.returnto,temp.flags);
+#ifdef DEBUG
+				MountDevices();
+				state = fopen("fat:/state.dat","w");
+				if(state)
+				{
+					gprintf("writing state.dat...\n");
+					fwrite((void*)&temp,1,sizeof(StateFlags),state);
+					fclose(state);
+				}
+				ShutdownDevices();
+#endif
 				if( temp.flags != 130 ) //&& temp.discstate != 2)
 				{
 					Autoboot_System();
@@ -2222,7 +2237,15 @@ int main(int argc, char **argv)
 
 		}
 	}
-	else //( SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED )
+	//remove the "Magic Priiloader word" cause it has done its purpose
+	if(*(vu32*)0x8132FFFB == 0x4461636f)
+ 	{
+		gprintf("\"Magic Priiloader Word\" found!\n");
+		gprintf("clearing memory of the \"Magic Priiloader Word\"\n");
+		*(vu32*)0x8132FFFB = 0x00000000;
+		DCFlushRange((void*)0x8132FFFB,4);
+	}
+	else if( SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED )
 	{
 		gprintf("Reset Button is hold down\n");
 	}
