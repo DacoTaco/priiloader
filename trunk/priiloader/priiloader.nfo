@@ -69,15 +69,15 @@ Changelog:
 	* Fixed IOS Stub detection. both IOS21 as Wankers Fail Cios 250 are detected fine now.
 	* Fixed Hacks.ini bug when it was made in linux (or any ini that doesn't have windows' \r\n newlines and uses \n instead)
 	* Fixed Bootstate handling. we should now handle all known bootstates correctly("invalid" bootstate 255 included). all unknown bootstates load priiloader instead
-	* Fixed Bug with USB drives.
+	* Fixed Bug with USB drives that could crash System menu
 	* Fixed the Wii Blue Light on wiimail issue (when standby, forgot to merge the light init code from phpgeek)
-	* Added basic HBC Stub Loading. if priiloader (or a dol loaded by priiloader) crashes you can press reset to load HBC 1.0.5 or above
 	* Fixed Background issues when changing colour and not saving settings
+	* Reload Hacks completly when LoadHacks() is called and hacks were already loaded once
 	* Copied the checksum function from priiloader to the installer. if the checksum fails it asks the user what to do. it checks when:
 		*Coping (installation of priiloader) the System menu app
 		*Restoring (uninstall of priiloader) the System menu app
 		*after Writing the Priiloader app (the checking installation part)
-	*remade magicword. my previous approach was retarded (yes, that means the "magic word check" is gone. see loadPriiloader now)
+	* Added basic HBC Stub Loading. if priiloader (or a dol loaded by priiloader) crashes you can press reset to load HBC 1.0.5 or above
 	
 0.2:
 	* Fixed bug with USBGecko

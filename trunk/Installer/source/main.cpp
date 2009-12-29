@@ -89,6 +89,7 @@ const char* abort(const char* msg, ...)
 	va_end( args );
 
 	printf("  %s, aborting mission...", text);
+	gprintf("%s, aborting mission...", text);
 	ISFS_Deinitialize();
 	__ES_Close();
 	sleep(5);
@@ -203,58 +204,49 @@ s32 nand_copy(char source[1024], char destination[1024])
 	s32 temp = 0;
 	u32 *Data2 = NULL;
 	fstats * D2stat = (fstats*)memalign(32,sizeof(fstats));
-	if (D2stat != NULL)
+	if (D2stat == NULL)
 	{
-		ISFS_Close(dest_handler);
-		dest_handler = ISFS_Open(destination,ISFS_OPEN_READ);
-		if(dest_handler)
+		temp = -1;
+		goto free_and_Return;
+	}
+	ISFS_Close(dest_handler);
+	dest_handler = ISFS_Open(destination,ISFS_OPEN_READ);
+	if(!dest_handler)
+	{
+		temp = -1;
+		goto free_and_Return;
+	}
+	temp = ISFS_GetFileStats(dest_handler,D2stat);
+	if(temp < 0)
+	{
+		goto free_and_Return;
+	}
+	Data2 = (u32*)memalign(32,D2stat->file_length);
+	if (Data2 == NULL)
+	{
+		temp = -1;
+		goto free_and_Return;
+	}
+	if( ISFS_Read(dest_handler,Data2,D2stat->file_length) > 0 )
+	{
+		if( !CompareChecksum(buffer,status->file_length,Data2,D2stat->file_length))
 		{
-			temp = ISFS_GetFileStats(dest_handler,D2stat);
-			if(temp >= 0)
-			{
-				Data2 = (u32*)memalign(32,D2stat->file_length);
-				if (Data2 != NULL)
-				{
-					if( ISFS_Read(dest_handler,Data2,D2stat->file_length) > 0 )
-					{
-						if( !CompareChecksum(buffer,status->file_length,Data2,D2stat->file_length))
-						{
-							temp = -1;
-						}
-					}
-					else
-					{
-						temp = -1;
-					}
-					free(Data2);
-				}
-				else
-					temp = -1;
-			}
-			else
-			{
-				gprintf("failed to get stats.error %d\n",temp);
-				temp = -1;
-			}
-		}
-		else
-		{
-			gprintf("failed to open destination...\n");
 			temp = -1;
 		}
-		free(D2stat);
 	}
 	else
 	{
 		temp = -1;
 	}
+
+free_and_Return:
 	if(Data2 != NULL)
 		free(Data2);
 	if(D2stat != NULL)
 		free(D2stat);
 	ISFS_Close(source_handler);
 	if(dest_handler)
-    ISFS_Close(dest_handler);
+		ISFS_Close(dest_handler);
     free(status);
     free(buffer);
 	if (temp < 0)
@@ -290,8 +282,8 @@ bool UserYesNoStop()
 int main(int argc, char **argv)
 {
 	bool CopyTicket = false;
+	
 	VIDEO_Init();
-	WPAD_Init();
 	vmode = VIDEO_GetPreferredMode(NULL);
 	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(vmode));
 	console_init(xfb,20,20,vmode->fbWidth,vmode->xfbHeight,vmode->fbWidth*VI_DISPLAY_PIX_SZ);
@@ -302,6 +294,9 @@ int main(int argc, char **argv)
 	VIDEO_WaitVSync();
 	if (vmode->viTVMode&VI_NON_INTERLACE)
 		VIDEO_WaitVSync();
+
+	WPAD_Init();
+
 	CheckForGecko();
 	gprintf("resolution is %dx%d\n",vmode->viWidth,vmode->viHeight);
 	printf("\x1b[2;0H");
@@ -472,6 +467,13 @@ int main(int argc, char **argv)
 			sprintf(copy_app, "/title/00000001/00000002/content/%08x.app",id);
 			copy_app[33] = '1';
 
+			if(buffer)
+				free(buffer);
+			if(TMD)
+				free(TMD);
+			if(status)
+				free(status);
+			
 			if (pDown & WPAD_BUTTON_PLUS)
 			{
 				s32 ret = 0;
@@ -485,7 +487,7 @@ int main(int argc, char **argv)
 				}
 				else
 				{
-					fstats * status = (fstats*)memalign(32,sizeof(fstats));
+					status = (fstats*)memalign(32,sizeof(fstats));
 					if (ISFS_GetFileStats(fd,status) < 0)
 					{
 						printf("\n\n  WARNING: failed to get stats of %s.  Ignore Priiloader \"installation\" ?\n",copy_app);
@@ -551,8 +553,9 @@ int main(int argc, char **argv)
 						if (ret == -80)
 						{
 							//checksum issues
-							printf("\n  WARNING!!\n  Installer could not calculate the Checksum for the System menu app\n");
-							printf("Do you want the Continue ?\n");
+							printf("\n  WARNING!!\n  Installer could not calculate the Checksum for the System menu app");
+							printf("\n  but Copy was successfull.\n");
+							printf("  Do you want the Continue ?\n");
 							printf("  A = Yes       B = No       Home = Exit\n  ");
 							if(!UserYesNoStop())
 							{
@@ -567,16 +570,20 @@ int main(int argc, char **argv)
 							abort("\n  Unable to move the system menu");
 					}
 					else
+					{
+						gprintf("Moving System Menu Done\n");
 						printf("Done!\n");
+					}
 				}
 				else
 				{
 					printf("  Skipping Moving of System menu app...\n");
 				}				
 				ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
-				gprintf("loader.ini deletion returned %d\n",ret);
+				gprintf("loader.ini deletion returned %d\n\n",ret);
 				
 				printf("  Writing Priiloader app...");
+				gprintf("Writing Priiloader\n");
 				ISFS_Delete(original_app);
 				ISFS_CreateFile(original_app,0,ISFS_OPEN_RW,ISFS_OPEN_RW,ISFS_OPEN_RW);
 				fd = ISFS_Open(original_app,ISFS_OPEN_RW);
@@ -594,8 +601,9 @@ int main(int argc, char **argv)
 					abort("\n  Write of Priiloader app failed.");
 				}
 				printf("Done!\n");
+				gprintf("Wrote Priiloader App.Checking Installation\n");
 				printf("\n  Checking Priiloader Installation...\n");
-				fstats * status = (fstats*)memalign(32,sizeof(fstats));
+				status = (fstats*)memalign(32,sizeof(fstats));
 				if (ISFS_GetFileStats(fd,status) < 0)
 				{
 					ISFS_Close(fd);
@@ -611,18 +619,32 @@ int main(int argc, char **argv)
 						abort("Written Priiloader app isn't the correct size.System Menu Recovered.");
 					}
 					else
+					{
+						gprintf("Size Check Success\n");
 						printf("  Size Check Success!\n");
+					}
 				}
 				//reset fd. otherwise the read data isn't correct? (checked by writing data away before comparing) :-/
 				ISFS_Close(fd);
 				fd = ISFS_Open(original_app,ISFS_OPEN_READ);
 				u32 *AppData = (u32 *)memalign(32,status->file_length);
-				ret = ISFS_Read(fd,AppData,status->file_length);
+				if (AppData)
+					ret = ISFS_Read(fd,AppData,status->file_length);
+				else
+				{
+					ISFS_Close(fd);
+					if(status)
+						free(status);
+					nand_copy(copy_app,original_app);
+					abort("Checksum comparison Failure! MemAlign Failure of AppData %u\n",ret);
+				}
 				if (ret < 0)
 				{
 					ISFS_Close(fd);
-					free(AppData);
-					free(status);
+					if (AppData)
+						free(AppData);
+					if(status)
+						free(status);
 					nand_copy(copy_app,original_app);
 					abort("Checksum comparison Failure! read of priiloader app returned %u\n",ret);
 				}
@@ -631,14 +653,19 @@ int main(int argc, char **argv)
 				else
 				{
 					ISFS_Close(fd);
-					free(AppData);
-					free(status);
+					if (AppData)
+						free(AppData);
+					if(status)
+						free(status);
 					nand_copy(copy_app,original_app);
 					abort("Checksum comparison Failure!\n");
 				}
-				free(AppData);
-				free(status);
+				if (AppData)
+					free(AppData);
+				if(status)
+					free(status);
 				ISFS_Close(fd);
+				gprintf("Priiloader Installation Complete\n");
 				printf("  Done!!!\n\n");
 				if(Priiloader_found)
 					printf("  Update done, exiting to loader... waiting 5s...\n");
@@ -669,7 +696,8 @@ int main(int argc, char **argv)
 						if(ret == -80)
 						{
 							//checksum issues
-							printf("\n  WARNING!!\n  Installer could not calculate the Checksum when coping the System menu app back!\n");
+							printf("\n  WARNING!!\n  Installer could not calculate the Checksum when coping the System menu app\n");
+							printf("  back! the app however was copied...\n");
 							printf("Do you want to Continue ?\n");
 							printf("  A = Yes       B = No       Home = Exit\n  ");
 							if(!UserYesNoStop())
