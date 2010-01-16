@@ -22,7 +22,7 @@ to compile the source is easy but you need quiet some stuff. what you'll need is
   * Build :P QUICK NOTE : Debug only builds priiloader. Release builds both
   
   if you want you can also setup wiiload so the build wont error when trying to send the dol to your wii(not that its bad that it does error):
-  * Set the environment variable by going to your computer's Control Panel -> System 
-  * In the new window click the "Advance" tab Advanced and then click the Environment Variables button
+  * Set the environment variable by going to your computer's Control Panel by pressing start -> Control Panel -> System 
+  * In the new window click the "Advanced" tab and then click the Environment Variables button
   * Click "new" under either category. The variable name is WIILOAD and the value is tcp:yourIP, where yourIP is the Wii's IP/hostname. Click "OK" here and in System Properties. 
 

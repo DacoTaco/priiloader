@@ -49,4 +49,4 @@ enum {
 	ERROR_SETTING_READ
 };
 
-void ShowError ( void );
+void ShowError ( int height , int width );

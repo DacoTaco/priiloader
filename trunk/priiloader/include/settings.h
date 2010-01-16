@@ -22,7 +22,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 #define VERSION		03
-//#define BETAVERSION	0x00001E02
+//#define BETAVERSION	0x00000004
 #define BETAVERSION	0
 
 typedef struct {

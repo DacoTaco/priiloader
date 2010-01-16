@@ -158,8 +158,10 @@ void LoadSettings( void )
 	{
 		//file not found create a new one
 		ISFS_CreateFile("/title/00000001/00000002/data/loader.ini", 0, 3, 3, 3);
+		//set a few default settings
 		settings->version = VERSION;
 		settings->UseSystemMenuIOS = true;
+		settings->autoboot = AUTOBOOT_SYS;
 		fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", 1|2 );
 
 		if( fd < 0 )
