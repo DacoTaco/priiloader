@@ -1,4 +1,4 @@
-priiloader v0.3 by DacoTaco & Phpgeek (12/6/2009)
+priiloader v0.3 by DacoTaco & Phpgeek (16/01/2010)
 -------------------------------------------------------------------------------------
 Thanks go to crediar for preloader & source, 
 phpgeek for app info & installer
@@ -78,7 +78,7 @@ Changelog:
 	* Reload Hacks completly when LoadHacks() is called and hacks were already loaded once
 	* Added the checksum function from priiloader to the installer. if the checksum fails it asks the user what to do. it checks when: 
 
-		* Coping (installation of priiloader) the System menu app
+		* Copying (installation of priiloader) the System menu app
 		* Restoring (uninstall of priiloader) the System menu app
 		* after Writing the Priiloader app (the checking installation part) 
 

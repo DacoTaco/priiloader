@@ -87,7 +87,6 @@ extern std::vector<hack> hacks;
 extern u32 *states;
 extern usbstorage_handle __usbfd;
 
-u32 result=0;
 u8 Shutdown=0;
 u8 BootSysMenu = 0;
 time_t startloop;
@@ -270,7 +269,7 @@ bool isIOSstub(u8 ios_number)
 		}
 	}
 	gprintf("IOS %d is active\n",ios_number);
-	return true;
+	return false;
 }
 
 void SysHackSettings( void )
@@ -898,6 +897,8 @@ void SetSettings( void )
 				case RETURNTO_AUTOBOOT:
 					PrintFormat( cur_off==1, 0, 128,    "             Return to:          Autoboot   ");
 				break;
+				default:
+					gprintf("unknown return to value %d !\n",settings->ReturnTo);
 			}
 			
 			//PrintFormat( 0, 16, 64, "Pos:%d", ((rmode->viWidth /2)-(strlen("settings saved")*13/2))>>1);
@@ -2160,7 +2161,6 @@ void Autoboot_System( void )
 			gprintf("AutoBoot:Homebrew Channel\n");
 			LoadHBC();
 			break;
-
 		case AUTOBOOT_BOOTMII_IOS:
 			gprintf("AutoBoot:BootMii IOS\n");
 			LoadBootMii();
@@ -2170,7 +2170,6 @@ void Autoboot_System( void )
 			gprintf("AutoBoot:Installed File\n");
 			AutoBootDol();
 			break;
-
 		case AUTOBOOT_ERROR:
 			error=ERROR_BOOT_ERROR;
 		case AUTOBOOT_DISABLED:
