@@ -89,6 +89,8 @@ extern usbstorage_handle __usbfd;
 
 u32 result=0;
 u8 Shutdown=0;
+u8 BootSysMenu = 0;
+time_t startloop;
 
 static void *xfb = NULL;
 static GXRModeObj *rmode = NULL;
@@ -98,10 +100,74 @@ s32 __IOS_LoadStartupIOS()
 {
         return 0;
 }
+u8 DetectHBC( void )
+{
+    u64 *list;
+    u32 titlecount;
+    s32 ret;
+
+    ret = ES_GetNumTitles(&titlecount);
+    if(ret < 0)
+	{
+		gprintf("failed to get num titles\n");
+		return 0;
+	}
+
+    list = (u64*)memalign(32, titlecount * sizeof(u64) + 32);
+
+    ret = ES_GetTitles(list, titlecount);
+    if(ret < 0) {
+		gprintf("get titles failed\n");
+		free(list);
+		return 0;
+    }
+	ret = 0;
+	//lets check for JODI or HAXX. as HAXX is found BEFORE JODI and JODI > HAXX, we break on JODI but not HAXX.
+    for(u32 i=0; i<titlecount; i++) 
+	{
+		if (list[i] == 0x000100014A4F4449LL)
+		{
+			gprintf("JODI detected.\n");
+			ret = 1;
+			break;
+		}
+        if (list[i] == 0x0001000148415858LL)
+        {
+			gprintf("HAXX detected.\n");
+            ret = 2;
+        }
+    }
+    free(list);
+
+    if(!ret)
+	{
+		gprintf("neither JODI or HBC found");
+	}
+	return ret;
+}
 void LoadStub ( void )
 {
-	char *stubLoc = (char *)0x80001800;
-	memcpy(stubLoc, stub_bin, stub_bin_size);
+	//LoadStub: Load HBC JODI reload Stub and change stub to haxx if needed. 
+	//the first part of the title is at 0x800024CA (first 2 bytes) and 0x800024D2 (last 2 bytes)
+	//HBC < 1.0.5 = HAXX or 4841 5858
+	//HBC >= 1.0.5 = JODI or 4A4F 4449
+
+	//load Stub, contains JODI by default.
+	memcpy((void*)0x80001800, stub_bin, stub_bin_size);
+	DCFlushRange((void*)0x80001800,stub_bin_size);
+	
+	//see if changes are needed to change it to HAXX
+    switch(DetectHBC())
+	{
+		case 2: //HAXX
+			gprintf("changing stub to load HAXX...\n");
+			*(vu16*)0x800024CA = 0x4841;//"HA";
+			*(vu16*)0x800024D2 = 0x5858;//"XX";
+		case 1: //JODI, no changes are needed
+		default: //not good, no HBC was detected >_> lets keep the stub anyway
+			break;
+	}
+	return;	
 }
 bool MountDevices(void)
 {
@@ -160,10 +226,10 @@ void ClearScreen()
 }
 bool isIOSstub(u8 ios_number)
 {
-    u32 tmd_size = NULL;
-    tmd *ios_tmd ATTRIBUTE_ALIGN(32);
+	u32 tmd_size = NULL;
+	tmd *ios_tmd ATTRIBUTE_ALIGN(32);
 
-    ES_GetStoredTMDSize(0x0000000100000000ULL | ios_number, &tmd_size);
+	ES_GetStoredTMDSize(0x0000000100000000ULL | ios_number, &tmd_size);
 	if (!tmd_size)
 	{
 		//getting size failed. invalid or fake tmd for sure!
@@ -173,41 +239,37 @@ bool isIOSstub(u8 ios_number)
 	signed_blob *ios_tmd_buf = (signed_blob *)memalign( 32, (tmd_size+32)&(~31) );
 	memset(ios_tmd_buf, 0, tmd_size);
 
-    ES_GetStoredTMD(0x0000000100000000ULL | ios_number, ios_tmd_buf, tmd_size);
-    ios_tmd = (tmd *)SIGNATURE_PAYLOAD(ios_tmd_buf);
+	ES_GetStoredTMD(0x0000000100000000ULL | ios_number, ios_tmd_buf, tmd_size);
+	ios_tmd = (tmd *)SIGNATURE_PAYLOAD(ios_tmd_buf);
 	free(ios_tmd_buf);
+	gprintf("IOS %d is rev %d(0x%x) with tmd size off %u and %u contents\n",ios_number,ios_tmd->title_version,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
+	/*Stubs have a few things in common¨:
+	- title version : it is mostly 65280 , or even better : in hex the last 2 digits are 0. 
+		example : IOS 60 rev 6400 = 0x1900 = 00 = stub
+	- exception for IOS21 which is active, the tmd size is 592 bytes
+	- the stub ios' have 1 app of their own (type 0x1) and 2 shared apps (type 0x8001).
+
+	eventho the 00 check seems to work fine , we'll only use other knowledge as well cause some
+	people/applications install an ios with a stub rev >_> ...*/
+	u8 Version = ios_tmd->title_version;
 #ifdef DEBUG
-	gprintf("contents for IOS %d :\n",ios_number);
-	for(int i = 0; i < ios_tmd->num_contents;i++)
-	{
-		gprintf("content %d : id %u , type %x\n",ios_tmd->contents[i].index,ios_tmd->contents[i].cid,ios_tmd->contents[i].type);
-	}
+	gprintf("Version = 0x%x\n",Version);
 #endif
-	gprintf("IOS %d is %d with tmd size off %u and %u contents\n",ios_number,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
-	//stubs are most of the time rev 65280. < 2 if its invalid (my bugzzz :P) or 65535 if you are wanker and choose ffff
-	if ( (ios_tmd->title_version < 65280 && ios_tmd->title_version > 2) || ( ios_tmd->title_version == 65535 ) )
+	//version now contains the last 2 bytes. as said above, if this is 00, its a stub
+	if ( Version == 0 )
 	{
-		if (tmd_size != 592)
+		if ( ( ios_tmd->num_contents == 3) && (ios_tmd->contents[0].type == 1 && ios_tmd->contents[1].type == 0x8001 && ios_tmd->contents[2].type == 0x8001) )
+		{
+			gprintf("IOS %d is a stub\n",ios_number);
+			return true;
+		}
+		else
 		{
 			gprintf("IOS %d is active\n",ios_number);
 			return false;
 		}
-		else if ( ios_tmd->num_contents == 3)
-		{
-			//lets check contents. if its really a stub it should have 1 own app and 2 shared
-			if (ios_tmd->contents[0].type == 1 && ios_tmd->contents[1].type == 0x8001 && ios_tmd->contents[2].type == 0x8001)
-			{
-				gprintf("IOS %d is a stub\n",ios_number);
-				return true;
-			}
-			else
-			{
-				gprintf("IOS %d is active\n",ios_number);
-				return false;
-			}
-		}
 	}
-	gprintf("IOS %d is a stub\n",ios_number);
+	gprintf("IOS %d is active\n",ios_number);
 	return true;
 }
 
@@ -714,6 +776,8 @@ void SetSettings( void )
 					if( settings->UseSystemMenuIOS )
 					{
 						settings->UseSystemMenuIOS = false;
+						if(!settings->SystemMenuIOS)
+							settings->SystemMenuIOS = (u32)(TitleIDs[IOS_off]&0xFFFFFFFF);
 					}
 					else
 					{
@@ -838,10 +902,10 @@ void SetSettings( void )
 			
 			//PrintFormat( 0, 16, 64, "Pos:%d", ((rmode->viWidth /2)-(strlen("settings saved")*13/2))>>1);
 
-			PrintFormat( cur_off==2, 0, 128+16, "           Shutdown to:          %s", settings->ShutdownToPreloader?"Priiloader":"off      ");
+			PrintFormat( cur_off==2, 0, 128+16, "           Shutdown to:          %s", settings->ShutdownToPreloader?"Priiloader":"off       ");
 			PrintFormat( cur_off==3, 0, 128+32, "             Stop disc:          %s", settings->StopDisc?"on ":"off");
 			PrintFormat( cur_off==4, 0, 128+48, "   Light slot on error:          %s", settings->LidSlotOnError?"on ":"off");
-			PrintFormat( cur_off==5, 0, 128+64, "Ignore standby setting:          %s", settings->IgnoreShutDownMode?"on ":"off");
+			PrintFormat( cur_off==5, 0, 128+64, "        Ignore standby:          %s", settings->IgnoreShutDownMode?"on ":"off");
 			PrintFormat( cur_off==6, 0, 128+80, "      Background Color:          %s", settings->BlackBackground?"Black":"White");
 			PrintFormat( cur_off==7, 0, 128+96, "   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
 			if(!settings->UseSystemMenuIOS)
@@ -865,37 +929,34 @@ void SetSettings( void )
 }
 void LoadHBC( void )
 {
-	//Note By DacoTaco : try and boot new (0x000100014A4F4449 - JODI) HBC id
-	//if failed, boot old one(0x0001000148415858 - HAXX)
-	u64 TitleID = 0x000100014A4F4449LL;
+	//Note By DacoTaco :check for new (0x000100014A4F4449 - JODI) HBC id
+	//or old one(0x0001000148415858 - HAXX)
+	u64 TitleID = 0;
+	switch (DetectHBC())
+	{
+		case 2: //HAXX
+			TitleID = 0x0001000148415858LL;
+			break;
+		case 1: //JODI
+			TitleID = 0x000100014A4F4449LL;
+			break;
+		default: //LOL nothing?
+			error = ERROR_BOOT_HBC;
+			return;
+	}
 	u32 cnt ATTRIBUTE_ALIGN(32);
 	ES_GetNumTicketViews(TitleID, &cnt);
 	tikview *views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
-	if (ES_GetTicketViews(TitleID, views, cnt) < 0)
+	ES_GetTicketViews(TitleID, views, cnt);
+	if( ClearState() < 0 )
 	{
-		//title isnt there D: lets retry everything but with the old id...
-		free(views);
-		TitleID = 0x0001000148415858LL;
-		ES_GetNumTicketViews(TitleID, &cnt);
-		tikview *views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
-		ES_GetTicketViews(TitleID, views, cnt);
-		if( ClearState() < 0 )
-		{
-			gprintf("failed to clear state\n");
-		}
-		ES_LaunchTitle(TitleID, &views[0]);
-		free(views);
+		gprintf("failed to clear state\n");
 	}
-	else
-	{
-		//new title found apparently :P
-		if( ClearState() < 0 )
-		{
-			gprintf("failed to clear state\n");
-		}
-		ES_LaunchTitle(TitleID, &views[0]);
-	}
+	ES_LaunchTitle(TitleID, &views[0]);
+	//well that went wrong
+	error = ERROR_BOOT_HBC;
 	free(views);
+	return;
 }
 void LoadBootMii( void )
 {
@@ -1201,39 +1262,47 @@ void BootMainSysMenu( void )
 
 	LoadHacks();
 	WPAD_Shutdown();
+	u8 OldLoadedIOS = IOS_GetVersion();
 	if( !SGetSetting( SETTING_USESYSTEMMENUIOS ) )
 	{
-		gprintf("checking ios for stub...\n");
-		if (!isIOSstub(SGetSetting(SETTING_SYSTEMMENUIOS)))
+		u8 ToLoadIOS = SGetSetting(SETTING_SYSTEMMENUIOS);
+		gprintf("checking ios %d for stub...\n",ToLoadIOS);
+		if ( ToLoadIOS != OldLoadedIOS )
 		{
-			if ( (s32)SGetSetting(SETTING_SYSTEMMENUIOS) != IOS_GetVersion())
+			if ( !isIOSstub(ToLoadIOS) )
 			{
 				__ES_Close();
 				__ES_Init();
-				__IOS_LaunchNewIOS(SGetSetting(SETTING_SYSTEMMENUIOS));
+				__IOS_LaunchNewIOS( ToLoadIOS );
 				gprintf("launched ios %d for system menu\n",IOS_GetVersion());
 				//__IOS_LaunchNewIOS(rTMD->sys_version);
 				//__IOS_LaunchNewIOS(249);
 				__IOS_InitializeSubsystems();
-				r = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size, (signed_blob *)buf, tstatus->file_length, &tempKeyID);
-				if( r < 0 )
-				{	error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
-					__IOS_ShutdownSubsystems();
-					__IOS_LaunchNewIOS(rTMD->sys_version);
-					__IOS_InitializeSubsystems();
-					WPAD_Init();
-					return;
-					//IOS_ReloadIOS(rTMD->sys_version);
-				}
 			}
 			else
 			{
-				gprintf("set to use the same ios as system ios. skipping reload...\n");
+				WPAD_Init();
+				error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
+				gprintf("ios %d is stub! Stopping boot of system menu...\n",ToLoadIOS);
+				return;
 			}
 		}
 		else
 		{
-			gprintf("Going to load a stub ios, skipping reload\n");
+			gprintf("skipping IOS reload to %d(its already loaded)\n",ToLoadIOS);
+		}
+	}
+	if ((u32)IOS_GetVersion() != OldLoadedIOS || ( !SGetSetting( SETTING_USESYSTEMMENUIOS ) && (u32)IOS_GetVersion() != OldLoadedIOS ) )
+	{
+		gprintf("detected IOS(%d) other then system menu IOS(%d) or forced to reload\nforcing ES_Identify...\n",IOS_GetVersion(),OldLoadedIOS);
+		r = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size, (signed_blob *)buf, tstatus->file_length, &tempKeyID);
+		if( r < 0 )
+		{	
+			error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
+			//IOS_ReloadIOS(rTMD->sys_version); //replace rTMD->sys_version with tmd_view->ios_title_id;
+			WPAD_Init();
+			gprintf("ES_Identify failed!\n");
+			return;
 		}
 	}
 	//ES_SetUID(TitleID);
@@ -1271,11 +1340,12 @@ void BootMainSysMenu( void )
 	sleep(20);
 #endif
 	/*//original booting code from crediar
-	__io_wiisd.shutdown();
+	ShutdownDevices();//__io_wiisd.shutdown();
 	__STM_Close();
 	__IOS_ShutdownSubsystems();
 	mtmsr(mfmsr() & ~0x8000);
-	mtmsr(mfmsr() | 0x2002);*/
+	mtmsr(mfmsr() | 0x2002);
+	_unstub_start();*/
 	//modified code from USBLOADER GX. crediars code didn't fail, but this seems to load dols better :)
 	ISFS_Deinitialize();
 	ShutdownDevices();
@@ -1304,6 +1374,9 @@ void InstallLoadDOL( void )
 		sleep(5);
 		return;
 	}
+	u8 SDInserted = 0;
+	if(__io_wiisd.isInserted())
+		SDInserted = 1;
 #ifndef libELM
 	dir = diropen ("fat:/");
 #else
@@ -1362,6 +1435,13 @@ void InstallLoadDOL( void )
 		if ( (WPAD_Pressed & WPAD_BUTTON_A) || (PAD_Pressed & PAD_BUTTON_A) )
 		{
 			ClearScreen();
+			if ( (SDInserted && !__io_wiisd.isInserted()) || (!SDInserted && !__io_usbstorage.isInserted()) )
+			{
+				gprintf("SD/USB isn't in the same state anymore\n");
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("FAT device removed before loading!"))*13/2))>>1, 208, "FAT device removed before loading!");
+				sleep(5);
+				break;
+			}
 			//Install file
 #ifdef libELM
 			sprintf(filepath, "elm:/sd/%s",names[cur_off]);
@@ -1420,6 +1500,13 @@ void InstallLoadDOL( void )
 		if ( (WPAD_Pressed & WPAD_BUTTON_1) || (PAD_Pressed & PAD_TRIGGER_Z) )
 		{
 			ClearScreen();
+			if ( (SDInserted && !__io_wiisd.isInserted()) || (!SDInserted && !__io_usbstorage.isInserted()) )
+			{
+				gprintf("SD/USB isn't in the same state anymore\n");
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("FAT device removed before loading!"))*13/2))>>1, 208, "FAT device removed before loading!");
+				sleep(5);
+				break;
+			}
 
 			//Load dol
 #ifdef libELM
@@ -1570,6 +1657,12 @@ void InstallLoadDOL( void )
 				fclose( dol );
 				entrypoint = (void (*)())(hdr.entrypoint);
 			}
+			if( entrypoint == 0x00000000 )
+			{
+				gprintf("bogus entrypoint of %08X detected\n",(u32)(entrypoint));
+				error = ERROR_BOOT_DOL_ENTRYPOINT;
+				return;
+			}
 			gprintf("binary loaded, starting dol...\n");
 			for (int i = 0;i < WPAD_MAX_WIIMOTES ;i++)
 			{
@@ -1588,6 +1681,7 @@ void InstallLoadDOL( void )
 			mtmsr(mfmsr() | 0x2002);
 			entrypoint();
 			_CPU_ISR_Restore (level);
+			redraw=true;
 		}
 
 		if ( (WPAD_Pressed & WPAD_BUTTON_DOWN) || (PAD_Pressed & PAD_BUTTON_DOWN) )
@@ -2012,11 +2106,22 @@ void HandleWiiMoteEvent(s32 chan)
 }
 void HandleSTMEvent(u32 event)
 {
+	u8 ontime;
 	switch(event)
 	{
 		case STM_EVENT_POWER:
 			Shutdown=1;
+			BootSysMenu = 0;
+			break;
 		case STM_EVENT_RESET:
+			if (BootSysMenu == 0 && WPAD_Probe(0,0) < 0)
+			{
+				time_t inloop;
+				time(&inloop);
+				ontime = difftime(inloop, startloop);
+				if (ontime >= 15)
+					BootSysMenu = 1;
+			}
 		default:
 			break;
 	}
@@ -2054,7 +2159,6 @@ void Autoboot_System( void )
 		case AUTOBOOT_HBC:
 			gprintf("AutoBoot:Homebrew Channel\n");
 			LoadHBC();
-			error=ERROR_BOOT_HBC;
 			break;
 
 		case AUTOBOOT_BOOTMII_IOS:
@@ -2129,6 +2233,7 @@ int main(int argc, char **argv)
 	if( ((*(vu32*)0xCC003000)>>16)&1 && *(vu32*)0x8132FFFB != 0x4461636f) //0x4461636f = "Daco" in hex)
 	{
 #ifdef DEBUG
+		//debug code to dump the "stub" before crashing
 		MountDevices();
 		FILE* stub = fopen("fat:/stub2.bin","w");
 		if(stub)
@@ -2141,7 +2246,7 @@ int main(int argc, char **argv)
 		//gprintf("testing stub by crashing...\n");
 		//sprintf(argv[4],"%s",argv[20]);//(int*)0=1;
 #endif
-		
+
 		//Check autoboot settings
 		StateFlags temp;
 #ifdef DEBUG
@@ -2149,7 +2254,7 @@ int main(int argc, char **argv)
 #endif
 		switch( Bootstate )
 		{
-			case TYPE_UNKNOWN: //255 or -1, only seen when shutting down from MIOS or booting dol from HBC ... unknown
+			case TYPE_UNKNOWN: //255 or -1, only seen when shutting down from MIOS or booting dol from HBC. it is actually an invalid value
 				temp = GetStateFlags();
 				gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u\n",temp.type,temp.discstate,temp.returnto,temp.flags);
 #ifdef DEBUG
@@ -2163,12 +2268,20 @@ int main(int argc, char **argv)
 				}
 				ShutdownDevices();
 #endif
-				if( temp.flags != 130 ) //&& temp.discstate != 2)
+				if( temp.flags == 130 ) //&& temp.discstate != 2)
+				{
+					//if the flag is 130, its probably shutdown from mios. in that case system menu 
+					//will handle it perfectly (it seemed to set bootstate to 5 and reboot. which causes priiloader 
+					//to shutdown )for safety we will boot system menu instead of shutting down. just to be sure
+					MountDevices();
+					gprintf("255:System Menu\n");
+					BootMainSysMenu();
+				}
+				else
 				{
 					Autoboot_System();
-					break;
 				}
-				//if the flag is 130, its probably shutdown from mios
+				break;
 			case TYPE_SHUTDOWNSYSTEM: // 5 - shutdown
 				if( ClearState() < 0 )
 				{
@@ -2250,14 +2363,16 @@ int main(int argc, char **argv)
 		gprintf("Reset Button is hold down\n");
 	}
 	
-	//do video init first so we can see the bloody crash screens
+	//do video init first so we can see crash screens
 	VIDEO_Init();
 
 	rmode = VIDEO_GetPreferredMode(NULL);
-	if( CONF_GetAspectRatio() ) //Widescreen (and pal60/NTSC ?) fix
+
+	//apparently the video likes to be bigger then it actually is on NTSC/PAL60/480p. lets fix that!
+	if( rmode->viTVMode == VI_NTSC || rmode->viTVMode == VI_EURGB60 || CONF_GetProgressiveScan() )
 	{
-		//sad and hacky way around the issue >_>
-		rmode->viHeight -= 32;
+		//the correct one would be * 0.035 to be sure to get on the Action safe of the screen. but thats way to much
+		GX_AdjustForOverscan(rmode, rmode, 0, rmode->viWidth * 0.026 ); 
 	}
 
 	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
@@ -2301,6 +2416,7 @@ int main(int argc, char **argv)
 	{
 		DVDStopDisc();
 	}
+	time(&startloop);
 	while(1)
 	{
 		WPAD_ScanPads();
@@ -2339,8 +2455,6 @@ int main(int argc, char **argv)
 				case 1:		//Load HBC
 				{
 					LoadHBC();
-					//oops, error'd
-					error=ERROR_BOOT_HBC;
 				} break;
 				case 2: //Load Bootmii
 				{
@@ -2393,9 +2507,9 @@ int main(int argc, char **argv)
 			{
 				if( error == ERROR_UPDATE )
 				{
-					cur_off=8-1; //phpgeek said 11-1 why 11?
+					cur_off=8-1;
 				} else {
-					cur_off=7-1; //phpgeek said 10-1?
+					cur_off=7-1;
 				}
 			}
 
@@ -2409,13 +2523,13 @@ int main(int argc, char **argv)
 #else
 			if( BETAVERSION > 0 )
 			{
-				PrintFormat( 0, 160, rmode->viHeight-48, "preloader v%d.%d(beta v%d)", (BETAVERSION>>16)&0xFF, BETAVERSION>>8, BETAVERSION&0xFF );
+				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d(beta v%d)", VERSION>>8, VERSION&0xFF, BETAVERSION&0xFF );
 			} else {
 				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d (r%s)", VERSION>>8, VERSION&0xFF,SVN_REV_STR );
 			}
 			PrintFormat( 0, 16, rmode->viHeight-64, "IOS v%d", (*(vu32*)0x80003140)>>16 );
 			PrintFormat( 0, 16, rmode->viHeight-48, "Systemmenu v%d", SysVersion );			
-			PrintFormat( 0, 16, rmode->viHeight-16, "priiloader is a mod of Preloader 0.30");
+			PrintFormat( 0, 16, rmode->viHeight-20, "Priiloader is a mod of Preloader 0.30");
 #endif
 			// ((rmode->viWidth /2)-(strlen("Systemmenu")*13/2))>>1
 			
@@ -2431,7 +2545,7 @@ int main(int argc, char **argv)
 
 			if (error > 0)
 			{
-				ShowError();
+				ShowError(rmode->viHeight, 0 );
 				error = ERROR_NONE;
 			}
 			redraw = false;
@@ -2471,6 +2585,21 @@ int main(int argc, char **argv)
 				}
 			}
 
+		}
+		//boot system menu
+		if(BootSysMenu)
+		{
+			gprintf("booting main system menu...\n");
+			if ( !SGetSetting(SETTING_USESYSTEMMENUIOS) )
+			{
+				gprintf("Changed Settings to use System Menu IOS...\n");
+				settings->UseSystemMenuIOS = true;
+			}
+			RemountDevices();
+			BootMainSysMenu();
+			if(!error)
+				error=ERROR_SYSMENU_GENERAL;
+			BootSysMenu = 0;
 		}
 
 
