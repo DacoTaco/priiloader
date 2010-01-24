@@ -95,7 +95,7 @@ const char* abort(const char* msg, ...)
 	sleep(5);
 	exit(0);
 }
-bool CompareChecksum(u32 *Data1,u32 Data1_Size,u32 *Data2,u32 Data2_Size)
+bool CompareChecksum(u8 *Data1,u32 Data1_Size,u8 *Data2,u32 Data2_Size)
 {
 	u32 chksumD1 = 0;
 	u32 chksumD2 = 0;
@@ -138,7 +138,7 @@ bool CompareChecksum(u32 *Data1,u32 Data1_Size,u32 *Data2,u32 Data2_Size)
 }
 s32 nand_copy(char source[1024], char destination[1024])
 {
-    char *buffer = NULL;
+    u8 *buffer = NULL;
     s32 source_handler, dest_handler, ret;
 
     source_handler = ISFS_Open(source,ISFS_OPEN_READ);
@@ -175,7 +175,7 @@ s32 nand_copy(char source[1024], char destination[1024])
 		return -1;
 	}
 
-    buffer = (char *)memalign(32,(status->file_length+32)&(~31));
+    buffer = (u8 *)memalign(32,(status->file_length+31)&(~31));
 	if (buffer == NULL)
 	{
 		gprintf("buffer failed to allign\n");
@@ -207,7 +207,7 @@ s32 nand_copy(char source[1024], char destination[1024])
     }
 	gprintf("starting checksum...\n");
 	s32 temp = 0;
-	u32 *Data2 = NULL;
+	u8 *Data2 = NULL;
 	fstats * D2stat = (fstats*)memalign(32,sizeof(fstats));
 	if (D2stat == NULL)
 	{
@@ -226,7 +226,7 @@ s32 nand_copy(char source[1024], char destination[1024])
 	{
 		goto free_and_Return;
 	}
-	Data2 = (u32*)memalign(32,(D2stat->file_length+32)&(~31));
+	Data2 = (u8*)memalign(32,(D2stat->file_length+32)&(~31));
 	if (Data2 == NULL)
 	{
 		temp = -1;
@@ -234,7 +234,7 @@ s32 nand_copy(char source[1024], char destination[1024])
 	}
 	if( ISFS_Read(dest_handler,Data2,D2stat->file_length) > 0 )
 	{
-		if( !CompareChecksum((u32*)buffer,status->file_length,Data2,D2stat->file_length))
+		if( !CompareChecksum(buffer,status->file_length,Data2,D2stat->file_length))
 		{
 			temp = -1;
 		}
@@ -368,10 +368,12 @@ int main(int argc, char **argv)
 			if (ISFS_Initialize() < 0)
 				abort("Failed to get root");
 			printf("Got ROOT!\n");
+			
+			//check if the copy ticket exists
 			fd = ISFS_Open("/title/00000001/00000002/content/ticket",ISFS_OPEN_READ);
 			if (fd <0)
 			{
-				printf("Priiloader system menu ticket not found.\n  trying to read original ticket...\n");
+				printf("Priiloader system menu ticket not found.\nTrying to read original ticket...\n");
 				ISFS_Close(fd);
 				fd = ISFS_Open("/ticket/00000001/00000002.tik",ISFS_OPEN_READ);
 				//"/ticket/00000001/00000002.tik" -> original path which should be there on every wii.
@@ -405,43 +407,18 @@ int main(int argc, char **argv)
 					CopyTicket = true;
 				}
 			}
-			fstats * status = (fstats*)memalign(32,sizeof(fstats));
-			fs = ISFS_GetFileStats(fd,status);
-			if (fs < 0)
-			{
-				ISFS_Close(fd);
-				abort("Unable to get ticket size");
-			}
-
-			char * buffer = (char*)memalign(32,(status->file_length+32)&(~31));
-			if (buffer == NULL)
-			{
-				ISFS_Close(fd);
-				abort("Unable to create buffer");
-			}
-
-			memset(buffer,0,(status->file_length+32)&(~31));
-			fs = ISFS_Read(fd,buffer,status->file_length);
-			if (fs < 0)
-			{
-				free(buffer);
-				ISFS_Close(fd);
-				abort("Unable to read buffer");
-			}
-
 			ISFS_Close(fd);
 
+			//read TMD so we can get the main booting dol
 			fs = ES_GetStoredTMDSize(title_id,&tmd_size);
 			if (fs < 0)
 			{
-				free(buffer);
 				abort("Unable to get stored tmd size");
 			}
 
 			signed_blob *TMD = (signed_blob *)memalign(32,(tmd_size+32)&(~31));
 			if (TMD == NULL)
 			{
-				free(buffer);
 				abort("Unable to prepare tmd for memory");
 			}
 
@@ -450,7 +427,6 @@ int main(int argc, char **argv)
 			if (fs < 0)
 			{
 				free(TMD);
-				free(buffer);
 				abort("Unable to get stored tmd");
 			}
 	
@@ -467,7 +443,6 @@ int main(int argc, char **argv)
 			if (id == 0)
 			{
 				free(TMD);
-				free(buffer);
 				abort("Unable to retrieve title id");
 			}
 
@@ -476,7 +451,6 @@ int main(int argc, char **argv)
 			if (original_app == NULL || copy_app == NULL)
 			{
 				free(TMD);
-				free(buffer);
 				abort("Unable to prepare title for memory");
 			}
 
@@ -486,15 +460,12 @@ int main(int argc, char **argv)
 			sprintf(copy_app, "/title/00000001/00000002/content/%08x.app",id);
 			copy_app[33] = '1';
 
-			if(buffer)
-				free(buffer);
 			if(TMD)
 				free(TMD);
-			if(status)
-				free(status);
 			
 			if (pDown & WPAD_BUTTON_PLUS)
 			{
+				fstats * status;
 				s32 ret = 0;
 				bool Priiloader_found = false;
 				printf("Checking for Priiloader...\n");
@@ -553,8 +524,8 @@ int main(int argc, char **argv)
 				if(CopyTicket)
 				{
 					printf("Coping system menu ticket...");
-					char * original_tik = (char*)memalign(32,(256+32)&(~31));
-					char * copy_tik = (char*)memalign(32,(256+32)&(~31));
+					char * original_tik = (char*)memalign(32,(256+31)&(~31));
+					char * copy_tik = (char*)memalign(32,(256+31)&(~31));
 					sprintf(original_tik, "/ticket/00000001/00000002.tik");
 					sprintf(copy_tik, "/title/00000001/00000002/content/ticket");
 					if (nand_copy(original_tik,copy_tik) < 0)
@@ -659,7 +630,7 @@ int main(int argc, char **argv)
 				//reset fd. otherwise the read data isn't correct? (checked by writing data away before comparing) :-/
 				ISFS_Close(fd);
 				fd = ISFS_Open(original_app,ISFS_OPEN_READ);
-				u32 *AppData = (u32 *)memalign(32,status->file_length);
+				u8 *AppData = (u8 *)memalign(32,status->file_length);
 				if (AppData)
 					ret = ISFS_Read(fd,AppData,status->file_length);
 				else
@@ -680,7 +651,7 @@ int main(int argc, char **argv)
 					nand_copy(copy_app,original_app);
 					abort("Checksum comparison Failure! read of priiloader app returned %u\n",ret);
 				}
-				if(CompareChecksum((u32*)priiloader_app,priiloader_app_size,AppData,status->file_length))
+				if(CompareChecksum((u8*)priiloader_app,priiloader_app_size,AppData,status->file_length))
 					printf("Checksum comparison Success!\n");
 				else
 				{
@@ -690,6 +661,7 @@ int main(int argc, char **argv)
 					if(status)
 						free(status);
 					nand_copy(copy_app,original_app);
+					ISFS_Delete(copy_app);
 					abort("Checksum comparison Failure!\n");
 				}
 				if (AppData)
@@ -719,9 +691,9 @@ int main(int argc, char **argv)
 				}
 				else
 				{
-					printf("Priiloader installation found.removing...\n\n  Removing Priiloader...");
+					printf("Priiloader installation found.removing...\n\nRemoving Priiloader...");
 					ISFS_Delete(original_app);
-					printf("Done!\n  Restoring System menu app...");
+					printf("Done!\nRestoring System menu app...");
 					s32 ret = nand_copy(copy_app,original_app);
 					if (ret < 0)
 					{
