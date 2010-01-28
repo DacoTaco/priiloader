@@ -21,7 +21,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 #include "gecko.h"
-u32 GeckoFound = 0;
+u8 GeckoFound = 0;
 
 void CheckForGecko( void )
 {

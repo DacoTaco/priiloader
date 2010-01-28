@@ -91,7 +91,7 @@ The following is for implementing a DISC_INTERFACE
 as used by libfat
 */
 
-usbstorage_handle __usbfd;
+static usbstorage_handle __usbfd;
 static u8 __lun = 0;
 static u8 __mounted = 0;
 static u16 __vid = 0;
@@ -462,6 +462,10 @@ static s32 __usbstorage_reset(usbstorage_handle *dev)
 
 end:
 	return retval;
+}
+usbstorage_handle USBStorage_ReturnHandle( void )
+{
+	return __usbfd;
 }
 s32 USBStorage_Open(usbstorage_handle *dev, const char *bus, u16 vid, u16 pid)
 {
