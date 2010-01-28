@@ -36,7 +36,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 std::vector<hack> hacks;
 u32 *states=NULL;
-extern u32 error;
+extern u8 error;
 
 unsigned int foff=0;
 char *GetLine( char *&astr, unsigned int len )

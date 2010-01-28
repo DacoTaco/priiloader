@@ -31,8 +31,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "error.h"
 
 Settings *settings=NULL;
-u32 ShowUpdate=0;
-extern u32 error;
+u8 ShowUpdate=0;
+extern u8 error;
 u32 GetSysMenuVersion( void )
 {
 	//Get sysversion from TMD
@@ -147,10 +147,9 @@ void LoadSettings( void )
 	if(!settings)
 	{
 		//the settings still need to be aligned/allocated. so lets do that
-		settings = (Settings*)memalign( 32, sizeof( Settings ) );
+		settings = (Settings*)memalign( 32, (sizeof( Settings )+31)&(~31));
 	}
 	memset( settings, 0, sizeof( Settings ) );
-	
 	
 	s32 fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", 1|2 );
 
@@ -177,14 +176,12 @@ void LoadSettings( void )
 		}
 		ISFS_Seek( fd, 0, 0 );
 	}
-
 	if(ISFS_Read( fd, settings, sizeof( Settings ) )<0)
 	{
 		ISFS_Close( fd );
 		error = ERROR_SETTING_READ;
 		return;
 	}
-	
 	if( settings->version == 0 || settings->version != VERSION || settings->BetaVersion == 0 || settings->BetaVersion != BETAVERSION )
 	{
 		settings->version = VERSION;
@@ -192,7 +189,6 @@ void LoadSettings( void )
 		ISFS_Seek( fd, 0, 0 );
 		ISFS_Write( fd, settings, sizeof( Settings ) );
 	}
-
 	ISFS_Close( fd );
 	return;
 }

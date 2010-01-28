@@ -67,6 +67,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 extern "C"
 {
 	extern void _unstub_start(void);
+	extern usbstorage_handle USBStorage_ReturnHandle( void );
 }
 
 typedef struct {
@@ -82,13 +83,14 @@ typedef struct {
 } dolhdr;
 
 extern Settings *settings;
-extern u32 error;
+extern u8 error;
 extern std::vector<hack> hacks;
 extern u32 *states;
 extern usbstorage_handle __usbfd;
 
 u8 Shutdown=0;
 u8 BootSysMenu = 0;
+u8 ReloadedIOS = 0;
 time_t startloop;
 
 static void *xfb = NULL;
@@ -108,7 +110,7 @@ u8 DetectHBC( void )
     ret = ES_GetNumTitles(&titlecount);
     if(ret < 0)
 	{
-		gprintf("failed to get num titles\n");
+		gprintf("failed to get num titles while detecting HBC\n");
 		return 0;
 	}
 
@@ -116,7 +118,7 @@ u8 DetectHBC( void )
 
     ret = ES_GetTitles(list, titlecount);
     if(ret < 0) {
-		gprintf("get titles failed\n");
+		gprintf("get titles failed while detecting HBC\n");
 		free(list);
 		return 0;
     }
@@ -126,13 +128,13 @@ u8 DetectHBC( void )
 	{
 		if (list[i] == 0x000100014A4F4449LL)
 		{
-			gprintf("JODI detected.\n");
+			//gprintf("JODI detected\n");
 			ret = 1;
 			break;
 		}
         if (list[i] == 0x0001000148415858LL)
         {
-			gprintf("HAXX detected.\n");
+			//gprintf("HAXX detected\n");
             ret = 2;
         }
     }
@@ -151,6 +153,11 @@ void LoadStub ( void )
 	//HBC < 1.0.5 = HAXX or 4841 5858
 	//HBC >= 1.0.5 = JODI or 4A4F 4449
 
+	if ( *(vu32*)0x80001804 == 0x53545542 && *(vu32*)0x80001808 == 0x48415858 )
+	{
+		gprintf("HBC stub : already loaded\n");
+		return;
+	}
 	//load Stub, contains JODI by default.
 	memcpy((void*)0x80001800, stub_bin, stub_bin_size);
 	DCFlushRange((void*)0x80001800,stub_bin_size);
@@ -166,6 +173,7 @@ void LoadStub ( void )
 		default: //not good, no HBC was detected >_> lets keep the stub anyway
 			break;
 	}
+	gprintf("HBC stub : Loaded\n");
 	return;	
 }
 bool MountDevices(void)
@@ -241,13 +249,12 @@ bool isIOSstub(u8 ios_number)
 	ES_GetStoredTMD(0x0000000100000000ULL | ios_number, ios_tmd_buf, tmd_size);
 	ios_tmd = (tmd *)SIGNATURE_PAYLOAD(ios_tmd_buf);
 	free(ios_tmd_buf);
-	gprintf("IOS %d is rev %d(0x%x) with tmd size off %u and %u contents\n",ios_number,ios_tmd->title_version,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
+	gprintf("IOS %d is rev %d(0x%x) with tmd size of %u and %u contents\n",ios_number,ios_tmd->title_version,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
 	/*Stubs have a few things in common¨:
 	- title version : it is mostly 65280 , or even better : in hex the last 2 digits are 0. 
 		example : IOS 60 rev 6400 = 0x1900 = 00 = stub
 	- exception for IOS21 which is active, the tmd size is 592 bytes
 	- the stub ios' have 1 app of their own (type 0x1) and 2 shared apps (type 0x8001).
-
 	eventho the 00 check seems to work fine , we'll only use other knowledge as well cause some
 	people/applications install an ios with a stub rev >_> ...*/
 	u8 Version = ios_tmd->title_version;
@@ -936,9 +943,11 @@ void LoadHBC( void )
 	switch (DetectHBC())
 	{
 		case 2: //HAXX
+			gprintf("HAXX detected\n");
 			TitleID = 0x0001000148415858LL;
 			break;
 		case 1: //JODI
+			gprintf("JODI detected\n");
 			TitleID = 0x000100014A4F4449LL;
 			break;
 		default: //LOL nothing?
@@ -997,7 +1006,8 @@ void LoadBootMii( void )
 		}
 	}
 	fclose(BootmiiFile);
-	u16 currentIOS = IOS_GetVersion();
+	u8 currentIOS = IOS_GetVersion();
+	WPAD_Shutdown();
 	//clear the bootstate before going on
 	if( ClearState() < 0 )
 	{
@@ -1007,6 +1017,9 @@ void LoadBootMii( void )
 	//launching bootmii failed. lets wait a bit for the launch(it could be delayed) and then load the other ios back
 	sleep(5);
 	IOS_ReloadIOS(currentIOS);
+	ReloadedIOS = 1;
+	WPAD_Init();
+	return;
 }
 void BootMainSysMenu( void )
 {
@@ -1194,7 +1207,7 @@ void BootMainSysMenu( void )
 	sleep(1);
 #endif
 	if( r < 0 )
-		return;
+		goto free_and_return;
 	if( hdr->entrypoint != 0x3400 )
 	{
 #ifdef DEBUG
@@ -1203,13 +1216,12 @@ void BootMainSysMenu( void )
 #endif
 		ISFS_Close( fd );
 		free(hdr);
-		return;
+		goto free_and_return;
 	}
 
 	void	(*entrypoint)();
 
-	int i=0;
-	for (i = 0; i < 6; i++)
+	for (u8 i = 0; i < 6; i++)
 	{
 		if( hdr->sizeText[i] && hdr->addressText[i] && hdr->offsetText[i] )
 		{
@@ -1223,7 +1235,7 @@ void BootMainSysMenu( void )
 				printf("BOGUS offsets!\n");
 				sleep(5);
 #endif
-				return;
+				goto free_and_return;
 			}
 
 			ISFS_Seek( fd, hdr->offsetText[i], SEEK_SET );
@@ -1234,7 +1246,7 @@ void BootMainSysMenu( void )
 	}
 
 	// data sections
-	for (i = 0; i <= 10; i++)
+	for (u8 i = 0; i <= 10; i++)
 	{
 		if( hdr->sizeData[i] && hdr->addressData[i] && hdr->offsetData[i] )
 		{
@@ -1248,7 +1260,7 @@ void BootMainSysMenu( void )
 				printf("BOGUS offsets!\n");
 				sleep(5);
 #endif
-				return ;
+				goto free_and_return;
 			}
 
 			ISFS_Seek( fd, hdr->offsetData[i], SEEK_SET );
@@ -1263,29 +1275,32 @@ void BootMainSysMenu( void )
 
 	LoadHacks();
 	WPAD_Shutdown();
-	u8 OldLoadedIOS = IOS_GetVersion();
+
+	//Step 1 of IOS handling : Reloading IOS if needed;
 	if( !SGetSetting( SETTING_USESYSTEMMENUIOS ) )
 	{
 		u8 ToLoadIOS = SGetSetting(SETTING_SYSTEMMENUIOS);
-		gprintf("checking ios %d for stub...\n",ToLoadIOS);
-		if ( ToLoadIOS != OldLoadedIOS )
+		gprintf("checking ios ...\n",ToLoadIOS);
+		if ( ToLoadIOS != (u8)IOS_GetVersion() )
 		{
+			gprintf("checking ios %d for stub...\n",ToLoadIOS);
 			if ( !isIOSstub(ToLoadIOS) )
 			{
 				__ES_Close();
+				__IOS_ShutdownSubsystems();
 				__ES_Init();
-				__IOS_LaunchNewIOS( ToLoadIOS );
+				__IOS_LaunchNewIOS ( ToLoadIOS );
 				gprintf("launched ios %d for system menu\n",IOS_GetVersion());
-				//__IOS_LaunchNewIOS(rTMD->sys_version);
-				//__IOS_LaunchNewIOS(249);
-				__IOS_InitializeSubsystems();
+				//__IOS_LaunchNewIOS ( (u8)rTMD->sys_version );
+				//__IOS_LaunchNewIOS ( 249 );
+				ReloadedIOS = 1;
 			}
 			else
 			{
 				WPAD_Init();
-				error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
+				error=ERROR_SYSMENU_IOSSTUB;
 				gprintf("ios %d is stub! Stopping boot of system menu...\n",ToLoadIOS);
-				return;
+				goto free_and_return;
 			}
 		}
 		else
@@ -1293,21 +1308,38 @@ void BootMainSysMenu( void )
 			gprintf("skipping IOS reload to %d(its already loaded)\n",ToLoadIOS);
 		}
 	}
-	if ((u32)IOS_GetVersion() != OldLoadedIOS || ( !SGetSetting( SETTING_USESYSTEMMENUIOS ) && (u32)IOS_GetVersion() != OldLoadedIOS ) )
+	/*
+	//technically its needed... but i fail to see why...
+	else if ((u8)IOS_GetVersion() != (u8)rTMD->sys_version)
 	{
-		gprintf("detected IOS(%d) other then system menu IOS(%d) or forced to reload\nforcing ES_Identify...\n",IOS_GetVersion(),OldLoadedIOS);
+		gprintf("Use system menu is ON, but IOS %d isn't loaded. reloading IOS...\n",(u8)rTMD->sys_version);
+		__ES_Close();
+		__IOS_ShutdownSubsystems();
+		__ES_Init();
+		__IOS_LaunchNewIOS ( (u8)rTMD->sys_version );
+
+		gprintf("launched ios %d for system menu\n",IOS_GetVersion());
+		ReloadedIOS = 1;
+	}*/
+
+	//Step 2 of IOS handling : ES_Identify if we are on a different ios or if we reloaded ios once already
+	if (((u8)IOS_GetVersion() != (u8)rTMD->sys_version) || (ReloadedIOS) )
+	{
+		if (ReloadedIOS)
+			gprintf("Forced into ES_Identify (reloaded IOS since startup) ...\n");
+		else
+			gprintf("using IOS(%d) other then system menu IOS(%u)\nforcing ES_Identify...\n",IOS_GetVersion(),(u8)rTMD->sys_version);
 		r = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size, (signed_blob *)buf, tstatus->file_length, &tempKeyID);
 		if( r < 0 )
 		{	
 			error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
-			//IOS_ReloadIOS(rTMD->sys_version); //replace rTMD->sys_version with tmd_view->ios_title_id;
-			WPAD_Init();
+			//__IOS_LaunchNewIOS ( (u8)rTMD->sys_version );
 			gprintf("ES_Identify failed!\n");
-			return;
+			goto free_and_return;
 		}
 	}
 	//ES_SetUID(TitleID);
-	free(TMD);
+	free( TMD );
 	free( status );
 	free( tstatus );
 	free( buf );
@@ -1340,26 +1372,37 @@ void BootMainSysMenu( void )
 #ifdef DEBUG
 	sleep(20);
 #endif
-	/*//original booting code from crediar
+	/*//modified code from Usbloader GX
 	ShutdownDevices();//__io_wiisd.shutdown();
-	__STM_Close();
-	__IOS_ShutdownSubsystems();
-	mtmsr(mfmsr() & ~0x8000);
-	mtmsr(mfmsr() | 0x2002);
-	_unstub_start();*/
-	//modified code from USBLOADER GX. crediars code didn't fail, but this seems to load dols better :)
-	ISFS_Deinitialize();
-	ShutdownDevices();
-	//butt ugly hack around the problem but i can't think of another way to fix it...
-	//TODO : make it less hacky by fixing the __io_usbstorage.shutdown()
-	if(__usbfd.usb_fd > 0)
-		USBStorage_Close(&__usbfd);
-	USB_Deinitialize();
 	__IOS_ShutdownSubsystems();
 	SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
 	mtmsr(mfmsr() & ~0x8000);
 	mtmsr(mfmsr() | 0x2002);
+	_unstub_start();*/
+	//"original" Crediar code
+	ShutdownDevices();
+	//butt ugly hack around the problem but i can't think of another way to fix it...
+	//TODO : make it less hacky by fixing the __io_usbstorage.shutdown()
+	if (USBStorage_ReturnHandle().usb_fd > 0)
+		USBStorage_Close(&USBStorage_ReturnHandle());
+	__STM_Close();
+	ISFS_Deinitialize();
+	__IOS_ShutdownSubsystems();
+	mtmsr(mfmsr() & ~0x8000);
+	mtmsr(mfmsr() | 0x2002);
 	_unstub_start();
+free_and_return:
+	__IOS_InitializeSubsystems();
+	WPAD_Init();
+	if(TMD)
+		free( TMD );
+	if(status)
+		free( status );
+	if(tstatus)
+		free( tstatus );
+	if(buf)
+		free( buf );
+	return;
 }
 void InstallLoadDOL( void )
 {
@@ -2174,17 +2217,17 @@ void Autoboot_System( void )
 			error=ERROR_BOOT_ERROR;
 		case AUTOBOOT_DISABLED:
 		default:
-			ClearState();
 			break;
 	}
 	return;
 }
+
 int main(int argc, char **argv)
 {
 	CheckForGecko();
 	gprintf("priiloader\n");
 	gprintf("Built   : %s %s\n", __DATE__, __TIME__ );
-	gprintf("Version : %d.%d (rev %s)\n", VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
+	gprintf("Version : %d.%dc (rev %s)\n", VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
 	gprintf("Firmware: %d.%d.%d\n", *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143 );
 
 	*(vu32*)0x80000020 = 0x0D15EA5E;				// Magic word (how did the console boot?)
@@ -2209,24 +2252,12 @@ int main(int argc, char **argv)
 		*(vu32*)0xCD8000C0 |= 0x20;
 		error=ERROR_ISFS_INIT;
 	}
+
+	LoadStub();
 	gprintf("\"Magic Priiloader word\": %x\n",*(vu32*)0x8132FFFB);
 	LoadSettings();
 	s16 Bootstate = CheckBootState();
 	gprintf("BootState:%d\n", Bootstate );
-	
-#ifdef DEBUG
-	MountDevices();
-	FILE *stub = fopen("fat:/stub1.bin","w");
-	if(stub)
-	{
-		gprintf("writing stub1...\n");
-		fwrite((void*)0x80001800,1,stub_bin_size,stub);
-		fclose(stub);
-	}
-	ShutdownDevices();
-#endif
-	LoadStub();
-	gprintf("loaded HBC stub\n");
 	
 	//Check reset button state
 	if( ((*(vu32*)0xCC003000)>>16)&1 && *(vu32*)0x8132FFFB != 0x4461636f) //0x4461636f = "Daco" in hex)
@@ -2524,7 +2555,7 @@ int main(int argc, char **argv)
 			{
 				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d(beta v%d)", VERSION>>8, VERSION&0xFF, BETAVERSION&0xFF );
 			} else {
-				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d (r%s)", VERSION>>8, VERSION&0xFF,SVN_REV_STR );
+				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%dc (r%s)", VERSION>>8, VERSION&0xFF,SVN_REV_STR );
 			}
 			PrintFormat( 0, 16, rmode->viHeight-64, "IOS v%d", (*(vu32*)0x80003140)>>16 );
 			PrintFormat( 0, 16, rmode->viHeight-48, "Systemmenu v%d", SysVersion );			

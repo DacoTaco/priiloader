@@ -26,18 +26,18 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define BETAVERSION	0
 
 typedef struct {
-	unsigned int autoboot;
-	unsigned int version;
-	unsigned int clean_level;
-	unsigned int ReturnTo;
-	unsigned int ShutdownToPreloader;
-	unsigned int StopDisc;
-	unsigned int ShowBetaUpdates;
-	unsigned int LidSlotOnError;
-	unsigned int IgnoreShutDownMode;
-	unsigned int BetaVersion;
-	unsigned int SystemMenuIOS;
-	char		padding[16];
+	u32 autoboot;
+	u32 version;
+	u32 clean_level;
+	u32 ReturnTo;
+	u8 ShutdownToPreloader;
+	u8 StopDisc;
+	u8 ShowBetaUpdates;
+	u8 LidSlotOnError;
+	u8 IgnoreShutDownMode;
+	u32 BetaVersion;
+	u8 SystemMenuIOS;
+	u8 padding[16];
 	bool UseSystemMenuIOS;
 	bool BlackBackground;
 } Settings;

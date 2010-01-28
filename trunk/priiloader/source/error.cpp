@@ -30,7 +30,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "settings.h"
 #include "font.h"
 
-u32 error = 0;
+u8 error = 0;
 
 void ShowError ( int height , int width )
 {
@@ -110,7 +110,11 @@ void ShowError ( int height , int width )
 			break;
 			case ERROR_SYSMENU_ESDIVERFIY_FAILED:
 				PrintFormat( 0, 16, height-128, "Error autobooting systemmenu!");
-				PrintFormat( 0, 16, height-112, "ES_DiVerfiy failed! no ios with it patched?");
+				PrintFormat( 0, 16, height-112, "ES_DiVerfiy failed! Is the IOS patched?");
+			break;
+			case ERROR_SYSMENU_IOSSTUB:
+				PrintFormat( 0, 16, height-128, "Error autobooting systemmenu!");
+				PrintFormat( 0, 16, height-112, "The going to load IOS was detected as Stub!");
 			break;
 			case ERROR_SYSMENU_GETTMDSIZEFAILED:
 				PrintFormat( 0, 16, height-128, "Error autobooting systemmenu!");
