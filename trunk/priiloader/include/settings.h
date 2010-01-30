@@ -40,6 +40,7 @@ typedef struct {
 	u8 padding[16];
 	bool UseSystemMenuIOS;
 	bool BlackBackground;
+	u8 ShowDebugText;
 } Settings;
 enum {
 		SETTING_AUTBOOT,
@@ -52,7 +53,8 @@ enum {
 		SETTING_BETAVERSION,
 		SETTING_SYSTEMMENUIOS,
 		SETTING_USESYSTEMMENUIOS,
-		SETTING_BLACKBACKGROUND
+		SETTING_BLACKBACKGROUND,
+		SETTING_SHOWDEBUGTEXT
 };
 
 enum {

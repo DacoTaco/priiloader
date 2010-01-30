@@ -29,12 +29,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <unistd.h>
 #include <string.h>
 #include <gccore.h>
 #include <ogc/usbgecko.h>
 
 void CheckForGecko( void );
 void gprintf( const char *str, ... );
+void SetShowDebug( u8 value );
 
 #ifdef __cplusplus
    }
