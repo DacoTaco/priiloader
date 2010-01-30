@@ -24,8 +24,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <unistd.h>
+#include <string.h>
+
 
 #include <gccore.h>
+#include <ogc/ios.h>
 #include <wiiuse/wpad.h>
 #include <sdcard/wiisd_io.h>
 #ifndef libELM
@@ -36,15 +40,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "elm.h"
 #endif
 #include <sys/dir.h>
-#include <unistd.h>
-#include <string.h>
 #include <malloc.h>
 #include <vector>
-#include <stdarg.h>
 #include <ctype.h>
-#include <unistd.h>
 #include <time.h>
-#include <ogc/ios.h>
 
 //Project files
 #include "../../Shared/svnrev.h"
@@ -559,9 +558,6 @@ void SysHackSettings( void )
 }
 void SetSettings( void )
 {
-	//Load Setting
-	LoadSettings();
-	
 	//clear screen and reset the background
 	ClearScreen();
 
@@ -620,8 +616,10 @@ void SetSettings( void )
 		}
 #endif
 		if ( (WPAD_Pressed & WPAD_BUTTON_B) || (PAD_Pressed & PAD_BUTTON_B) )
+		{
+			LoadSettings();
 			break;
-		
+		}
 		switch( cur_off )
 		{
 			case 0:
@@ -769,7 +767,24 @@ void SetSettings( void )
 				}
 			}
 			break;
-			case 7: //ignore ios reloading for system menu?
+			case 7: //show Debug Info
+				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT)	||
+					 (PAD_Pressed & PAD_BUTTON_LEFT)	||
+					 (WPAD_Pressed & WPAD_BUTTON_RIGHT)	||
+					 (PAD_Pressed & PAD_BUTTON_RIGHT)	||
+					 (WPAD_Pressed & WPAD_BUTTON_A)		||
+					 (PAD_Pressed & PAD_BUTTON_A)
+					)
+				{
+					if ( settings->ShowDebugText )
+						settings->ShowDebugText = 0;			
+					else
+						settings->ShowDebugText = 1;
+					SetShowDebug(settings->ShowDebugText);
+					redraw=true;
+				}
+			break;
+			case 8: //ignore ios reloading for system menu?
 			{
 				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT)	||
 					 (PAD_Pressed & PAD_BUTTON_LEFT)	||
@@ -793,7 +808,7 @@ void SetSettings( void )
 				}
 			}
 			break;
-			case 8:		//	System Menu IOS
+			case 9:		//	System Menu IOS
 			{
 				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT) || (PAD_Pressed & PAD_BUTTON_LEFT) )
 				{
@@ -831,7 +846,7 @@ void SetSettings( void )
 				}
 
 			} break;
-			case 9:
+			case 10:
 			{
 				if ( (WPAD_Pressed & WPAD_BUTTON_A) || (PAD_Pressed & PAD_BUTTON_A) )
 				{
@@ -850,19 +865,19 @@ void SetSettings( void )
 		if ( (WPAD_Pressed & WPAD_BUTTON_DOWN) || (PAD_Pressed & PAD_BUTTON_DOWN) )
 		{
 			cur_off++;
-			if( (settings->UseSystemMenuIOS) && (cur_off == 8))
+			if( (settings->UseSystemMenuIOS) && (cur_off == 9))
 				cur_off++;
-			if( cur_off >= 10)
+			if( cur_off >= 11)
 				cur_off = 0;
 			
 			redraw=true;
 		} else if ( (WPAD_Pressed & WPAD_BUTTON_UP) || (PAD_Pressed & PAD_BUTTON_UP) )
 		{
 			cur_off--;
-			if( (settings->UseSystemMenuIOS) && (cur_off == 8))
+			if( (settings->UseSystemMenuIOS) && (cur_off == 9))
 				cur_off--;
 			if( cur_off < 0 )
-				cur_off = 9;
+				cur_off = 10;
 			
 			redraw=true;
 		}
@@ -915,16 +930,17 @@ void SetSettings( void )
 			PrintFormat( cur_off==4, 0, 128+48, "   Light slot on error:          %s", settings->LidSlotOnError?"on ":"off");
 			PrintFormat( cur_off==5, 0, 128+64, "        Ignore standby:          %s", settings->IgnoreShutDownMode?"on ":"off");
 			PrintFormat( cur_off==6, 0, 128+80, "      Background Color:          %s", settings->BlackBackground?"Black":"White");
-			PrintFormat( cur_off==7, 0, 128+96, "   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
+			PrintFormat( cur_off==7, 0, 128+96, "       Show Debug Info:          %s", settings->ShowDebugText?"on ":"off");
+			PrintFormat( cur_off==8, 0, 128+112, "   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
 			if(!settings->UseSystemMenuIOS)
 			{
-				PrintFormat( cur_off==8, 0, 128+112, "     IOS to use for SM:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
+				PrintFormat( cur_off==9, 0, 128+128, "     IOS to use for SM:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
 			}
 			else
 			{
-				PrintFormat( cur_off==8, 0, 128+112,	"                                        ");
+				PrintFormat( cur_off==9, 0, 128+128,	"                                        ");
 			}
-			PrintFormat( cur_off==9, 118, 128+144, "save settings");
+			PrintFormat( cur_off==10, 118, 128+160, "save settings");
 			PrintFormat( 0, 114, 256+96, "                 ");
 
 			redraw = false;
@@ -2221,7 +2237,33 @@ void Autoboot_System( void )
 	}
 	return;
 }
+void InitVideo ( void )
+{
+	VIDEO_Init();
 
+	rmode = VIDEO_GetPreferredMode(NULL);
+
+	//apparently the video likes to be bigger then it actually is on NTSC/PAL60/480p. lets fix that!
+	if( rmode->viTVMode == VI_NTSC || rmode->viTVMode == VI_EURGB60 || CONF_GetProgressiveScan() )
+	{
+		//the correct one would be * 0.035 to be sure to get on the Action safe of the screen. but thats way to much
+		GX_AdjustForOverscan(rmode, rmode, 0, rmode->viWidth * 0.026 ); 
+	}
+
+	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
+	
+	console_init( xfb, 20, 20, rmode->fbWidth, rmode->xfbHeight, rmode->fbWidth*VI_DISPLAY_PIX_SZ );
+
+	VIDEO_Configure(rmode);
+	VIDEO_SetNextFramebuffer(xfb);
+	VIDEO_SetBlack(FALSE);
+	VIDEO_Flush();
+
+	VIDEO_WaitVSync();
+	if(rmode->viTVMode&VI_NON_INTERLACE)
+		VIDEO_WaitVSync();
+	gprintf("resolution is %dx%d\n",rmode->viWidth,rmode->viHeight);
+}
 int main(int argc, char **argv)
 {
 	CheckForGecko();
@@ -2256,6 +2298,12 @@ int main(int argc, char **argv)
 	LoadStub();
 	gprintf("\"Magic Priiloader word\": %x\n",*(vu32*)0x8132FFFB);
 	LoadSettings();
+	SetShowDebug(SGetSetting(SETTING_SHOWDEBUGTEXT));
+	if ( SGetSetting(SETTING_SHOWDEBUGTEXT) != 0 )
+	{
+		InitVideo();
+	}
+
 	s16 Bootstate = CheckBootState();
 	gprintf("BootState:%d\n", Bootstate );
 	
@@ -2393,31 +2441,11 @@ int main(int argc, char **argv)
 		gprintf("Reset Button is hold down\n");
 	}
 	
-	//do video init first so we can see crash screens
-	VIDEO_Init();
-
-	rmode = VIDEO_GetPreferredMode(NULL);
-
-	//apparently the video likes to be bigger then it actually is on NTSC/PAL60/480p. lets fix that!
-	if( rmode->viTVMode == VI_NTSC || rmode->viTVMode == VI_EURGB60 || CONF_GetProgressiveScan() )
+	if ( SGetSetting(SETTING_SHOWDEBUGTEXT) == 0 )
 	{
-		//the correct one would be * 0.035 to be sure to get on the Action safe of the screen. but thats way to much
-		GX_AdjustForOverscan(rmode, rmode, 0, rmode->viWidth * 0.026 ); 
+		//init video first so we can see crashes :)
+		InitVideo();
 	}
-
-	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
-	
-	console_init( xfb, 20, 20, rmode->fbWidth, rmode->xfbHeight, rmode->fbWidth*VI_DISPLAY_PIX_SZ );
-
-	VIDEO_Configure(rmode);
-	VIDEO_SetNextFramebuffer(xfb);
-	VIDEO_SetBlack(FALSE);
-	VIDEO_Flush();
-
-	VIDEO_WaitVSync();
-	if(rmode->viTVMode&VI_NON_INTERLACE)
-		VIDEO_WaitVSync();
-	gprintf("resolution is %dx%d\n",rmode->viWidth,rmode->viHeight);
 
 	AUDIO_Init (NULL);
 	DSP_Init ();

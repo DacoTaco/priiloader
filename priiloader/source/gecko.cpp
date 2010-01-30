@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include "gecko.h"
 u8 GeckoFound = 0;
+u8 ShowDebug = 0;
 
 void CheckForGecko( void )
 {
@@ -32,7 +33,7 @@ void CheckForGecko( void )
 }
 void gprintf( const char *str, ... )
 {
-	if(!GeckoFound)
+	if(!GeckoFound && !ShowDebug)
 		return;
 
 	char astr[4096];
@@ -45,4 +46,13 @@ void gprintf( const char *str, ... )
 	va_end(ap);
 	
 	usb_sendbuffer( 1, astr, strlen(astr) );
+	if (ShowDebug)
+	{
+		printf(astr);
+		sleep(2);
+	}
+}
+void SetShowDebug( u8 value )
+{
+	ShowDebug = value;
 }

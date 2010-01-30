@@ -136,7 +136,8 @@ u32 SGetSetting( u32 s )
 
 		case SETTING_BLACKBACKGROUND:
 			return settings->BlackBackground;
-
+		case SETTING_SHOWDEBUGTEXT:
+			return settings->ShowDebugText;
 		default:
 			return 0;
 		break;

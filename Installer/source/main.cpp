@@ -87,7 +87,7 @@ const char* abort(const char* msg, ...)
 	va_start( args, msg );
 	strcpy( text + vsprintf( text,msg,args ),""); 
 	va_end( args );
-
+	printf("\x1b[%u;%dm", 36, 1);
 	printf("%s, aborting mission...", text);
 	gprintf("%s, aborting mission...", text);
 	ISFS_Deinitialize();
@@ -289,8 +289,6 @@ bool UserYesNoStop()
 
 int main(int argc, char **argv)
 {
-	bool CopyTicket = false;
-	
 	VIDEO_Init();
 	vmode = VIDEO_GetPreferredMode(NULL);
 	//adjust overscan a bit
@@ -350,11 +348,13 @@ int main(int argc, char **argv)
 			fd = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)su_tmd, su_tmd_size, (signed_blob *)su_tik, su_tik_size, &tmp_ikey);
 			if(fd > 0)
 			{
+				printf("\x1b[%u;%dm", 33, 1);
 				printf("ES_Identify failed, error %u. ios%d not patched with ES_DIVerify?\n",fd,IOS_GetVersion());
 				printf("using cios (holding b and then pressing + or - ) will probably solve this. NOTE: you need CIOS for this.\n");
 				printf("Do you wish to continue?\n");
 				printf("A = Yes       B = No       Home = Exit\n");
-				if(UserYesNoStop())
+				printf("\x1b[%u;%dm", 37, 1);
+				if(!UserYesNoStop())
 				{
 					abort("ES_Identify failed");
 				}
@@ -368,47 +368,7 @@ int main(int argc, char **argv)
 			if (ISFS_Initialize() < 0)
 				abort("Failed to get root");
 			printf("Got ROOT!\n");
-			
-			//check if the copy ticket exists
-			fd = ISFS_Open("/title/00000001/00000002/content/ticket",ISFS_OPEN_READ);
-			if (fd <0)
-			{
-				printf("Priiloader system menu ticket not found.\nTrying to read original ticket...\n");
-				ISFS_Close(fd);
-				fd = ISFS_Open("/ticket/00000001/00000002.tik",ISFS_OPEN_READ);
-				//"/ticket/00000001/00000002.tik" -> original path which should be there on every wii.
-				//however needs nand permissions which SU doesn't have without trucha? >_>
-				//we need mini if we want to be patch free...
-				if (fd < 0)
-				{
-					switch(fd)
-					{
-						case ISFS_EINVAL:
-							abort("Unable to read ticket.path is wrong/to long or ISFS isn't init yet?");
-							break;
-						case ISFS_ENOMEM:
-							abort("Unable to read ticket.(Out of memory)");
-							break;
-						case -106:
-							abort("Ticket not found");
-							break;
-						case -102:
-							abort("Unautorised to get ticket. is ios%d trucha signed?",IOS_GetVersion());
-							break;
-						default:
-							abort("Unable to read ticket. error %d. ",fd);
-							break;
-					}
-
-				}
-				else
-				{
-					printf("Original ticket loaded & set for copy\n");
-					CopyTicket = true;
-				}
-			}
-			ISFS_Close(fd);
-
+		
 			//read TMD so we can get the main booting dol
 			fs = ES_GetStoredTMDSize(title_id,&tmd_size);
 			if (fs < 0)
@@ -467,8 +427,53 @@ int main(int argc, char **argv)
 			{
 				fstats * status;
 				s32 ret = 0;
+				bool CopyTicket = false;
 				bool Priiloader_found = false;
 				printf("Checking for Priiloader...\n");
+
+				//check if the copy ticket exists
+				gprintf("checking for copy ticket...\n");
+				fd = ISFS_Open("/title/00000001/00000002/content/ticket",ISFS_OPEN_READ);
+				if (fd <0)
+				{
+					printf("\tPriiloader system menu ticket not found.\n\tTrying to read original ticket...\n");
+					ISFS_Close(fd);
+					fd = ISFS_Open("/ticket/00000001/00000002.tik",ISFS_OPEN_READ);
+					//"/ticket/00000001/00000002.tik" -> original path which should be there on every wii.
+					//however needs nand permissions which SU doesn't have without trucha? >_>
+					//we need mini if we want to be patch free...
+					if (fd < 0)
+					{
+						switch(fd)
+						{
+							case ISFS_EINVAL:
+								abort("Unable to read ticket.path is wrong/to long or ISFS isn't init yet?");
+								break;
+							case ISFS_ENOMEM:
+								abort("Unable to read ticket.(Out of memory)");
+								break;
+							case -106:
+								abort("Ticket not found");
+								break;
+							case -102:
+								abort("Unautorised to get ticket. is ios%d trucha signed?",IOS_GetVersion());
+								break;
+							default:
+								abort("Unable to read ticket. error %d. ",fd);
+								break;
+						}
+
+					}
+					else
+					{
+						printf("\tOriginal ticket loaded & set for copy\n");
+						CopyTicket = true;
+					}
+				}
+				ISFS_Close(fd);
+				
+				//check copy app
+				gprintf("checking for copy of SystemMenu Dol\n");
 				fd = ISFS_Open(copy_app,ISFS_OPEN_RW);
 				if (fd < 0)
 				{
@@ -480,8 +485,10 @@ int main(int argc, char **argv)
 					status = (fstats*)memalign(32,sizeof(fstats));
 					if (ISFS_GetFileStats(fd,status) < 0)
 					{
+						printf("\x1b[%u;%dm", 33, 1);
 						printf("\n\nWARNING: failed to get stats of %s.  Ignore Priiloader \"installation\" ?\n",copy_app);
 						printf("A = Yes       B = No(Recommended if priiloader is installed)       Home = Exit\n");
+						printf("\x1b[%u;%dm", 37, 1);
 						if(UserYesNoStop())
 						{
 							printf("Ignoring Priiloader Installation...\n\n");
@@ -497,9 +504,11 @@ int main(int argc, char **argv)
 					{
 						if ( status->file_length == 0 )
 						{
+							printf("\x1b[%u;%dm", 33, 1);
 							printf("\n\nWARNING: %s is reported as 0kB!\n  Ignore priiloader \"installation\" ?\n",copy_app);
 							printf("It is recommended that you ignore the installation if Priiloader hasn't\n  succesfully installed yet\n");
 							printf("A = Yes       B = No       Home = Exit\n");
+							printf("\x1b[%u;%dm", 37, 1);
 							if(UserYesNoStop())
 							{
 								printf("Ignoring Priiloader \"Installation\"...\n\nReinstalling Priiloader...\n\n\n");
@@ -556,10 +565,12 @@ int main(int argc, char **argv)
 						if (ret == -80)
 						{
 							//checksum issues
+							printf("\x1b[%u;%dm", 33, 1);
 							printf("\nWARNING!!\n  Installer could not calculate the Checksum for the System menu app");
 							printf("\nbut Copy was successfull.\n");
 							printf("Do you want the Continue ?\n");
 							printf("A = Yes       B = No       Home = Exit\n  ");
+							printf("\x1b[%u;%dm", 37, 1);
 							if(!UserYesNoStop())
 							{
 								printf("reverting changes...\n");
@@ -700,10 +711,12 @@ int main(int argc, char **argv)
 						if(ret == -80)
 						{
 							//checksum issues
+							printf("\x1b[%u;%dm", 33, 1);
 							printf("\nWARNING!!\n  Installer could not calculate the Checksum when coping the System menu app\n");
 							printf("back! the app however was copied...\n");
 							printf("Do you want to Continue ?\n");
 							printf("A = Yes       B = No       Home = Exit\n  ");
+							printf("\x1b[%u;%dm", 37, 1);
 							if(!UserYesNoStop())
 							{
 								printf("reverting changes...\n");
