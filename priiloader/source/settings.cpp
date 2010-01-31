@@ -29,6 +29,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include "settings.h"
 #include "error.h"
+#include "gecko.h"
 
 Settings *settings=NULL;
 u8 ShowUpdate=0;
@@ -116,9 +117,6 @@ u32 SGetSetting( u32 s )
 		case SETTING_STOPDISC:
 			return settings->StopDisc;
 
-		case SETTING_SHOWBETAUPDATE:
-			return settings->ShowBetaUpdates;
-
 		case SETTING_LIDSLOTONERROR:
 			return settings->LidSlotOnError;
 
@@ -153,7 +151,6 @@ void LoadSettings( void )
 	memset( settings, 0, sizeof( Settings ) );
 	
 	s32 fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", 1|2 );
-
 	if( fd < 0 )
 	{
 		//file not found create a new one
@@ -163,7 +160,33 @@ void LoadSettings( void )
 		settings->UseSystemMenuIOS = true;
 		settings->autoboot = AUTOBOOT_SYS;
 		fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", 1|2 );
-
+		if( fd < 0 )
+		{
+			error = ERROR_SETTING_OPEN;
+			return;
+		}
+		if(ISFS_Write( fd, settings, sizeof( Settings ) )<0)
+		{
+			ISFS_Close( fd );
+			error = ERROR_SETTING_WRITE;
+			return;
+		}
+		ISFS_Seek( fd, 0, 0 );
+	}
+	fstats *status = (fstats*)memalign(32,(sizeof(fstats)+31)&(~31));
+	memset(status,0,sizeof(fstats));
+	ISFS_GetFileStats(fd,status);
+	if ( status->file_length != sizeof(Settings) )
+	{
+		ISFS_Close(fd);
+		gprintf("different Setting sizes, deleting old and creating new...\n");
+		//file not found create a new one
+		ISFS_CreateFile("/title/00000001/00000002/data/loader.ini", 0, 3, 3, 3);
+		//set a few default settings
+		settings->version = VERSION;
+		settings->UseSystemMenuIOS = true;
+		settings->autoboot = AUTOBOOT_SYS;
+		fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", 1|2 );
 		if( fd < 0 )
 		{
 			error = ERROR_SETTING_OPEN;

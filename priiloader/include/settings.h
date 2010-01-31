@@ -28,18 +28,15 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 typedef struct {
 	u32 autoboot;
 	u32 version;
-	u32 clean_level;
 	u32 ReturnTo;
 	u8 ShutdownToPreloader;
 	u8 StopDisc;
-	u8 ShowBetaUpdates;
 	u8 LidSlotOnError;
 	u8 IgnoreShutDownMode;
 	u32 BetaVersion;
 	u8 SystemMenuIOS;
-	u8 padding[16];
-	bool UseSystemMenuIOS;
-	bool BlackBackground;
+	u8 UseSystemMenuIOS;
+	u8 BlackBackground;
 	u8 ShowDebugText;
 } Settings;
 enum {
