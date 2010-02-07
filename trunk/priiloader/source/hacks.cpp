@@ -94,11 +94,11 @@ u32 LoadHacks( void )
 {
 	if( hacks.size() ) //Hacks already loaded
 	{
-// Delete old Hacks entries
+		hacks.clear();
 		hacks.resize(0);
-		delete[] states;
-		states = NULL;
-		foff=0;
+        free(states);//delete[] states;
+        states = NULL;
+        foff=0;
 	}
 
 	bool mode = true;
@@ -115,8 +115,9 @@ u32 LoadHacks( void )
 		if( fd < 0 )
 		{
 			//printf("Couldn't find \"hacks.ini\" neither on FAT nor on NAND!\n");
-			//PrintFormat( 1, ((640/2)-((strlen("Couldn't find \"hacks.ini\""))*13/2))>>1, 208, "Couldn't find \"hacks.ini\"");
-			//PrintFormat( 1, ((640/2)-((strlen("neither on FAT nor on NAND!"))*13/2))>>1, 228, "neither on FAT nor on NAND!");
+			/*PrintFormat( 1, ((640/2)-((strlen("Couldn't find \"hacks.ini\""))*13/2))>>1, 208, "Couldn't find \"hacks.ini\"");
+			PrintFormat( 1, ((640/2)-((strlen("neither on FAT nor on NAND!"))*13/2))>>1, 228, "neither on FAT nor on NAND!");
+			sleep(2);*/
 			gprintf("Hacks.ini not found on either FAT or NAND. ISFS_Open returned %d\n",fd);
 			return 0;
 		} 
@@ -138,7 +139,7 @@ u32 LoadHacks( void )
 			return 0;
 		}
 
-		buf = (char*)memalign( 32, size+1 );
+		buf = (char*)memalign( 32, (size+32)&(~31) );
 		if( buf == NULL )
 		{
 			error = ERROR_MALLOC;
@@ -155,7 +156,7 @@ u32 LoadHacks( void )
 
 	} else {	//read file from NAND
 
-		fstats *status = (fstats *)memalign( 32, sizeof( fstats ) );
+		fstats *status = (fstats *)memalign( 32, (sizeof( fstats )+32)&(~31) );
 		ISFS_GetFileStats( fd, status);
 		size = status->file_length;
 		free( status );
@@ -183,7 +184,7 @@ u32 LoadHacks( void )
 	{
 		//printf("Error 1: syntax error : expected EOF at line %d\n", line );
 		PrintFormat( 1, ((640/2)-((strlen("Syntax error : expected EOF at line   "))*13/2))>>1, 208, "Syntax error : expected EOF at line %d", line);
-		hacks.resize(0);
+		hacks.clear();
 		sleep(10);
 		return 0;
 	}
@@ -199,7 +200,7 @@ u32 LoadHacks( void )
 		{
 			//printf("Error 2: syntax error : missing '[' before '\\n' at line %d\n", line );
 			PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing '[' before 'n' at line   "))*13/2))>>1, 208, "Syntax error : missing '[' before 'n' at line %d", line);
-			hacks.resize(0);
+			hacks.clear();
 			sleep(10);
 			return 0;
 		}
@@ -209,7 +210,7 @@ u32 LoadHacks( void )
 		{
 			//printf("Error 3: syntax error : missing ']' before '\\n' at line %d\n", line );
 			PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing ']' before 'n' at line   "))*13/2))>>1, 208, "Syntax error : missing ']' before 'n' at line %d", line);
-			hacks.resize(0);
+			hacks.clear();
 			sleep(10);
 			return 0;
 		}
@@ -220,7 +221,6 @@ u32 LoadHacks( void )
 		hacks[hacks.size()-1].desc = new char[strlen(s)+1];
 		memcpy( hacks[hacks.size()-1].desc, s, strlen(s)+1 );
 		hacks[hacks.size()-1].desc[strlen(s)] = 0;
-
 		free( lbuf );
 
 		line++;
@@ -229,7 +229,7 @@ u32 LoadHacks( void )
 		{
 			//printf("Error 4: syntax error : expected EOF at line %d\n", line );
 			PrintFormat( 1, ((640/2)-((strlen("Syntax error : expected EOF at line   "))*13/2))>>1, 208, "Syntax error : expected EOF at line %d", line);
-			hacks.resize(0);
+			hacks.clear();
 			sleep(10);
 			return 0;
 		}
@@ -240,7 +240,7 @@ u32 LoadHacks( void )
 			{
 				//printf("Error 5: syntax error : missing '=' before '\\n' at line %d\n", line );
 				PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing '=' before 'n' at line   "))*13/2))>>1, 208, "Syntax error : missing '=' before 'n' at line %d", line);
-				hacks.resize(0);
+				hacks.clear();
 				sleep(10);
 				return 0;
 			}
@@ -249,14 +249,14 @@ u32 LoadHacks( void )
 			{
 				//printf("Error 5: syntax error : missing value before '\\n' at line %d\n", line );
 				PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing value before 'n' at line   "))*13/2))>>1, 208, "Syntax error : missing value before 'n' at line %d", line);
-				hacks.resize(0);
+				hacks.clear();
 				sleep(10);
 				return 0;
 			}
 		} else {
 			//printf("Error 6: syntax error : expected 'version' before '\\n' at line %d\n", line );
 			PrintFormat( 1, ((640/2)-((strlen("Syntax error : expected 'version' before 'n' at line   "))*13/2))>>1, 208, "Syntax error : expected 'version' before 'n' at line %d", line);
-			hacks.resize(0);
+			hacks.clear();
 			sleep(10);
 			return 0;
 		}
@@ -269,11 +269,10 @@ u32 LoadHacks( void )
 		{
 			//printf("Error 12: syntax error : version is zero at line %d\n", line );
 			PrintFormat( 1, ((640/2)-((strlen("Error : version is zero at line   "))*13/2))>>1, 208, "Error : version is zero at line %d", line);
-			hacks.resize(0);
+			hacks.clear();
 			sleep(10);
 			return 0;
 		}
-
 		free( lbuf );
 
 		while(1)
@@ -290,7 +289,7 @@ u32 LoadHacks( void )
 				{
 					//printf("Error 5: syntax error : missing '=' before '\\n' at line %d\n", line );
 					PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing '=' before 'n' at line   "))*13/2))>>1, 208, "Syntax error : missing '=' before 'n' at line %d", line);
-					hacks.resize(0);
+					hacks.clear();
 					sleep(10);
 					return 0;
 				}
@@ -299,7 +298,7 @@ u32 LoadHacks( void )
 				{
 					//printf("Error 7: syntax error : expected value before '\\n' at line %d\n", line );
 					PrintFormat( 1, ((640/2)-((strlen("Syntax error : expected value before 'n' at line   "))*13/2))>>1, 208, "Syntax error : expected value before 'n' at line %d", line);
-					hacks.resize(0);
+					hacks.clear();
 					sleep(10);
 					return 0;
 				}
@@ -319,7 +318,7 @@ u32 LoadHacks( void )
 				{
 					//printf("Error 5: syntax error : missing '=' before '\\n' at line %d\n", line );
 					PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing '=' before 'n' at line   "))*13/2))>>1, 208, "Syntax error : missing '=' before 'n' at line %d", line);
-					hacks.resize(0);
+					hacks.clear();
 					sleep(10);
 					return 0;
 				}
@@ -328,7 +327,7 @@ u32 LoadHacks( void )
 				{
 					//printf("Error 8: syntax error : expected value before '\\n' at line %d\n", line );
 					PrintFormat( 1, ((640/2)-((strlen("Syntax error : expected value before 'n' at line   "))*13/2))>>1, 208, "Syntax error : expected value before 'n' at line %d", line);
-					hacks.resize(0);
+					hacks.clear();
 					sleep(10);
 					return 0;
 				}
@@ -346,14 +345,14 @@ u32 LoadHacks( void )
 				{
 					//printf("Error 9: syntax error : found more values than offsets at line %d\n", line );
 					PrintFormat( 1, ((640/2)-((strlen("Error : found more values than offsets at line   "))*13/2))>>1, 208, "Error : found more values than offsets at line %d", line);
-					hacks.resize(0);
+					hacks.clear();
 					sleep(10);
 					return 0;
 				} else if ( hacks[hacks.size()-1].value.size() < hacks[hacks.size()-1].offset.size() ) {
 
 					//printf("Error 10: syntax error : found more offsets than values at line %d\n", line );
 					PrintFormat( 1, ((640/2)-((strlen("Error : found more offsets than values at line   "))*13/2))>>1, 208, "Error : found more offsets than values at line %d", line);
-					hacks.resize(0);
+					hacks.clear();
 					sleep(10);
 					return 0;
 				}
@@ -361,14 +360,13 @@ u32 LoadHacks( void )
 			} else {
 				//printf("Error 11: syntax error : expected 'offset' or 'value' before '\\n' at line %d\n", line );
 				PrintFormat( 1, ((640/2)-((strlen("Syntax error : expected 'offset' or 'value' before 'n' at line   "))*13/2))>>1, 208, "Syntax error : expected 'offset' or 'value' before 'n' at line %d", line);
-				hacks.resize(0);
+				hacks.clear();
 				sleep(10);
 				return 0;
 			}
 			free( lbuf );
 		}
 	}
-
 	free(buf);
 
 	if(hacks.size()==0)
@@ -403,13 +401,13 @@ u32 LoadHacks( void )
 		ISFS_Seek( fd, 0, 0 );
 	}
 
-	fstats *status = (fstats *)memalign( 32, sizeof(fstats) );
+	fstats *status = (fstats *)memalign( 32, (sizeof(fstats)+32)&(~31) );
 	if( status == NULL )
 	{
 		error = ERROR_MALLOC;
 		return 0;
 	}
-	memset( status, 0, sizeof(fstats) );
+	memset( status, 0, (sizeof(fstats)+32)&(~31) );
 
 	if(ISFS_GetFileStats( fd, status)<0)
 		return 0;
@@ -431,14 +429,18 @@ u32 LoadHacks( void )
 		memcpy( states, fbuf, status->file_length );
 
 	free( fbuf );
+	free( status );
 
 	ISFS_Close( fd );
 
 	//Set all hacks from other regions to 0
 	unsigned int sysver = GetSysMenuVersion();
 	for( u32 i=0; i < hacks.size(); ++i)
+	{
 		if( hacks[i].version != sysver )
+		{
 			states[i] = 0;
-
+		}
+	}
 	return 1;
 }
