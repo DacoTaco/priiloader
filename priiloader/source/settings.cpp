@@ -37,64 +37,67 @@ extern u8 error;
 u32 GetSysMenuVersion( void )
 {
 	//Get sysversion from TMD
-	static u64 TitleID ATTRIBUTE_ALIGN(32) = 0x0000000100000002LL;
-	static u32 tmd_size ATTRIBUTE_ALIGN(32);
-
-	s32 r=ES_GetStoredTMDSize(TitleID, &tmd_size);
-#ifdef DEBUG
-	printf("ES_GetStoredTMDSize(%llX, %08X):%d\n", TitleID, (u32)(&tmd_size), r );
-#endif
+	u64 TitleID = 0x0000000100000002LL;
+	u32 tmd_size;
+	s32 r = ES_GetTMDViewSize(TitleID, &tmd_size);
 	if(r<0)
+	{
+		gprintf("error getting TMD views Size. error %d\n",r);
 		return 0;
+	}
 
-	signed_blob *TMD = (signed_blob *)memalign( 32, (tmd_size+32)&(~31) );
-	memset(TMD, 0, tmd_size);
-
-	r=ES_GetStoredTMD(TitleID, TMD, tmd_size);
-#ifdef DEBUG
-	printf("ES_GetStoredTMD(%llX, %08X, %d):%d\n", TitleID, (u32)(TMD), tmd_size, r );
-#endif
+	u8 *tmd_data = (u8 *)memalign( 32, tmd_size );
+	if( tmd_data == NULL )
+	{
+		gprintf("error making memory for tmd views\n");
+		return 0;
+	}
+	memset(tmd_data, 0, tmd_size );
+	r = ES_GetTMDView(TitleID, tmd_data, tmd_size);
 	if(r<0)
+	{
+		gprintf("error getting TMD views. error %d\n",r);
+		free( tmd_data );
 		return 0;
-	
-	tmd *rTMD = (tmd *)(TMD+(0x140/sizeof(tmd *)));
-
+	}
+	tmd_view *rTMD = (tmd_view*)SIGNATURE_PAYLOAD(tmd_data);
 	u32 version = rTMD->title_version;
-
-	free( TMD );
-
+	if(tmd_data)
+		free(tmd_data);
 	return version;
 }
 
 u32 GetSysMenuIOS( void )
 {
 	//Get sysversion from TMD
-	static u64 TitleID ATTRIBUTE_ALIGN(32) = 0x0000000100000002LL;
-	static u32 tmd_size ATTRIBUTE_ALIGN(32);
+	u64 TitleID = 0x0000000100000002LL;
+	u32 tmd_size;
 
-	s32 r=ES_GetStoredTMDSize(TitleID, &tmd_size);
-#ifdef DEBUG
-	printf("ES_GetStoredTMDSize(%llX, %08X):%d\n", TitleID, (u32)(&tmd_size), r );
-#endif
+	s32 r = ES_GetTMDViewSize(TitleID, &tmd_size);
 	if(r<0)
+	{
+		gprintf("error getting TMD views Size. error %d\n",r);
 		return 0;
+	}
 
-	signed_blob *TMD = (signed_blob *)memalign( 32, (tmd_size+32)&(~31) );
-	memset(TMD, 0, tmd_size);
-
-	r=ES_GetStoredTMD(TitleID, TMD, tmd_size);
-#ifdef DEBUG
-	printf("ES_GetStoredTMD(%llX, %08X, %d):%d\n", TitleID, (u32)(TMD), tmd_size, r );
-#endif
+	u8 *tmd_data = (u8 *)memalign( 32, (tmd_size+32)&(~31) );
+	if( tmd_data == NULL )
+	{
+		gprintf("error making memory for tmd views\n");
+		return 0;
+	}
+	memset(tmd_data, 0, (tmd_size+32)&(~31) );
+	r = ES_GetTMDView(TitleID, tmd_data, tmd_size);
 	if(r<0)
+	{
+		gprintf("error getting TMD views. error %d\n",r);
+		free( tmd_data );
 		return 0;
-	
-	tmd *rTMD = (tmd *)(TMD+(0x140/sizeof(tmd *)));
-
-	u32 IOS = rTMD->sys_version;
-
-	free( TMD );
-
+	}
+	tmd_view *rTMD = (tmd_view*)SIGNATURE_PAYLOAD(tmd_data);
+	u8 IOS = rTMD->sys_version;
+	if(tmd_data)
+		free(tmd_data);
 	return IOS;
 }
 

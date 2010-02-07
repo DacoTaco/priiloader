@@ -141,7 +141,7 @@ u8 DetectHBC( void )
 
     if(!ret)
 	{
-		gprintf("neither JODI or HBC found");
+		gprintf("neither JODI nor HBC found");
 	}
 	return ret;
 }
@@ -233,26 +233,29 @@ void ClearScreen()
 bool isIOSstub(u8 ios_number)
 {
 	u32 tmd_size = NULL;
-	tmd *ios_tmd ATTRIBUTE_ALIGN(32);
+	tmd_view *ios_tmd;
 
-	ES_GetStoredTMDSize(0x0000000100000000ULL | ios_number, &tmd_size);
+	ES_GetTMDViewSize(0x0000000100000000ULL | ios_number, &tmd_size);
 	if (!tmd_size)
 	{
 		//getting size failed. invalid or fake tmd for sure!
 		gprintf("failed to get tmd for ios %d\n",ios_number);
 		return true;
 	}
-	signed_blob *ios_tmd_buf = (signed_blob *)memalign( 32, (tmd_size+32)&(~31) );
+	u8 *ios_tmd_buf = (u8 *)memalign( 32, (tmd_size+32)&(~31) );
+	if(!ios_tmd_buf)
+	{
+		gprintf("failed to mem align the tmp buffer\n");
+		return true;
+	}
 	memset(ios_tmd_buf, 0, tmd_size);
-
-	ES_GetStoredTMD(0x0000000100000000ULL | ios_number, ios_tmd_buf, tmd_size);
-	ios_tmd = (tmd *)SIGNATURE_PAYLOAD(ios_tmd_buf);
-	free(ios_tmd_buf);
+	ES_GetTMDView(0x0000000100000000ULL | ios_number, ios_tmd_buf, tmd_size);
+	ios_tmd = (tmd_view*)SIGNATURE_PAYLOAD(ios_tmd_buf);
 	gprintf("IOS %d is rev %d(0x%x) with tmd size of %u and %u contents\n",ios_number,ios_tmd->title_version,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
 	/*Stubs have a few things in common¨:
 	- title version : it is mostly 65280 , or even better : in hex the last 2 digits are 0. 
 		example : IOS 60 rev 6400 = 0x1900 = 00 = stub
-	- exception for IOS21 which is active, the tmd size is 592 bytes
+	- exception for IOS21 which is active, the tmd size is 592 bytes (or 140 with the views)
 	- the stub ios' have 1 app of their own (type 0x1) and 2 shared apps (type 0x8001).
 	eventho the 00 check seems to work fine , we'll only use other knowledge as well cause some
 	people/applications install an ios with a stub rev >_> ...*/
@@ -266,15 +269,21 @@ bool isIOSstub(u8 ios_number)
 		if ( ( ios_tmd->num_contents == 3) && (ios_tmd->contents[0].type == 1 && ios_tmd->contents[1].type == 0x8001 && ios_tmd->contents[2].type == 0x8001) )
 		{
 			gprintf("IOS %d is a stub\n",ios_number);
+			free(ios_tmd_buf);
+			free(ios_tmd);
 			return true;
 		}
 		else
 		{
 			gprintf("IOS %d is active\n",ios_number);
+			free(ios_tmd_buf);
+			free(ios_tmd);
 			return false;
 		}
 	}
 	gprintf("IOS %d is active\n",ios_number);
+	free(ios_tmd_buf);
+	free(ios_tmd);
 	return false;
 }
 
@@ -285,9 +294,15 @@ void SysHackSettings( void )
 	if( !LoadHacks() )
 	{
 		if(!DeviceFound)
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to mount fat device"))*13/2))>>1, 208+16, "Failed to mount fat device");
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Can't find Hacks.ini on NAND"))*13/2))>>1, 208+16+16, "Can't find Hacks.ini on NAND");
-		sleep(5);
+		{
+			if (rmode != NULL)
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to mount fat device"))*13/2))>>1, 208+16, "Failed to mount fat device");
+		}
+		if (rmode != NULL)
+		{
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Can't find Hacks.ini on NAND"))*13/2))>>1, 208+16+16, "Can't find Hacks.ini on NAND");
+			sleep(5);
+		}
 		return;
 	}
 
@@ -305,9 +320,12 @@ void SysHackSettings( void )
 
 	if( HackCount == 0 )
 	{
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Couldn't find any hacks for"))*13/2))>>1, 208, "Couldn't find any hacks for");
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("System Menu version:vxxx"))*13/2))>>1, 228, "System Menu version:v%d", SysVersion );
-		sleep(5);
+		if (rmode != NULL)
+		{
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Couldn't find any hacks for"))*13/2))>>1, 208, "Couldn't find any hacks for");
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("System Menu version:vxxx"))*13/2))>>1, 228, "System Menu version:v%d", SysVersion );
+			sleep(5);
+		}
 		return;
 	}
 
@@ -953,8 +971,8 @@ void SetSettings( void )
 }
 void LoadHBC( void )
 {
-	//Note By DacoTaco :check for new (0x000100014A4F4449 - JODI) HBC id
-	//or old one(0x0001000148415858 - HAXX)
+	//Note By DacoTaco :check for new (0x00010001/4A4F4449 - JODI) HBC id
+	//or old one(0x0001000/148415858 - HAXX)
 	u64 TitleID = 0;
 	switch (DetectHBC())
 	{
@@ -991,8 +1009,11 @@ void LoadBootMii( void )
 		return;
 	if (!RemountDevices())
 	{
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not mount any FAT device"))*13/2))>>1, 208, "Could not mount any FAT device");
-		sleep(5);
+		if(rmode != NULL)
+		{
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not mount any FAT device"))*13/2))>>1, 208, "Could not mount any FAT device");
+			sleep(5);
+		}
 		return;
 	}
 #ifndef libELM
@@ -1002,8 +1023,11 @@ void LoadBootMii( void )
 #endif
 	if (!BootmiiFile)
 	{
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not find fat:/bootmii/armboot.bin"))*13/2))>>1, 208, "Could not find fat:/bootmii/armboot.bin");
-		sleep(5);
+		if(rmode != NULL)
+		{
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not find fat:/bootmii/armboot.bin"))*13/2))>>1, 208, "Could not find fat:/bootmii/armboot.bin");
+			sleep(5);
+		}
 		return;
 	}
 	else
@@ -1016,8 +1040,11 @@ void LoadBootMii( void )
 #endif
 		if(!BootmiiFile)
 		{
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not find fat:/bootmii/ppcboot.elf"))*13/2))>>1, 208, "Could not find fat:/bootmii/ppcboot.elf");
-			sleep(5);
+			if(rmode != NULL)
+			{	
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not find fat:/bootmii/ppcboot.elf"))*13/2))>>1, 208, "Could not find fat:/bootmii/ppcboot.elf");
+				sleep(5);
+			}
 			return;
 		}
 	}
@@ -1039,17 +1066,39 @@ void LoadBootMii( void )
 }
 void BootMainSysMenu( void )
 {
-	static u64 TitleID ATTRIBUTE_ALIGN(32)=0x0000000100000002LL;
-	static u32 tmd_size ATTRIBUTE_ALIGN(32);
-	static u32 tempKeyID ATTRIBUTE_ALIGN(32);
+	//memory block variables used within the function:
+	//ticket stuff:
+	char * buf = NULL;
+	fstats * tstatus = NULL;
+
+	//TMDview stuff:
+	u64 TitleID=0x0000000100000002LL;
+	u32 tempKeyID;
+	u32 tmd_size;
+	u8 *tmd_data = NULL;
+	tmd_view *rTMD = NULL;
+
+	//TMD:
+	signed_blob *TMD = NULL;
+
+	//boot file:
+	u32 fileID = 0;
+	char * file = NULL;
+	fstats * status = NULL;
+	dolhdr *hdr = NULL;
+
+	//general:
 	s32 r = 0;
+	
 
 	ISFS_Deinitialize();
 	if( ISFS_Initialize() < 0 )
 	{
-		//printf("ISFS_Initialize() failed!\n");
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("ISFS_Initialize() failed!"))*13/2))>>1, 208, "ISFS_Initialize() failed!" );
-		sleep( 5 );
+		if (rmode != NULL)
+		{
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("ISFS_Initialize() failed!"))*13/2))>>1, 208, "ISFS_Initialize() failed!" );
+			sleep( 5 );
+		}
 		return;
 	}
 
@@ -1062,22 +1111,22 @@ void BootMainSysMenu( void )
 	}
 
 	//get size
-	fstats * tstatus = (fstats*)memalign( 32, sizeof( fstats ) );
+	tstatus = (fstats*)memalign( 32, sizeof( fstats ) );
 	r = ISFS_GetFileStats( fd, tstatus );
 	if( r < 0 )
 	{
 		ISFS_Close( fd );
 		error = ERROR_SYSMENU_TIKSIZEGETFAILED;
-		return;
+		goto free_and_return;
 	}
 
 	//create buffer
-	char * buf = (char*)memalign( 32, (tstatus->file_length+32)&(~31) );
+	buf = (char*)memalign( 32, (tstatus->file_length+32)&(~31) );
 	if( buf == NULL )
 	{
 		ISFS_Close( fd );
 		error = ERROR_MALLOC;
-		return;
+		goto free_and_return;
 	}
 	memset(buf, 0, (tstatus->file_length+32)&(~31) );
 
@@ -1085,58 +1134,51 @@ void BootMainSysMenu( void )
 	r = ISFS_Read( fd, buf, tstatus->file_length );
 	if( r < 0 )
 	{
-		free( buf );
 		ISFS_Close( fd );
 		error = ERROR_SYSMENU_TIKREADFAILED;
-		return;
+		goto free_and_return;
 	}
 
 	ISFS_Close( fd );
-
-	r=ES_GetStoredTMDSize(TitleID, &tmd_size);
-#ifdef DEBUG
-	printf("ES_GetStoredTMDSize(%llX, %08X):%d\n", TitleID, (u32)(&tmd_size), r );
-	sleep(1);
-#endif
-	if(r<0)
-	{
-		free( buf );
-		error = ERROR_SYSMENU_GETTMDSIZEFAILED;
-		return;
-	}
-
-	signed_blob *TMD = (signed_blob *)memalign( 32, (tmd_size+32)&(~31) );
-	if( TMD == NULL )
-	{
-		free( buf );
-		error = ERROR_MALLOC;
-		return;
-	}
-	memset(TMD, 0, tmd_size);
-
-	r=ES_GetStoredTMD(TitleID, TMD, tmd_size);
-#ifdef DEBUG
-	printf("ES_GetStoredTMD(%llX, %08X, %d):%d\n", TitleID, (u32)(TMD), tmd_size, r );
-	sleep(1);
-#endif
-	if(r<0)
-	{
-		free( TMD );
-		free( buf );
-		error = ERROR_SYSMENU_GETTMDFAILED;
-		return;
-	}
 	
-	tmd *rTMD = (tmd *)(TMD+(0x140/sizeof(tmd *)));
+	//expermintal code for getting the needed tmd info. no boot index is in the views but lunatik and i think last file = boot file
+	// + when using ios11 -> wpad_shutdown fails hard? :/
+	r = ES_GetTMDViewSize(TitleID, &tmd_size);
+	if(r<0)
+	{
+		gprintf("error getting TMD views Size. error %d\n",r);
+		error = ERROR_SYSMENU_GETTMDSIZEFAILED;
+		goto free_and_return;
+	}
+
+	tmd_data = (u8 *)memalign( 32, (tmd_size+32)&(~31) );
+	if( tmd_data == NULL )
+	{
+		error = ERROR_MALLOC;
+		goto free_and_return;
+	}
+	memset(tmd_data, 0, (tmd_size+32)&(~31) );
+	r = ES_GetTMDView(TitleID, tmd_data, tmd_size);
+	if(r<0)
+	{
+		gprintf("error getting TMD views. error %d\n",r);
+		error = ERROR_SYSMENU_GETTMDFAILED;
+		goto free_and_return;
+	}
+	rTMD = (tmd_view*)SIGNATURE_PAYLOAD(tmd_data);
+	gprintf("SM ios version: %u\n",(u8)rTMD->sys_version);
 #ifdef DEBUG
-	printf("num_contents:%08X\n", rTMD->num_contents );
+	for (u32 i = 0; i < rTMD->num_contents; i++)
+	{
+		tmd_view_content_t *content = &rTMD->contents[i];
+		gprintf("content[%i] id=%08X type=%u\n", i, content->cid, content->type | 0x8001 );
+	}
 #endif
 
 	//get main.dol filename
-	u32 fileID = 0;
-	for(u32 z=0; z < rTMD->num_contents; ++z)
+	/*for(u32 z=0; z < rTMD->num_contents; ++z)
 	{
-		if( rTMD->contents[z].index == rTMD->boot_index )
+		if( rTMD->contents[z].index == rTMD->num_contents )//rTMD->boot_index )
 		{
 #ifdef DEBUG
 			printf("%d:%d\n", rTMD->contents[z].index, rTMD->contents[z].cid);
@@ -1144,24 +1186,22 @@ void BootMainSysMenu( void )
 			fileID = rTMD->contents[z].cid;
 			break;
 		}
-	}
+	}*/
+	fileID = rTMD->contents[rTMD->num_contents-1].cid;
+	gprintf("using %08X for booting. REPORT IF INCORRECT!\n",rTMD->contents[rTMD->num_contents-1].cid);
 
 	if( fileID == 0 )
 	{
-		free( TMD );
-		free( buf );
 		error = ERROR_SYSMENU_BOOTNOTFOUND;
-		return;
+		goto free_and_return;
 	}
 
 
-	char * file = (char*)memalign( 32, 256 );
+	file = (char*)memalign( 32, 256 );
 	if( file == NULL )
 	{
-		free( TMD );
-		free( buf );
 		error = ERROR_MALLOC;
-		return;
+		goto free_and_return;
 	}
 
 	memset(file, 0, 256 );
@@ -1177,23 +1217,17 @@ void BootMainSysMenu( void )
 #endif
 	if( fd < 0 )
 	{
-		free( TMD );
-		free( buf );
-		free( file );
 		ISFS_Close( fd );
 		error = ERROR_SYSMENU_BOOTOPENFAILED;
-		return;
+		goto free_and_return;
 	}
 
-	fstats *status = (fstats *)memalign(32, sizeof( fstats ) );
+	status = (fstats *)memalign(32, sizeof( fstats ) );
 	if( status == NULL )
 	{
-		free( TMD );
-		free( buf );
-		free( file );
 		ISFS_Close( fd );
 		error = ERROR_MALLOC;
-		return;
+		goto free_and_return;
 	}
 
 	r = ISFS_GetFileStats( fd, status);
@@ -1203,17 +1237,14 @@ void BootMainSysMenu( void )
 #endif
 	if( r < 0 || status->file_length == 0)
 	{
-		free( TMD );
-		free( buf );
-		free( file );
 		ISFS_Close( fd );
 		error = ERROR_SYSMENU_BOOTGETSTATS;
-		return;
+		goto free_and_return;
 	}
 #ifdef DEBUG
 	printf("size:%d\n", status->file_length);
 #endif
-	dolhdr *hdr = (dolhdr *)memalign(32, (sizeof( dolhdr )+32)&(~31) );
+	hdr = (dolhdr *)memalign(32, (sizeof( dolhdr )+32)&(~31) );
 	memset( hdr, 0, (sizeof( dolhdr )+32)&(~31) );
 	
 	ISFS_Seek( fd, 0, SEEK_SET );
@@ -1289,13 +1320,18 @@ void BootMainSysMenu( void )
 	entrypoint = (void (*)())(hdr->entrypoint);
 	gprintf("entrypoint: %08X\n", entrypoint );
 
+	RemountDevices();
 	LoadHacks();
+	for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {
+		WPAD_Flush(i);
+		WPAD_Disconnect(i);
+	}
 	WPAD_Shutdown();
 
 	//Step 1 of IOS handling : Reloading IOS if needed;
 	if( !SGetSetting( SETTING_USESYSTEMMENUIOS ) )
 	{
-		u8 ToLoadIOS = SGetSetting(SETTING_SYSTEMMENUIOS);
+		s32 ToLoadIOS = SGetSetting(SETTING_SYSTEMMENUIOS);
 		gprintf("checking ios ...\n",ToLoadIOS);
 		if ( ToLoadIOS != (u8)IOS_GetVersion() )
 		{
@@ -1306,6 +1342,8 @@ void BootMainSysMenu( void )
 				__IOS_ShutdownSubsystems();
 				__ES_Init();
 				__IOS_LaunchNewIOS ( ToLoadIOS );
+				//why the hell the es needs 2 init's is beyond me... it just happens (see IOS_ReloadIOS in libogc's ios.c)
+				__ES_Init();
 				gprintf("launched ios %d for system menu\n",IOS_GetVersion());
 				//__IOS_LaunchNewIOS ( (u8)rTMD->sys_version );
 				//__IOS_LaunchNewIOS ( 249 );
@@ -1333,29 +1371,54 @@ void BootMainSysMenu( void )
 		__IOS_ShutdownSubsystems();
 		__ES_Init();
 		__IOS_LaunchNewIOS ( (u8)rTMD->sys_version );
+		__IOS_InitializeSubsystems();
 
 		gprintf("launched ios %d for system menu\n",IOS_GetVersion());
 		ReloadedIOS = 1;
 	}*/
-
-	//Step 2 of IOS handling : ES_Identify if we are on a different ios or if we reloaded ios once already
+	//Step 2 of IOS handling : ES_Identify if we are on a different ios or if we reloaded ios once already. note that is only supported by ios > 20
 	if (((u8)IOS_GetVersion() != (u8)rTMD->sys_version) || (ReloadedIOS) )
 	{
 		if (ReloadedIOS)
 			gprintf("Forced into ES_Identify (reloaded IOS since startup) ...\n");
 		else
 			gprintf("using IOS(%d) other then system menu IOS(%u)\nforcing ES_Identify...\n",IOS_GetVersion(),(u8)rTMD->sys_version);
-		r = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size, (signed_blob *)buf, tstatus->file_length, &tempKeyID);
+		//get the real TMD. we didn't get the real TMD before. the views will fail to be used in identification
+		u32 tmd_size_temp;
+		r=ES_GetStoredTMDSize(TitleID, &tmd_size_temp);
+		if(r < 0)
+		{
+			error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
+			gprintf("ES_Identify failed : Failed to get TMDSize! error %d\n",r);
+			__IOS_InitializeSubsystems();
+			WPAD_Init();
+			goto free_and_return;
+		}
+		TMD = (signed_blob *)memalign( 32, (tmd_size_temp+32)&(~31) );
+		memset(TMD, 0, tmd_size_temp);
+
+		r=ES_GetStoredTMD(TitleID, TMD, tmd_size_temp);
+		if(r < 0)
+		{
+			error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
+			gprintf("ES_Identify failed : Failed to get TMD! error %d\n",r);
+			__IOS_InitializeSubsystems();
+			WPAD_Init();
+			goto free_and_return;
+		}
+		r = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size_temp, (signed_blob *)buf, tstatus->file_length, &tempKeyID);
 		if( r < 0 )
 		{	
 			error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
 			//__IOS_LaunchNewIOS ( (u8)rTMD->sys_version );
-			gprintf("ES_Identify failed!\n");
+			gprintf("ES_Identify failed! error %d\n",r);
+			__IOS_InitializeSubsystems();
+			WPAD_Init();
 			goto free_and_return;
 		}
 	}
 	//ES_SetUID(TitleID);
-	free( TMD );
+	free(tmd_data);
 	free( status );
 	free( tstatus );
 	free( buf );
@@ -1388,14 +1451,6 @@ void BootMainSysMenu( void )
 #ifdef DEBUG
 	sleep(20);
 #endif
-	/*//modified code from Usbloader GX
-	ShutdownDevices();//__io_wiisd.shutdown();
-	__IOS_ShutdownSubsystems();
-	SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
-	mtmsr(mfmsr() & ~0x8000);
-	mtmsr(mfmsr() | 0x2002);
-	_unstub_start();*/
-	//"original" Crediar code
 	ShutdownDevices();
 	//butt ugly hack around the problem but i can't think of another way to fix it...
 	//TODO : make it less hacky by fixing the __io_usbstorage.shutdown()
@@ -1408,10 +1463,12 @@ void BootMainSysMenu( void )
 	mtmsr(mfmsr() | 0x2002);
 	_unstub_start();
 free_and_return:
-	__IOS_InitializeSubsystems();
-	WPAD_Init();
+	if(file)
+		free(file);
 	if(TMD)
-		free( TMD );
+		free(TMD);
+	if(tmd_data)	
+		free(tmd_data);
 	if(status)
 		free( status );
 	if(tstatus)
@@ -2438,7 +2495,7 @@ int main(int argc, char **argv)
 	}
 	else if( SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED )
 	{
-		gprintf("Reset Button is hold down\n");
+		gprintf("Reset Button is held down\n");
 	}
 	
 	if ( SGetSetting(SETTING_SHOWDEBUGTEXT) == 0 )
@@ -2505,7 +2562,6 @@ int main(int argc, char **argv)
 			switch(cur_off)
 			{
 				case 0:
-					RemountDevices();
 					BootMainSysMenu();
 					if(!error)
 						error=ERROR_SYSMENU_GENERAL;
@@ -2653,7 +2709,6 @@ int main(int argc, char **argv)
 				gprintf("Changed Settings to use System Menu IOS...\n");
 				settings->UseSystemMenuIOS = true;
 			}
-			RemountDevices();
 			BootMainSysMenu();
 			if(!error)
 				error=ERROR_SYSMENU_GENERAL;
