@@ -100,7 +100,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			printf("\t\tDacoTaco's Priiloader Settings Editor v%d.%d\n",VERSION,SUBVERSION);
 			printf("-------------------------------------------------------------------------------\n\n\n");
 			printf("Current Settings : \n\n");
-			printf("\t1 : Autoboot To     :\t\t");
+			printf("\t1 : Autoboot To      :\t\t");
 			switch(Settings->autoboot)
 			{
 				case AUTOBOOT_DISABLED:
@@ -124,7 +124,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				default:
 					printf("unknown value %u\n",Settings->autoboot);
 			}
-			printf("\t2 : Return To       :\t\t");
+			printf("\t2 : Return To        :\t\t");
 			switch(Settings->ReturnTo)
 			{
 				case RETURNTO_SYSMENU:
@@ -201,6 +201,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						Settings->autoboot = AUTOBOOT_DISABLED;
 					else
 						Settings->autoboot++;
+					redraw=1;
 					break;
 				case 50: // 2 , return to
 					Settings->ReturnTo++;
