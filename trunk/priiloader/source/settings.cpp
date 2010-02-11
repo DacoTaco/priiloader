@@ -46,24 +46,23 @@ u32 GetSysMenuVersion( void )
 		return 0;
 	}
 
-	u8 *tmd_data = (u8 *)memalign( 32, tmd_size );
-	if( tmd_data == NULL )
+	tmd_view *rTMD = (tmd_view*)memalign( 32, (tmd_size+31)&(~31) );
+	if( rTMD == NULL )
 	{
 		gprintf("error making memory for tmd views\n");
 		return 0;
 	}
-	memset(tmd_data, 0, tmd_size );
-	r = ES_GetTMDView(TitleID, tmd_data, tmd_size);
+	memset(rTMD,0, (tmd_size+31)&(~31) );
+	r = ES_GetTMDView(TitleID, (u8*)rTMD, tmd_size);
 	if(r<0)
 	{
 		gprintf("error getting TMD views. error %d\n",r);
-		free( tmd_data );
+		free( rTMD );
 		return 0;
-	}
-	tmd_view *rTMD = (tmd_view*)SIGNATURE_PAYLOAD(tmd_data);
+	}	
 	u32 version = rTMD->title_version;
-	if(tmd_data)
-		free(tmd_data);
+	if(rTMD)
+		free(rTMD);
 	return version;
 }
 
@@ -80,24 +79,23 @@ u32 GetSysMenuIOS( void )
 		return 0;
 	}
 
-	u8 *tmd_data = (u8 *)memalign( 32, (tmd_size+32)&(~31) );
-	if( tmd_data == NULL )
+	tmd_view *rTMD = (tmd_view*)memalign( 32, (tmd_size+31)&(~31) );
+	if( rTMD == NULL )
 	{
 		gprintf("error making memory for tmd views\n");
 		return 0;
 	}
-	memset(tmd_data, 0, (tmd_size+32)&(~31) );
-	r = ES_GetTMDView(TitleID, tmd_data, tmd_size);
+	memset(rTMD,0, (tmd_size+31)&(~31) );
+	r = ES_GetTMDView(TitleID, (u8*)rTMD, tmd_size);
 	if(r<0)
 	{
 		gprintf("error getting TMD views. error %d\n",r);
-		free( tmd_data );
+		free( rTMD );
 		return 0;
 	}
-	tmd_view *rTMD = (tmd_view*)SIGNATURE_PAYLOAD(tmd_data);
-	u8 IOS = rTMD->sys_version;
-	if(tmd_data)
-		free(tmd_data);
+	u8 IOS = rTMD->title_version;
+	if(rTMD)
+		free(rTMD);
 	return IOS;
 }
 

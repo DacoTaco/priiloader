@@ -67,7 +67,7 @@ void gprintf( const char *str, ... )
 	vsprintf( astr, str, ap );
 
 	va_end(ap);
-	
+	usb_flush(EXI_CHANNEL_1);
 	usb_sendbuffer( 1, astr, strlen(astr) );
 }
 void CheckForGecko( void )
@@ -226,7 +226,7 @@ s32 nand_copy(char source[1024], char destination[1024])
 	{
 		goto free_and_Return;
 	}
-	Data2 = (u8*)memalign(32,(D2stat->file_length+32)&(~31));
+	Data2 = (u8*)memalign(32,(D2stat->file_length+31)&(~31));
 	if (Data2 == NULL)
 	{
 		temp = -1;
@@ -376,7 +376,7 @@ int main(int argc, char **argv)
 				abort("Unable to get stored tmd size");
 			}
 
-			signed_blob *TMD = (signed_blob *)memalign(32,(tmd_size+32)&(~31));
+			signed_blob *TMD = (signed_blob *)memalign(32,(tmd_size+31)&(~31));
 			if (TMD == NULL)
 			{
 				abort("Unable to prepare tmd for memory");
