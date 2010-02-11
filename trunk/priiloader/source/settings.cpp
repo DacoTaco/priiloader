@@ -183,7 +183,8 @@ void LoadSettings( void )
 	{
 		ISFS_Close(fd);
 		gprintf("different Setting sizes, deleting old and creating new...\n");
-		//file not found create a new one
+		//recreate settings file
+		ISFS_Delete("/title/00000001/00000002/data/loader.ini");
 		ISFS_CreateFile("/title/00000001/00000002/data/loader.ini", 0, 3, 3, 3);
 		//set a few default settings
 		settings->version = VERSION;
