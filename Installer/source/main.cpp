@@ -429,10 +429,8 @@ int main(int argc, char **argv)
 				s32 ret = 0;
 				bool CopyTicket = false;
 				bool Priiloader_found = false;
-				printf("Checking for Priiloader...\n");
-
 				//check if the copy ticket exists
-				gprintf("checking for copy ticket...\n");
+				gprintf("Checking for copy ticket...\n");
 				fd = ISFS_Open("/title/00000001/00000002/content/ticket",ISFS_OPEN_READ);
 				if (fd <0)
 				{
@@ -447,7 +445,7 @@ int main(int argc, char **argv)
 						switch(fd)
 						{
 							case ISFS_EINVAL:
-								abort("Unable to read ticket.path is wrong/to long or ISFS isn't init yet?");
+								abort("Unable to read ticket.path is wrong/too long or ISFS isn't init yet?");
 								break;
 							case ISFS_ENOMEM:
 								abort("Unable to read ticket.(Out of memory)");
@@ -456,7 +454,7 @@ int main(int argc, char **argv)
 								abort("Ticket not found");
 								break;
 							case -102:
-								abort("Unautorised to get ticket. is ios%d trucha signed?",IOS_GetVersion());
+								abort("Unauthorised to get ticket. is ios%d trucha signed?",IOS_GetVersion());
 								break;
 							default:
 								abort("Unable to read ticket. error %d. ",fd);
@@ -472,8 +470,10 @@ int main(int argc, char **argv)
 				}
 				ISFS_Close(fd);
 				
+				printf("Checking for Priiloader...\n");
 				//check copy app
 				gprintf("checking for copy of SystemMenu Dol\n");
+				//redo using the code from Luna + size check
 				fd = ISFS_Open(copy_app,ISFS_OPEN_RW);
 				if (fd < 0)
 				{
@@ -532,7 +532,7 @@ int main(int argc, char **argv)
 				}
 				if(CopyTicket)
 				{
-					printf("Coping system menu ticket...");
+					printf("Copying system menu ticket...");
 					char * original_tik = (char*)memalign(32,(256+31)&(~31));
 					char * copy_tik = (char*)memalign(32,(256+31)&(~31));
 					sprintf(original_tik, "/ticket/00000001/00000002.tik");
