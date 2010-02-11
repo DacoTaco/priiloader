@@ -181,7 +181,8 @@ bool MountDevices(void)
 	if (!fatMountSimple("fat",&__io_wiisd))
 	{
 		//sd mounting failed. lets go usb
-		return fatMountSimple("fat", &__io_usbstorage);
+		//giantpune claims these value's have more support for some drives...
+		return fatMount("fat", &__io_usbstorage,0, 32, 64);//fatMountSimple("fat", &__io_usbstorage);
 	}
 	else
 	{
@@ -242,15 +243,14 @@ bool isIOSstub(u8 ios_number)
 		gprintf("failed to get tmd for ios %d\n",ios_number);
 		return true;
 	}
-	u8 *ios_tmd_buf = (u8 *)memalign( 32, (tmd_size+32)&(~31) );
-	if(!ios_tmd_buf)
+	ios_tmd = (tmd_view *)memalign( 32, (tmd_size+31)&(~31) );
+	if(!ios_tmd)
 	{
-		gprintf("failed to mem align the tmp buffer\n");
+		gprintf("failed to mem align the TMD struct!\n");
 		return true;
 	}
-	memset(ios_tmd_buf, 0, tmd_size);
-	ES_GetTMDView(0x0000000100000000ULL | ios_number, ios_tmd_buf, tmd_size);
-	ios_tmd = (tmd_view*)SIGNATURE_PAYLOAD(ios_tmd_buf);
+	memset(ios_tmd , 0, tmd_size);
+	ES_GetTMDView(0x0000000100000000ULL | ios_number, (u8*)ios_tmd , tmd_size);
 	gprintf("IOS %d is rev %d(0x%x) with tmd size of %u and %u contents\n",ios_number,ios_tmd->title_version,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
 	/*Stubs have a few things in common¨:
 	- title version : it is mostly 65280 , or even better : in hex the last 2 digits are 0. 
@@ -269,20 +269,17 @@ bool isIOSstub(u8 ios_number)
 		if ( ( ios_tmd->num_contents == 3) && (ios_tmd->contents[0].type == 1 && ios_tmd->contents[1].type == 0x8001 && ios_tmd->contents[2].type == 0x8001) )
 		{
 			gprintf("IOS %d is a stub\n",ios_number);
-			free(ios_tmd_buf);
 			free(ios_tmd);
 			return true;
 		}
 		else
 		{
 			gprintf("IOS %d is active\n",ios_number);
-			free(ios_tmd_buf);
 			free(ios_tmd);
 			return false;
 		}
 	}
 	gprintf("IOS %d is active\n",ios_number);
-	free(ios_tmd_buf);
 	free(ios_tmd);
 	return false;
 }
@@ -1075,7 +1072,6 @@ void BootMainSysMenu( void )
 	u64 TitleID=0x0000000100000002LL;
 	u32 tempKeyID;
 	u32 tmd_size;
-	u8 *tmd_data = NULL;
 	tmd_view *rTMD = NULL;
 
 	//TMD:
@@ -1121,14 +1117,14 @@ void BootMainSysMenu( void )
 	}
 
 	//create buffer
-	buf = (char*)memalign( 32, (tstatus->file_length+32)&(~31) );
+	buf = (char*)memalign( 32, (tstatus->file_length+31)&(~31) );
 	if( buf == NULL )
 	{
 		ISFS_Close( fd );
 		error = ERROR_MALLOC;
 		goto free_and_return;
 	}
-	memset(buf, 0, (tstatus->file_length+32)&(~31) );
+	memset(buf, 0, (tstatus->file_length+31)&(~31) );
 
 	//read file
 	r = ISFS_Read( fd, buf, tstatus->file_length );
@@ -1142,7 +1138,6 @@ void BootMainSysMenu( void )
 	ISFS_Close( fd );
 	
 	//expermintal code for getting the needed tmd info. no boot index is in the views but lunatik and i think last file = boot file
-	// + when using ios11 -> wpad_shutdown fails hard? :/
 	r = ES_GetTMDViewSize(TitleID, &tmd_size);
 	if(r<0)
 	{
@@ -1150,22 +1145,20 @@ void BootMainSysMenu( void )
 		error = ERROR_SYSMENU_GETTMDSIZEFAILED;
 		goto free_and_return;
 	}
-
-	tmd_data = (u8 *)memalign( 32, (tmd_size+32)&(~31) );
-	if( tmd_data == NULL )
+	rTMD = (tmd_view*)memalign( 32, (tmd_size+31)&(~31) );
+	if( rTMD == NULL )
 	{
 		error = ERROR_MALLOC;
 		goto free_and_return;
 	}
-	memset(tmd_data, 0, (tmd_size+32)&(~31) );
-	r = ES_GetTMDView(TitleID, tmd_data, tmd_size);
+	memset(rTMD,0, tmd_size );
+	r = ES_GetTMDView(TitleID, (u8*)rTMD, tmd_size);
 	if(r<0)
 	{
 		gprintf("error getting TMD views. error %d\n",r);
 		error = ERROR_SYSMENU_GETTMDFAILED;
 		goto free_and_return;
 	}
-	rTMD = (tmd_view*)SIGNATURE_PAYLOAD(tmd_data);
 	gprintf("SM ios version: %u\n",(u8)rTMD->sys_version);
 #ifdef DEBUG
 	for (u32 i = 0; i < rTMD->num_contents; i++)
@@ -1196,19 +1189,17 @@ void BootMainSysMenu( void )
 		goto free_and_return;
 	}
 
-
 	file = (char*)memalign( 32, 256 );
 	if( file == NULL )
 	{
 		error = ERROR_MALLOC;
 		goto free_and_return;
 	}
-
 	memset(file, 0, 256 );
-
 	sprintf( file, "/title/00000001/00000002/content/%08x.app", fileID );
 	//small fix that Phpgeek didn't forget but i did
 	file[33] = '1'; // installing preloader renamed system menu so we change the app file to have the right name
+	gprintf("filename %s\n",file);
 
 	fd = ISFS_Open( file, 1 );
 #ifdef DEBUG
@@ -1244,8 +1235,8 @@ void BootMainSysMenu( void )
 #ifdef DEBUG
 	printf("size:%d\n", status->file_length);
 #endif
-	hdr = (dolhdr *)memalign(32, (sizeof( dolhdr )+32)&(~31) );
-	memset( hdr, 0, (sizeof( dolhdr )+32)&(~31) );
+	hdr = (dolhdr *)memalign(32, (sizeof( dolhdr )+31)&(~31) );
+	memset( hdr, 0, (sizeof( dolhdr )+31)&(~31) );
 	
 	ISFS_Seek( fd, 0, SEEK_SET );
 	r = ISFS_Read( fd, hdr, sizeof(dolhdr) );
@@ -1254,7 +1245,10 @@ void BootMainSysMenu( void )
 	sleep(1);
 #endif
 	if( r < 0 )
+	{
+		ISFS_Close( fd );
 		goto free_and_return;
+	}
 	if( hdr->entrypoint != 0x3400 )
 	{
 #ifdef DEBUG
@@ -1262,7 +1256,6 @@ void BootMainSysMenu( void )
 		sleep(5);
 #endif
 		ISFS_Close( fd );
-		free(hdr);
 		goto free_and_return;
 	}
 
@@ -1282,6 +1275,7 @@ void BootMainSysMenu( void )
 				printf("BOGUS offsets!\n");
 				sleep(5);
 #endif
+				gprintf("bogus offsets:Text\n");
 				goto free_and_return;
 			}
 
@@ -1307,6 +1301,7 @@ void BootMainSysMenu( void )
 				printf("BOGUS offsets!\n");
 				sleep(5);
 #endif
+				gprintf("bogus offsets:Data\n");
 				goto free_and_return;
 			}
 
@@ -1394,7 +1389,7 @@ void BootMainSysMenu( void )
 			WPAD_Init();
 			goto free_and_return;
 		}
-		TMD = (signed_blob *)memalign( 32, (tmd_size_temp+32)&(~31) );
+		TMD = (signed_blob *)memalign( 32, (tmd_size_temp+31)&(~31) );
 		memset(TMD, 0, tmd_size_temp);
 
 		r=ES_GetStoredTMD(TitleID, TMD, tmd_size_temp);
@@ -1418,7 +1413,7 @@ void BootMainSysMenu( void )
 		}
 	}
 	//ES_SetUID(TitleID);
-	free(tmd_data);
+	free( rTMD );
 	free( status );
 	free( tstatus );
 	free( buf );
@@ -1463,18 +1458,20 @@ void BootMainSysMenu( void )
 	mtmsr(mfmsr() | 0x2002);
 	_unstub_start();
 free_and_return:
+	if(rTMD)
+		free(rTMD);
 	if(file)
 		free(file);
 	if(TMD)
 		free(TMD);
-	if(tmd_data)	
-		free(tmd_data);
 	if(status)
 		free( status );
 	if(tstatus)
 		free( tstatus );
 	if(buf)
 		free( buf );
+	if(hdr)
+		free(hdr);
 	return;
 }
 void InstallLoadDOL( void )
@@ -1850,7 +1847,7 @@ void AutoBootDol( void )
 
 	void	(*entrypoint)();
 
-	Elf32_Ehdr *ElfHdr = (Elf32_Ehdr *)memalign( 32, (sizeof( Elf32_Ehdr )+32)&(~31) );
+	Elf32_Ehdr *ElfHdr = (Elf32_Ehdr *)memalign( 32, (sizeof( Elf32_Ehdr )+31)&(~31) );
 	if( ElfHdr == NULL )
 	{
 		error = ERROR_MALLOC;
@@ -1910,7 +1907,7 @@ void AutoBootDol( void )
 					return;
 				}
 
-				Elf32_Phdr *phdr = (Elf32_Phdr *)memalign( 32, (sizeof( Elf32_Phdr )+32)&(~31) );
+				Elf32_Phdr *phdr = (Elf32_Phdr *)memalign( 32, (sizeof( Elf32_Phdr )+31)&(~31) );
 				r = ISFS_Read( fd, phdr, sizeof( Elf32_Phdr ) );
 				if( r < 0 )
 				{
@@ -1939,7 +1936,7 @@ void AutoBootDol( void )
 					//Check if target address is aligned by 32, otherwise create a temp buffer and load it from there!
 					if( phdr->p_vaddr&(~31))
 					{
-						u8 *tbuf = (u8*)memalign(32, (phdr->p_filesz+32)&(~31) );
+						u8 *tbuf = (u8*)memalign(32, (phdr->p_filesz+31)&(~31) );
 
 						r = ISFS_Read( fd, tbuf, phdr->p_filesz);
 						if( r < 0 )
@@ -1984,7 +1981,7 @@ void AutoBootDol( void )
 #endif
 		} else {
 
-			Elf32_Shdr *shdr = (Elf32_Shdr *)memalign( 32, (sizeof( Elf32_Shdr )+32)&(~31) );
+			Elf32_Shdr *shdr = (Elf32_Shdr *)memalign( 32, (sizeof( Elf32_Shdr )+31)&(~31) );
 
 			for( int i=0; i < ElfHdr->e_shnum; ++i )
 			{
@@ -2034,7 +2031,7 @@ void AutoBootDol( void )
 				//Check if target address is aligned by 32, otherwise create a temp buffer and load it from there!
 				if( (shdr->sh_addr == 0) || shdr->sh_addr&(~31) )
 				{
-					u8 *tbuf = (u8*)memalign(32, (shdr->sh_size+32)&(~31) );
+					u8 *tbuf = (u8*)memalign(32, (shdr->sh_size+31)&(~31) );
 
 					r = ISFS_Read( fd, tbuf, shdr->sh_size);
 					if( r < 0 )
@@ -2080,7 +2077,7 @@ void AutoBootDol( void )
 		//Load the dol!, TODO: maybe add sanity checks?
 
 		//read the header
-		dolhdr *hdr = (dolhdr *)memalign(32, (sizeof( dolhdr )+32)&(~31) );
+		dolhdr *hdr = (dolhdr *)memalign(32, (sizeof( dolhdr )+31)&(~31) );
 		if( hdr == NULL )
 		{
 			error = ERROR_MALLOC;
@@ -2125,7 +2122,7 @@ void AutoBootDol( void )
 				
 				//if( hdr->addressText[i] & (~31) )
 				//{
-				//	u8 *tbuf = (u8*)memalign(32, (hdr->sizeText[i]+32)&(~31) );
+				//	u8 *tbuf = (u8*)memalign(32, (hdr->sizeText[i]+31)&(~31) );
 
 				//	ISFS_Read( fd, tbuf, hdr->sizeText[i]);
 
@@ -2161,7 +2158,7 @@ void AutoBootDol( void )
 				
 				//if( hdr->addressData[i] & (~31) )
 				//{
-				//	u8 *tbuf = (u8*)memalign(32, (hdr->sizeData[i]+32)&(~31) );
+				//	u8 *tbuf = (u8*)memalign(32, (hdr->sizeData[i]+31)&(~31) );
 
 				//	ISFS_Read( fd, tbuf, hdr->sizeData[i]);
 
@@ -2258,8 +2255,11 @@ void DVDStopDisc( void )
 	((u32*)inbuf)[0x02] = 0;
 
 	DCFlushRange(inbuf, 0x20);
-	IOS_IoctlAsync( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20, NULL, NULL);
-	IOS_Close(di_fd);
+	//why crediar used an async is beyond me but i looks wrong... :/
+	//IOS_IoctlAsync( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20, NULL, NULL);
+	IOS_Ioctl( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20);
+	if(di_fd)
+		IOS_Close(di_fd);
 
 	free( outbuf );
 	free( inbuf );

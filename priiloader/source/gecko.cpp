@@ -46,8 +46,8 @@ void gprintf( const char *str, ... )
 	va_end(ap);
 	if(GeckoFound)
 	{
-		usb_flush(EXI_CHANNEL_1);
 		usb_sendbuffer( 1, astr, strlen(astr) );
+		usb_flush(EXI_CHANNEL_1);
 	}
 	if (ShowDebug)
 	{
