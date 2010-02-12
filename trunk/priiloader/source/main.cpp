@@ -56,6 +56,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "hacks.h"
 #include "font.h"
 #include "gecko.h"
+#include "password.h"
 
 //Bin includes
 #include "certs_bin.h"
@@ -252,7 +253,7 @@ bool isIOSstub(u8 ios_number)
 	memset(ios_tmd , 0, tmd_size);
 	ES_GetTMDView(0x0000000100000000ULL | ios_number, (u8*)ios_tmd , tmd_size);
 	gprintf("IOS %d is rev %d(0x%x) with tmd size of %u and %u contents\n",ios_number,ios_tmd->title_version,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
-	/*Stubs have a few things in common¨:
+	/*Stubs have a few things in commonï¿½:
 	- title version : it is mostly 65280 , or even better : in hex the last 2 digits are 0. 
 		example : IOS 60 rev 6400 = 0x1900 = 00 = stub
 	- exception for IOS21 which is active, the tmd size is 592 bytes (or 140 with the views)
@@ -328,8 +329,8 @@ void SysHackSettings( void )
 
 	u32 DispCount=HackCount;
 
-	if( DispCount > 20 )
-		DispCount = 20;
+	if( DispCount > 25 )
+		DispCount = 25;
 
 	u16 cur_off=0;
 	s32 menu_off=0;
@@ -543,23 +544,23 @@ void SysHackSettings( void )
 					} else {
 						//clear line
 						for( u32 c=0; c<40; ++c)
-							PrintFormat( 0, 16+c*6, 64+j*16, " ");
+							PrintFormat( 0, 16+c*6, 48+j*16, " ");
 
-						PrintFormat( cur_off==j, 16, 64+j*16, "%s", hacks[i].desc );
+						PrintFormat( cur_off==j, 16, 48+j*16, "%s", hacks[i].desc );
 
 						if( states[i] )
-							PrintFormat( cur_off==j, 256, 64+j*16, "enabled ", hacks[i].desc);
+							PrintFormat( cur_off==j, 256, 48+j*16, "enabled ", hacks[i].desc);
 						else
-							PrintFormat( cur_off==j, 256, 64+j*16, "disabled", hacks[i].desc);
+							PrintFormat( cur_off==j, 256, 48+j*16, "disabled", hacks[i].desc);
 						
 						j++;
 					}
 				}
-				if( j >= 20 ) 
+				if( j >= 25 ) 
 					break;
 			}
 
-			PrintFormat( cur_off==DispCount, 118, rmode->viHeight-64, "save settings");
+			PrintFormat( cur_off==(signed)DispCount, 118, rmode->viHeight-64, "save settings");
 
 			PrintFormat( 0, 114, rmode->viHeight-32, "                 ");
 
@@ -571,6 +572,29 @@ void SysHackSettings( void )
 
 	return;
 }
+
+void shellsort(u64 a[],int n)
+{
+	int j,i,m;
+	u64 mid;
+	for(m = n/2;m>0;m/=2)
+	{
+		for(j = m;j< n;j++)
+		{
+			for(i=j-m;i>=0;i-=m)
+			{
+				if(a[i+m]>=a[i])
+					break;
+				else
+				{
+					mid = a[i];
+					a[i] = a[i+m];
+					a[i+m] = mid;
+				}
+			}
+		}
+	}
+}
 void SetSettings( void )
 {
 	//clear screen and reset the background
@@ -581,6 +605,7 @@ void SetSettings( void )
 	ES_GetNumTitles(&TitleCount);
 	u64 *TitleIDs=(u64*)memalign(32, TitleCount * sizeof(u64) );
 	ES_GetTitles(TitleIDs, TitleCount);
+	shellsort(TitleIDs, TitleCount);
 
 	//get ios
 	unsigned int IOS_off=0;
@@ -782,7 +807,51 @@ void SetSettings( void )
 				}
 			}
 			break;
-			case 7: //show Debug Info
+			case 7:
+			{
+				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT)	||
+					 (PAD_Pressed & PAD_BUTTON_LEFT)	||
+					 (WPAD_Pressed & WPAD_BUTTON_RIGHT)	||
+					 (PAD_Pressed & PAD_BUTTON_RIGHT)	||
+					 (WPAD_Pressed & WPAD_BUTTON_A)		||
+					 (PAD_Pressed & PAD_BUTTON_A)
+					)
+				{
+					if( settings->PasscheckPriiloader )
+					{
+						settings->PasscheckPriiloader = false;
+					}
+					else
+					{
+						settings->PasscheckPriiloader = true;
+					}
+					redraw=true;
+				}
+			}
+			break;
+			case 8:
+			{
+				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT)	||
+					 (PAD_Pressed & PAD_BUTTON_LEFT)	||
+					 (WPAD_Pressed & WPAD_BUTTON_RIGHT)	||
+					 (PAD_Pressed & PAD_BUTTON_RIGHT)	||
+					 (WPAD_Pressed & WPAD_BUTTON_A)		||
+					 (PAD_Pressed & PAD_BUTTON_A)
+					)
+				{
+					if( settings->PasscheckMenu )
+					{
+						settings->PasscheckMenu = false;
+					}
+					else
+					{
+						settings->PasscheckMenu = true;
+					}
+					redraw=true;
+				}
+			}
+			break;
+			case 9: //show Debug Info
 				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT)	||
 					 (PAD_Pressed & PAD_BUTTON_LEFT)	||
 					 (WPAD_Pressed & WPAD_BUTTON_RIGHT)	||
@@ -799,7 +868,7 @@ void SetSettings( void )
 					redraw=true;
 				}
 			break;
-			case 8: //ignore ios reloading for system menu?
+			case 10: //ignore ios reloading for system menu?
 			{
 				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT)	||
 					 (PAD_Pressed & PAD_BUTTON_LEFT)	||
@@ -823,15 +892,15 @@ void SetSettings( void )
 				}
 			}
 			break;
-			case 9:		//	System Menu IOS
+			case 11:		//	System Menu IOS
 			{
 				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT) || (PAD_Pressed & PAD_BUTTON_LEFT) )
 				{
 					while(1)
 					{
-						IOS_off++;
-						if( IOS_off >= TitleCount )
-							IOS_off = 3;
+						IOS_off--;
+						if( (signed)IOS_off <= 0 )
+							IOS_off = TitleCount;
 						if( (u32)(TitleIDs[IOS_off]>>32) == 0x00000001 && (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) > 2 && (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) < 255 )
 							break;
 					}
@@ -846,9 +915,9 @@ void SetSettings( void )
 				{
 					while(1)
 					{
-						IOS_off--;
-						if( (signed)IOS_off <= 0 )
-							IOS_off = TitleCount;
+						IOS_off++;
+						if( IOS_off >= TitleCount )
+							IOS_off = 3;
 						if( (u32)(TitleIDs[IOS_off]>>32) == 0x00000001 && (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) > 2  && (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) < 255 )
 							break;
 					}
@@ -861,14 +930,14 @@ void SetSettings( void )
 				}
 
 			} break;
-			case 10:
+			case 12:
 			{
 				if ( (WPAD_Pressed & WPAD_BUTTON_A) || (PAD_Pressed & PAD_BUTTON_A) )
 				{
 					if( SaveSettings() )
-						PrintFormat( 0, 114, 256+96, "settings saved");
+						PrintFormat( 0, 114, 128+192+16, "settings saved");
 					else
-						PrintFormat( 0, 118, 256+96, "saving failed");
+						PrintFormat( 0, 118, 128+192+16, "saving failed");
 				}
 			} break;
 
@@ -880,19 +949,19 @@ void SetSettings( void )
 		if ( (WPAD_Pressed & WPAD_BUTTON_DOWN) || (PAD_Pressed & PAD_BUTTON_DOWN) )
 		{
 			cur_off++;
-			if( (settings->UseSystemMenuIOS) && (cur_off == 9))
+			if( (settings->UseSystemMenuIOS) && (cur_off == 11))
 				cur_off++;
-			if( cur_off >= 11)
+			if( cur_off >= 13)
 				cur_off = 0;
 			
 			redraw=true;
 		} else if ( (WPAD_Pressed & WPAD_BUTTON_UP) || (PAD_Pressed & PAD_BUTTON_UP) )
 		{
 			cur_off--;
-			if( (settings->UseSystemMenuIOS) && (cur_off == 9))
+			if( (settings->UseSystemMenuIOS) && (cur_off == 11))
 				cur_off--;
 			if( cur_off < 0 )
-				cur_off = 10;
+				cur_off = 12;
 			
 			redraw=true;
 		}
@@ -945,18 +1014,20 @@ void SetSettings( void )
 			PrintFormat( cur_off==4, 0, 128+48, "   Light slot on error:          %s", settings->LidSlotOnError?"on ":"off");
 			PrintFormat( cur_off==5, 0, 128+64, "        Ignore standby:          %s", settings->IgnoreShutDownMode?"on ":"off");
 			PrintFormat( cur_off==6, 0, 128+80, "      Background Color:          %s", settings->BlackBackground?"Black":"White");
-			PrintFormat( cur_off==7, 0, 128+96, "       Show Debug Info:          %s", settings->ShowDebugText?"on ":"off");
-			PrintFormat( cur_off==8, 0, 128+112, "   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
+			PrintFormat( cur_off==7, 0, 128+96, "    Protect Priiloader:          %s", settings->PasscheckPriiloader?"on ":"off");
+			PrintFormat( cur_off==8, 0, 128+112,"      Protect Autoboot:          %s", settings->PasscheckMenu?"on ":"off");
+			PrintFormat( cur_off==9, 0, 128+128,"       Show Debug Info:          %s", settings->ShowDebugText?"on ":"off");
+			PrintFormat( cur_off==10,0, 128+144,"   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
 			if(!settings->UseSystemMenuIOS)
 			{
-				PrintFormat( cur_off==9, 0, 128+128, "     IOS to use for SM:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
+				PrintFormat( cur_off==11, 0, 128+160, "     IOS to use for SM:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
 			}
 			else
 			{
-				PrintFormat( cur_off==9, 0, 128+128,	"                                        ");
+				PrintFormat( cur_off==11, 0, 128+160,	"                                        ");
 			}
-			PrintFormat( cur_off==10, 118, 128+160, "save settings");
-			PrintFormat( 0, 114, 256+96, "                 ");
+			PrintFormat( cur_off==12, 118, 128+192, "save settings");
+			PrintFormat( 0, 114, 128+192+16, "                 ");
 
 			redraw = false;
 		}
@@ -1611,6 +1682,38 @@ void InstallLoadDOL( void )
 
 		}
 
+		if ( (WPAD_Pressed & WPAD_BUTTON_2) || (PAD_Pressed & PAD_BUTTON_X) )
+		{
+			ClearScreen();
+			//Delete file
+
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("Delete installed File..."))*13/2))>>1, 208, "Delete installed File...");
+
+			//Check if there is already a main.dol installed
+			s32 fd = ISFS_Open("/title/00000001/00000002/data/main.bin", 1|2 );
+
+			if( fd >= 0 )	//delete old file
+			{
+				ISFS_Close( fd );
+				ISFS_Delete("/title/00000001/00000002/data/main.bin");
+
+				fd = ISFS_Open("/title/00000001/00000002/data/main.bin", 1|2 );
+
+				if( fd >= 0 )	//file not delete
+					PrintFormat( 0, ((rmode->viWidth /2)-((strlen("Failed"))*13/2))>>1, 240, "Failed");
+				else
+					PrintFormat( 0, ((rmode->viWidth /2)-((strlen("Success"))*13/2))>>1, 240, "Success");
+			}
+			else
+				PrintFormat( 0, ((rmode->viWidth /2)-((strlen("No File installed..."))*13/2))>>1, 240, "No File installed...");
+
+			sleep(5);
+			ClearScreen();
+			redraw=true;
+			ISFS_Close( fd );
+
+		}
+
 		if ( (WPAD_Pressed & WPAD_BUTTON_1) || (PAD_Pressed & PAD_TRIGGER_Z) )
 		{
 			ClearScreen();
@@ -1727,8 +1830,9 @@ void InstallLoadDOL( void )
 				//return;
 
 			} else {
+#ifdef DEBUG
 				gprintf("DOL Detected\n");
-
+#endif
 				//Load the dol!, TODO: maybe add sanity checks?
 				//read the header
 				dolhdr hdr;
@@ -1821,7 +1925,9 @@ void InstallLoadDOL( void )
 			for( u32 i=0; i<names.size(); ++i )
 				PrintFormat( cur_off==i, 16, 64+i*16, "%s", names[i]);
 
-			PrintFormat( 0, 33, rmode->viHeight-64, "press A to install, 1(Z) to load a file");
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Install File"))*13/2))>>1, rmode->viHeight-64, "A(A) Install FIle");
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("1(Z) Load File   "))*13/2))>>1, rmode->viHeight-48, "1(Z) Load File");
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("2(X) Delete File "))*13/2))>>1, rmode->viHeight-32, "2(X) Delete File");
 
 			redraw = false;
 		}
@@ -2264,8 +2370,42 @@ void DVDStopDisc( void )
 	free( outbuf );
 	free( inbuf );
 }
+void InitVideo ( void )
+{
+	VIDEO_Init();
+
+	rmode = VIDEO_GetPreferredMode(NULL);
+
+	//apparently the video likes to be bigger then it actually is on NTSC/PAL60/480p. lets fix that!
+	if( rmode->viTVMode == VI_NTSC || rmode->viTVMode == VI_EURGB60 || CONF_GetProgressiveScan() )
+	{
+		//the correct one would be * 0.035 to be sure to get on the Action safe of the screen. but thats way to much
+		GX_AdjustForOverscan(rmode, rmode, 0, rmode->viWidth * 0.026 ); 
+	}
+
+	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
+	
+	console_init( xfb, 20, 20, rmode->fbWidth, rmode->xfbHeight, rmode->fbWidth*VI_DISPLAY_PIX_SZ );
+
+	VIDEO_Configure(rmode);
+	VIDEO_SetNextFramebuffer(xfb);
+	VIDEO_SetBlack(FALSE);
+	VIDEO_Flush();
+
+	VIDEO_WaitVSync();
+	if(rmode->viTVMode&VI_NON_INTERLACE)
+		VIDEO_WaitVSync();
+	gprintf("Ausdehnung ist %dx%d\n",rmode->viWidth,rmode->viHeight);
+}
 void Autoboot_System( void )
 {
+  	if( SGetSetting(SETTING_PASSCHECKMENU) && SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED && SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_ERROR )
+	{
+		if ( SGetSetting(SETTING_SHOWDEBUGTEXT) == 0 )
+			InitVideo();
+ 		password_check();
+	}
+
 	switch( SGetSetting(SETTING_AUTBOOT) )
 	{
 		case AUTOBOOT_SYS:
@@ -2293,33 +2433,6 @@ void Autoboot_System( void )
 			break;
 	}
 	return;
-}
-void InitVideo ( void )
-{
-	VIDEO_Init();
-
-	rmode = VIDEO_GetPreferredMode(NULL);
-
-	//apparently the video likes to be bigger then it actually is on NTSC/PAL60/480p. lets fix that!
-	if( rmode->viTVMode == VI_NTSC || rmode->viTVMode == VI_EURGB60 || CONF_GetProgressiveScan() )
-	{
-		//the correct one would be * 0.035 to be sure to get on the Action safe of the screen. but thats way to much
-		GX_AdjustForOverscan(rmode, rmode, 0, rmode->viWidth * 0.026 ); 
-	}
-
-	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
-	
-	console_init( xfb, 20, 20, rmode->fbWidth, rmode->xfbHeight, rmode->fbWidth*VI_DISPLAY_PIX_SZ );
-
-	VIDEO_Configure(rmode);
-	VIDEO_SetNextFramebuffer(xfb);
-	VIDEO_SetBlack(FALSE);
-	VIDEO_Flush();
-
-	VIDEO_WaitVSync();
-	if(rmode->viTVMode&VI_NON_INTERLACE)
-		VIDEO_WaitVSync();
-	gprintf("resolution is %dx%d\n",rmode->viWidth,rmode->viHeight);
 }
 int main(int argc, char **argv)
 {
@@ -2503,6 +2616,8 @@ int main(int argc, char **argv)
 		//init video first so we can see crashes :)
 		InitVideo();
 	}
+  	if( SGetSetting(SETTING_PASSCHECKPRII) )
+ 		password_check();
 
 	AUDIO_Init (NULL);
 	DSP_Init ();
@@ -2587,6 +2702,9 @@ int main(int argc, char **argv)
 					SysHackSettings();
 				break;
 				case 6:
+					InstallPassword();
+				break;
+				case 7:
 					SetSettings();
 				break;
 				default:
@@ -2604,11 +2722,11 @@ int main(int argc, char **argv)
 
 			if( error == ERROR_UPDATE )
 			{
-				if( cur_off >= 8)
+				if( cur_off >= 9 )
 					cur_off = 0;
 			}else {
 
-				if( cur_off >=7)
+				if( cur_off >= 8 )
 					cur_off = 0;
 			}
 
@@ -2621,9 +2739,9 @@ int main(int argc, char **argv)
 			{
 				if( error == ERROR_UPDATE )
 				{
-					cur_off=8-1;
+					cur_off=9-1;
 				} else {
-					cur_off=7-1;
+					cur_off=8-1;
 				}
 			}
 
@@ -2655,7 +2773,8 @@ int main(int argc, char **argv)
 			PrintFormat( cur_off==3, ((rmode->viWidth /2)-((strlen("Installed File"))*13/2))>>1, 128, "Installed File");
 			PrintFormat( cur_off==4, ((rmode->viWidth /2)-((strlen("Load/Install File"))*13/2))>>1, 144, "Load/Install File");
 			PrintFormat( cur_off==5, ((rmode->viWidth /2)-((strlen("System Menu Hacks"))*13/2))>>1, 160, "System Menu Hacks");
-			PrintFormat( cur_off==6, ((rmode->viWidth /2)-((strlen("Settings"))*13/2))>>1, 176, "Settings");
+			PrintFormat( cur_off==6, ((rmode->viWidth /2)-((strlen("Set Password"))*13/2))>>1, 176, "Set Password");
+			PrintFormat( cur_off==7, ((rmode->viWidth /2)-((strlen("Settings"))*13/2))>>1, 192, "Settings");
 
 			if (error > 0)
 			{

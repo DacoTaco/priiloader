@@ -38,6 +38,8 @@ typedef struct {
 	u8 UseSystemMenuIOS;
 	u8 BlackBackground;
 	u8 ShowDebugText;
+	u8 PasscheckPriiloader;
+	u8 PasscheckMenu;
 } Settings;
 enum {
 		SETTING_AUTBOOT,
@@ -51,7 +53,9 @@ enum {
 		SETTING_SYSTEMMENUIOS,
 		SETTING_USESYSTEMMENUIOS,
 		SETTING_BLACKBACKGROUND,
-		SETTING_SHOWDEBUGTEXT
+		SETTING_SHOWDEBUGTEXT,
+		SETTING_PASSCHECKPRII,
+		SETTING_PASSCHECKMENU,
 };
 
 enum {

@@ -137,6 +137,10 @@ u32 SGetSetting( u32 s )
 			return settings->BlackBackground;
 		case SETTING_SHOWDEBUGTEXT:
 			return settings->ShowDebugText;
+		case SETTING_PASSCHECKPRII:
+			return settings->PasscheckPriiloader;
+		case SETTING_PASSCHECKMENU:
+			return settings->PasscheckMenu;
 		default:
 			return 0;
 		break;
