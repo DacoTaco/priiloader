@@ -2395,7 +2395,7 @@ void InitVideo ( void )
 	VIDEO_WaitVSync();
 	if(rmode->viTVMode&VI_NON_INTERLACE)
 		VIDEO_WaitVSync();
-	gprintf("Ausdehnung ist %dx%d\n",rmode->viWidth,rmode->viHeight);
+	gprintf("resolution is %dx%d\n",rmode->viWidth,rmode->viHeight);
 }
 void Autoboot_System( void )
 {
