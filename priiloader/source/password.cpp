@@ -96,49 +96,46 @@ void InstallPassword( void )
 		{
 			password = NULL;
 			file = NULL;
-			if( ISFS_Initialize() == 0 )
+			s32 pfd=0;
+			pfd = ISFS_Open("/title/00000001/00000002/data/password.txt", 1 );
+			if( pfd < 0 )
 			{
-				s32 pfd=0;
-				pfd = ISFS_Open("/title/00000001/00000002/data/password.txt", 1 );
-				if( pfd < 0 )
+				gprintf("password.txt not found on NAND. ISFS_Open returns %d\n",pfd);
+			}
+			else
+			{
+				fstats *pstatus = (fstats *)memalign( 32, sizeof( fstats ) );
+				ISFS_GetFileStats( pfd, pstatus);
+				psize = pstatus->file_length;
+				free( pstatus );
+				free( pbuf );
+				pbuf = (char*)memalign( 32, (psize+32+1)&(~31) );
+				if( pbuf == NULL )
 				{
-					gprintf("password.txt not found on NAND. ISFS_Open returns %d\n",pfd);
+					error = ERROR_MALLOC;
+					return;
 				}
+				memset( pbuf, 0, (psize+32+1)&(~31) );
+				ISFS_Read( pfd, pbuf, psize );
+				ISFS_Close( pfd );
+
+				pbuf[psize] = 0;
+				char se[5];
+				if( strpbrk(pbuf , "\r\n") )
+					sprintf(se, "\r\n");
 				else
+					sprintf(se, "\n");
+
+				ptr = strtok(pbuf, se);
+				while (ptr != NULL)
 				{
-					fstats *pstatus = (fstats *)memalign( 32, sizeof( fstats ) );
-					ISFS_GetFileStats( pfd, pstatus);
-					psize = pstatus->file_length;
-					free( pstatus );
-					free( pbuf );
-					pbuf = (char*)memalign( 32, (psize+32+1)&(~31) );
-					if( pbuf == NULL )
-					{
-						error = ERROR_MALLOC;
-						return;
-					}
-					memset( pbuf, 0, (psize+32+1)&(~31) );
-					ISFS_Read( pfd, pbuf, psize );
-					ISFS_Close( pfd );
-
-					pbuf[psize] = 0;
-					char se[5];
-					if( strpbrk(pbuf , "\r\n") )
-						sprintf(se, "\r\n");
-					else
-						sprintf(se, "\n");
-
-					ptr = strtok(pbuf, se);
-					while (ptr != NULL)
-					{
-						if(file == NULL && password != NULL)
-							file = ptr;
-						if(password == NULL)
-							password = ptr;
-						ptr = strtok (NULL, se);
-						if(file != NULL && password != NULL)
-							break;
-					}
+					if(file == NULL && password != NULL)
+						file = ptr;
+					if(password == NULL)
+						password = ptr;
+					ptr = strtok (NULL, se);
+					if(file != NULL && password != NULL)
+						break;
 				}
 			}
 
