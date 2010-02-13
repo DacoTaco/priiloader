@@ -74,6 +74,7 @@ void InstallPassword( void )
 	char* password = NULL;
 	char* file = NULL;
 	char tfile[200];
+	int redraw = 1;
 	FILE* in = NULL;
 	if (!RemountDevices() )
 	{
@@ -91,82 +92,88 @@ void InstallPassword( void )
 		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
 		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
 
-		password = NULL;
-		file = NULL;
-		if( ISFS_Initialize() == 0 )
+		if( redraw )
 		{
-			s32 pfd=0;
-			pfd = ISFS_Open("/title/00000001/00000002/data/password.txt", 1 );
-			if( pfd < 0 )
+			password = NULL;
+			file = NULL;
+			if( ISFS_Initialize() == 0 )
 			{
-				gprintf("password.txt not found on NAND. ISFS_Open returns %d\n",pfd);
-			}
-			else
-			{
-				fstats *pstatus = (fstats *)memalign( 32, sizeof( fstats ) );
-				ISFS_GetFileStats( pfd, pstatus);
-				psize = pstatus->file_length;
-				free( pstatus );
-				free( pbuf );
-				pbuf = (char*)memalign( 32, (psize+32+1)&(~31) );
-				if( pbuf == NULL )
+				s32 pfd=0;
+				pfd = ISFS_Open("/title/00000001/00000002/data/password.txt", 1 );
+				if( pfd < 0 )
 				{
-					error = ERROR_MALLOC;
-					return;
+					gprintf("password.txt not found on NAND. ISFS_Open returns %d\n",pfd);
 				}
-				memset( pbuf, 0, (psize+32+1)&(~31) );
-				ISFS_Read( pfd, pbuf, psize );
-				ISFS_Close( pfd );
-
-				pbuf[psize] = 0;
-				char se[5];
-				if( strpbrk(pbuf , "\r\n") )
-					sprintf(se, "\r\n");
 				else
-					sprintf(se, "\n");
-
-				ptr = strtok(pbuf, se);
-				while (ptr != NULL)
 				{
-					if(file == NULL && password != NULL)
-						file = ptr;
-					if(password == NULL)
-						password = ptr;
-					ptr = strtok (NULL, se);
-					if(file != NULL && password != NULL)
-						break;
+					fstats *pstatus = (fstats *)memalign( 32, sizeof( fstats ) );
+					ISFS_GetFileStats( pfd, pstatus);
+					psize = pstatus->file_length;
+					free( pstatus );
+					free( pbuf );
+					pbuf = (char*)memalign( 32, (psize+32+1)&(~31) );
+					if( pbuf == NULL )
+					{
+						error = ERROR_MALLOC;
+						return;
+					}
+					memset( pbuf, 0, (psize+32+1)&(~31) );
+					ISFS_Read( pfd, pbuf, psize );
+					ISFS_Close( pfd );
+
+					pbuf[psize] = 0;
+					char se[5];
+					if( strpbrk(pbuf , "\r\n") )
+						sprintf(se, "\r\n");
+					else
+						sprintf(se, "\n");
+
+					ptr = strtok(pbuf, se);
+					while (ptr != NULL)
+					{
+						if(file == NULL && password != NULL)
+							file = ptr;
+						if(password == NULL)
+							password = ptr;
+						ptr = strtok (NULL, se);
+						if(file != NULL && password != NULL)
+							break;
+					}
 				}
 			}
-		}
 
-		if(password == NULL)
-			PrintFormat( 0, 16, 32, "Password:");
-		else
-		{
-			PrintFormat( 0, 16, 32, "Password: %s", password);
-			if( check_pass( password ) )
-				PrintFormat( 1, (rmode->viWidth-48)>>1, 32, "OK");
+			if(password == NULL)
+				PrintFormat( 0, 16, 32, "Password:");
 			else
-				PrintFormat( 0, (rmode->viWidth-48)>>1, 32, "--");
-		}
+			{
+				PrintFormat( 0, 16, 32, "Password: %s", password);
+				if( check_pass( password ) )
+					PrintFormat( 1, (rmode->viWidth-48)>>1, 32, "OK");
+				else
+					PrintFormat( 0, (rmode->viWidth-48)>>1, 32, "--");
+			}
 
-		if(file == NULL)
-		{
-			PrintFormat( 0, 16, 48, "File:     wii_secure.dol");
-			in = fopen("fat:/wii_secure.dol", "rb");
-		}
-		else
-		{
-			PrintFormat( 0, 16, 48, "File:     %s", file);
-			sprintf(tfile, "fat:/%s", file);
-			in = fopen(tfile, "rb");
-		}
- 		if( in ) // if( RemountDevices() && in )
-			PrintFormat( 1, (rmode->viWidth-48)>>1, 48, "OK");
-		else
-			PrintFormat( 0, (rmode->viWidth-48)>>1, 48, "--");
-		fclose(in);
+			if(file == NULL)
+			{
+				PrintFormat( 0, 16, 48, "File:     wii_secure.dol");
+				in = fopen("fat:/wii_secure.dol", "rb");
+			}
+			else
+			{
+				PrintFormat( 0, 16, 48, "File:     %s", file);
+				sprintf(tfile, "fat:/%s", file);
+				in = fopen(tfile, "rb");
+			}
+			if( in ) // if( RemountDevices() && in )
+				PrintFormat( 1, (rmode->viWidth-48)>>1, 48, "OK");
+			else
+				PrintFormat( 0, (rmode->viWidth-48)>>1, 48, "--");
+			fclose(in);
 
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Install file"))*13/2))>>1, rmode->viHeight-64, "A(A) Install File");
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("2(X) Delete File "))*13/2))>>1, rmode->viHeight-48, "2(X) Delete File");
+			redraw = 0;
+		}
 
 #ifdef DEBUG
 		if ( (WPAD_Pressed & WPAD_BUTTON_HOME) || (PAD_Pressed & PAD_BUTTON_START) )
@@ -232,6 +239,7 @@ void InstallPassword( void )
 			ClearScreen();
 			ISFS_Close( fd );
 			free( pbuf );
+			redraw = 1;
 		}
 
 		if ( (WPAD_Pressed & WPAD_BUTTON_2) || (PAD_Pressed & PAD_BUTTON_X) )
@@ -262,11 +270,8 @@ void InstallPassword( void )
 			sleep(5);
 			ClearScreen();
 			ISFS_Close( fd );
-
+			redraw = 1;
 		}
-
-		PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Install file"))*13/2))>>1, rmode->viHeight-64, "A(A) Install File");
-		PrintFormat( 0, ((rmode->viWidth /2)-((strlen("2(X) Delete File "))*13/2))>>1, rmode->viHeight-48, "2(X) Delete File");
 	}
 	return;
 }
@@ -550,7 +555,7 @@ void password_check( void )
 				break;
 			else
 			{
- 				PrintFormat(1,((rmode->viWidth /2)-((strlen("Access denied..."))*13/2))>>1,80,"Access denied...");
+				PrintFormat(1,((rmode->viWidth /2)-((strlen("Access denied..."))*13/2))>>1,80,"Access denied...");
 				PrintFormat(1,((rmode->viWidth /2)-((strlen("Hands off from my Wi"))*13/2))>>1,96,"Hands off from my Wi");
 				sleep(3);
 				ClearScreen();
