@@ -182,8 +182,9 @@ bool MountDevices(void)
 	if (!fatMountSimple("fat",&__io_wiisd))
 	{
 		//sd mounting failed. lets go usb
-		//giantpune claims these value's have more support for some drives...
-		return fatMount("fat", &__io_usbstorage,0, 32, 64);//fatMountSimple("fat", &__io_usbstorage);
+		return fatMountSimple("fat", &__io_usbstorage);
+		//giantpune claims these value's have more support for some drives but apparently screws up my system menu dol loading memory somewhere real good (after ISFS_Read of data 2nd time?)... 8 & 64 seems to work tho...
+		//return fatMount("fat", &__io_usbstorage,0, 32, 64);
 	}
 	else
 	{
@@ -253,7 +254,7 @@ bool isIOSstub(u8 ios_number)
 	memset(ios_tmd , 0, tmd_size);
 	ES_GetTMDView(0x0000000100000000ULL | ios_number, (u8*)ios_tmd , tmd_size);
 	gprintf("IOS %d is rev %d(0x%x) with tmd size of %u and %u contents\n",ios_number,ios_tmd->title_version,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
-	/*Stubs have a few things in common�:
+	/*Stubs have a few things in common:
 	- title version : it is mostly 65280 , or even better : in hex the last 2 digits are 0. 
 		example : IOS 60 rev 6400 = 0x1900 = 00 = stub
 	- exception for IOS21 which is active, the tmd size is 592 bytes (or 140 with the views)
@@ -573,7 +574,7 @@ void SysHackSettings( void )
 	return;
 }
 
-void shellsort(u64 a[],int n)
+void shellsort(u64 *a,int n)
 {
 	int j,i,m;
 	u64 mid;
@@ -881,8 +882,17 @@ void SetSettings( void )
 					if( settings->UseSystemMenuIOS )
 					{
 						settings->UseSystemMenuIOS = false;
-						if(!settings->SystemMenuIOS)
+						if(settings->SystemMenuIOS == 0)
+						{
+							while( (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) < 3  || (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) > 256 )
+							{
+								if( (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) > 256 )
+									IOS_off--;
+								else
+									IOS_off++;
+							}
 							settings->SystemMenuIOS = (u32)(TitleIDs[IOS_off]&0xFFFFFFFF);
+						}
 					}
 					else
 					{
@@ -917,7 +927,7 @@ void SetSettings( void )
 					{
 						IOS_off++;
 						if( IOS_off >= TitleCount )
-							IOS_off = 3;
+							IOS_off = 2;
 						if( (u32)(TitleIDs[IOS_off]>>32) == 0x00000001 && (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) > 2  && (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) < 255 )
 							break;
 					}
@@ -1222,7 +1232,7 @@ void BootMainSysMenu( void )
 		error = ERROR_MALLOC;
 		goto free_and_return;
 	}
-	memset(rTMD,0, tmd_size );
+	memset(rTMD,0, (tmd_size+31)&(~31) );
 	r = ES_GetTMDView(TitleID, (u8*)rTMD, tmd_size);
 	if(r<0)
 	{
@@ -1231,13 +1241,6 @@ void BootMainSysMenu( void )
 		goto free_and_return;
 	}
 	gprintf("SM ios version: %u\n",(u8)rTMD->sys_version);
-#ifdef DEBUG
-	for (u32 i = 0; i < rTMD->num_contents; i++)
-	{
-		tmd_view_content_t *content = &rTMD->contents[i];
-		gprintf("content[%i] id=%08X type=%u\n", i, content->cid, content->type | 0x8001 );
-	}
-#endif
 
 	//get main.dol filename
 	/*for(u32 z=0; z < rTMD->num_contents; ++z)
@@ -1245,7 +1248,7 @@ void BootMainSysMenu( void )
 		if( rTMD->contents[z].index == rTMD->num_contents )//rTMD->boot_index )
 		{
 #ifdef DEBUG
-			printf("%d:%d\n", rTMD->contents[z].index, rTMD->contents[z].cid);
+			gprintf("content[%i] id=%08X type=%u\n", z, content->cid, content->type | 0x8001 );
 #endif
 			fileID = rTMD->contents[z].cid;
 			break;
@@ -1291,7 +1294,7 @@ void BootMainSysMenu( void )
 		error = ERROR_MALLOC;
 		goto free_and_return;
 	}
-
+	memset(status,0, sizeof( fstats ) );
 	r = ISFS_GetFileStats( fd, status);
 #ifdef DEBUG
 	printf("ISFS_GetFileStats(%d, %08X):%d\n", fd, status, r );
@@ -1310,28 +1313,32 @@ void BootMainSysMenu( void )
 	memset( hdr, 0, (sizeof( dolhdr )+31)&(~31) );
 	
 	ISFS_Seek( fd, 0, SEEK_SET );
+	if ( r < 0)
+	{
+		gprintf("failed to seek to start of boot file\n");
+		ISFS_Close(fd);
+		goto free_and_return;
+	}
 	r = ISFS_Read( fd, hdr, sizeof(dolhdr) );
 #ifdef DEBUG
 	printf("ISFS_Read(%d, %08X, %d):%d\n", fd, hdr, sizeof(dolhdr), r );
 	sleep(1);
 #endif
-	if( r < 0 )
+
+	if( r < 0 || r != sizeof(dolhdr) )
 	{
+		gprintf("failed to read dol to mem block!\n");
 		ISFS_Close( fd );
 		goto free_and_return;
 	}
 	if( hdr->entrypoint != 0x3400 )
 	{
-#ifdef DEBUG
-		printf("BOGUS entrypoint:%08X\n", hdr->entrypoint );
-		sleep(5);
-#endif
+		gprintf("Bogus Entrypoint Detected\n");
 		ISFS_Close( fd );
 		goto free_and_return;
 	}
 
 	void	(*entrypoint)();
-
 	for (u8 i = 0; i < 6; i++)
 	{
 		if( hdr->sizeText[i] && hdr->addressText[i] && hdr->offsetText[i] )
@@ -1342,21 +1349,23 @@ void BootMainSysMenu( void )
 #endif
 			if( (((hdr->addressText[i])&0xF0000000) != 0x80000000) || (hdr->sizeText[i]>(10*1024*1024)) )
 			{
-#ifdef DEBUG
-				printf("BOGUS offsets!\n");
-				sleep(5);
-#endif
 				gprintf("bogus offsets:Text\n");
+				ISFS_Close( fd );
 				goto free_and_return;
 			}
 
-			ISFS_Seek( fd, hdr->offsetText[i], SEEK_SET );
+			r = ISFS_Seek( fd, hdr->offsetText[i], SEEK_SET );
+			if ( r < 0)
+			{
+				gprintf("failed to seek to start of boot file\n");
+				ISFS_Close(fd);
+				goto free_and_return;
+			}
 			ISFS_Read( fd, (void*)(hdr->addressText[i]), hdr->sizeText[i] );
 
 			DCFlushRange((void*)(hdr->addressText[i]), hdr->sizeText[i]);
 		}
 	}
-
 	// data sections
 	for (u8 i = 0; i <= 10; i++)
 	{
@@ -1364,21 +1373,32 @@ void BootMainSysMenu( void )
 		{
 			ICInvalidateRange((void*)(hdr->addressData[i]), hdr->sizeData[i]);
 #ifdef DEBUG
-			printf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr->offsetData[i]), hdr->addressData[i], hdr->sizeData[i]);
+			gprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr->offsetData[i]), hdr->addressData[i], hdr->sizeData[i]);
 #endif
 			if( (((hdr->addressData[i])&0xF0000000) != 0x80000000) || (hdr->sizeData[i]>(10*1024*1024)) )
 			{
-#ifdef DEBUG
-				printf("BOGUS offsets!\n");
-				sleep(5);
-#endif
 				gprintf("bogus offsets:Data\n");
+				gprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr->offsetData[i]), hdr->addressData[i], hdr->sizeData[i]);
+				ISFS_Close(fd);
 				goto free_and_return;
 			}
 
-			ISFS_Seek( fd, hdr->offsetData[i], SEEK_SET );
-			ISFS_Read( fd, (void*)(hdr->addressData[i]), hdr->sizeData[i] );
-
+			r = ISFS_Seek( fd, hdr->offsetData[i], SEEK_SET );
+			if ( r < 0)
+			{
+				gprintf("failed to seek to start of boot file\n");
+				ISFS_Close(fd);
+				goto free_and_return;
+			}
+			//using the fat_mount 0,32,64 this screws up system menu booting so badly i can't even imagne whats going on o_O;
+			//it causes hangs on next code, or just plain DSI code dumps...
+			r = ISFS_Read( fd, (void*)(hdr->addressData[i]), hdr->sizeData[i] );
+			if (r < 0)
+			{
+				gprintf("failed to read offset %d\n",hdr->addressData[i]);
+				ISFS_Close(fd);
+				goto free_and_return;
+			}
 			DCFlushRange((void*)(hdr->addressData[i]), hdr->sizeData[i]);
 		}
 
@@ -1520,8 +1540,10 @@ void BootMainSysMenu( void )
 	ShutdownDevices();
 	//butt ugly hack around the problem but i can't think of another way to fix it...
 	//TODO : make it less hacky by fixing the __io_usbstorage.shutdown()
-	if (USBStorage_ReturnHandle().usb_fd > 0)
+	if ( ( __io_usbstorage.isInserted() ) && ( USBStorage_ReturnHandle().usb_fd > 0 ))
+	{
 		USBStorage_Close(&USBStorage_ReturnHandle());
+	}
 	__STM_Close();
 	ISFS_Deinitialize();
 	__IOS_ShutdownSubsystems();
@@ -1529,18 +1551,25 @@ void BootMainSysMenu( void )
 	mtmsr(mfmsr() | 0x2002);
 	_unstub_start();
 free_and_return:
+	gprintf("free rTMD,");
 	if(rTMD)
 		free(rTMD);
+	gprintf("file,");
 	if(file)
 		free(file);
+	gprintf("TMD,");
 	if(TMD)
 		free(TMD);
+	gprintf("status,");
 	if(status)
 		free( status );
+	gprintf("tstatus,");
 	if(tstatus)
 		free( tstatus );
+	gprintf("buf,");
 	if(buf)
 		free( buf );
+	gprintf("hdr!\n");
 	if(hdr)
 		free(hdr);
 	return;

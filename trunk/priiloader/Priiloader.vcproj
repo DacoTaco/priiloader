@@ -67,6 +67,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\source\password.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\source\settings.cpp"
 				>
 			</File>
@@ -106,6 +110,10 @@
 			</File>
 			<File
 				RelativePath=".\include\hacks.h"
+				>
+			</File>
+			<File
+				RelativePath=".\include\password.h"
 				>
 			</File>
 			<File
