@@ -438,8 +438,7 @@ int main(int argc, char **argv)
 					ISFS_Close(fd);
 					fd = ISFS_Open("/ticket/00000001/00000002.tik",ISFS_OPEN_READ);
 					//"/ticket/00000001/00000002.tik" -> original path which should be there on every wii.
-					//however needs nand permissions which SU doesn't have without trucha? >_>
-					//we need mini if we want to be patch free...
+					//however needs nand permissions which trucha gives >_>
 					if (fd < 0)
 					{
 						switch(fd)

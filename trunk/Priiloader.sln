@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 10.00
 # Visual Studio 2008
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "priiloader", "priiloader\priiloader.vcproj", "{5F442C2A-5700-4F90-87E6-BEC5C54BF00C}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Priiloader", "priiloader\priiloader.vcproj", "{5F442C2A-5700-4F90-87E6-BEC5C54BF00C}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Installer", "Installer\Installer.vcproj", "{E0E7DAF2-AE44-4DAF-AB23-38162FD44F00}"
 	ProjectSection(ProjectDependencies) = postProject

@@ -34,7 +34,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 extern u8 error;
-GXRModeObj *rmode = VIDEO_GetPreferredMode(NULL);
+extern GXRModeObj *rmode;
 extern void ClearScreen();
 extern bool RemountDevices();
 

@@ -86,7 +86,6 @@ extern Settings *settings;
 extern u8 error;
 extern std::vector<hack> hacks;
 extern u32 *states;
-extern usbstorage_handle __usbfd;
 
 u8 Shutdown=0;
 u8 BootSysMenu = 0;
@@ -94,7 +93,7 @@ u8 ReloadedIOS = 0;
 time_t startloop;
 
 static void *xfb = NULL;
-static GXRModeObj *rmode = NULL;
+GXRModeObj *rmode = NULL;
 
 extern s32 __IOS_ShutdownSubsystems();
 s32 __IOS_LoadStartupIOS()
@@ -179,12 +178,15 @@ void LoadStub ( void )
 bool MountDevices(void)
 {
 #ifndef libELM
-	if (!fatMountSimple("fat",&__io_wiisd))
+	if ( !fatMountSimple("fat",&__io_wiisd) )
 	{
 		//sd mounting failed. lets go usb
-		return fatMountSimple("fat", &__io_usbstorage);
-		//giantpune claims these value's have more support for some drives but apparently screws up my system menu dol loading memory somewhere real good (after ISFS_Read of data 2nd time?)... 8 & 64 seems to work tho...
-		//return fatMount("fat", &__io_usbstorage,0, 32, 64);
+		//return fatMountSimple("fat", &__io_usbstorage);
+
+		//giantpune claims these value's have more support for some drives but apparently screws up when 
+		//loading sys menu dol (cause everything is shifted with 1MB, its a case of "wrong place at the wrong time"... 
+		//8 & 64 seems to work tho...
+		return fatMount("fat", &__io_usbstorage,0, 8, 64);
 	}
 	else
 	{
@@ -288,7 +290,7 @@ bool isIOSstub(u8 ios_number)
 
 void SysHackSettings( void )
 {
-	bool DeviceFound = RemountDevices();
+	u8 DeviceFound = RemountDevices();
 
 	if( !LoadHacks() )
 	{
@@ -1151,7 +1153,6 @@ void BootMainSysMenu( void )
 
 	//TMDview stuff:
 	u64 TitleID=0x0000000100000002LL;
-	u32 tempKeyID;
 	u32 tmd_size;
 	tmd_view *rTMD = NULL;
 
@@ -1162,12 +1163,12 @@ void BootMainSysMenu( void )
 	u32 fileID = 0;
 	char * file = NULL;
 	fstats * status = NULL;
-	dolhdr *hdr = NULL;
+	dolhdr *boot_hdr = NULL;
 
 	//general:
 	s32 r = 0;
+	s32 fd = 0;
 	
-
 	ISFS_Deinitialize();
 	if( ISFS_Initialize() < 0 )
 	{
@@ -1178,45 +1179,6 @@ void BootMainSysMenu( void )
 		}
 		return;
 	}
-
-	//read ticket from FS
-	s32 fd = ISFS_Open("/title/00000001/00000002/content/ticket", 1 );
-	if( fd < 0 )
-	{
-		error = ERROR_SYSMENU_TIKNOTFOUND;
-		return;
-	}
-
-	//get size
-	tstatus = (fstats*)memalign( 32, sizeof( fstats ) );
-	r = ISFS_GetFileStats( fd, tstatus );
-	if( r < 0 )
-	{
-		ISFS_Close( fd );
-		error = ERROR_SYSMENU_TIKSIZEGETFAILED;
-		goto free_and_return;
-	}
-
-	//create buffer
-	buf = (char*)memalign( 32, (tstatus->file_length+31)&(~31) );
-	if( buf == NULL )
-	{
-		ISFS_Close( fd );
-		error = ERROR_MALLOC;
-		goto free_and_return;
-	}
-	memset(buf, 0, (tstatus->file_length+31)&(~31) );
-
-	//read file
-	r = ISFS_Read( fd, buf, tstatus->file_length );
-	if( r < 0 )
-	{
-		ISFS_Close( fd );
-		error = ERROR_SYSMENU_TIKREADFAILED;
-		goto free_and_return;
-	}
-
-	ISFS_Close( fd );
 	
 	//expermintal code for getting the needed tmd info. no boot index is in the views but lunatik and i think last file = boot file
 	r = ES_GetTMDViewSize(TitleID, &tmd_size);
@@ -1309,8 +1271,16 @@ void BootMainSysMenu( void )
 #ifdef DEBUG
 	printf("size:%d\n", status->file_length);
 #endif
-	hdr = (dolhdr *)memalign(32, (sizeof( dolhdr )+31)&(~31) );
-	memset( hdr, 0, (sizeof( dolhdr )+31)&(~31) );
+	free(status);
+	boot_hdr = (dolhdr *)memalign(32, (sizeof( dolhdr )+31)&(~31) );
+	if(boot_hdr == NULL)
+	{
+		gprintf("failed to allocate dol header\n");
+		error = ERROR_MALLOC;
+		ISFS_Close(fd);
+		goto free_and_return;
+	}
+	memset( boot_hdr, 0, (sizeof( dolhdr )+31)&(~31) );
 	
 	ISFS_Seek( fd, 0, SEEK_SET );
 	if ( r < 0)
@@ -1319,7 +1289,7 @@ void BootMainSysMenu( void )
 		ISFS_Close(fd);
 		goto free_and_return;
 	}
-	r = ISFS_Read( fd, hdr, sizeof(dolhdr) );
+	r = ISFS_Read( fd, boot_hdr, sizeof(dolhdr) );
 #ifdef DEBUG
 	printf("ISFS_Read(%d, %08X, %d):%d\n", fd, hdr, sizeof(dolhdr), r );
 	sleep(1);
@@ -1331,7 +1301,7 @@ void BootMainSysMenu( void )
 		ISFS_Close( fd );
 		goto free_and_return;
 	}
-	if( hdr->entrypoint != 0x3400 )
+	if( boot_hdr->entrypoint != 0x3400 )
 	{
 		gprintf("Bogus Entrypoint Detected\n");
 		ISFS_Close( fd );
@@ -1341,69 +1311,67 @@ void BootMainSysMenu( void )
 	void	(*entrypoint)();
 	for (u8 i = 0; i < 6; i++)
 	{
-		if( hdr->sizeText[i] && hdr->addressText[i] && hdr->offsetText[i] )
+		if( boot_hdr->sizeText[i] && boot_hdr->addressText[i] && boot_hdr->offsetText[i] )
 		{
-			ICInvalidateRange((void*)(hdr->addressText[i]), hdr->sizeText[i]);
+			ICInvalidateRange((void*)(boot_hdr->addressText[i]), boot_hdr->sizeText[i]);
 #ifdef DEBUG
-			printf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr->offsetText[i]), hdr->addressText[i], hdr->sizeText[i]);
+			gprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (boot_hdr->offsetText[i]), boot_hdr->addressText[i], boot_hdr->sizeText[i]);
 #endif
-			if( (((hdr->addressText[i])&0xF0000000) != 0x80000000) || (hdr->sizeText[i]>(10*1024*1024)) )
+			if( (((boot_hdr->addressText[i])&0xF0000000) != 0x80000000) || (boot_hdr->sizeText[i]>(10*1024*1024)) )
 			{
 				gprintf("bogus offsets:Text\n");
 				ISFS_Close( fd );
 				goto free_and_return;
 			}
 
-			r = ISFS_Seek( fd, hdr->offsetText[i], SEEK_SET );
+			r = ISFS_Seek( fd, boot_hdr->offsetText[i], SEEK_SET );
 			if ( r < 0)
 			{
 				gprintf("failed to seek to start of boot file\n");
 				ISFS_Close(fd);
 				goto free_and_return;
 			}
-			ISFS_Read( fd, (void*)(hdr->addressText[i]), hdr->sizeText[i] );
+			ISFS_Read( fd, (void*)(boot_hdr->addressText[i]), boot_hdr->sizeText[i] );
 
-			DCFlushRange((void*)(hdr->addressText[i]), hdr->sizeText[i]);
+			DCFlushRange((void*)(boot_hdr->addressText[i]), boot_hdr->sizeText[i]);
 		}
 	}
 	// data sections
 	for (u8 i = 0; i <= 10; i++)
 	{
-		if( hdr->sizeData[i] && hdr->addressData[i] && hdr->offsetData[i] )
+		if( boot_hdr->sizeData[i] && boot_hdr->addressData[i] && boot_hdr->offsetData[i] )
 		{
-			ICInvalidateRange((void*)(hdr->addressData[i]), hdr->sizeData[i]);
+			ICInvalidateRange((void*)(boot_hdr->addressData[i]), boot_hdr->sizeData[i]);
 #ifdef DEBUG
 			gprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr->offsetData[i]), hdr->addressData[i], hdr->sizeData[i]);
 #endif
-			if( (((hdr->addressData[i])&0xF0000000) != 0x80000000) || (hdr->sizeData[i]>(10*1024*1024)) )
+			if( (((boot_hdr->addressData[i])&0xF0000000) != 0x80000000) || (boot_hdr->sizeData[i]>(10*1024*1024)) )
 			{
 				gprintf("bogus offsets:Data\n");
-				gprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr->offsetData[i]), hdr->addressData[i], hdr->sizeData[i]);
+				gprintf("offset : %08x\taddress : %08x\tsize : %08x\t\t\n", (boot_hdr->offsetData[i]), boot_hdr->addressData[i], boot_hdr->sizeData[i]);
 				ISFS_Close(fd);
 				goto free_and_return;
 			}
 
-			r = ISFS_Seek( fd, hdr->offsetData[i], SEEK_SET );
+			r = ISFS_Seek( fd, boot_hdr->offsetData[i], SEEK_SET );
 			if ( r < 0)
 			{
 				gprintf("failed to seek to start of boot file\n");
 				ISFS_Close(fd);
 				goto free_and_return;
 			}
-			//using the fat_mount 0,32,64 this screws up system menu booting so badly i can't even imagne whats going on o_O;
-			//it causes hangs on next code, or just plain DSI code dumps...
-			r = ISFS_Read( fd, (void*)(hdr->addressData[i]), hdr->sizeData[i] );
+			r = ISFS_Read( fd, (void*)boot_hdr->addressData[i], boot_hdr->sizeData[i] );
 			if (r < 0)
 			{
-				gprintf("failed to read offset %d\n",hdr->addressData[i]);
+				gprintf("failed to read offset %d\n",boot_hdr->addressData[i]);
 				ISFS_Close(fd);
 				goto free_and_return;
 			}
-			DCFlushRange((void*)(hdr->addressData[i]), hdr->sizeData[i]);
+			DCFlushRange((void*)boot_hdr->addressData[i], boot_hdr->sizeData[i]);
 		}
 
 	}
-	entrypoint = (void (*)())(hdr->entrypoint);
+	entrypoint = (void (*)())(boot_hdr->entrypoint);
 	gprintf("entrypoint: %08X\n", entrypoint );
 
 	RemountDevices();
@@ -1469,6 +1437,50 @@ void BootMainSysMenu( void )
 			gprintf("Forced into ES_Identify (reloaded IOS since startup) ...\n");
 		else
 			gprintf("using IOS(%d) other then system menu IOS(%u)\nforcing ES_Identify...\n",IOS_GetVersion(),(u8)rTMD->sys_version);
+		//read ticket from FS
+		fd = ISFS_Open("/title/00000001/00000002/content/ticket", 1 );
+		if( fd < 0 )
+		{
+			error = ERROR_SYSMENU_TIKNOTFOUND;
+			goto free_and_return;
+		}
+
+		//get size
+		tstatus = (fstats*)memalign( 32, sizeof( fstats ) );
+		if(tstatus == NULL)
+		{
+			ISFS_Close( fd );
+			error = ERROR_MALLOC;
+			goto free_and_return;
+		}
+		r = ISFS_GetFileStats( fd, tstatus );
+		if( r < 0 )
+		{
+			ISFS_Close( fd );
+			error = ERROR_SYSMENU_TIKSIZEGETFAILED;
+			goto free_and_return;
+		}
+
+		//create buffer
+		buf = (char*)memalign( 32, (tstatus->file_length+31)&(~31) );
+		if( buf == NULL )
+		{
+			ISFS_Close( fd );
+			error = ERROR_MALLOC;
+			goto free_and_return;
+		}
+		memset(buf, 0, (tstatus->file_length+31)&(~31) );
+
+		//read file
+		r = ISFS_Read( fd, buf, tstatus->file_length );
+		if( r < 0 )
+		{
+			ISFS_Close( fd );
+			error = ERROR_SYSMENU_TIKREADFAILED;
+			goto free_and_return;
+		}
+
+		ISFS_Close( fd );
 		//get the real TMD. we didn't get the real TMD before. the views will fail to be used in identification
 		u32 tmd_size_temp;
 		r=ES_GetStoredTMDSize(TitleID, &tmd_size_temp);
@@ -1481,6 +1493,14 @@ void BootMainSysMenu( void )
 			goto free_and_return;
 		}
 		TMD = (signed_blob *)memalign( 32, (tmd_size_temp+31)&(~31) );
+		if(TMD == NULL)
+		{
+			gprintf("failed to allocate the TMD\n");
+			error = ERROR_MALLOC;
+			__IOS_InitializeSubsystems();
+			WPAD_Init();
+			goto free_and_return;
+		}
 		memset(TMD, 0, tmd_size_temp);
 
 		r=ES_GetStoredTMD(TitleID, TMD, tmd_size_temp);
@@ -1492,7 +1512,7 @@ void BootMainSysMenu( void )
 			WPAD_Init();
 			goto free_and_return;
 		}
-		r = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size_temp, (signed_blob *)buf, tstatus->file_length, &tempKeyID);
+		r = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size_temp, (signed_blob *)buf, tstatus->file_length, 0);
 		if( r < 0 )
 		{	
 			error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
@@ -1570,8 +1590,8 @@ free_and_return:
 	if(buf)
 		free( buf );
 	gprintf("hdr!\n");
-	if(hdr)
-		free(hdr);
+	if(boot_hdr)
+		free(boot_hdr);
 	return;
 }
 void InstallLoadDOL( void )
@@ -2466,6 +2486,9 @@ void Autoboot_System( void )
 int main(int argc, char **argv)
 {
 	CheckForGecko();
+#ifdef DEBUG
+	InitGDBDebug();
+#endif
 	gprintf("priiloader\n");
 	gprintf("Built   : %s %s\n", __DATE__, __TIME__ );
 	gprintf("Version : %d.%dc (rev %s)\n", VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
@@ -2509,21 +2532,6 @@ int main(int argc, char **argv)
 	//Check reset button state
 	if( ((*(vu32*)0xCC003000)>>16)&1 && *(vu32*)0x8132FFFB != 0x4461636f) //0x4461636f = "Daco" in hex)
 	{
-#ifdef DEBUG
-		//debug code to dump the "stub" before crashing
-		MountDevices();
-		FILE* stub = fopen("fat:/stub2.bin","w");
-		if(stub)
-		{
-			gprintf("writing stub2...\n");
-			fwrite((void*)0x80001800,1,stub_bin_size,stub);
-			fclose(stub);
-		}
-		ShutdownDevices();
-		//gprintf("testing stub by crashing...\n");
-		//sprintf(argv[4],"%s",argv[20]);//(int*)0=1;
-#endif
-
 		//Check autoboot settings
 		StateFlags temp;
 #ifdef DEBUG
@@ -2807,7 +2815,7 @@ int main(int argc, char **argv)
 
 			if (error > 0)
 			{
-				ShowError(rmode->viHeight, 0 );
+				ShowError();
 				error = ERROR_NONE;
 			}
 			redraw = false;
