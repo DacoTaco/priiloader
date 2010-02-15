@@ -32,7 +32,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "gecko.h"
 
 Settings *settings=NULL;
-u8 ShowUpdate=0;
 extern u8 error;
 u32 GetSysMenuVersion( void )
 {
@@ -148,7 +147,7 @@ u32 SGetSetting( u32 s )
 }
 void LoadSettings( void )
 {
-	if(!settings)
+	if(settings == NULL)
 	{
 		//the settings still need to be aligned/allocated. so lets do that
 		settings = (Settings*)memalign( 32, (sizeof( Settings )+31)&(~31));
@@ -196,16 +195,22 @@ void LoadSettings( void )
 		if( fd < 0 )
 		{
 			error = ERROR_SETTING_OPEN;
+			if(status)
+				free(status);
 			return;
 		}
 		if(ISFS_Write( fd, settings, sizeof( Settings ) )<0)
 		{
 			ISFS_Close( fd );
+			if(status)
+				free(status);
 			error = ERROR_SETTING_WRITE;
 			return;
 		}
 		ISFS_Seek( fd, 0, 0 );
 	}
+	if(status)
+		free(status);
 	if(ISFS_Read( fd, settings, sizeof( Settings ) )<0)
 	{
 		ISFS_Close( fd );

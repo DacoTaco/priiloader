@@ -59,3 +59,8 @@ void SetShowDebug( u8 value )
 {
 	ShowDebug = value;
 }
+void InitGDBDebug( void )
+{
+	DEBUG_Init(GDBSTUB_DEVICE_USB, 1);
+	return;
+}
