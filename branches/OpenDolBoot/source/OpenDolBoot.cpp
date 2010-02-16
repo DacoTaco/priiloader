@@ -41,7 +41,9 @@ int main(int argc, char **argv)
 			{
 				i++;
 				Nand_Use_File = argv[i];
+#ifdef DEBUG
 				printf("using nand file %s\n",Nand_Use_File);
+#endif
 			}
 		}
 	}
@@ -136,42 +138,38 @@ int main(int argc, char **argv)
 	printf("starting nand loader injection...\n");
 	printf("opening & putting the nboot in memory...");
 	FILE* nboot_fd = NULL;
+	Nandcode nboot;
+	long nbootSize;
 	if (Nand_Use_File != NULL)
 	{
 		nboot_fd = fopen(Nand_Use_File,"rb");
 		if(!nboot_fd)
 		{
-			printf("failed to open %s\n",Nand_Use_File);
-			exit(0);
+		  printf("failed to open %s\n",Nand_Use_File);
+		  exit(0);
 		}
-	}
+		fseek (nboot_fd , 0 , SEEK_END);
+		nbootSize = ftell (nboot_fd);
+		rewind (nboot_fd);
+		if( nbootSize != 1296)
+		{
+		  printf("\nnboot.bin isn't the correct size!\n");
+		  exit(0);
+		}
+		result = fread(&nboot,1,nbootSize,nboot_fd);
+		if (result != nbootSize)
+		{
+		  printf("\nreading error: %lu & %lu",result,nbootSize);
+		  exit(0);
+		}
+			fclose(nboot_fd);
+		}
 	else
 	{
-		nboot_fd = fopen("nboot.bin","rb");
-		if(!nboot_fd)
-		{
-			printf("failed to open nboot.bin\n");
-			exit(0);
-		}
+		memcpy((void*)&nboot,_nboot, _nboot_size);
+		nbootSize = _nboot_size;
 	}
-	Nandcode nboot;
-	long nbootSize;
-	fseek (nboot_fd , 0 , SEEK_END);
-	nbootSize = ftell (nboot_fd);
-	rewind (nboot_fd);
-	if( nbootSize != 1296)
-	{
-		printf("\nnboot.bin isn't the correct size!\n");
-		exit(0);
-	}
-	result = fread(&nboot,1,nbootSize,nboot_fd);
-	if (result != nbootSize) 
-	{
-		printf("\nreading error: %d & %d",result,nbootSize); 
-		exit(0);
-	}
-	fclose(nboot_fd);
-	//TODO : make it change the dol header and edit nand entrypoint
+
 	printf("Done\nchecking & editing data before saving...");
 	if(DolHeader.sizeText[1] && DolHeader.addressText[1] && DolHeader.offsetText[1])
 	{
