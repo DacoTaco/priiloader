@@ -106,11 +106,7 @@ else
 endif
 	@[ -d $@ ] || mkdir -p $@
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
-ifeq ($(UNAME),Linux)
-	wine dolboot.exe $(OUTPUT).dol ../Installer/data/priiloader.app
-else
-	OpenDolBoot.exe $(OUTPUT).dol -n ../tools/nboot.bin ../Installer/data/priiloader.app
-endif
+	OpenDolBoot $(OUTPUT).dol ../Installer/data/priiloader.app
 	wiiload $(OUTPUT).elf
 
 #---------------------------------------------------------------------------------

@@ -11,6 +11,23 @@ int main(int argc, char **argv)
 	char ShowInfo = false;
 	char* Nand_Use_File = 0;
 	char* OutputFile = 0;
+	if ( argc < 1 && (strcmp(argv[1],"-h") == 0 || strcmp(argv[1],"-H") == 0 || argc == 1))
+	{
+		Display_Parameters();
+		exit(0);
+	}
+	else if(argc < 3)
+	{
+		Display_Parameters();
+		printf("\n\nnot enough parameters given\n");
+		exit(0);
+	}
+	else if( strncmp(argv[1],"-x",1) == 0 )
+	{
+		Display_Parameters();
+		printf("\n\nno input dol given\n");
+		exit(0);
+	}
 	for (int i = 2; i < argc; i++)
 	{
 #ifdef DEBUG
@@ -49,21 +66,24 @@ int main(int argc, char **argv)
 	}
 	if (Nand_Use_File != NULL)
 	{
-		if(argc < 3 || strncmp(argv[1],"-x",1) == 0 || (ShowInfo == false && (  strncmp(argv[argc-1],"-x",1) == 0 || strcmp(argv[argc-1],Nand_Use_File) == 0 || strcmp(argv[argc-1],argv[1]) == 0 )) )
+		if(ShowInfo == false && (  strncmp(argv[argc-1],"-x",1) == 0 || strcmp(argv[argc-1],Nand_Use_File) == 0 || strcmp(argv[argc-1],argv[1]) == 0 ) )
 		{
 			Display_Parameters();
-			printf("\n\n no input dol or output app file parameter given\n");
+			printf("\n\nno output app given\n");
 			exit(0);
 		}
 	}
-	else if(argc < 3 || strncmp(argv[1],"-x",1) == 0 || (ShowInfo == false && (  strncmp(argv[argc-1],"-x",1) == 0  || strcmp(argv[argc-1],argv[1]) == 0 )) )
+	else if( ShowInfo == false && (  strncmp(argv[argc-1],"-x",1) == 0  || strcmp(argv[argc-1],argv[1]) == 0 ) )
 	{
 		Display_Parameters();
-		printf("\n\n no input dol or output app file parameter given\n");
+		printf("\n\nno output app given\n");
 		exit(0);
 	}
+	if(!ShowInfo)
+	{
+		OutputFile = argv[argc-1];
+	}
 	InputFile = argv[1];
-	OutputFile = argv[argc-1];
 	dolhdr DolHeader;
 	FILE* Dol;
 	printf("opening dol...\n");
@@ -185,7 +205,9 @@ int main(int argc, char **argv)
 	}
 	int nbootOffset = ftell (Dol);
 	int padding = nbootOffset%16;
-	//printf("dol is at offset 0x%08X\n",nbootOffset);
+#ifdef DEBUG
+	printf("dol is at offset 0x%08X\n",nbootOffset);
+#endif
 	if ( padding != NULL )
 	{
 		printf("\n\nneeded to add %d bytes of padding at the end of the dol\n",padding);
@@ -227,7 +249,7 @@ void Display_Parameters ( void )
 {
 	printf("OpenDolBoot Input_Dol_filename [-i] [-n nandcode_filename] [-h] Output_App_filename \n\n");
 	printf("parameters:\n");
-	printf("-i : display info about the dol file\n");
+	printf("-i : display info about the dol file and exit (no other parameters are required when using -i\n");
 	printf("-n : use the following nand code and not the default nboot.bin\n");
 	printf("-h : display this message\n");
 }
