@@ -12,6 +12,7 @@
 #else
 #define SwapEndian(x) __builtin_bswap32(x)
 #include <unistd.h>
+#include <string.h>
 #endif
 
 typedef struct {

@@ -1,7 +1,7 @@
 // OpenDolBoot.cpp : Defines the entry point for the console application.
 //
 
-#include "OpenDolBoot.h"
+#include "../include/OpenDolBoot.h"
 
 
 int main(int argc, char **argv)
@@ -80,13 +80,13 @@ int main(int argc, char **argv)
 	fseek (Dol , 0 , SEEK_END);
 	DolSize = ftell (Dol) - sizeof(dolhdr);
 #ifdef DEBUG
-	printf("detected file size : %d-0x%x\n",DolSize,DolSize);
+	printf("detected file size : %d-0x%x\n",(int)DolSize,(int)DolSize);
 #endif
 	rewind (Dol);
 	size_t result = fread(&DolHeader,1,sizeof(dolhdr),Dol);
 	if (result != sizeof(dolhdr)) 
 	{
-		printf("error reading dol header.Reading error: %d bytes of %d read\n",result,DolSize); 
+		printf("error reading dol header.Reading error: %d bytes of %d read\n",result,sizeof(dolhdr)); 
 		exit(0);
 	}
 	// allocate memory to contain the whole file:
@@ -101,11 +101,11 @@ int main(int argc, char **argv)
 	result = fread(DolFile,1,DolSize,Dol);
 	if (result != DolSize) 
 	{
-		printf("error reading Dol Data.Reading error: %d bytes of %d read\n",result,DolSize); 
+		printf("error reading Dol Data.Reading error: %d bytes of %d read\n",result,(int)DolSize); 
 		exit(0);
 	}
 #ifdef DEBUG
-	printf("done reading %d bytes into memory\n",DolSize);
+	printf("done reading %d bytes into memory\n",(int)DolSize);
 #else
 	printf("done reading data\n");
 #endif
@@ -113,14 +113,14 @@ int main(int argc, char **argv)
 	if (ShowInfo)
 	{
 		printf("\n\n");
-		printf("entrypoint: %08X\tBSS Address : %08X\tBSS Size: %08X\n\n", SwapEndian(DolHeader.entrypoint) , SwapEndian(DolHeader.addressBSS) , SwapEndian(DolHeader.sizeBSS) );
+		printf("entrypoint: %08X\tBSS Address : %08X\tBSS Size: %08X\n\n", (unsigned int)SwapEndian(DolHeader.entrypoint) , (unsigned int)SwapEndian(DolHeader.addressBSS) , (unsigned int)SwapEndian(DolHeader.sizeBSS) );
 		printf("Displaying Text info:\n");
 		for(int i = 0;i < 6;i++)
 		{
 			if(DolHeader.sizeText[i] && DolHeader.addressText[i] && DolHeader.offsetText[i])
 			{
 				//valid info. swap and display
-				printf("offset : %08x\taddress : %08x\tsize : %08x\t\t\n", SwapEndian(DolHeader.offsetText[i]), SwapEndian(DolHeader.addressText[i]), SwapEndian(DolHeader.sizeText[i]));
+				printf("offset : %08x\taddress : %08x\tsize : %08x\t\t\n", (unsigned int)SwapEndian(DolHeader.offsetText[i]), (unsigned int)SwapEndian(DolHeader.addressText[i]), (unsigned int)SwapEndian(DolHeader.sizeText[i]));
 			}
 		}
 		printf("\nDisplaying Data Info:\n");
@@ -129,7 +129,7 @@ int main(int argc, char **argv)
 			if(DolHeader.sizeData[i] && DolHeader.addressData[i] && DolHeader.offsetData[i])
 			{
 				//valid info. swap and display
-				printf("offset : %08x\taddress : %08x\tsize : %08x\t\t\n", SwapEndian(DolHeader.offsetData[i]), SwapEndian(DolHeader.addressData[i]), SwapEndian(DolHeader.sizeData[i]));
+				printf("offset : %08x\taddress : %08x\tsize : %08x\t\t\n", (unsigned int)SwapEndian(DolHeader.offsetData[i]), (unsigned int)SwapEndian(DolHeader.addressData[i]), (unsigned int)SwapEndian(DolHeader.sizeData[i]));
 			}
 		}
 		sleep(5);
@@ -159,7 +159,7 @@ int main(int argc, char **argv)
 		result = fread(&nboot,1,nbootSize,nboot_fd);
 		if (result != nbootSize)
 		{
-		  printf("\nreading error: %lu & %lu",result,nbootSize);
+		  printf("\nreading error: %d & %d",result,(int)nbootSize);
 		  exit(0);
 		}
 			fclose(nboot_fd);
@@ -179,7 +179,7 @@ int main(int argc, char **argv)
 	}
 	if (nboot.entrypoint_dol != DolHeader.entrypoint)
 	{
-		printf("\n\ndifferent nboot to dol entrypoint detected! Changing\n\t0x%08X\tto\t0x%08X\n",SwapEndian(nboot.entrypoint_dol),SwapEndian(DolHeader.entrypoint));
+		printf("\n\ndifferent nboot to dol entrypoint detected! Changing\n\t0x%08X\tto\t0x%08X\n",(unsigned int)SwapEndian(nboot.entrypoint_dol),(unsigned int)SwapEndian(DolHeader.entrypoint));
 		nboot.entrypoint_dol = DolHeader.entrypoint;
 
 	}
