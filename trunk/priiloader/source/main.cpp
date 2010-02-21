@@ -1084,14 +1084,14 @@ void LoadHBC( void )
 }
 void LoadBootMii( void )
 {
-	//when this was coded on 6th of Oct 2009 Bootmii was IOS 254
+	//when this was coded on 6th of Oct 2009 Bootmii ios was in IOS slot 254
 	if(isIOSstub(254))
 		return;
-	if (!RemountDevices())
+	if (!RemountDevices() || !__io_wiisd.isInserted())
 	{
 		if(rmode != NULL)
 		{
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not mount any FAT device"))*13/2))>>1, 208, "Could not mount any FAT device");
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not mount SD card"))*13/2))>>1, 208, "Could not mount any SD card");
 			sleep(5);
 		}
 		return;

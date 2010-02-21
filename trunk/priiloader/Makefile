@@ -106,7 +106,11 @@ else
 endif
 	@[ -d $@ ] || mkdir -p $@
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
-	OpenDolBoot $(OUTPUT).dol ../Installer/data/priiloader.app
+ifeq ($(UNAME),Linux)
+		./OpenDolBoot $(OUTPUT).dol ../Installer/data/priiloader.app
+else
+		./OpenDolBoot.exe $(OUTPUT).dol ../Installer/data/priiloader.app
+endif
 	wiiload $(OUTPUT).elf
 
 #---------------------------------------------------------------------------------
