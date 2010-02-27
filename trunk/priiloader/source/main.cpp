@@ -296,14 +296,14 @@ void SysHackSettings( void )
 	{
 		if(!DeviceFound)
 		{
-			if (rmode != NULL)
-				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to mount fat device"))*13/2))>>1, 208+16, "Failed to mount fat device");
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to mount FAT device"))*13/2))>>1, 208+16, "Failed to mount FAT device");
 		}
-		if (rmode != NULL)
+		else
 		{
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Can't find Hacks.ini on NAND"))*13/2))>>1, 208+16+16, "Can't find Hacks.ini on NAND");
-			sleep(5);
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Can't find Hacks.ini on FAT Device"))*13/2))>>1, 208+16, "Can't find Hacks.ini on FAT Device");
 		}
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Can't find Hacks.ini on NAND"))*13/2))>>1, 208+16+16, "Can't find Hacks.ini on NAND");
+		sleep(5);
 		return;
 	}
 
@@ -321,12 +321,9 @@ void SysHackSettings( void )
 
 	if( HackCount == 0 )
 	{
-		if (rmode != NULL)
-		{
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Couldn't find any hacks for"))*13/2))>>1, 208, "Couldn't find any hacks for");
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("System Menu version:vxxx"))*13/2))>>1, 228, "System Menu version:v%d", SysVersion );
-			sleep(5);
-		}
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Couldn't find any hacks for"))*13/2))>>1, 208, "Couldn't find any hacks for");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("System Menu version:vxxx"))*13/2))>>1, 228, "System Menu version:v%d", SysVersion );
+		sleep(5);
 		return;
 	}
 
@@ -1022,7 +1019,7 @@ void SetSettings( void )
 			//PrintFormat( 0, 16, 64, "Pos:%d", ((rmode->viWidth /2)-(strlen("settings saved")*13/2))>>1);
 
 			PrintFormat( cur_off==2, 0, 128+16, "           Shutdown to:          %s", settings->ShutdownToPreloader?"Priiloader":"off       ");
-			PrintFormat( cur_off==3, 0, 128+32, "             Stop disc:          %s", settings->StopDisc?"on ":"off");
+			PrintFormat( cur_off==3, 0, 128+32, "  Stop disc on startup:          %s", settings->StopDisc?"on ":"off");
 			PrintFormat( cur_off==4, 0, 128+48, "   Light slot on error:          %s", settings->LidSlotOnError?"on ":"off");
 			PrintFormat( cur_off==5, 0, 128+64, "        Ignore standby:          %s", settings->IgnoreShutDownMode?"on ":"off");
 			PrintFormat( cur_off==6, 0, 128+80, "      Background Color:          %s", settings->BlackBackground?"Black":"White");
@@ -1130,6 +1127,10 @@ void LoadBootMii( void )
 	}
 	fclose(BootmiiFile);
 	u8 currentIOS = IOS_GetVersion();
+	for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {
+		WPAD_Flush(i);
+		WPAD_Disconnect(i);
+	}
 	WPAD_Shutdown();
 	//clear the bootstate before going on
 	if( ClearState() < 0 )
@@ -2398,26 +2399,29 @@ void HandleSTMEvent(u32 event)
 void DVDStopDisc( void )
 {
 	s32 di_fd = IOS_Open("/dev/di",0);
-
-	u8 *inbuf = (u8*)memalign( 32, 0x20 );
-	u8 *outbuf = (u8*)memalign( 32, 0x20 );
-
-	memset(inbuf, 0, 0x20 );
-	memset(outbuf, 0, 0x20 );
-
-	((u32*)inbuf)[0x00] = 0xE3000000;
-	((u32*)inbuf)[0x01] = 0;
-	((u32*)inbuf)[0x02] = 0;
-
-	DCFlushRange(inbuf, 0x20);
-	//why crediar used an async is beyond me but i looks wrong... :/
-	//IOS_IoctlAsync( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20, NULL, NULL);
-	IOS_Ioctl( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20);
 	if(di_fd)
-		IOS_Close(di_fd);
+	{
+		u8 *inbuf = (u8*)memalign( 32, 0x20 );
+		u8 *outbuf = (u8*)memalign( 32, 0x20 );
 
-	free( outbuf );
-	free( inbuf );
+		memset(inbuf, 0, 0x20 );
+		memset(outbuf, 0, 0x20 );
+
+		((u32*)inbuf)[0x00] = 0xE3000000;
+		((u32*)inbuf)[0x01] = 0;
+		((u32*)inbuf)[0x02] = 0;
+
+		DCFlushRange(inbuf, 0x20);
+		//why crediar used an async is beyond me but i looks wrong... :/
+		//IOS_IoctlAsync( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20, NULL, NULL);
+		IOS_Ioctl( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20);
+		//IOS_Close(di_fd);
+
+		free( outbuf );
+		free( inbuf );
+	}
+	else
+		gprintf("failed to get DI interface from IOS for DI shutdown\n");
 }
 void InitVideo ( void )
 {
@@ -2530,7 +2534,8 @@ int main(int argc, char **argv)
 	gprintf("BootState:%d\n", Bootstate );
 	
 	//Check reset button state
-	if( ((*(vu32*)0xCC003000)>>16)&1 && *(vu32*)0x8132FFFB != 0x4461636f) //0x4461636f = "Daco" in hex)
+	//TODO : move magic word handling to some place else (its own function?)
+	if( ((*(vu32*)0xCC003000)>>16)&1 && *(vu32*)0x8132FFFB != 0x4461636f && *(vu32*)0x8132FFFB != 0x50756e65) //0x4461636f = "Daco" in hex, 0x50756e65 = "Pune"
 	{
 		//Check autoboot settings
 		StateFlags temp;
@@ -2638,12 +2643,22 @@ int main(int argc, char **argv)
 	//remove the "Magic Priiloader word" cause it has done its purpose
 	if(*(vu32*)0x8132FFFB == 0x4461636f)
  	{
-		gprintf("\"Magic Priiloader Word\" found!\n");
+		gprintf("\"Magic Priiloader Word\" 'Daco' found!\n");
 		gprintf("clearing memory of the \"Magic Priiloader Word\"\n");
 		*(vu32*)0x8132FFFB = 0x00000000;
 		DCFlushRange((void*)0x8132FFFB,4);
 	}
-	else if( SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED )
+	else if(*(vu32*)0x8132FFFB == 0x50756e65)
+	{
+		//detected the force for sys menu
+		gprintf("\"Magic Priiloader Word\" 'Pune' found!\n");
+		gprintf("clearing memory of the \"Magic Priiloader Word\" and starting system menu...\n");
+		*(vu32*)0x8132FFFB = 0x00000000;
+		DCFlushRange((void*)0x8132FFFB,4);
+		MountDevices();
+		BootMainSysMenu();
+	}
+	else if( ( SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED && Bootstate < 2) || (SGetSetting(SETTING_RETURNTO) != RETURNTO_PRELOADER && Bootstate > 1) || (SGetSetting(SETTING_SHUTDOWNTOPRELOADER) == 0 && Bootstate == 5 ) )
 	{
 		gprintf("Reset Button is held down\n");
 	}
