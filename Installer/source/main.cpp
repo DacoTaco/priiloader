@@ -593,7 +593,9 @@ int main(int argc, char **argv)
 					printf("Skipping Moving of System menu app...\n");
 				}				
 				ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
-				gprintf("loader.ini deletion returned %d\n\n",ret);
+				gprintf("loader.ini deletion returned %d\n",ret);
+				ret = ISFS_Delete("/title/00000001/00000002/data/password.txt");
+				gprintf("password.txt deletion returned %d\n",ret);
 				
 				printf("Writing Priiloader app...");
 				gprintf("Writing Priiloader\n");
@@ -741,6 +743,8 @@ int main(int argc, char **argv)
 					ISFS_Delete(copy_app);
 					printf("Done!\n");
 					printf("Deleting extra Priiloader files...");
+					ret = ISFS_Delete("/title/00000001/00000002/data/password.txt");
+					gprintf("password.txt : %d\n",ret);
 					ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
 					gprintf("loader.ini : %d\n",ret);
 					//its best we delete that ticket but its completely useless and will only get in our 

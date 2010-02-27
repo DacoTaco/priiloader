@@ -118,7 +118,7 @@ u32 LoadHacks( void )
 			/*PrintFormat( 1, ((640/2)-((strlen("Couldn't find \"hacks.ini\""))*13/2))>>1, 208, "Couldn't find \"hacks.ini\"");
 			PrintFormat( 1, ((640/2)-((strlen("neither on FAT nor on NAND!"))*13/2))>>1, 228, "neither on FAT nor on NAND!");
 			sleep(2);*/
-			gprintf("Hacks.ini not found on either FAT or NAND. ISFS_Open returned %d\n",fd);
+			gprintf("Hacks.ini not found on neither FAT or NAND. ISFS_Open returned %d\n",fd);
 			return 0;
 		} 
 		mode = false;

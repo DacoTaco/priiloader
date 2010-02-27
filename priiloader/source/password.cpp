@@ -298,7 +298,7 @@ void password_check( void )
 	cpfd = ISFS_Open("/title/00000001/00000002/data/password.txt", 1 );
 	if( cpfd < 0 )
 	{
-		gprintf("password.txt not found on NAND. ISFS_Open returns %d\n",cpfd);
+		gprintf("password.txt not found on NAND. ISFS_Open returned %d\n",cpfd);
 		return;
 	}
 	fstats *cpstatus = (fstats *)memalign( 32, sizeof( fstats ) );
@@ -553,7 +553,7 @@ void password_check( void )
 			else
 			{
 				PrintFormat(1,((rmode->viWidth /2)-((strlen("Access denied..."))*13/2))>>1,80,"Access denied...");
-				PrintFormat(1,((rmode->viWidth /2)-((strlen("Hands off from my Wi"))*13/2))>>1,96,"Hands off from my Wi");
+				PrintFormat(1,((rmode->viWidth /2)-((strlen("Hands off from my Wii"))*13/2))>>1,96,"Hands off from my Wii");
 				sleep(3);
 				ClearScreen();
 				words[len] = 0;
