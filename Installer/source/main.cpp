@@ -67,8 +67,8 @@ void gprintf( const char *str, ... )
 	vsprintf( astr, str, ap );
 
 	va_end(ap);
-	usb_flush(EXI_CHANNEL_1);
 	usb_sendbuffer( 1, astr, strlen(astr) );
+	usb_flush(EXI_CHANNEL_1);
 }
 void CheckForGecko( void )
 {
@@ -264,20 +264,23 @@ free_and_Return:
 }
 bool UserYesNoStop()
 {
-	u32 pDown;
+	u16 pDown;
+	u16 GCpDown;
 	while(1)
 	{
 		WPAD_ScanPads();
+		PAD_ScanPads();
 		pDown = WPAD_ButtonsDown(0);
-		if (pDown & WPAD_BUTTON_A)
+		GCpDown = PAD_ButtonsDown(0);
+		if (pDown & WPAD_BUTTON_A || GCpDown & PAD_BUTTON_A)
 		{
 			return true;
 		}
-		if (pDown & WPAD_BUTTON_B)
+		if (pDown & WPAD_BUTTON_B || GCpDown & PAD_BUTTON_B)
 		{
 			return false;
 		}
-		if (pDown & WPAD_BUTTON_HOME)
+		if (pDown & WPAD_BUTTON_HOME || GCpDown & PAD_BUTTON_START)
 		{
 			abort("User command.");
 			break;
@@ -304,6 +307,7 @@ int main(int argc, char **argv)
 		VIDEO_WaitVSync();
 
 	WPAD_Init();
+	PAD_Init();
 
 	CheckForGecko();
 	gprintf("resolution is %dx%d\n",vmode->viWidth,vmode->viHeight);
@@ -315,18 +319,21 @@ int main(int argc, char **argv)
 	printf("\t\tYOU ACCEPT THAT YOU INSTALL THIS AT YOUR OWN RISK\n\n\n\t");
 	printf("THE AUTHOR(S) CANNOT BE HELD LIABLE FOR ANY DAMAGE IT MIGHT CAUSE\n\n\t");
 	printf("\tIF YOU DO NOT AGREE WITH THESE TERMS TURN YOUR WII OFF\n\n\n\n\t");
-	printf("\t\t\tPress (+) to install or update Priiloader\n\t");
-	printf("\t Press (-) to remove Priiloader and restore system menu\n\t");
+	printf("\t\t\tPress (+/A) to install or update Priiloader\n\t");
+	printf("\t Press (-/Y) to remove Priiloader and restore system menu\n\t");
 	printf("\tHold Down (B) with any above options to use IOS249 (cios)\n\t");
-	printf("\t\tPress (HOME) to chicken out and quit the installer!\n\n\t");
-	printf("\t\t\t\t\tEnjoy! DacoTaco & /phpgeek\n							");
+	printf("\t Press (HOME/Start) to chicken out and quit the installer!\n\n\t");
+	printf("\t\t\t\tEnjoy! DacoTaco, _Dax_ & /phpgeek\n							");
 
 	while(1)
 	{
 		WPAD_ScanPads();
+		PAD_ScanPads();
 		u16 pDown = WPAD_ButtonsDown(0);
+		u16 GCpDown = PAD_ButtonsDown(0);
 		u16 pHeld = WPAD_ButtonsHeld(0);
-		if (pDown & WPAD_BUTTON_PLUS || pDown & WPAD_BUTTON_MINUS)
+		u16 GCpHeld = PAD_ButtonsHeld(0);
+		if (pDown & WPAD_BUTTON_PLUS || pDown & WPAD_BUTTON_MINUS || GCpDown & PAD_BUTTON_A || GCpDown & PAD_BUTTON_B)
 		{
 			static u32 tmp_ikey ATTRIBUTE_ALIGN(32);
 			static u32 tmd_size ATTRIBUTE_ALIGN(32);
@@ -335,7 +342,7 @@ int main(int argc, char **argv)
 			s32 fd,fs;
 			u32 id = 0;
 
-			if (pHeld & WPAD_BUTTON_B)
+			if (pHeld & WPAD_BUTTON_B || GCpHeld & PAD_BUTTON_B )
 			{
 				WPAD_Shutdown();
         		IOS_ReloadIOS(249);
@@ -352,7 +359,7 @@ int main(int argc, char **argv)
 				printf("ES_Identify failed, error %u. ios%d not patched with ES_DIVerify?\n",fd,IOS_GetVersion());
 				printf("using cios (holding b and then pressing + or - ) will probably solve this. NOTE: you need CIOS for this.\n");
 				printf("Do you wish to continue?\n");
-				printf("A = Yes       B = No       Home = Exit\n");
+				printf("A = Yes       B = No       Home/Start = Exit\n");
 				printf("\x1b[%u;%dm", 37, 1);
 				if(!UserYesNoStop())
 				{
@@ -423,8 +430,9 @@ int main(int argc, char **argv)
 			if(TMD)
 				free(TMD);
 			
-			if (pDown & WPAD_BUTTON_PLUS)
+			if (pDown & WPAD_BUTTON_PLUS || GCpDown & PAD_BUTTON_A)
 			{
+				//install or update
 				fstats * status;
 				s32 ret = 0;
 				bool CopyTicket = false;
@@ -486,7 +494,7 @@ int main(int argc, char **argv)
 					{
 						printf("\x1b[%u;%dm", 33, 1);
 						printf("\n\nWARNING: failed to get stats of %s.  Ignore Priiloader \"installation\" ?\n",copy_app);
-						printf("A = Yes       B = No(Recommended if priiloader is installed)       Home = Exit\n");
+						printf("A = Yes       B = No(Recommended if priiloader is installed)       Home/Start = Exit\n");
 						printf("\x1b[%u;%dm", 37, 1);
 						if(UserYesNoStop())
 						{
@@ -506,7 +514,7 @@ int main(int argc, char **argv)
 							printf("\x1b[%u;%dm", 33, 1);
 							printf("\n\nWARNING: %s is reported as 0kB!\n  Ignore priiloader \"installation\" ?\n",copy_app);
 							printf("It is recommended that you ignore the installation if Priiloader hasn't\n  succesfully installed yet\n");
-							printf("A = Yes       B = No       Home = Exit\n");
+							printf("A = Yes       B = No       Home/Start = Exit\n");
 							printf("\x1b[%u;%dm", 37, 1);
 							if(UserYesNoStop())
 							{
@@ -568,7 +576,7 @@ int main(int argc, char **argv)
 							printf("\nWARNING!!\n  Installer could not calculate the Checksum for the System menu app");
 							printf("\nbut Copy was successfull.\n");
 							printf("Do you want the Continue ?\n");
-							printf("A = Yes       B = No       Home = Exit\n  ");
+							printf("A = Yes       B = No       Home/Start = Exit\n  ");
 							printf("\x1b[%u;%dm", 37, 1);
 							if(!UserYesNoStop())
 							{
@@ -693,7 +701,7 @@ int main(int argc, char **argv)
 				exit(0);
 			}
 
-			else if (pDown & WPAD_BUTTON_MINUS)
+			else if (pDown & WPAD_BUTTON_MINUS || GCpDown & PAD_BUTTON_Y )
 			{
 				printf("Checking for Priiloader...\n");
 				fd = ISFS_Open(copy_app,ISFS_OPEN_RW);
@@ -716,7 +724,7 @@ int main(int argc, char **argv)
 							printf("\nWARNING!!\n  Installer could not calculate the Checksum when coping the System menu app\n");
 							printf("back! the app however was copied...\n");
 							printf("Do you want to Continue ?\n");
-							printf("A = Yes       B = No       Home = Exit\n  ");
+							printf("A = Yes       B = No       Home/Start = Exit\n  ");
 							printf("\x1b[%u;%dm", 37, 1);
 							if(!UserYesNoStop())
 							{
@@ -766,7 +774,7 @@ int main(int argc, char **argv)
 				}
 			}
 		}
-		else if (pDown & WPAD_BUTTON_HOME)
+		else if (pDown & WPAD_BUTTON_HOME || GCpDown & PAD_BUTTON_START)
 		{
 			printf("\x1b[2J\x1b[2;0H");
 			fflush(stdout);
