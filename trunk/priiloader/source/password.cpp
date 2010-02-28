@@ -176,13 +176,13 @@ void InstallPassword( void )
 		if ( (WPAD_Pressed & WPAD_BUTTON_HOME) || (PAD_Pressed & PAD_BUTTON_START) )
 			exit(0);
 #endif
-		if ( (WPAD_Pressed & WPAD_BUTTON_B) || (PAD_Pressed & PAD_BUTTON_B) )
+		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 		{
 			free(pbuf);
 			break;
 		}
 
-		if ( (WPAD_Pressed & WPAD_BUTTON_A) || (PAD_Pressed & PAD_BUTTON_A) )
+		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 		{
 			ClearScreen();
 	//Install file
@@ -239,7 +239,7 @@ void InstallPassword( void )
 			redraw = 1;
 		}
 
-		if ( (WPAD_Pressed & WPAD_BUTTON_2) || (PAD_Pressed & PAD_BUTTON_X) )
+		if ( WPAD_Pressed & WPAD_BUTTON_2 || WPAD_Pressed & WPAD_CLASSIC_BUTTON_X || PAD_Pressed & PAD_BUTTON_X )
 		{
 			ClearScreen();
 			//Delete file
@@ -389,7 +389,7 @@ void password_check( void )
 		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
 		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
 
-		if( (WPAD_Pressed & WPAD_BUTTON_DOWN) || (PAD_Pressed & PAD_BUTTON_DOWN) ) // Button Down = next Letter
+		if( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN ) // Button Down = next Letter
 		{
 			//Last letter Check
 			if(letter_c == bst)
@@ -413,7 +413,7 @@ void password_check( void )
 			if( PAD_Pressed )
 				Pad_unpressed();
 		}
-		else if( (WPAD_Pressed & WPAD_BUTTON_UP) || (PAD_Pressed & PAD_BUTTON_UP) ) //Button UP = previus Letter
+		else if( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP ) //Button UP = previus Letter
 		{
 			//First Letter Ceck
 			if(letter_c == 0)
@@ -437,7 +437,7 @@ void password_check( void )
 			if( PAD_Pressed )
 				Pad_unpressed();
 		}
-		else if( (WPAD_Pressed & WPAD_BUTTON_RIGHT) || (PAD_Pressed & PAD_BUTTON_RIGHT)  ) //Button right = next Position
+		else if( WPAD_Pressed & WPAD_BUTTON_RIGHT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT || PAD_Pressed & PAD_BUTTON_RIGHT  ) //Button right = next Position
 		{
 			//Check of last Position
 			count++;
@@ -475,7 +475,7 @@ void password_check( void )
 			if( PAD_Pressed )
 				Pad_unpressed();
 		}
-		else if( (WPAD_Pressed & WPAD_BUTTON_LEFT) || (PAD_Pressed & PAD_BUTTON_LEFT)  ) //Button Left = previus Position
+		else if( WPAD_Pressed & WPAD_BUTTON_LEFT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT || PAD_Pressed & PAD_BUTTON_LEFT  ) //Button Left = previus Position
 		{
 			//check of first position
 			count--;
@@ -514,7 +514,7 @@ void password_check( void )
 				Pad_unpressed();
 		}
 		
-		if( (WPAD_Pressed & WPAD_BUTTON_B) || (PAD_Pressed & PAD_BUTTON_B) ) // Button B = Upper/Lower Case
+		if( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B ) // Button B = Upper/Lower Case
 		{
 			if(char_status[count] == 0)
 			{
@@ -532,7 +532,7 @@ void password_check( void )
 				Pad_unpressed();
 		}
 
-		if( (WPAD_Pressed & WPAD_BUTTON_HOME) || (PAD_Pressed & PAD_BUTTON_START) ) //Button Home = Exit and Check Password
+		if( WPAD_Pressed & WPAD_BUTTON_HOME || WPAD_Pressed & WPAD_CLASSIC_BUTTON_HOME || PAD_Pressed & PAD_BUTTON_START ) //Button Home = Exit and Check Password
 		{
 			//generate pw
 			for(i=0;i<len;i++)

@@ -41,6 +41,7 @@ int _kbhit() {
 
 int _tmain(int argc, _TCHAR* argv[])
 {
+	int file_version = 0;
 	printf("-------------------------------------------------------------------------------\n");
 	printf("\t\tDacoTaco's Priiloader Settings Editor v%d.%d\n",VERSION,SUBVERSION);
 	printf("-------------------------------------------------------------------------------\n\n\n");
@@ -61,7 +62,12 @@ int _tmain(int argc, _TCHAR* argv[])
 	switch (SettingsSize)
 	{
 		case sizeof(Settings_3):
-			printf("Settings file from 0.3c ( rev 54 or above ) detected\n");
+			printf("Settings file from 0.3c ( rev 54 - rev 58 ) detected\n");
+			file_version = 3;
+			break;
+		case sizeof(Settings_4):
+			printf("Settings file from 0.4 ( rev 58 or above ) detected\n");
+			file_version = 4;
 			break;
 		default:
 			printf("unknown Settings File! exiting...\n");
@@ -85,8 +91,8 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	printf("reading Settings...\n");
 	sleep(2);
-	Settings_3 *Settings = (Settings_3*) malloc(sizeof(Settings_3));
-	memset(Settings,0,sizeof(Settings_3));
+	Settings_4 *Settings = (Settings_4*) malloc(sizeof(Settings_3));
+	memset(Settings,0,sizeof(Settings_4));
 	fread(Settings,1,SettingsSize,Settings_fd);
 	fclose(Settings_fd);
 	//start of main loop
@@ -139,18 +145,23 @@ int _tmain(int argc, _TCHAR* argv[])
 				default:
 					printf("unknown value %u\n",Settings->ReturnTo);
 			}
-			printf("\t3 : Shutdown To      :\t\t%s\n",Settings->ShutdownToPreloader?"Priiloader":"off       ");
-			printf("\t4 : Stop disc        :\t\t%s\n", Settings->StopDisc?"on ":"off");
-			printf("\t5 : Light on error   :\t\t%s\n", Settings->LidSlotOnError?"on ":"off");
-			printf("\t6 : Ignore Standby   :\t\t%s\n", Settings->IgnoreShutDownMode?"on ":"off");
-			printf("\t7 : Background Color :\t\t%s\n", Settings->BlackBackground?"Black":"White");
-			printf("\t8 : Show Debug Info  :\t\t%s\n", Settings->ShowDebugText?"on ":"off");
-			printf("\t9 : Use SysMenu IOS  :\t\t%s\n", Settings->UseSystemMenuIOS?"on ":"off");
+			printf("\t3 : Shutdown To       :\t\t%s\n",Settings->ShutdownToPreloader?"Priiloader":"off       ");
+			printf("\t4 : Stop disc         :\t\t%s\n", Settings->StopDisc?"on ":"off");
+			printf("\t5 : Light on error    :\t\t%s\n", Settings->LidSlotOnError?"on ":"off");
+			printf("\t6 : Ignore Standby    :\t\t%s\n", Settings->IgnoreShutDownMode?"on ":"off");
+			printf("\t7 : Background Color  :\t\t%s\n", Settings->BlackBackground?"Black":"White");
+			printf("\t8 : Show Debug Info   :\t\t%s\n", Settings->ShowDebugText?"on ":"off");
+			//added options from versions > 3
+			if (file_version == 4)
+			{
+				printf("\tQ : Protect Priiloader:\t\t%s\n",Settings->PasscheckPriiloader?"on ":"off");
+				printf("\tW : Protect Autoboot  :\t\t%s\n",Settings->PasscheckMenu?"on ":"off");
+			}
+			printf("\t9 : Use SysMenu IOS   :\t\t%s\n", Settings->UseSystemMenuIOS?"on ":"off");
 			if(!Settings->UseSystemMenuIOS)
-				printf("\t0 : IOS For SysMenu  :\t\t%d\n", Settings->SystemMenuIOS);
+				printf("\t0 : IOS For SysMenu   :\t\t%d\n", Settings->SystemMenuIOS);
 			else
 				printf("\n");
-
 			printf("\n\n\n\tesc : Quit(and Save)\n");
 			redraw = 0;
 		}
@@ -168,9 +179,9 @@ int _tmain(int argc, _TCHAR* argv[])
 						if(_kbhit())
 						{
 							char temp = _getch();
-							if (temp == 27 || temp == 110)
+							if (temp == 27 || temp == 110 || temp == 78) // 27 = esc , 78 = N & 110 = n
 								exit(0);
-							else
+							else if(temp == 121 || temp == 89 ) // 121 = y , 89 = Y
 							{
 								printf("Creating backup...\n");
 #ifdef WIN32
@@ -182,15 +193,22 @@ int _tmain(int argc, _TCHAR* argv[])
 								Settings_fd = fopen("loader.ini","w");
 								if(!Settings_fd)
 								{
-									printf("Failed to create backup!\n");
+									printf("Failed to open file!\n");
 									sleep(2);
 									break;
 								}
-								fwrite(Settings,1,sizeof(Settings_3),Settings_fd);
+								if (file_version == 3)
+									fwrite(Settings,1,sizeof(Settings_3),Settings_fd);
+								else
+									fwrite(Settings,1,sizeof(Settings_4),Settings_fd);
 								fclose(Settings_fd);
 								printf("Saved\n");
 								sleep(2);
 								exit(0);
+							}
+							else
+							{
+								break;
 							}
 						}
 					}
@@ -268,8 +286,38 @@ int _tmain(int argc, _TCHAR* argv[])
 						redraw = 1;
 					}
 					break;
+				case 81:
+				case 113:// Q/q , protect priiloader
+					if (file_version < 4)
+						break;
+					if( Settings->PasscheckPriiloader )
+					{
+						Settings->PasscheckPriiloader = false;
+					}
+					else
+					{
+						Settings->PasscheckPriiloader = true;
+					}
+					redraw = 1;
+					break;
+				case 87:
+				case 119:// W/w , protect autoboot
+					if (file_version < 4)
+						break;
+					if( Settings->PasscheckMenu )
+					{
+						Settings->PasscheckMenu = false;
+					}
+					else
+					{
+						Settings->PasscheckMenu = true;
+					}
+					redraw = 1;
+					break;
 				default:
+#ifdef _DEBUG
 					printf("key %c (int value %i) is pressed\n",test,test);
+#endif
 					break;
 			}
 		}

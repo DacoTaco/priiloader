@@ -350,12 +350,12 @@ void SysHackSettings( void )
 			exit(0);
 		}
 #endif
-		if ( (WPAD_Pressed & WPAD_BUTTON_B) || (PAD_Pressed & PAD_BUTTON_B) )
+		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 		{
 			break;
 		}
 
-		if ( (WPAD_Pressed & WPAD_BUTTON_A) || (PAD_Pressed & PAD_BUTTON_A) )
+		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 		{
 			if( cur_off == DispCount)
 			{
@@ -452,7 +452,7 @@ void SysHackSettings( void )
 				ISFS_Close( fd );
 
 				if( fail )
-					PrintFormat( 0, 114, rmode->viHeight-48, "saving failed:%d", fail);
+					PrintFormat( 0, 118, rmode->viHeight-48, "saving failed:%d", fail);
 				else
 					PrintFormat( 0, 118, rmode->viHeight-48, "settings saved");
 			} 
@@ -482,7 +482,7 @@ void SysHackSettings( void )
 			}
 		}
 
-		if ( (WPAD_Pressed & WPAD_BUTTON_DOWN) || (PAD_Pressed & PAD_BUTTON_DOWN) )
+		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
 		{
 			cur_off++;
 
@@ -499,7 +499,7 @@ void SysHackSettings( void )
 			}
 			
 			redraw=true;
-		} else if ( (WPAD_Pressed & WPAD_BUTTON_UP) || (PAD_Pressed & PAD_BUTTON_UP) )
+		} else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
 		{
 			if( cur_off == 0 )
 			{
@@ -562,7 +562,7 @@ void SysHackSettings( void )
 
 			PrintFormat( cur_off==(signed)DispCount, 118, rmode->viHeight-64, "save settings");
 
-			PrintFormat( 0, 114, rmode->viHeight-32, "                 ");
+			PrintFormat( 0, 118, rmode->viHeight-48, "                    ");
 
 			redraw = false;
 		}
@@ -655,7 +655,7 @@ void SetSettings( void )
 			exit(0);
 		}
 #endif
-		if ( (WPAD_Pressed & WPAD_BUTTON_B) || (PAD_Pressed & PAD_BUTTON_B) )
+		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 		{
 			LoadSettings();
 			break;
@@ -664,14 +664,14 @@ void SetSettings( void )
 		{
 			case 0:
 			{
-				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT) || (PAD_Pressed & PAD_BUTTON_LEFT) )
+				if ( WPAD_Pressed & WPAD_BUTTON_LEFT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT || PAD_Pressed & PAD_BUTTON_LEFT )
 				{
 					if( settings->autoboot == AUTOBOOT_DISABLED )
 						settings->autoboot = AUTOBOOT_FILE;
 					else
 						settings->autoboot--;
 					redraw=true;
-				}else if ( (WPAD_Pressed & WPAD_BUTTON_RIGHT) || (PAD_Pressed & PAD_BUTTON_RIGHT) )
+				}else if ( WPAD_Pressed & WPAD_BUTTON_RIGHT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT || PAD_Pressed & PAD_BUTTON_RIGHT )
 				{
 					if( settings->autoboot == AUTOBOOT_FILE )
 						settings->autoboot = AUTOBOOT_DISABLED;
@@ -682,10 +682,12 @@ void SetSettings( void )
 			} break;
 			case 1:
 			{
-				if ( (WPAD_Pressed & WPAD_BUTTON_RIGHT)	||
-					 (PAD_Pressed & PAD_BUTTON_RIGHT)	||
-					 (WPAD_Pressed & WPAD_BUTTON_A)		||
-					 (PAD_Pressed & PAD_BUTTON_A)
+				if ( WPAD_Pressed & WPAD_BUTTON_RIGHT			||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
+					 PAD_Pressed & PAD_BUTTON_RIGHT				||
+					 WPAD_Pressed & WPAD_BUTTON_A				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
+					 PAD_Pressed & PAD_BUTTON_A
 					)
 				{
 					settings->ReturnTo++;
@@ -693,7 +695,7 @@ void SetSettings( void )
 						settings->ReturnTo = RETURNTO_SYSMENU;
 
 					redraw=true;
-				} else if ( (WPAD_Pressed & WPAD_BUTTON_LEFT) || (PAD_Pressed & PAD_BUTTON_LEFT) ) {
+				} else if ( WPAD_Pressed & WPAD_BUTTON_LEFT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT || PAD_Pressed & PAD_BUTTON_LEFT ) {
 
 					if( settings->ReturnTo == RETURNTO_SYSMENU )
 						settings->ReturnTo = RETURNTO_AUTOBOOT;
@@ -707,12 +709,15 @@ void SetSettings( void )
 			} break;
 			case 2:
 			{
-				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT)	||
-					 (PAD_Pressed & PAD_BUTTON_LEFT)	||
-					 (WPAD_Pressed & WPAD_BUTTON_RIGHT)	||
-					 (PAD_Pressed & PAD_BUTTON_RIGHT)	||
-					 (WPAD_Pressed & WPAD_BUTTON_A)		||
-					 (PAD_Pressed & PAD_BUTTON_A)
+				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
+					 PAD_Pressed & PAD_BUTTON_LEFT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
+					 PAD_Pressed & PAD_BUTTON_RIGHT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_A				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
+					 PAD_Pressed & PAD_BUTTON_A
 					)
 				{
 					if( settings->ShutdownToPreloader )
@@ -727,12 +732,15 @@ void SetSettings( void )
 			} break;
 			case 3:
 			{
-				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT)	||
-					 (PAD_Pressed & PAD_BUTTON_LEFT)	||
-					 (WPAD_Pressed & WPAD_BUTTON_RIGHT)	||
-					 (PAD_Pressed & PAD_BUTTON_RIGHT)	||
-					 (WPAD_Pressed & WPAD_BUTTON_A)		||
-					 (PAD_Pressed & PAD_BUTTON_A)
+				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
+					 PAD_Pressed & PAD_BUTTON_LEFT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
+					 PAD_Pressed & PAD_BUTTON_RIGHT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_A				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
+					 PAD_Pressed & PAD_BUTTON_A
 					)
 				{
 					if( settings->StopDisc )
@@ -746,12 +754,15 @@ void SetSettings( void )
 			} break;
 			case 4:
 			{
-				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT)	||
-					 (PAD_Pressed & PAD_BUTTON_LEFT)	||
-					 (WPAD_Pressed & WPAD_BUTTON_RIGHT)	||
-					 (PAD_Pressed & PAD_BUTTON_RIGHT)	||
-					 (WPAD_Pressed & WPAD_BUTTON_A)		||
-					 (PAD_Pressed & PAD_BUTTON_A)
+				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
+					 PAD_Pressed & PAD_BUTTON_LEFT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
+					 PAD_Pressed & PAD_BUTTON_RIGHT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_A				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
+					 PAD_Pressed & PAD_BUTTON_A
 					)
 				{
 					if( settings->LidSlotOnError )
@@ -766,12 +777,15 @@ void SetSettings( void )
 			} break;
 			case 5:
 			{
-				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT)	||
-					 (PAD_Pressed & PAD_BUTTON_LEFT)	||
-					 (WPAD_Pressed & WPAD_BUTTON_RIGHT)	||
-					 (PAD_Pressed & PAD_BUTTON_RIGHT)	||
-					 (WPAD_Pressed & WPAD_BUTTON_A)		||
-					 (PAD_Pressed & PAD_BUTTON_A)
+				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
+					 PAD_Pressed & PAD_BUTTON_LEFT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
+					 PAD_Pressed & PAD_BUTTON_RIGHT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_A				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
+					 PAD_Pressed & PAD_BUTTON_A
 					)
 				{
 					if( settings->IgnoreShutDownMode )
@@ -786,12 +800,15 @@ void SetSettings( void )
 			} break;
 			case 6:
 			{
-				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT)	||
-					 (PAD_Pressed & PAD_BUTTON_LEFT)	||
-					 (WPAD_Pressed & WPAD_BUTTON_RIGHT)	||
-					 (PAD_Pressed & PAD_BUTTON_RIGHT)	||
-					 (WPAD_Pressed & WPAD_BUTTON_A)		||
-					 (PAD_Pressed & PAD_BUTTON_A)
+				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
+					 PAD_Pressed & PAD_BUTTON_LEFT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
+					 PAD_Pressed & PAD_BUTTON_RIGHT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_A				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
+					 PAD_Pressed & PAD_BUTTON_A
 					)
 				{
 					if( settings->BlackBackground )
@@ -809,12 +826,15 @@ void SetSettings( void )
 			break;
 			case 7:
 			{
-				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT)	||
-					 (PAD_Pressed & PAD_BUTTON_LEFT)	||
-					 (WPAD_Pressed & WPAD_BUTTON_RIGHT)	||
-					 (PAD_Pressed & PAD_BUTTON_RIGHT)	||
-					 (WPAD_Pressed & WPAD_BUTTON_A)		||
-					 (PAD_Pressed & PAD_BUTTON_A)
+				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
+					 PAD_Pressed & PAD_BUTTON_LEFT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
+					 PAD_Pressed & PAD_BUTTON_RIGHT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_A				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
+					 PAD_Pressed & PAD_BUTTON_A
 					)
 				{
 					if( settings->PasscheckPriiloader )
@@ -831,12 +851,15 @@ void SetSettings( void )
 			break;
 			case 8:
 			{
-				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT)	||
-					 (PAD_Pressed & PAD_BUTTON_LEFT)	||
-					 (WPAD_Pressed & WPAD_BUTTON_RIGHT)	||
-					 (PAD_Pressed & PAD_BUTTON_RIGHT)	||
-					 (WPAD_Pressed & WPAD_BUTTON_A)		||
-					 (PAD_Pressed & PAD_BUTTON_A)
+				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
+					 PAD_Pressed & PAD_BUTTON_LEFT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
+					 PAD_Pressed & PAD_BUTTON_RIGHT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_A				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
+					 PAD_Pressed & PAD_BUTTON_A
 					)
 				{
 					if( settings->PasscheckMenu )
@@ -852,12 +875,15 @@ void SetSettings( void )
 			}
 			break;
 			case 9: //show Debug Info
-				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT)	||
-					 (PAD_Pressed & PAD_BUTTON_LEFT)	||
-					 (WPAD_Pressed & WPAD_BUTTON_RIGHT)	||
-					 (PAD_Pressed & PAD_BUTTON_RIGHT)	||
-					 (WPAD_Pressed & WPAD_BUTTON_A)		||
-					 (PAD_Pressed & PAD_BUTTON_A)
+				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
+					 PAD_Pressed & PAD_BUTTON_LEFT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
+					 PAD_Pressed & PAD_BUTTON_RIGHT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_A				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
+					 PAD_Pressed & PAD_BUTTON_A
 					)
 				{
 					if ( settings->ShowDebugText )
@@ -870,12 +896,15 @@ void SetSettings( void )
 			break;
 			case 10: //ignore ios reloading for system menu?
 			{
-				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT)	||
-					 (PAD_Pressed & PAD_BUTTON_LEFT)	||
-					 (WPAD_Pressed & WPAD_BUTTON_RIGHT)	||
-					 (PAD_Pressed & PAD_BUTTON_RIGHT)	||
-					 (WPAD_Pressed & WPAD_BUTTON_A)		||
-					 (PAD_Pressed & PAD_BUTTON_A)
+				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
+					 PAD_Pressed & PAD_BUTTON_LEFT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
+					 PAD_Pressed & PAD_BUTTON_RIGHT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_A				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
+					 PAD_Pressed & PAD_BUTTON_A
 					)
 				{
 					if( settings->UseSystemMenuIOS )
@@ -903,7 +932,7 @@ void SetSettings( void )
 			break;
 			case 11:		//	System Menu IOS
 			{
-				if ( (WPAD_Pressed & WPAD_BUTTON_LEFT) || (PAD_Pressed & PAD_BUTTON_LEFT) )
+				if ( WPAD_Pressed & WPAD_BUTTON_LEFT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT || PAD_Pressed & PAD_BUTTON_LEFT )
 				{
 					while(1)
 					{
@@ -920,7 +949,7 @@ void SetSettings( void )
 #endif
 
 					redraw=true;
-				} else if( (WPAD_Pressed & WPAD_BUTTON_RIGHT) || (PAD_Pressed & PAD_BUTTON_RIGHT) ) 
+				} else if( WPAD_Pressed & WPAD_BUTTON_RIGHT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT || PAD_Pressed & PAD_BUTTON_RIGHT ) 
 				{
 					while(1)
 					{
@@ -941,7 +970,7 @@ void SetSettings( void )
 			} break;
 			case 12:
 			{
-				if ( (WPAD_Pressed & WPAD_BUTTON_A) || (PAD_Pressed & PAD_BUTTON_A) )
+				if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 				{
 					if( SaveSettings() )
 						PrintFormat( 0, 114, 128+192+16, "settings saved");
@@ -955,7 +984,7 @@ void SetSettings( void )
 				break;
 		}
 
-		if ( (WPAD_Pressed & WPAD_BUTTON_DOWN) || (PAD_Pressed & PAD_BUTTON_DOWN) )
+		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
 		{
 			cur_off++;
 			if( (settings->UseSystemMenuIOS) && (cur_off == 11))
@@ -964,7 +993,7 @@ void SetSettings( void )
 				cur_off = 0;
 			
 			redraw=true;
-		} else if ( (WPAD_Pressed & WPAD_BUTTON_UP) || (PAD_Pressed & PAD_BUTTON_UP) )
+		} else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
 		{
 			cur_off--;
 			if( (settings->UseSystemMenuIOS) && (cur_off == 11))
@@ -1662,12 +1691,12 @@ void InstallLoadDOL( void )
 		if ( (WPAD_Pressed & WPAD_BUTTON_HOME) || (PAD_Pressed & PAD_BUTTON_START) )
 			exit(0);
 #endif
-		if ( (WPAD_Pressed & WPAD_BUTTON_B) || (PAD_Pressed & PAD_BUTTON_B) )
+		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 		{
 			break;
 		}
 
-		if ( (WPAD_Pressed & WPAD_BUTTON_A) || (PAD_Pressed & PAD_BUTTON_A) )
+		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 		{
 			ClearScreen();
 			if ( (SDInserted && !__io_wiisd.isInserted()) || (!SDInserted && !__io_usbstorage.isInserted()) )
@@ -1732,7 +1761,7 @@ void InstallLoadDOL( void )
 
 		}
 
-		if ( (WPAD_Pressed & WPAD_BUTTON_2) || (PAD_Pressed & PAD_BUTTON_X) )
+		if ( WPAD_Pressed & WPAD_BUTTON_2 || WPAD_Pressed & WPAD_CLASSIC_BUTTON_X || PAD_Pressed & PAD_BUTTON_X )
 		{
 			ClearScreen();
 			//Delete file
@@ -1764,7 +1793,7 @@ void InstallLoadDOL( void )
 
 		}
 
-		if ( (WPAD_Pressed & WPAD_BUTTON_1) || (PAD_Pressed & PAD_TRIGGER_Z) )
+		if ( WPAD_Pressed & WPAD_BUTTON_1 || WPAD_Pressed & WPAD_CLASSIC_BUTTON_Y || PAD_Pressed & PAD_BUTTON_Y )
 		{
 			ClearScreen();
 			if ( (SDInserted && !__io_wiisd.isInserted()) || (!SDInserted && !__io_usbstorage.isInserted()) )
@@ -1952,7 +1981,7 @@ void InstallLoadDOL( void )
 			redraw=true;
 		}
 
-		if ( (WPAD_Pressed & WPAD_BUTTON_DOWN) || (PAD_Pressed & PAD_BUTTON_DOWN) )
+		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
 		{
 			cur_off++;
 
@@ -1960,7 +1989,7 @@ void InstallLoadDOL( void )
 				cur_off = 0;
 			
 			redraw=true;
-		} else if ( (WPAD_Pressed & WPAD_BUTTON_UP) || (PAD_Pressed & PAD_BUTTON_UP) )
+		} else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
 		{
 			if ( cur_off != 0)
 				cur_off--;
@@ -1976,7 +2005,7 @@ void InstallLoadDOL( void )
 				PrintFormat( cur_off==i, 16, 64+i*16, "%s", names[i]);
 
 			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Install File"))*13/2))>>1, rmode->viHeight-64, "A(A) Install FIle");
-			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("1(Z) Load File   "))*13/2))>>1, rmode->viHeight-48, "1(Z) Load File");
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("1(Z) Load File   "))*13/2))>>1, rmode->viHeight-48, "1(Y) Load File");
 			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("2(X) Delete File "))*13/2))>>1, rmode->viHeight-32, "2(X) Delete File");
 
 			redraw = false;
@@ -2723,7 +2752,7 @@ int main(int argc, char **argv)
 		}
 #endif
 
-		if ( (WPAD_Pressed & WPAD_BUTTON_A) || (PAD_Pressed & PAD_BUTTON_A) )
+		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 		{
 			ClearScreen();
 			switch(cur_off)
@@ -2768,7 +2797,7 @@ int main(int argc, char **argv)
 			redraw=true;
 		}
 
-		if ( (WPAD_Pressed & WPAD_BUTTON_DOWN) || (PAD_Pressed & PAD_BUTTON_DOWN) )
+		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
 		{
 			cur_off++;
 
@@ -2783,7 +2812,7 @@ int main(int argc, char **argv)
 			}
 
 			redraw=true;
-		} else if ( (WPAD_Pressed & WPAD_BUTTON_UP) || (PAD_Pressed & PAD_BUTTON_UP) )
+		} else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
 		{
 			cur_off--;
 
