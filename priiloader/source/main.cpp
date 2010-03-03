@@ -20,12 +20,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 */
 // To use libELM define libELM in the priiloader project & dont forget to link it in the makefile
+//#define libELM
+#define PATCHED_ES
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <unistd.h>
-#include <string.h>
+#include <string>
 
 
 #include <gccore.h>
@@ -46,6 +48,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <time.h>
 
 //Project files
+#ifdef PATCHED_ES
+#include "es.h"
+#endif
 #include "../../Shared/svnrev.h"
 #include "settings.h"
 #include "state.h"
@@ -62,13 +67,21 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "certs_bin.h"
 #include "stub_bin.h"
 
-//#define DEBUG
+using namespace std;
 
+//#define DEBUG
 extern "C"
 {
 	extern void _unstub_start(void);
 	extern usbstorage_handle USBStorage_ReturnHandle( void );
+#ifdef PATCHED_ES
+	extern s32 ES_OpenTitleContent_patched(u64 titleID, tikview *views, u16 index);
+#endif
 }
+//remove this define if your libogc has the good OpenTitleContent
+#ifdef PATCHED_ES
+#define ES_OpenTitleContent(x,y,z) ES_OpenTitleContent_patched(x,y,z)
+#endif
 
 typedef struct {
 	unsigned int offsetText[7];
@@ -81,6 +94,17 @@ typedef struct {
 	unsigned int sizeBSS;
 	unsigned int entrypoint;
 } dolhdr;
+//copy pasta from wiibrew
+typedef struct {
+    u8 zeroes[128]; // padding
+    u32 imet; // "IMET"
+    u8 unk[8];  // 0x0000060000000003 fixed, unknown purpose
+    u32 sizes[3]; // icon.bin, banner.bin, sound.bin
+    u32 flag1; // unknown
+    u8 names[10][84]; // Japanese, English, German, French, Spanish, Italian, Dutch, unknown, unknown, Korean
+    u8 zeroes_2[588]; // padding
+    u8 crypto[16]; // MD5 of 0x40 to 0x640 in header. crypto should be all 0's when calculating final MD5
+} IMET;
 
 extern Settings *settings;
 extern u8 error;
@@ -2403,6 +2427,278 @@ void HandleWiiMoteEvent(s32 chan)
 {
 	Shutdown=1;
 }
+s8 GetTitleName(u64 id, u32 app, char* name) {
+	s32 r;
+    int lang = CONF_GetLanguage();
+    /*
+    languages:
+    0 jap
+    2 eng
+    4 german
+    6 french
+    8 spanish
+    10 italian
+    12 dutch
+    */
+    char file[256] ATTRIBUTE_ALIGN(32);
+    sprintf(file, "/title/%08x/%08x/content/%08x.app", (u32)(id >> 32), (u32)id, app);
+#ifdef DEBUG
+	gprintf("%s\n",file);
+#endif
+	u32 cnt ATTRIBUTE_ALIGN(32);
+	IMET *data = (IMET *)memalign(32, (sizeof(IMET)+31)&(~31));
+	if(data == NULL)
+	{
+		gprintf("failed to align IMET header\n");
+		return -1;
+	}
+	memset(data,0,(sizeof(IMET)+31)&(~31));
+	ES_GetNumTicketViews(id, &cnt);
+	tikview *views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
+	if(views == NULL)
+	{
+		free(data);
+		return -2;
+	}
+	ES_GetTicketViews(id, views, cnt);
+
+	//lets get this party started with the right way to call ES_OpenTitleContent. and not like how libogc does it. patch will be passed on to them
+	//the right way is ES_OpenTitleContent(u64 TitleID,tikview* views,u16 Index); note the views >_>
+	s32 fh = ES_OpenTitleContent(id, views, 0);
+	if (fh == -106)
+	{
+		gprintf("ES_OpenTitleContent returned %d. app not found\n",fh);
+		free(data);
+		free(views);
+		return -3;
+	}
+	else if(fh < 0)
+	{
+		//ES method failed. remove tikviews from memory and fall back on ISFS method
+		gprintf("ES_OpenTitleContent returned %d , falling back on ISFS\n",fh);
+		free(views);
+		fh = ISFS_Open(file, ISFS_OPEN_READ);
+		// fuck failed. lets GTFO
+		if (fh < 0)
+		{
+			free(data);
+			gprintf("failed to open %s. error %d\n",file,fh);
+			return -4;
+		}
+		// read the completed IMET header
+		r = ISFS_Read(fh, data, sizeof(IMET));
+		if (r < 0) {
+			gprintf("failed to read IMET data. error %d\n",r);
+			ISFS_Close(fh);
+			free(data);
+			return -5;
+		}
+		ISFS_Close(fh);
+	}
+	else
+	{
+		//ES method
+		u8* IMET_data = (u8*)memalign(32, (sizeof(IMET)+31)&(~31));
+		r = ES_ReadContent(fh,IMET_data,sizeof(IMET));
+		if (r < 0) {
+			gprintf("failed to read IMET data. error %d\n",r);
+			ES_CloseContent(fh);
+			free(data);
+			free(views);
+			return -6;
+		}
+		//free data and let it point to IMET_data so everything else can work just fine
+		free(data);
+		data = (IMET*)IMET_data;
+		ES_CloseContent(fh);
+		free(views);
+	}
+	char str[10][84];
+	//clear any memory that is in the place of the array cause we dont want any confusion here
+	memset(str,0,10*84);
+	for(u8 y =0;y <= 9;y++)
+	{
+		u8 j;
+		u8 r = 0;
+		for(j=0;j<83;j++)
+		{
+			if(data->names[y][j] < 0x20)
+				continue;
+			else if(data->names[y][j] > 0x7E)
+				continue;
+			else
+			{
+				str[y][r++] = data->names[y][j];
+			}
+		}
+		str[y][83] = '\0';
+
+	}
+	free(data);
+	if(str[lang][0] != '\0')
+	{
+		gprintf("getting ready to return %s\n",str[lang]);
+		sprintf(name, "%s", str[lang]);
+	}
+	else
+		gprintf("str is empty. leaving name at ????????");
+	memset(str,0,10*84);
+	return 1;
+}
+s32 ListStartTitles( void )
+{
+	s32 ret;
+	u32 count;
+	ret = ES_GetNumTitles(&count);
+	if (ret < 0)
+	{
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the amount of installed titles!"))*13/2))>>1, 208+16, "Failed to get the amount of installed titles!");
+		gprintf("failed to get Number of titles. error %d\n",ret);
+		sleep(3);
+		return ret;
+	}
+	gprintf("%u titles detected\n",count);
+	static u64 title_list[256] ATTRIBUTE_ALIGN(32);
+	ret = ES_GetTitles(title_list, count);
+	if (ret < 0) {
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+16, "Failed to get the titles list!");
+		gprintf("failed to gettitles list. error %d\n",ret);
+		sleep(3);
+		return ret;
+	}
+	u64 list[256];
+	std::vector<string> titles_ascii;
+	char temp_name[256];
+	char title_ID[5];
+	s8 list_index = 0;
+	titles_ascii.clear();
+	for(u32 i = 0;i < count;i++) //32;i++)
+	{
+		u32 tmd_size;
+		ret = ES_GetTMDViewSize(title_list[i], &tmd_size);
+		if(ret<0)
+		{
+			gprintf("error getting TMD views Size. error %d on title %u\n",ret,i);
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles TMD size!"))*13/2))>>1, 208+16, "Failed to get the titles TMD size!");
+			sleep(3);
+			return ret;
+		}
+		tmd_view *rTMD = (tmd_view*)memalign( 32, (tmd_size+31)&(~31) );
+		if( rTMD == NULL )
+		{
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to MemAlign TMD!"))*13/2))>>1, 208+16, "Failed to MemAlign TMD!");
+			sleep(3);
+			return 0;
+		}
+		memset(rTMD,0, (tmd_size+31)&(~31) );
+		ret = ES_GetTMDView(title_list[i], (u8*)rTMD, tmd_size);
+		if(ret<0)
+		{
+			gprintf("error getting TMD views. error %d\n",ret);
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles TMD!"))*13/2))>>1, 208+16, "Failed to get the titles TMD!");
+			sleep(3);
+			if(rTMD)
+				free(rTMD);
+			return ret;
+		}
+		u32 type = rTMD->title_id >> 32;
+
+		switch (type) 
+		{
+			case 1: // IOS, MIOS, BC, System Menu
+			case 0x10000: // TMD installed by running a disc
+			case 0x10004: // "Hidden channels" -- WiiFit channel
+			case 0x10008: // "Hidden channels" -- EULA, rgnsel
+			default:
+				break;
+			case 0x10001: // Normal channels / VC
+			case 0x10002: // "System channels" -- News, Weather, etc.
+				list[list_index] = title_list[i];
+				sprintf(temp_name,"????????");
+				GetTitleName(rTMD->title_id,rTMD->contents[0].cid,temp_name);
+#ifdef DEBUG
+				gprintf("placed %s in the list\n",temp_name);
+#endif
+				titles_ascii.push_back(temp_name);
+				list_index++;
+				break;
+		}
+		if(rTMD)
+			free(rTMD);
+	}
+	//done detecting titles. lets list them
+	s8 redraw = true;
+	s8 cur_off = 0;
+	list_index--; //set it back to the last name found
+	while(1)
+	{
+		WPAD_ScanPads();
+		PAD_ScanPads();
+
+		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
+		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
+		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
+		{
+			titles_ascii.clear();
+			break;
+		}
+		if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
+		{
+			if (cur_off == 0)
+				cur_off = list_index;
+			else
+				cur_off--;
+			redraw = true;
+		}
+		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
+		{
+			if (cur_off == list_index)
+				cur_off = 0;
+			else
+				cur_off++;
+			redraw = true;
+		}
+		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
+		{
+			ClearScreen();
+			//lets start this bitch
+			u32 cnt ATTRIBUTE_ALIGN(32);
+			ES_GetNumTicketViews(list[cur_off], &cnt);
+			tikview *views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
+			ES_GetTicketViews(list[cur_off], views, cnt);
+			if( ClearState() < 0 )
+			{
+				gprintf("failed to clear state\n");
+			}
+			ES_LaunchTitle(list[cur_off], &views[0]);
+			sleep(1);
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to Load Title!"))*13/2))>>1, 208+16, "Failed to Load Title!");
+			sleep(3);
+			free(views);
+			redraw = true;
+		}			
+		if(redraw)
+		{
+			ClearScreen();
+			for( s8 i=0; i<list_index; i++ )
+			{
+				u32 title_l = list[i] & 0xFFFFFFFF;
+				memcpy(title_ID, &title_l, 4);
+				for (s8 f=0; f<4; f++)
+				{
+					if(title_ID[f] < 0x20)
+						title_ID[f] = '.';
+					if(title_ID[f] > 0x7E)
+						title_ID[f] = '.';
+				}
+				title_ID[4]='\0';
+				PrintFormat( cur_off==i, 16, 64+i*16, "%s(%s)",titles_ascii[i].c_str(), title_ID);
+			}
+			redraw = false;
+		}
+	}
+	return 0;
+}
 void HandleSTMEvent(u32 event)
 {
 	u8 ontime;
@@ -2773,19 +3069,22 @@ int main(int argc, char **argv)
 					error=ERROR_BOOT_BOOTMII;
 					break;
 				}
-				case 3:		//load main.bin from /title/00000001/00000002/data/ dir
+				case 3: // show titles list
+					ListStartTitles();
+				break;
+				case 4:		//load main.bin from /title/00000001/00000002/data/ dir
 					AutoBootDol();
 				break;
-				case 4:
+				case 5:
 					InstallLoadDOL();
 				break;
-				case 5:
+				case 6:
 					SysHackSettings();
 				break;
-				case 6:
+				case 7:
 					InstallPassword();
 				break;
-				case 7:
+				case 8:
 					SetSettings();
 				break;
 				default:
@@ -2803,11 +3102,11 @@ int main(int argc, char **argv)
 
 			if( error == ERROR_UPDATE )
 			{
-				if( cur_off >= 9 )
+				if( cur_off >= 10 )
 					cur_off = 0;
 			}else {
 
-				if( cur_off >= 8 )
+				if( cur_off >= 9 )
 					cur_off = 0;
 			}
 
@@ -2820,9 +3119,9 @@ int main(int argc, char **argv)
 			{
 				if( error == ERROR_UPDATE )
 				{
-					cur_off=9-1;
+					cur_off=10-1;
 				} else {
-					cur_off=8-1;
+					cur_off=9-1;
 				}
 			}
 
@@ -2851,11 +3150,12 @@ int main(int argc, char **argv)
 			PrintFormat( cur_off==0, ((rmode->viWidth /2)-((strlen("System Menu"))*13/2))>>1, 64, "System Menu");
 			PrintFormat( cur_off==1, ((rmode->viWidth /2)-((strlen("Homebrew Channel"))*13/2))>>1, 80, "Homebrew Channel");
 			PrintFormat( cur_off==2, ((rmode->viWidth /2)-((strlen("BootMii IOS"))*13/2))>>1, 96, "BootMii IOS");
-			PrintFormat( cur_off==3, ((rmode->viWidth /2)-((strlen("Installed File"))*13/2))>>1, 128, "Installed File");
-			PrintFormat( cur_off==4, ((rmode->viWidth /2)-((strlen("Load/Install File"))*13/2))>>1, 144, "Load/Install File");
-			PrintFormat( cur_off==5, ((rmode->viWidth /2)-((strlen("System Menu Hacks"))*13/2))>>1, 160, "System Menu Hacks");
-			PrintFormat( cur_off==6, ((rmode->viWidth /2)-((strlen("Set Password"))*13/2))>>1, 176, "Set Password");
-			PrintFormat( cur_off==7, ((rmode->viWidth /2)-((strlen("Settings"))*13/2))>>1, 192, "Settings");
+			PrintFormat( cur_off==3, ((rmode->viWidth /2)-((strlen("Launch Title"))*13/2))>>1, 112, "Launch Title");
+			PrintFormat( cur_off==4, ((rmode->viWidth /2)-((strlen("Installed File"))*13/2))>>1, 144, "Installed File");
+			PrintFormat( cur_off==5, ((rmode->viWidth /2)-((strlen("Load/Install File"))*13/2))>>1, 160, "Load/Install File");
+			PrintFormat( cur_off==6, ((rmode->viWidth /2)-((strlen("System Menu Hacks"))*13/2))>>1, 176, "System Menu Hacks");
+			PrintFormat( cur_off==7, ((rmode->viWidth /2)-((strlen("Set Password"))*13/2))>>1, 192, "Set Password");
+			PrintFormat( cur_off==8, ((rmode->viWidth /2)-((strlen("Settings"))*13/2))>>1, 208, "Settings");
 
 			if (error > 0)
 			{
