@@ -2547,6 +2547,7 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 }
 s32 ListStartTitles( void )
 {
+	ClearScreen();
 	s32 ret;
 	u32 count;
 	ret = ES_GetNumTitles(&count);
@@ -2644,18 +2645,16 @@ s32 ListStartTitles( void )
 		}
 		if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
 		{
-			if (cur_off == 0)
+			cur_off--;
+			if (cur_off < 0)
 				cur_off = list_index;
-			else
-				cur_off--;
 			redraw = true;
 		}
 		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
 		{
-			if (cur_off == list_index)
+			cur_off++;
+			if (cur_off >= list_index)
 				cur_off = 0;
-			else
-				cur_off++;
 			redraw = true;
 		}
 		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
@@ -2679,7 +2678,6 @@ s32 ListStartTitles( void )
 		}			
 		if(redraw)
 		{
-			ClearScreen();
 			for( s8 i=0; i<list_index; i++ )
 			{
 				u32 title_l = list[i] & 0xFFFFFFFF;
@@ -2701,7 +2699,7 @@ s32 ListStartTitles( void )
 }
 void HandleSTMEvent(u32 event)
 {
-	u8 ontime;
+	f64 ontime;
 	switch(event)
 	{
 		case STM_EVENT_POWER:
@@ -2714,6 +2712,7 @@ void HandleSTMEvent(u32 event)
 				time_t inloop;
 				time(&inloop);
 				ontime = difftime(inloop, startloop);
+				gprintf("ontime = %d\n",ontime);
 				if (ontime >= 15)
 					BootSysMenu = 1;
 			}

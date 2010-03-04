@@ -914,7 +914,18 @@ static int _ES_open_r (struct _reent *r, void *fileStruct, const char *path, int
 	if(file->titleID == 0)
 		file->cfd = ES_OpenContent(file->content.index);
 	else
-		file->cfd = ES_OpenTitleContent(file->titleID, file->content.index);
+	{
+		u32 cnt ATTRIBUTE_ALIGN(32);
+		ES_GetNumTicketViews(file->titleID, &cnt);
+		tikview *views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
+		if(views == NULL)
+		{
+			return -1;
+		}
+		ES_GetTicketViews(file->titleID, views, cnt);
+		file->cfd = ES_OpenTitleContent_patched(file->titleID, views, file->content.index);
+		free(views);
+	}
 
 	if(file->cfd<0) {
 		r->_errno = EIO;
