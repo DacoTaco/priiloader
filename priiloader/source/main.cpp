@@ -1770,7 +1770,7 @@ void InstallLoadDOL( void )
 			ISFS_CreateFile("/title/00000001/00000002/data/main.bin", 0, 3, 3, 3);
 			fd = ISFS_Open("/title/00000001/00000002/data/main.bin", 1|2 );
 
-			if( ISFS_Write( fd, buf, sizeof( char ) * size ) != sizeof( char ) * size )
+			if( ISFS_Write( fd, buf, sizeof( char ) * size ) != (signed)(sizeof( char ) * size) )
 			{
 				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Writing file failed!"))*13/2))>>1, 240, "Writing file failed!");
 			} else {
@@ -2630,7 +2630,10 @@ s32 ListStartTitles( void )
 	//done detecting titles. lets list them
 	s8 redraw = true;
 	s8 cur_off = 0;
+	s8 max_pos = 25;
+	s8 min_pos = 0;
 	list_index--; //set it back to the last name found
+	PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Load Title       "))*13/2))>>1, rmode->viHeight-32, "A(A) Load Title");
 	while(1)
 	{
 		WPAD_ScanPads();
@@ -2646,15 +2649,25 @@ s32 ListStartTitles( void )
 		if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
 		{
 			cur_off--;
+			if (cur_off < min_pos)
+				min_pos = cur_off;
 			if (cur_off < 0)
-				cur_off = list_index;
+			{
+				cur_off = list_index - 1;
+				min_pos = list_index - max_pos - 1;
+			}
 			redraw = true;
 		}
 		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
 		{
 			cur_off++;
+			if (cur_off > (max_pos + min_pos))
+				min_pos = cur_off - max_pos;
 			if (cur_off >= list_index)
+			{
 				cur_off = 0;
+				min_pos = 0;
+			}
 			redraw = true;
 		}
 		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
@@ -2678,7 +2691,7 @@ s32 ListStartTitles( void )
 		}			
 		if(redraw)
 		{
-			for( s8 i=0; i<list_index; i++ )
+			for( s8 i= min_pos; i<=(min_pos + max_pos); i++ )
 			{
 				u32 title_l = list[i] & 0xFFFFFFFF;
 				memcpy(title_ID, &title_l, 4);
@@ -2690,7 +2703,7 @@ s32 ListStartTitles( void )
 						title_ID[f] = '.';
 				}
 				title_ID[4]='\0';
-				PrintFormat( cur_off==i, 16, 64+i*16, "%s(%s)",titles_ascii[i].c_str(), title_ID);
+				PrintFormat( cur_off==i, 16, 64+(i-min_pos)*16, "%s(%s)                   ",titles_ascii[i].c_str(), title_ID);
 			}
 			redraw = false;
 		}
