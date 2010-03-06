@@ -2567,11 +2567,11 @@ s32 ListStartTitles( void )
 		sleep(3);
 		return ret;
 	}
-	u64 list[256];
+	std::vector<u64> list;
 	std::vector<string> titles_ascii;
 	char temp_name[256];
 	char title_ID[5];
-	s8 list_index = 0;
+	list.clear();
 	titles_ascii.clear();
 	for(u32 i = 0;i < count;i++) //32;i++)
 	{
@@ -2614,14 +2614,13 @@ s32 ListStartTitles( void )
 				break;
 			case 0x10001: // Normal channels / VC
 			case 0x10002: // "System channels" -- News, Weather, etc.
-				list[list_index] = title_list[i];
+				list.push_back(title_list[i]);
 				sprintf(temp_name,"????????");
 				GetTitleName(rTMD->title_id,rTMD->contents[0].cid,temp_name);
 #ifdef DEBUG
 				gprintf("placed %s in the list\n",temp_name);
 #endif
 				titles_ascii.push_back(temp_name);
-				list_index++;
 				break;
 		}
 		if(rTMD)
@@ -2629,11 +2628,11 @@ s32 ListStartTitles( void )
 	}
 	//done detecting titles. lets list them
 	s8 redraw = true;
-	s8 cur_off = 0;
-	s8 max_pos = 25;
-	s8 min_pos = 0;
-	list_index--; //set it back to the last name found
-	PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Load Title       "))*13/2))>>1, rmode->viHeight-32, "A(A) Load Title");
+	s16 cur_off = 0;
+	s16 max_pos = 25;
+	s16 min_pos = 0;
+	if ((s32)list.size() < max_pos)
+		max_pos = list.size() -1;
 	while(1)
 	{
 		WPAD_ScanPads();
@@ -2644,17 +2643,22 @@ s32 ListStartTitles( void )
 		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 		{
 			titles_ascii.clear();
+			list.clear();
 			break;
 		}
 		if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
 		{
 			cur_off--;
 			if (cur_off < min_pos)
+			{
 				min_pos = cur_off;
+				if(list.size() > 25)
+					ClearScreen();
+			}
 			if (cur_off < 0)
 			{
-				cur_off = list_index - 1;
-				min_pos = list_index - max_pos - 1;
+				cur_off = list.size() - 1;
+				min_pos = list.size() - max_pos - 1;
 			}
 			redraw = true;
 		}
@@ -2662,8 +2666,12 @@ s32 ListStartTitles( void )
 		{
 			cur_off++;
 			if (cur_off > (max_pos + min_pos))
+			{
 				min_pos = cur_off - max_pos;
-			if (cur_off >= list_index)
+				if(list.size() > 25)
+					ClearScreen();
+			}
+			if (cur_off >= list.size())
 			{
 				cur_off = 0;
 				min_pos = 0;
@@ -2693,6 +2701,8 @@ s32 ListStartTitles( void )
 		{
 			for( s8 i= min_pos; i<=(min_pos + max_pos); i++ )
 			{
+				gprintf("drawing...\nMax_pos : %u,min_pos : %u , size %u , i : %d , cur_off = %u\n",max_pos,min_pos,list.size(),i,cur_off);
+				memset(title_ID,0,5);
 				u32 title_l = list[i] & 0xFFFFFFFF;
 				memcpy(title_ID, &title_l, 4);
 				for (s8 f=0; f<4; f++)
@@ -2704,6 +2714,7 @@ s32 ListStartTitles( void )
 				}
 				title_ID[4]='\0';
 				PrintFormat( cur_off==i, 16, 64+(i-min_pos)*16, "%s(%s)                   ",titles_ascii[i].c_str(), title_ID);
+				PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Load Title       "))*13/2))>>1, rmode->viHeight-32, "A(A) Load Title");
 			}
 			redraw = false;
 		}
