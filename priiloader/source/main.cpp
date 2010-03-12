@@ -143,6 +143,7 @@ u8 DetectHBC( void )
     if(ret < 0) {
 		gprintf("get titles failed while detecting HBC\n");
 		free(list);
+		list = NULL;
 		return 0;
     }
 	ret = 0;
@@ -162,7 +163,7 @@ u8 DetectHBC( void )
         }
     }
     free(list);
-
+	list = NULL;
     if(!ret)
 	{
 		gprintf("neither JODI nor HBC found");
@@ -304,11 +305,13 @@ bool isIOSstub(u8 ios_number)
 		{
 			gprintf("IOS %d is active\n",ios_number);
 			free(ios_tmd);
+			ios_tmd = NULL;
 			return false;
 		}
 	}
 	gprintf("IOS %d is active\n",ios_number);
 	free(ios_tmd);
+	ios_tmd = NULL;
 	return false;
 }
 
@@ -332,7 +335,6 @@ void SysHackSettings( void )
 	}
 
 //Count hacks for current sys version
-
 	u32 HackCount=0;
 	u32 SysVersion=GetSysMenuVersion();
 	for( unsigned int i=0; i<hacks.size(); ++i)
@@ -441,6 +443,7 @@ void SysHackSettings( void )
 					}
 					ISFS_Close( fd );
 					free(buf);
+					buf = NULL;
 				}
 
 				s32 fd = ISFS_Open("/title/00000001/00000002/data/hacks_s.ini", 1|2 );
@@ -1097,6 +1100,7 @@ void SetSettings( void )
 		VIDEO_WaitVSync();
 	}
 	free(TitleIDs);
+	TitleIDs = NULL;
 	return;
 }
 void LoadHBC( void )
@@ -1130,6 +1134,7 @@ void LoadHBC( void )
 	//well that went wrong
 	error = ERROR_BOOT_HBC;
 	free(views);
+	views = NULL;
 	return;
 }
 void LoadBootMii( void )
@@ -1215,8 +1220,8 @@ void BootMainSysMenu( void )
 
 	//boot file:
 	u32 fileID = 0;
-	char * file = NULL;
-	fstats * status = NULL;
+	char file[265] ATTRIBUTE_ALIGN(32);
+	fstats *status = NULL;
 	dolhdr *boot_hdr = NULL;
 
 	//general:
@@ -1279,13 +1284,6 @@ void BootMainSysMenu( void )
 		goto free_and_return;
 	}
 
-	file = (char*)memalign( 32, 256 );
-	if( file == NULL )
-	{
-		error = ERROR_MALLOC;
-		goto free_and_return;
-	}
-	memset(file, 0, 256 );
 	sprintf( file, "/title/00000001/00000002/content/%08x.app", fileID );
 	//small fix that Phpgeek didn't forget but i did
 	file[33] = '1'; // installing preloader renamed system menu so we change the app file to have the right name
@@ -1303,14 +1301,14 @@ void BootMainSysMenu( void )
 		goto free_and_return;
 	}
 
-	status = (fstats *)memalign(32, sizeof( fstats ) );
+	status = (fstats *)memalign(32, (sizeof( fstats )+31)&(~31) );
 	if( status == NULL )
 	{
 		ISFS_Close( fd );
 		error = ERROR_MALLOC;
 		goto free_and_return;
 	}
-	memset(status,0, sizeof( fstats ) );
+	memset(status,0, (sizeof( fstats )+31)&(~31) );
 	r = ISFS_GetFileStats( fd, status);
 #ifdef DEBUG
 	printf("ISFS_GetFileStats(%d, %08X):%d\n", fd, status, r );
@@ -1320,12 +1318,15 @@ void BootMainSysMenu( void )
 	{
 		ISFS_Close( fd );
 		error = ERROR_SYSMENU_BOOTGETSTATS;
+		free(status);
+		status = NULL;
 		goto free_and_return;
 	}
 #ifdef DEBUG
 	printf("size:%d\n", status->file_length);
 #endif
 	free(status);
+	status = NULL;
 	boot_hdr = (dolhdr *)memalign(32, (sizeof( dolhdr )+31)&(~31) );
 	if(boot_hdr == NULL)
 	{
@@ -1578,10 +1579,21 @@ void BootMainSysMenu( void )
 		}
 	}
 	//ES_SetUID(TitleID);
-	free( rTMD );
-	free( status );
-	free( tstatus );
-	free( buf );
+	if(rTMD)
+	{
+		free( rTMD );
+		rTMD = NULL;
+	}
+	if(tstatus)
+	{
+		free( tstatus );
+		tstatus = NULL;
+	}
+	if(buf)
+	{
+		free( buf );
+		buf = NULL;
+	}
 
 	*(vu32*)0x800000F8 = 0x0E7BE2C0;				// Bus Clock Speed
 	*(vu32*)0x800000FC = 0x2B73A840;				// CPU Clock Speed
@@ -1625,27 +1637,31 @@ void BootMainSysMenu( void )
 	mtmsr(mfmsr() | 0x2002);
 	_unstub_start();
 free_and_return:
-	gprintf("free rTMD,");
 	if(rTMD)
+	{
 		free(rTMD);
-	gprintf("file,");
-	if(file)
-		free(file);
-	gprintf("TMD,");
+		rTMD = NULL;
+	}
 	if(TMD)
+	{
 		free(TMD);
-	gprintf("status,");
-	if(status)
-		free( status );
-	gprintf("tstatus,");
+		TMD = NULL;
+	}
 	if(tstatus)
+	{
 		free( tstatus );
-	gprintf("buf,");
+		tstatus = NULL;
+	}
 	if(buf)
+	{
 		free( buf );
-	gprintf("hdr!\n");
+		buf = NULL;
+	}
 	if(boot_hdr)
+	{
 		free(boot_hdr);
+		boot_hdr = NULL;
+	}
 	return;
 }
 void InstallLoadDOL( void )
@@ -1782,6 +1798,7 @@ void InstallLoadDOL( void )
 			redraw=true;
 			ISFS_Close( fd );
 			free( buf );
+			buf = NULL;
 
 		}
 
@@ -2161,6 +2178,7 @@ void AutoBootDol( void )
 						memcpy( (void*)(phdr->p_vaddr | 0x80000000), tbuf, phdr->p_filesz );
 
 						free( tbuf);
+						tbuf = NULL;
 					} else {
 
 						r = ISFS_Read( fd, (void*)(phdr->p_vaddr | 0x80000000), phdr->p_filesz);
@@ -2181,6 +2199,7 @@ void AutoBootDol( void )
 				}
 
 				free( phdr );
+				phdr = NULL;
 			}
 		}
 		if( ElfHdr->e_shnum == 0 )
@@ -2256,6 +2275,7 @@ void AutoBootDol( void )
 					memcpy( (void*)(shdr->sh_addr | 0x80000000), tbuf, shdr->sh_size );
 
 					free( tbuf);
+					tbuf = NULL;
 				} else {
 
 					r = ISFS_Read( fd, (void*)(shdr->sh_addr | 0x80000000), shdr->sh_size);
@@ -2272,6 +2292,7 @@ void AutoBootDol( void )
 
 			}
 			free( shdr );
+			shdr = NULL;
 		}
 
 		ISFS_Close( fd );
@@ -2338,6 +2359,7 @@ void AutoBootDol( void )
 				//	memcpy( (void*)(hdr->addressText[i]), tbuf, hdr->sizeText[i] );
 
 				//	free( tbuf);
+				//	tbuf = NULL;
 
 				//} else {
 					if(ISFS_Read( fd, (void*)(hdr->addressText[i]), hdr->sizeText[i] )<0)
@@ -2374,6 +2396,7 @@ void AutoBootDol( void )
 				//	memcpy( (void*)(hdr->addressData[i]), tbuf, hdr->sizeData[i] );
 
 				//	free( tbuf);
+				//	tbuf = NULL;
 
 				//} else {
 					if( ISFS_Read( fd, (void*)(hdr->addressData[i]), hdr->sizeData[i] )<0)
@@ -2458,6 +2481,7 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 	if(views == NULL)
 	{
 		free(data);
+		data = NULL;
 		return -2;
 	}
 	ES_GetTicketViews(id, views, cnt);
@@ -2469,7 +2493,9 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 	{
 		gprintf("ES_OpenTitleContent returned %d. app not found\n",fh);
 		free(data);
+		data = NULL;
 		free(views);
+		views = NULL;
 		return -3;
 	}
 	else if(fh < 0)
@@ -2477,11 +2503,13 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 		//ES method failed. remove tikviews from memory and fall back on ISFS method
 		gprintf("ES_OpenTitleContent returned %d , falling back on ISFS\n",fh);
 		free(views);
+		views = NULL;
 		fh = ISFS_Open(file, ISFS_OPEN_READ);
 		// fuck failed. lets GTFO
 		if (fh < 0)
 		{
 			free(data);
+			data = NULL;
 			gprintf("failed to open %s. error %d\n",file,fh);
 			return -4;
 		}
@@ -2491,6 +2519,7 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 			gprintf("failed to read IMET data. error %d\n",r);
 			ISFS_Close(fh);
 			free(data);
+			data = NULL;
 			return -5;
 		}
 		ISFS_Close(fh);
@@ -2504,14 +2533,18 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 			gprintf("failed to read IMET data. error %d\n",r);
 			ES_CloseContent(fh);
 			free(data);
+			data = NULL;
 			free(views);
+			views = NULL;
 			return -6;
 		}
 		//free data and let it point to IMET_data so everything else can work just fine
 		free(data);
+		data = NULL;
 		data = (IMET*)IMET_data;
 		ES_CloseContent(fh);
 		free(views);
+		views = NULL;
 	}
 	char str[10][84];
 	//clear any memory that is in the place of the array cause we dont want any confusion here
@@ -2535,6 +2568,7 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 
 	}
 	free(data);
+	data = NULL;
 	if(str[lang][0] != '\0')
 	{
 		gprintf("getting ready to return %s\n",str[lang]);
@@ -2599,7 +2633,10 @@ s32 ListStartTitles( void )
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles TMD!"))*13/2))>>1, 208+16, "Failed to get the titles TMD!");
 			sleep(3);
 			if(rTMD)
+			{
 				free(rTMD);
+				rTMD = NULL;
+			}
 			return ret;
 		}
 		u32 type = rTMD->title_id >> 32;
@@ -2624,7 +2661,10 @@ s32 ListStartTitles( void )
 				break;
 		}
 		if(rTMD)
+		{
 			free(rTMD);
+			rTMD = NULL;
+		}
 	}
 	//done detecting titles. lets list them
 	s8 redraw = true;
@@ -2671,7 +2711,7 @@ s32 ListStartTitles( void )
 				if(list.size() > 25)
 					ClearScreen();
 			}
-			if (cur_off >= list.size())
+			if (cur_off >= (s32)list.size())
 			{
 				cur_off = 0;
 				min_pos = 0;
@@ -2695,13 +2735,13 @@ s32 ListStartTitles( void )
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to Load Title!"))*13/2))>>1, 208+16, "Failed to Load Title!");
 			sleep(3);
 			free(views);
+			views = NULL;
 			redraw = true;
 		}			
 		if(redraw)
 		{
 			for( s8 i= min_pos; i<=(min_pos + max_pos); i++ )
 			{
-				gprintf("drawing...\nMax_pos : %u,min_pos : %u , size %u , i : %d , cur_off = %u\n",max_pos,min_pos,list.size(),i,cur_off);
 				memset(title_ID,0,5);
 				u32 title_l = list[i] & 0xFFFFFFFF;
 				memcpy(title_ID, &title_l, 4);
@@ -2718,6 +2758,7 @@ s32 ListStartTitles( void )
 			}
 			redraw = false;
 		}
+		VIDEO_WaitVSync();
 	}
 	return 0;
 }
@@ -2766,7 +2807,9 @@ void DVDStopDisc( void )
 		//IOS_Close(di_fd);
 
 		free( outbuf );
+		outbuf = NULL;
 		free( inbuf );
+		inbuf = NULL;
 	}
 	else
 		gprintf("failed to get DI interface from IOS for DI shutdown\n");
@@ -2932,7 +2975,7 @@ int main(int argc, char **argv)
 					DVDStopDisc();
         			WPAD_Shutdown();
 					ShutdownDevices();
-
+					ClearState();
 					if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
 					{
 						STM_ShutdownToStandby();
@@ -3199,7 +3242,7 @@ int main(int argc, char **argv)
 			DVDStopDisc();
 			WPAD_Shutdown();
 			ShutdownDevices();
-
+			ClearState();
 			if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
 			{
 				STM_ShutdownToStandby();

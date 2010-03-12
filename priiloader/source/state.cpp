@@ -37,6 +37,7 @@ s32 CheckBootState( void )
 	if(fd < 0)
 	{
 		free(sf);
+		sf = NULL;
 		return 0;
 	}
 	s32 ret = ISFS_Read(fd, sf, sizeof(StateFlags));
@@ -44,10 +45,12 @@ s32 CheckBootState( void )
 	if(ret != sizeof(StateFlags))
 	{
 		free(sf);
+		sf = NULL;
 		return 0;
 	}
 	u8 r = sf->type;
 	free( sf );
+	sf = NULL;
 	return r;
 }
 StateFlags GetStateFlags( void )
@@ -59,6 +62,7 @@ StateFlags GetStateFlags( void )
 	if(fd < 0)
 	{
 		free(sf);
+		sf = NULL;
 		return State;
 	}
 	s32 ret = ISFS_Read(fd, sf, sizeof(StateFlags));
@@ -66,10 +70,12 @@ StateFlags GetStateFlags( void )
 	if(ret != sizeof(StateFlags))
 	{
 		free(sf);
+		sf = NULL;
 		return State;
 	}
 	memcpy((StateFlags*)&State,sf,sizeof(StateFlags));
 	free( sf );
+	sf = NULL;
 	return State;
 }
 u32 CalcStateChk(u32 *buf, u32 size)
@@ -109,6 +115,7 @@ s32 ClearState( void )
 	IOS_Close(fd);
 
 	free( sf );
+	sf = NULL;
 	return 1;
 
 }

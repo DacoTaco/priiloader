@@ -600,7 +600,7 @@ int main(int argc, char **argv)
 				{
 					printf("Skipping Moving of System menu app...\n");
 				}				
-				ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
+				//ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
 				gprintf("loader.ini deletion returned %d\n",ret);
 				ret = ISFS_Delete("/title/00000001/00000002/data/password.txt");
 				gprintf("password.txt deletion returned %d\n",ret);
