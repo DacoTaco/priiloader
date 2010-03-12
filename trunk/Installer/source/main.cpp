@@ -167,6 +167,7 @@ s32 nand_copy(char source[1024], char destination[1024])
         ISFS_Close(dest_handler);
         ISFS_Delete(destination);
         free(status);
+		status = NULL;
         return ret;
     }
 	if ( status->file_length == 0 )
@@ -191,7 +192,9 @@ s32 nand_copy(char source[1024], char destination[1024])
         ISFS_Close(dest_handler);
         ISFS_Delete(destination);
         free(status);
+		status = NULL;
         free(buffer);
+		buffer = NULL;
         return ret;
     }
 
@@ -202,7 +205,9 @@ s32 nand_copy(char source[1024], char destination[1024])
         ISFS_Close(dest_handler);
         ISFS_Delete(destination);
         free(status);
+		status = NULL;
         free(buffer);
+		buffer = NULL;
         return ret;
     }
 	gprintf("starting checksum...\n");
@@ -246,17 +251,29 @@ s32 nand_copy(char source[1024], char destination[1024])
 
 free_and_Return:
 	if(Data2 != NULL)
+	{
 		free(Data2);
+		Data2 = NULL;
+	}
 	if(D2stat != NULL)
+	{
 		free(D2stat);
+		D2stat = NULL;
+	}
 	if(source_handler)
 		ISFS_Close(source_handler);
 	if(dest_handler)
 		ISFS_Close(dest_handler);
 	if(status)
+	{
 		free(status);
+		status = NULL;
+	}
 	if(buffer)
+	{
 		free(buffer);
+		buffer = NULL;
+	}
 	if (temp < 0)
 		return -80;
 
@@ -333,7 +350,7 @@ int main(int argc, char **argv)
 		u16 GCpDown = PAD_ButtonsDown(0);
 		u16 pHeld = WPAD_ButtonsHeld(0);
 		u16 GCpHeld = PAD_ButtonsHeld(0);
-		if (pDown & WPAD_BUTTON_PLUS || pDown & WPAD_BUTTON_MINUS || GCpDown & PAD_BUTTON_A || GCpDown & PAD_BUTTON_B)
+		if (pDown & WPAD_BUTTON_PLUS || pDown & WPAD_BUTTON_MINUS || GCpDown & PAD_BUTTON_A || GCpDown & PAD_BUTTON_Y)
 		{
 			static u32 tmp_ikey ATTRIBUTE_ALIGN(32);
 			static u32 tmd_size ATTRIBUTE_ALIGN(32);
@@ -394,6 +411,7 @@ int main(int argc, char **argv)
 			if (fs < 0)
 			{
 				free(TMD);
+				TMD = NULL;
 				abort("Unable to get stored tmd");
 			}
 	
@@ -410,6 +428,7 @@ int main(int argc, char **argv)
 			if (id == 0)
 			{
 				free(TMD);
+				TMD = NULL;
 				abort("Unable to retrieve title id");
 			}
 
@@ -418,6 +437,7 @@ int main(int argc, char **argv)
 			if (original_app == NULL || copy_app == NULL)
 			{
 				free(TMD);
+				TMD = NULL;
 				abort("Unable to prepare title for memory");
 			}
 
@@ -428,7 +448,10 @@ int main(int argc, char **argv)
 			copy_app[33] = '1';
 
 			if(TMD)
+			{
 				free(TMD);
+				TMD = NULL;
+			}
 			
 			if (pDown & WPAD_BUTTON_PLUS || GCpDown & PAD_BUTTON_A)
 			{
@@ -535,28 +558,21 @@ int main(int argc, char **argv)
 						}
 					}
 					free(status);
+					status = NULL;
 					ISFS_Close(fd);
 				}
 				if(CopyTicket)
 				{
 					printf("Copying system menu ticket...");
-					char * original_tik = (char*)memalign(32,(256+31)&(~31));
-					char * copy_tik = (char*)memalign(32,(256+31)&(~31));
+					char original_tik[256];
+					char copy_tik[256];
 					sprintf(original_tik, "/ticket/00000001/00000002.tik");
 					sprintf(copy_tik, "/title/00000001/00000002/content/ticket");
 					if (nand_copy(original_tik,copy_tik) < 0)
 					//if (nand_copy((char*)"/ticket/00000001/00000002.tik",(char*)"/title/00000001/00000002/content/ticket") < 0)
 					{
-						if(original_tik)
-							free(original_tik);
-						if(copy_tik)
-							free(copy_tik);
 						abort("Unable to copy the system menu ticket");
 					}
-					if(original_tik)
-						free(original_tik);
-					if(copy_tik)
-						free(copy_tik);
 					printf("Done!\n");
 				}
 				else
@@ -600,7 +616,7 @@ int main(int argc, char **argv)
 				{
 					printf("Skipping Moving of System menu app...\n");
 				}				
-				//ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
+				ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
 				gprintf("loader.ini deletion returned %d\n",ret);
 				ret = ISFS_Delete("/title/00000001/00000002/data/password.txt");
 				gprintf("password.txt deletion returned %d\n",ret);
@@ -657,7 +673,10 @@ int main(int argc, char **argv)
 				{
 					ISFS_Close(fd);
 					if(status)
+					{
 						free(status);
+						status = NULL;
+					}
 					nand_copy(copy_app,original_app);
 					abort("Checksum comparison Failure! MemAlign Failure of AppData %u\n",ret);
 				}
@@ -665,9 +684,15 @@ int main(int argc, char **argv)
 				{
 					ISFS_Close(fd);
 					if (AppData)
+					{
 						free(AppData);
+						AppData = NULL;
+					}
 					if(status)
+					{
 						free(status);
+						status = NULL;
+					}
 					nand_copy(copy_app,original_app);
 					abort("Checksum comparison Failure! read of priiloader app returned %u\n",ret);
 				}
@@ -677,17 +702,29 @@ int main(int argc, char **argv)
 				{
 					ISFS_Close(fd);
 					if (AppData)
+					{
 						free(AppData);
+						AppData = NULL;
+					}
 					if(status)
+					{
 						free(status);
+						status = NULL;
+					}
 					nand_copy(copy_app,original_app);
 					ISFS_Delete(copy_app);
 					abort("Checksum comparison Failure!\n");
 				}
 				if (AppData)
+				{
 					free(AppData);
+					AppData = NULL;
+				}
 				if(status)
+				{
 					free(status);
+					status = NULL;
+				}
 				ISFS_Close(fd);
 				gprintf("Priiloader Installation Complete\n");
 				printf("Done!!!\n\n");
