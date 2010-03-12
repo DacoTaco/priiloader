@@ -108,7 +108,9 @@ void InstallPassword( void )
 				ISFS_GetFileStats( pfd, pstatus);
 				psize = pstatus->file_length;
 				free( pstatus );
+				pstatus = NULL;
 				free( pbuf );
+				pbuf = NULL;
 				pbuf = (char*)memalign( 32, (psize+32+1)&(~31) );
 				if( pbuf == NULL )
 				{
@@ -179,6 +181,7 @@ void InstallPassword( void )
 		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 		{
 			free(pbuf);
+			pbuf = NULL;
 			break;
 		}
 
@@ -236,6 +239,7 @@ void InstallPassword( void )
 			ClearScreen();
 			ISFS_Close( fd );
 			free( pbuf );
+			pbuf = NULL;
 			redraw = 1;
 		}
 
@@ -305,9 +309,15 @@ void password_check( void )
 	ISFS_GetFileStats( cpfd, cpstatus);
 	cpsize = cpstatus->file_length;
 	if( cpstatus )
+	{
 		free( cpstatus );
+		cpstatus = NULL;
+	}
 	if( cpbuf )	
+	{
 		free( cpbuf );
+		cpbuf = NULL;
+	}
 	cpbuf = (char*)memalign( 32, (cpsize+32+1)&(~31) );
 	if( cpbuf == NULL )
 	{
@@ -576,7 +586,10 @@ void password_check( void )
 
 	WPAD_Shutdown();
 	if( cpbuf )
+	{
 		free(cpbuf);
+		cpbuf = NULL;
+	}
 	return;
 }
 

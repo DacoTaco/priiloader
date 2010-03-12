@@ -57,11 +57,15 @@ u32 GetSysMenuVersion( void )
 	{
 		gprintf("error getting TMD views. error %d\n",r);
 		free( rTMD );
+		rTMD = NULL;
 		return 0;
 	}	
 	u32 version = rTMD->title_version;
 	if(rTMD)
+	{
 		free(rTMD);
+		rTMD = NULL;
+	}
 	return version;
 }
 
@@ -90,11 +94,15 @@ u32 GetSysMenuIOS( void )
 	{
 		gprintf("error getting TMD views. error %d\n",r);
 		free( rTMD );
+		rTMD = NULL;
 		return 0;
 	}
 	u8 IOS = rTMD->title_version;
 	if(rTMD)
+	{
 		free(rTMD);
+		rTMD = NULL;
+	}
 	return IOS;
 }
 
@@ -196,21 +204,30 @@ void LoadSettings( void )
 		{
 			error = ERROR_SETTING_OPEN;
 			if(status)
+			{
 				free(status);
+				status = NULL;
+			}
 			return;
 		}
 		if(ISFS_Write( fd, settings, sizeof( Settings ) )<0)
 		{
 			ISFS_Close( fd );
 			if(status)
+			{
 				free(status);
+				status = NULL;
+			}
 			error = ERROR_SETTING_WRITE;
 			return;
 		}
 		ISFS_Seek( fd, 0, 0 );
 	}
 	if(status)
+	{
 		free(status);
+		status = NULL;
+	}
 	if(ISFS_Read( fd, settings, sizeof( Settings ) )<0)
 	{
 		ISFS_Close( fd );
