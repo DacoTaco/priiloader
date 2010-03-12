@@ -615,12 +615,17 @@ int main(int argc, char **argv)
 				else
 				{
 					printf("Skipping Moving of System menu app...\n");
-				}				
+				}				  
+				printf("deleting extra priiloader files...\n");
 				ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
+				if(ret < 0)
+					printf("WARNING : /title/00000001/00000002/data/loader.ini not deleted. error %d\n",ret);
 				gprintf("loader.ini deletion returned %d\n",ret);
 				ret = ISFS_Delete("/title/00000001/00000002/data/password.txt");
+				if(ret < 0)
+					printf("WARNING : /title/00000001/00000002/data/password.txt not deleted. error %d\n",ret);
 				gprintf("password.txt deletion returned %d\n",ret);
-				
+				printf("Done!\n");
 				printf("Writing Priiloader app...");
 				gprintf("Writing Priiloader\n");
 				ISFS_Delete(original_app);
@@ -639,7 +644,7 @@ int main(int argc, char **argv)
 					gprintf("Write failed. ret %d\n",ret);
 					abort("\nWrite of Priiloader app failed.");
 				}
-				printf("Done!\n");
+				printf("Done!!\n");
 				gprintf("Wrote Priiloader App.Checking Installation\n");
 				printf("\nChecking Priiloader Installation...\n");
 				status = (fstats*)memalign(32,sizeof(fstats));
