@@ -1579,11 +1579,6 @@ void BootMainSysMenu( void )
 		}
 	}
 	//ES_SetUID(TitleID);
-	if(rTMD)
-	{
-		free( rTMD );
-		rTMD = NULL;
-	}
 	if(tstatus)
 	{
 		free( tstatus );
@@ -2579,7 +2574,7 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 	memset(str,0,10*84);
 	return 1;
 }
-s32 ListStartTitles( void )
+s32 LoadListTitles( void )
 {
 	ClearScreen();
 	s32 ret;
@@ -2669,7 +2664,7 @@ s32 ListStartTitles( void )
 	//done detecting titles. lets list them
 	s8 redraw = true;
 	s16 cur_off = 0;
-	s16 max_pos = 25;
+	s16 max_pos = 23;
 	s16 min_pos = 0;
 	if ((s32)list.size() < max_pos)
 		max_pos = list.size() -1;
@@ -2692,7 +2687,7 @@ s32 ListStartTitles( void )
 			if (cur_off < min_pos)
 			{
 				min_pos = cur_off;
-				if(list.size() > 25)
+				if(list.size() > 23)
 					ClearScreen();
 			}
 			if (cur_off < 0)
@@ -2708,8 +2703,10 @@ s32 ListStartTitles( void )
 			if (cur_off > (max_pos + min_pos))
 			{
 				min_pos = cur_off - max_pos;
-				if(list.size() > 25)
+				if(list.size() > 23)
+				{
 					ClearScreen();
+				}
 			}
 			if (cur_off >= (s32)list.size())
 			{
@@ -2740,7 +2737,16 @@ s32 ListStartTitles( void )
 		}			
 		if(redraw)
 		{
-			for( s8 i= min_pos; i<=(min_pos + max_pos); i++ )
+			s8 i= min_pos;
+			if(max_pos >= 23 && (min_pos != (s32)list.size() - max_pos - 1))
+			{
+				PrintFormat( 0,((rmode->viWidth /2)-((strlen("-----More-----"))*13/2))>>1,64+(max_pos+2)*16,"-----More-----");
+			}
+			if(min_pos > 0)
+			{
+				PrintFormat( 0,((rmode->viWidth /2)-((strlen("-----Less-----"))*13/2))>>1,64+(i-min_pos)*16,"-----Less-----");
+			}
+			for(; i<=(min_pos + max_pos); i++ )
 			{
 				memset(title_ID,0,5);
 				u32 title_l = list[i] & 0xFFFFFFFF;
@@ -2753,7 +2759,7 @@ s32 ListStartTitles( void )
 						title_ID[f] = '.';
 				}
 				title_ID[4]='\0';
-				PrintFormat( cur_off==i, 16, 64+(i-min_pos)*16, "%s(%s)                   ",titles_ascii[i].c_str(), title_ID);
+				PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "%s(%s)                   ",titles_ascii[i].c_str(), title_ID);
 				PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Load Title       "))*13/2))>>1, rmode->viHeight-32, "A(A) Load Title");
 			}
 			redraw = false;
@@ -3136,7 +3142,7 @@ int main(int argc, char **argv)
 					break;
 				}
 				case 3: // show titles list
-					ListStartTitles();
+					LoadListTitles();
 				break;
 				case 4:		//load main.bin from /title/00000001/00000002/data/ dir
 					AutoBootDol();
