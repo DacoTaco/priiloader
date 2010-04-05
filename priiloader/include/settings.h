@@ -21,9 +21,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 
-#define VERSION		03
-//#define BETAVERSION	0x00000004
+#define VERSION		04
+//#define BETAVERSION	0x00000003
+#ifndef BETAVERSION
 #define BETAVERSION	0
+#endif	
+#include "Global.h"
 
 typedef struct {
 	u32 autoboot;
@@ -37,7 +40,7 @@ typedef struct {
 	u8 SystemMenuIOS;
 	u8 UseSystemMenuIOS;
 	u8 BlackBackground;
-	u8 ShowDebugText;
+	u8 ShowGeckoText;
 	u8 PasscheckPriiloader;
 	u8 PasscheckMenu;
 } Settings;
@@ -53,7 +56,7 @@ enum {
 		SETTING_SYSTEMMENUIOS,
 		SETTING_USESYSTEMMENUIOS,
 		SETTING_BLACKBACKGROUND,
-		SETTING_SHOWDEBUGTEXT,
+		SETTING_SHOWGECKOTEXT,
 		SETTING_PASSCHECKPRII,
 		SETTING_PASSCHECKMENU,
 };
@@ -79,26 +82,3 @@ u32 GetSysMenuIOS( void );
 u32 SGetSetting( u32 s );
 void LoadSettings( void );
 int SaveSettings( void );
-
-//patch to libogc was submitted for the following struct. but for now we'll place it here since its needed in settings and main
-typedef struct _tmd_view_content_t
-{
-  uint32_t cid;
-  uint16_t index;
-  uint16_t type;
-  uint64_t size;
-} __attribute__((packed)) tmd_view_content_t;
-
-typedef struct _tmd_view_t
-{
-	uint8_t version; // 0x0000;
-	uint8_t filler[3];
-	uint64_t sys_version; //0x0004
-	uint64_t title_id; // 0x00c
-	uint32_t title_type; //0x0014
-	uint16_t group_id; //0x0018
-	uint8_t reserved[0x3e]; //0x001a this is the same reserved 0x3e bytes from the tmd
-	uint16_t title_version; //0x0058
-	uint16_t num_contents; //0x005a
-	tmd_view_content_t contents[]; //0x005c
-}__attribute__((packed)) tmd_view;

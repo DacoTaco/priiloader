@@ -56,15 +56,13 @@ u32 GetSysMenuVersion( void )
 	if(r<0)
 	{
 		gprintf("error getting TMD views. error %d\n",r);
-		free( rTMD );
-		rTMD = NULL;
+		free_pointer( rTMD );
 		return 0;
 	}	
 	u32 version = rTMD->title_version;
 	if(rTMD)
 	{
-		free(rTMD);
-		rTMD = NULL;
+		free_pointer(rTMD);
 	}
 	return version;
 }
@@ -93,15 +91,13 @@ u32 GetSysMenuIOS( void )
 	if(r<0)
 	{
 		gprintf("error getting TMD views. error %d\n",r);
-		free( rTMD );
-		rTMD = NULL;
+		free_pointer( rTMD );
 		return 0;
 	}
 	u8 IOS = rTMD->title_version;
 	if(rTMD)
 	{
-		free(rTMD);
-		rTMD = NULL;
+		free_pointer(rTMD);
 	}
 	return IOS;
 }
@@ -142,8 +138,8 @@ u32 SGetSetting( u32 s )
 
 		case SETTING_BLACKBACKGROUND:
 			return settings->BlackBackground;
-		case SETTING_SHOWDEBUGTEXT:
-			return settings->ShowDebugText;
+		case SETTING_SHOWGECKOTEXT:
+			return settings->ShowGeckoText;
 		case SETTING_PASSCHECKPRII:
 			return settings->PasscheckPriiloader;
 		case SETTING_PASSCHECKMENU:
@@ -205,8 +201,7 @@ void LoadSettings( void )
 			error = ERROR_SETTING_OPEN;
 			if(status)
 			{
-				free(status);
-				status = NULL;
+				free_pointer(status);				
 			}
 			return;
 		}
@@ -215,8 +210,7 @@ void LoadSettings( void )
 			ISFS_Close( fd );
 			if(status)
 			{
-				free(status);
-				status = NULL;
+				free_pointer(status);
 			}
 			error = ERROR_SETTING_WRITE;
 			return;
@@ -225,8 +219,7 @@ void LoadSettings( void )
 	}
 	if(status)
 	{
-		free(status);
-		status = NULL;
+		free_pointer(status);
 	}
 	if(ISFS_Read( fd, settings, sizeof( Settings ) )<0)
 	{

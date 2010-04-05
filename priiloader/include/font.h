@@ -21,5 +21,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 #include "wii-font.h"
+#include "Global.h"
 
 void PrintFormat(int col, int x, int y, const char *str, ... );

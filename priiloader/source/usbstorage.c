@@ -91,7 +91,7 @@ The following is for implementing a DISC_INTERFACE
 as used by libfat
 */
 
-static usbstorage_handle __usbfd;
+usbstorage_handle __usbfd;
 static u8 __lun = 0;
 static u8 __mounted = 0;
 static u16 __vid = 0;

@@ -156,6 +156,5 @@ void PrintFormat(int col, int x, int y, const char *str, ... )
 
 	PrintString( col, x, y, astr );
 
-	free(astr);
-	astr = NULL;
+	free_pointer(astr);
 }

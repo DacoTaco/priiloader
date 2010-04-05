@@ -34,7 +34,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 extern u8 error;
-extern GXRModeObj *rmode;
 extern void ClearScreen();
 extern bool RemountDevices();
 
@@ -107,10 +106,8 @@ void InstallPassword( void )
 				fstats *pstatus = (fstats *)memalign( 32, sizeof( fstats ) );
 				ISFS_GetFileStats( pfd, pstatus);
 				psize = pstatus->file_length;
-				free( pstatus );
-				pstatus = NULL;
-				free( pbuf );
-				pbuf = NULL;
+				free_pointer( pstatus );
+				free_pointer( pbuf );
 				pbuf = (char*)memalign( 32, (psize+32+1)&(~31) );
 				if( pbuf == NULL )
 				{
@@ -180,8 +177,7 @@ void InstallPassword( void )
 #endif
 		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 		{
-			free(pbuf);
-			pbuf = NULL;
+			free_pointer(pbuf);
 			break;
 		}
 
@@ -238,8 +234,7 @@ void InstallPassword( void )
 			sleep(5);
 			ClearScreen();
 			ISFS_Close( fd );
-			free( pbuf );
-			pbuf = NULL;
+			free_pointer( pbuf );
 			redraw = 1;
 		}
 
@@ -310,13 +305,11 @@ void password_check( void )
 	cpsize = cpstatus->file_length;
 	if( cpstatus )
 	{
-		free( cpstatus );
-		cpstatus = NULL;
+		free_pointer( cpstatus );
 	}
 	if( cpbuf )	
 	{
-		free( cpbuf );
-		cpbuf = NULL;
+		free_pointer( cpbuf );
 	}
 	cpbuf = (char*)memalign( 32, (cpsize+32+1)&(~31) );
 	if( cpbuf == NULL )
@@ -587,8 +580,7 @@ void password_check( void )
 	WPAD_Shutdown();
 	if( cpbuf )
 	{
-		free(cpbuf);
-		cpbuf = NULL;
+		free_pointer(cpbuf);
 	}
 	return;
 }

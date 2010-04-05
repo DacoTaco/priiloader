@@ -36,21 +36,18 @@ s32 CheckBootState( void )
 	s32 fd = ISFS_Open("/title/00000001/00000002/data/state.dat", 1);
 	if(fd < 0)
 	{
-		free(sf);
-		sf = NULL;
+		free_pointer(sf);
 		return 0;
 	}
 	s32 ret = ISFS_Read(fd, sf, sizeof(StateFlags));
-	IOS_Close(fd);
+	ISFS_Close(fd);
 	if(ret != sizeof(StateFlags))
 	{
-		free(sf);
-		sf = NULL;
+		free_pointer(sf);
 		return 0;
 	}
 	u8 r = sf->type;
-	free( sf );
-	sf = NULL;
+	free_pointer( sf );
 	return r;
 }
 StateFlags GetStateFlags( void )
@@ -61,21 +58,18 @@ StateFlags GetStateFlags( void )
 	s32 fd = ISFS_Open("/title/00000001/00000002/data/state.dat", 1);
 	if(fd < 0)
 	{
-		free(sf);
-		sf = NULL;
+		free_pointer(sf);
 		return State;
 	}
 	s32 ret = ISFS_Read(fd, sf, sizeof(StateFlags));
-	IOS_Close(fd);
+	ISFS_Close(fd);
 	if(ret != sizeof(StateFlags))
 	{
-		free(sf);
-		sf = NULL;
+		free_pointer(sf);
 		return State;
 	}
 	memcpy((StateFlags*)&State,sf,sizeof(StateFlags));
-	free( sf );
-	sf = NULL;
+	free_pointer( sf );
 	return State;
 }
 u32 CalcStateChk(u32 *buf, u32 size)
@@ -112,10 +106,9 @@ s32 ClearState( void )
 	if(ISFS_Write(fd, sf, sizeof(StateFlags))!=sizeof(StateFlags))
 		return -4;
 
-	IOS_Close(fd);
+	ISFS_Close(fd);
 
-	free( sf );
-	sf = NULL;
+	free_pointer( sf );
 	return 1;
 
 }

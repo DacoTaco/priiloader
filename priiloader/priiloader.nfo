@@ -1,15 +1,16 @@
-priiloader v0.3 by DacoTaco & Phpgeek (16/01/2010)
+priiloader v0.4 by DacoTaco (05/04/2010)
 -------------------------------------------------------------------------------------
 Thanks go to crediar for preloader & source, 
 phpgeek for app info & installer
 BlackPearl & Bad Uncle for the font merging code. the font headers didn't make sense to me at all :3
-MANY thanks to wntrmute for bug killing that i couldn't figure out
+many thanks go to lunatik (dop-mii) and wntrmute!
 Oldboy & F_GOD for testing.
 
 also greetings to
 devkitPro team
 Team Twiizers (wish i could see you guys on 26c3 D: )
 #wiidev
+#arikadosblog
 
 IMPORTANT NOTE:
 -------------------------------------------------------------------------------------
@@ -65,6 +66,20 @@ Changelog:
 -------------------------------------------------------------------------------------
 	Priiloader Changelog
 	-------------------------------------
+v0.4 : Death of the Memory Hog and revenge of the IOSith
+
+    * Added support of all versions of the EU/US system menus(JP/KR are untested)
+    * New entrypoint. this means : 
+		* Old forwarders should work again
+		* Many other memory related restrictions should be gone. 
+	* Added support for more usb hard drives
+	* Added an option to ask for a password either when entering priiloader menu or doing autoboot. (NOTE : this -CAN- lock you out of your own wii. please be very careful with this)
+	* Added a menu to list all installed Wiiware/VC titles and start one
+	* Added a new magic word to force system menu to be started. (the word is "Pune") 
+	* Added an option to redirect Gecko output to the screen instead of to a USBGecko(NOTE: this slows down priiloader DRASTICLY)
+	* Fixed loads of minor bugs
+
+
 0.3:
 	* Change and fixed IOS Stub detection. All known IOS' are detected like they should. thank you Attila
 	* Changed Autoboot setting so it would start system menu when having just updated/installed Priiloader

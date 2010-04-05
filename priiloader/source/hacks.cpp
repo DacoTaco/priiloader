@@ -92,7 +92,7 @@ char *GetLine( char *astr, unsigned int len )
 	else
 	{
 		//linux it is
-		memcpy( lbuf, astr, llen);
+		memcpy( lbuf, astr+foff, llen);
 		lbuf[llen] = 0;
 	}
 	foff+=llen+1;
@@ -106,8 +106,7 @@ u32 LoadHacks( void )
 		hacks.clear();
 		if(states)
 		{
-			free(states);
-			states = NULL;
+			free_pointer(states);
 		}
         foff=0;
 	}
@@ -159,8 +158,7 @@ u32 LoadHacks( void )
 		memset( buf, 0, (size+31)&(~31) );
 		if(fread( buf, sizeof( char ), size, in ) != size )
 		{
-			free(buf);
-			buf = NULL;
+			free_pointer(buf);
 			PrintFormat( 1, ((640/2)-((strlen("Error reading \"hacks.ini\""))*13/2))>>1, 208, "Error reading \"hacks.ini\"");
 			sleep(5);
 			return 0;
@@ -172,7 +170,7 @@ u32 LoadHacks( void )
 		status = (fstats *)memalign( 32, (sizeof( fstats )+31)&(~31) );
 		ISFS_GetFileStats( fd, status);
 		size = status->file_length;
-		free( status );
+		free_pointer(status);
 		buf = (char*)memalign( 32, (size+31)&(~31) );
 		if( buf == NULL )
 		{
@@ -196,8 +194,7 @@ u32 LoadHacks( void )
 	{
 		//printf("Error 1: syntax error : expected EOF at line %d\n", line );
 		PrintFormat( 1, ((640/2)-((strlen("Syntax error : expected EOF at line   "))*13/2))>>1, 208, "Syntax error : expected EOF at line %d", line);
-		free(buf);
-		buf = NULL;
+		free_pointer(buf);
 		hacks.clear();
 		sleep(5);
 		return 0;
@@ -235,8 +232,7 @@ u32 LoadHacks( void )
 		hacks[hacks.size()-1].desc = new char[strlen(s)+1];
 		memcpy( hacks[hacks.size()-1].desc, s, strlen(s)+1 );
 		hacks[hacks.size()-1].desc[strlen(s)] = 0;
-		free( lbuf );
-		lbuf = NULL;
+		free_pointer(lbuf);
 		line++;
 		lbuf = GetLine( str, size );
 		if( lbuf == NULL )
@@ -287,8 +283,7 @@ u32 LoadHacks( void )
 			sleep(5);
 			return 0;
 		}
-		free( lbuf );
-		lbuf = NULL;
+		free_pointer(lbuf);
 
 		while(1)
 		{
@@ -379,12 +374,10 @@ u32 LoadHacks( void )
 				sleep(5);
 				return 0;
 			}
-			free( lbuf );
-			lbuf = NULL;
+			free_pointer(lbuf);
 		}
 	}
-	free(buf);
-	buf = NULL;
+	free_pointer(buf);
 
 	if(hacks.size()==0)
 		return 0;
@@ -428,16 +421,14 @@ u32 LoadHacks( void )
 
 	if(ISFS_GetFileStats( fd, status)<0)
 	{
-		free(status);
-		status = NULL;
+		free_pointer(status);
 		return 0;
 	}
 
 	u8 *fbuf = (u8 *)memalign( 32, (status->file_length+31)&(~31) );
 	if( fbuf == NULL )
 	{
-		free(status);
-		status = NULL;
+		free_pointer(status);
 		error = ERROR_MALLOC;
 		return 0;
 	}
@@ -445,10 +436,8 @@ u32 LoadHacks( void )
 
 	if(ISFS_Read( fd, fbuf, status->file_length )<0)
 	{
-		free(status);
-		status = NULL;
-		free( fbuf );
-		fbuf = NULL;
+		free_pointer(status);
+		free_pointer(fbuf);
 		return 0;
 	}
 
@@ -457,11 +446,8 @@ u32 LoadHacks( void )
 	else
 		memcpy( states, fbuf, status->file_length );
 
-	free( fbuf );
-	fbuf = NULL;
-	free( status );
-	status = NULL;
-
+	free_pointer(fbuf);
+	free_pointer(status);
 	ISFS_Close( fd );
 
 	//Set all hacks from other regions to 0
