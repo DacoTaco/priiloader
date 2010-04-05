@@ -36,6 +36,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #ifndef libELM
 #include <fat.h>
 #include <ogc/usb.h>
+#include <ogc/es.h>
 #include "usbstorage.h"
 #else
 #include "elm.h"
@@ -137,7 +138,7 @@ u8 DetectHBC( void )
         }
     }
 	free_pointer(list);
-/*	if(list)
+	/*if(list)
 	{
 		gprintf("list still active\n");
 	}
@@ -2508,7 +2509,7 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 	}
 	ES_GetTicketViews(id, views, cnt);
 
-	//lets get this party started with the right way to call ES_OpenTitleContent. and not like how libogc does it. patch will be passed on to them
+	//lets get this party started with the right way to call ES_OpenTitleContent. and not like how libogc < 1.8.3 does it. patch was passed on , and is done correctly in 1.8.3
 	//the right way is ES_OpenTitleContent(u64 TitleID,tikview* views,u16 Index); note the views >_>
 	s32 fh = ES_OpenTitleContent(id, views, 0);
 	if (fh == -106)
