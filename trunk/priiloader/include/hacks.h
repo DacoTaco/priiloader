@@ -26,5 +26,6 @@ struct hack {
 	std::vector<unsigned int> offset;
 	std::vector<unsigned int> value;
 };
+#include "Global.h"
 
 u32 LoadHacks( void );

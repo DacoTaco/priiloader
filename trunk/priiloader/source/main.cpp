@@ -19,9 +19,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 */
-// To use libELM define libELM in the priiloader project & dont forget to link it in the makefile
-//#define libELM
-#define PATCHED_ES
+//#define libELM // To use libELM define libELM in the priiloader project & dont forget to link it in the makefile
+//#define DEBUG
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -48,10 +47,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <time.h>
 
 //Project files
-#ifdef PATCHED_ES
-#include "es.h"
-#endif
 #include "../../Shared/svnrev.h"
+#include "Global.h"
 #include "settings.h"
 #include "state.h"
 #include "elf.h"
@@ -69,20 +66,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 using namespace std;
 
-//#define DEBUG
 extern "C"
 {
 	extern void _unstub_start(void);
 	extern usbstorage_handle USBStorage_ReturnHandle( void );
-#ifdef PATCHED_ES
-	extern s32 ES_OpenTitleContent_patched(u64 titleID, tikview *views, u16 index);
-#endif
 }
-//remove this define if your libogc has the good OpenTitleContent
-#ifdef PATCHED_ES
-#define ES_OpenTitleContent(x,y,z) ES_OpenTitleContent_patched(x,y,z)
-#endif
-
 typedef struct {
 	unsigned int offsetText[7];
 	unsigned int offsetData[11];
@@ -94,30 +82,17 @@ typedef struct {
 	unsigned int sizeBSS;
 	unsigned int entrypoint;
 } dolhdr;
-//copy pasta from wiibrew
-typedef struct {
-    u8 zeroes[128]; // padding
-    u32 imet; // "IMET"
-    u8 unk[8];  // 0x0000060000000003 fixed, unknown purpose
-    u32 sizes[3]; // icon.bin, banner.bin, sound.bin
-    u32 flag1; // unknown
-    u8 names[10][84]; // Japanese, English, German, French, Spanish, Italian, Dutch, unknown, unknown, Korean
-    u8 zeroes_2[588]; // padding
-    u8 crypto[16]; // MD5 of 0x40 to 0x640 in header. crypto should be all 0's when calculating final MD5
-} IMET;
 
 extern Settings *settings;
 extern u8 error;
 extern std::vector<hack> hacks;
 extern u32 *states;
+extern usbstorage_handle __usbfd;
 
 u8 Shutdown=0;
 u8 BootSysMenu = 0;
 u8 ReloadedIOS = 0;
 time_t startloop;
-
-static void *xfb = NULL;
-GXRModeObj *rmode = NULL;
 
 extern s32 __IOS_ShutdownSubsystems();
 s32 __IOS_LoadStartupIOS()
@@ -142,8 +117,7 @@ u8 DetectHBC( void )
     ret = ES_GetTitles(list, titlecount);
     if(ret < 0) {
 		gprintf("get titles failed while detecting HBC\n");
-		free(list);
-		list = NULL;
+		free_pointer(list);
 		return 0;
     }
 	ret = 0;
@@ -162,21 +136,25 @@ u8 DetectHBC( void )
             ret = 2;
         }
     }
-    free(list);
-	list = NULL;
+	free_pointer(list);
+/*	if(list)
+	{
+		gprintf("list still active\n");
+	}
+	else
+		gprintf("list isn't active anymore! :D\n");*/
     if(!ret)
 	{
 		gprintf("neither JODI nor HBC found");
 	}
 	return ret;
 }
-void LoadStub ( void )
+void LoadHBCStub ( void )
 {
-	//LoadStub: Load HBC JODI reload Stub and change stub to haxx if needed. 
+	//LoadHBCStub: Load HBC JODI reload Stub and change stub to haxx if needed. 
 	//the first part of the title is at 0x800024CA (first 2 bytes) and 0x800024D2 (last 2 bytes)
 	//HBC < 1.0.5 = HAXX or 4841 5858
 	//HBC >= 1.0.5 = JODI or 4A4F 4449
-
 	if ( *(vu32*)0x80001804 == 0x53545542 && *(vu32*)0x80001808 == 0x48415858 )
 	{
 		gprintf("HBC stub : already loaded\n");
@@ -298,20 +276,18 @@ bool isIOSstub(u8 ios_number)
 		if ( ( ios_tmd->num_contents == 3) && (ios_tmd->contents[0].type == 1 && ios_tmd->contents[1].type == 0x8001 && ios_tmd->contents[2].type == 0x8001) )
 		{
 			gprintf("IOS %d is a stub\n",ios_number);
-			free(ios_tmd);
+			free_pointer(ios_tmd);
 			return true;
 		}
 		else
 		{
 			gprintf("IOS %d is active\n",ios_number);
-			free(ios_tmd);
-			ios_tmd = NULL;
+			free_pointer(ios_tmd);
 			return false;
 		}
 	}
 	gprintf("IOS %d is active\n",ios_number);
-	free(ios_tmd);
-	ios_tmd = NULL;
+	free_pointer(ios_tmd);
 	return false;
 }
 
@@ -442,8 +418,7 @@ void SysHackSettings( void )
 						fail = 4;
 					}
 					ISFS_Close( fd );
-					free(buf);
-					buf = NULL;
+					free_pointer(buf);
 				}
 
 				s32 fd = ISFS_Open("/title/00000001/00000002/data/hacks_s.ini", 1|2 );
@@ -685,6 +660,7 @@ void SetSettings( void )
 		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 		{
 			LoadSettings();
+			SetShowDebug(SGetSetting(SETTING_SHOWGECKOTEXT));
 			break;
 		}
 		switch( cur_off )
@@ -870,7 +846,28 @@ void SetSettings( void )
 					}
 					else
 					{
-						settings->PasscheckPriiloader = true;
+						ClearScreen();
+						PrintFormat( 1, ((rmode->viWidth /2)-((strlen("!!!!!WARNING!!!!!"))*13/2))>>1, 208, "!!!!!WARNING!!!!!");
+						PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Setting Password can lock you out"))*13/2))>>1, 228, "Setting Password can lock you out" );
+						PrintFormat( 1, ((rmode->viWidth /2)-((strlen("off your own wii. proceed? (A = Yes, B = No)"))*13/2))>>1, 248, "off your own wii. proceed? (A = Yes, B = No)" );
+						while(1)
+						{
+							WPAD_ScanPads();
+							PAD_ScanPads();
+							u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
+							u32 PAD_Pressed  = PAD_ButtonsDown(0)  | PAD_ButtonsDown(1)  | PAD_ButtonsDown(2)  | PAD_ButtonsDown(3);
+							if(WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A)
+							{
+								settings->PasscheckPriiloader = true;
+								break;
+							}
+							else if(WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B)
+							{
+								break;
+							}
+						}
+						ClearScreen();
+						
 					}
 					redraw=true;
 				}
@@ -895,7 +892,27 @@ void SetSettings( void )
 					}
 					else
 					{
-						settings->PasscheckMenu = true;
+						ClearScreen();
+						PrintFormat( 1, ((rmode->viWidth /2)-((strlen("!!!!!WARNING!!!!!"))*13/2))>>1, 208, "!!!!!WARNING!!!!!");
+						PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Setting Password can lock you out"))*13/2))>>1, 228, "Setting Password can lock you out" );
+						PrintFormat( 1, ((rmode->viWidth /2)-((strlen("off your own wii. proceed? (A = Yes, B = No)"))*13/2))>>1, 248, "off your own wii. proceed? (A = Yes, B = No)" );
+						while(1)
+						{
+							WPAD_ScanPads();
+							PAD_ScanPads();
+							u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
+							u32 PAD_Pressed  = PAD_ButtonsDown(0)  | PAD_ButtonsDown(1)  | PAD_ButtonsDown(2)  | PAD_ButtonsDown(3);
+							if(WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A)
+							{
+								settings->PasscheckMenu = true;
+								break;
+							}
+							else if(WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B)
+							{
+								break;
+							}
+						}
+						ClearScreen();
 					}
 					redraw=true;
 				}
@@ -913,11 +930,11 @@ void SetSettings( void )
 					 PAD_Pressed & PAD_BUTTON_A
 					)
 				{
-					if ( settings->ShowDebugText )
-						settings->ShowDebugText = 0;			
+					if ( settings->ShowGeckoText )
+						settings->ShowGeckoText = 0;			
 					else
-						settings->ShowDebugText = 1;
-					SetShowDebug(settings->ShowDebugText);
+						settings->ShowGeckoText = 1;
+					SetShowDebug(settings->ShowGeckoText);
 					redraw=true;
 				}
 			break;
@@ -1081,7 +1098,7 @@ void SetSettings( void )
 			PrintFormat( cur_off==6, 0, 128+80, "      Background Color:          %s", settings->BlackBackground?"Black":"White");
 			PrintFormat( cur_off==7, 0, 128+96, "    Protect Priiloader:          %s", settings->PasscheckPriiloader?"on ":"off");
 			PrintFormat( cur_off==8, 0, 128+112,"      Protect Autoboot:          %s", settings->PasscheckMenu?"on ":"off");
-			PrintFormat( cur_off==9, 0, 128+128,"       Show Debug Info:          %s", settings->ShowDebugText?"on ":"off");
+			PrintFormat( cur_off==9, 0, 128+128,"   Display Gecko ouput:          %s", settings->ShowGeckoText?"on ":"off");
 			PrintFormat( cur_off==10,0, 128+144,"   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
 			if(!settings->UseSystemMenuIOS)
 			{
@@ -1099,8 +1116,7 @@ void SetSettings( void )
 
 		VIDEO_WaitVSync();
 	}
-	free(TitleIDs);
-	TitleIDs = NULL;
+	free_pointer(TitleIDs);
 	return;
 }
 void LoadHBC( void )
@@ -1133,20 +1149,26 @@ void LoadHBC( void )
 	ES_LaunchTitle(TitleID, &views[0]);
 	//well that went wrong
 	error = ERROR_BOOT_HBC;
-	free(views);
-	views = NULL;
+	free_pointer(views);
 	return;
 }
 void LoadBootMii( void )
 {
 	//when this was coded on 6th of Oct 2009 Bootmii ios was in IOS slot 254
 	if(isIOSstub(254))
+	{
+		if(rmode != NULL)
+		{
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Bootmii(IOS254) Not found!"))*13/2))>>1, 208, "Bootmii(IOS254) Not found!");
+			sleep(5);
+		}
 		return;
+	}
 	if (!RemountDevices() || !__io_wiisd.isInserted())
 	{
 		if(rmode != NULL)
 		{
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not mount SD card"))*13/2))>>1, 208, "Could not mount any SD card");
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not mount SD card"))*13/2))>>1, 208, "Could not mount SD card");
 			sleep(5);
 		}
 		return;
@@ -1318,15 +1340,13 @@ void BootMainSysMenu( void )
 	{
 		ISFS_Close( fd );
 		error = ERROR_SYSMENU_BOOTGETSTATS;
-		free(status);
-		status = NULL;
+		free_pointer(status);
 		goto free_and_return;
 	}
 #ifdef DEBUG
 	printf("size:%d\n", status->file_length);
 #endif
-	free(status);
-	status = NULL;
+	free_pointer(status);
 	boot_hdr = (dolhdr *)memalign(32, (sizeof( dolhdr )+31)&(~31) );
 	if(boot_hdr == NULL)
 	{
@@ -1581,13 +1601,11 @@ void BootMainSysMenu( void )
 	//ES_SetUID(TitleID);
 	if(tstatus)
 	{
-		free( tstatus );
-		tstatus = NULL;
+		free_pointer( tstatus );
 	}
 	if(buf)
 	{
-		free( buf );
-		buf = NULL;
+		free_pointer( buf );
 	}
 
 	*(vu32*)0x800000F8 = 0x0E7BE2C0;				// Bus Clock Speed
@@ -1621,9 +1639,9 @@ void BootMainSysMenu( void )
 	ShutdownDevices();
 	//butt ugly hack around the problem but i can't think of another way to fix it...
 	//TODO : make it less hacky by fixing the __io_usbstorage.shutdown()
-	if ( ( __io_usbstorage.isInserted() ) && ( USBStorage_ReturnHandle().usb_fd > 0 ))
+	if ( ( __io_usbstorage.isInserted() ) && ( __usbfd.usb_fd > 0 ))
 	{
-		USBStorage_Close(&USBStorage_ReturnHandle());
+		USBStorage_Close(&__usbfd);
 	}
 	__STM_Close();
 	ISFS_Deinitialize();
@@ -1634,28 +1652,23 @@ void BootMainSysMenu( void )
 free_and_return:
 	if(rTMD)
 	{
-		free(rTMD);
-		rTMD = NULL;
+		free_pointer(rTMD);
 	}
 	if(TMD)
 	{
-		free(TMD);
-		TMD = NULL;
+		free_pointer(TMD);
 	}
 	if(tstatus)
 	{
-		free( tstatus );
-		tstatus = NULL;
+		free_pointer( tstatus );
 	}
 	if(buf)
 	{
-		free( buf );
-		buf = NULL;
+		free_pointer( buf );
 	}
 	if(boot_hdr)
 	{
-		free(boot_hdr);
-		boot_hdr = NULL;
+		free_pointer(boot_hdr);
 	}
 	return;
 }
@@ -1792,8 +1805,7 @@ void InstallLoadDOL( void )
 			ClearScreen();
 			redraw=true;
 			ISFS_Close( fd );
-			free( buf );
-			buf = NULL;
+			free_pointer( buf );
 
 		}
 
@@ -2005,7 +2017,16 @@ void InstallLoadDOL( void )
 			WPAD_Shutdown();
 			ShutdownDevices();
 			gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
-			IOS_ReloadIOS(IOS_GetPreferredVersion());
+			if(isIOSstub(IOS_GetPreferredVersion()))
+			{
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
+				sleep(3);
+			}
+			else
+			{
+				IOS_ReloadIOS(IOS_GetPreferredVersion());
+				ReloadedIOS = 1;
+			}
 			__IOS_ShutdownSubsystems();
 			u32 level;
 			SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
@@ -2172,8 +2193,7 @@ void AutoBootDol( void )
 
 						memcpy( (void*)(phdr->p_vaddr | 0x80000000), tbuf, phdr->p_filesz );
 
-						free( tbuf);
-						tbuf = NULL;
+						free_pointer( tbuf);
 					} else {
 
 						r = ISFS_Read( fd, (void*)(phdr->p_vaddr | 0x80000000), phdr->p_filesz);
@@ -2193,8 +2213,7 @@ void AutoBootDol( void )
 					gprintf("warning! program section nr %d address is 0!(%u - %u)\n",i,phdr->p_vaddr, phdr->p_filesz);
 				}
 
-				free( phdr );
-				phdr = NULL;
+				free_pointer( phdr );
 			}
 		}
 		if( ElfHdr->e_shnum == 0 )
@@ -2269,8 +2288,7 @@ void AutoBootDol( void )
 
 					memcpy( (void*)(shdr->sh_addr | 0x80000000), tbuf, shdr->sh_size );
 
-					free( tbuf);
-					tbuf = NULL;
+					free_pointer( tbuf);
 				} else {
 
 					r = ISFS_Read( fd, (void*)(shdr->sh_addr | 0x80000000), shdr->sh_size);
@@ -2286,8 +2304,7 @@ void AutoBootDol( void )
 				}
 
 			}
-			free( shdr );
-			shdr = NULL;
+			free_pointer( shdr );
 		}
 
 		ISFS_Close( fd );
@@ -2353,8 +2370,7 @@ void AutoBootDol( void )
 
 				//	memcpy( (void*)(hdr->addressText[i]), tbuf, hdr->sizeText[i] );
 
-				//	free( tbuf);
-				//	tbuf = NULL;
+				//	free_pointer( tbuf);
 
 				//} else {
 					if(ISFS_Read( fd, (void*)(hdr->addressText[i]), hdr->sizeText[i] )<0)
@@ -2390,8 +2406,7 @@ void AutoBootDol( void )
 
 				//	memcpy( (void*)(hdr->addressData[i]), tbuf, hdr->sizeData[i] );
 
-				//	free( tbuf);
-				//	tbuf = NULL;
+				//	free_pointer( tbuf);
 
 				//} else {
 					if( ISFS_Read( fd, (void*)(hdr->addressData[i]), hdr->sizeData[i] )<0)
@@ -2427,7 +2442,20 @@ void AutoBootDol( void )
 	ISFS_Deinitialize();
 	ShutdownDevices();
 	gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
-	IOS_ReloadIOS(IOS_GetPreferredVersion());
+	//IOS_ReloadIOS(IOS_GetPreferredVersion());
+	if(isIOSstub(IOS_GetPreferredVersion()))
+	{
+		if(rmode != NULL)
+		{
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
+			sleep(3);
+		}
+	}
+	else
+	{
+		IOS_ReloadIOS(IOS_GetPreferredVersion());
+		ReloadedIOS = 1;
+	}
 	__IOS_ShutdownSubsystems();
 	//slightly modified loading code from USBLOADER GX...
 	u32 level;
@@ -2475,8 +2503,7 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 	tikview *views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
 	if(views == NULL)
 	{
-		free(data);
-		data = NULL;
+		free_pointer(data);
 		return -2;
 	}
 	ES_GetTicketViews(id, views, cnt);
@@ -2487,24 +2514,20 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 	if (fh == -106)
 	{
 		gprintf("ES_OpenTitleContent returned %d. app not found\n",fh);
-		free(data);
-		data = NULL;
-		free(views);
-		views = NULL;
+		free_pointer(data);
+		free_pointer(views);
 		return -3;
 	}
 	else if(fh < 0)
 	{
 		//ES method failed. remove tikviews from memory and fall back on ISFS method
 		gprintf("ES_OpenTitleContent returned %d , falling back on ISFS\n",fh);
-		free(views);
-		views = NULL;
+		free_pointer(views);
 		fh = ISFS_Open(file, ISFS_OPEN_READ);
 		// fuck failed. lets GTFO
 		if (fh < 0)
 		{
-			free(data);
-			data = NULL;
+			free_pointer(data);
 			gprintf("failed to open %s. error %d\n",file,fh);
 			return -4;
 		}
@@ -2513,8 +2536,7 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 		if (r < 0) {
 			gprintf("failed to read IMET data. error %d\n",r);
 			ISFS_Close(fh);
-			free(data);
-			data = NULL;
+			free_pointer(data);
 			return -5;
 		}
 		ISFS_Close(fh);
@@ -2527,19 +2549,15 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 		if (r < 0) {
 			gprintf("failed to read IMET data. error %d\n",r);
 			ES_CloseContent(fh);
-			free(data);
-			data = NULL;
-			free(views);
-			views = NULL;
+			free_pointer(data);
+			free_pointer(views);
 			return -6;
 		}
 		//free data and let it point to IMET_data so everything else can work just fine
-		free(data);
-		data = NULL;
+		free_pointer(data);
 		data = (IMET*)IMET_data;
 		ES_CloseContent(fh);
-		free(views);
-		views = NULL;
+		free_pointer(views);
 	}
 	char str[10][84];
 	//clear any memory that is in the place of the array cause we dont want any confusion here
@@ -2562,21 +2580,19 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 		str[y][83] = '\0';
 
 	}
-	free(data);
-	data = NULL;
+	free_pointer(data);
 	if(str[lang][0] != '\0')
 	{
 		gprintf("getting ready to return %s\n",str[lang]);
 		sprintf(name, "%s", str[lang]);
 	}
 	else
-		gprintf("str is empty. leaving name at ????????");
+		gprintf("str is empty. leaving name at ????????\n");
 	memset(str,0,10*84);
 	return 1;
 }
 s32 LoadListTitles( void )
 {
-	ClearScreen();
 	s32 ret;
 	u32 count;
 	ret = ES_GetNumTitles(&count);
@@ -2602,16 +2618,17 @@ s32 LoadListTitles( void )
 	char title_ID[5];
 	list.clear();
 	titles_ascii.clear();
-	for(u32 i = 0;i < count;i++) //32;i++)
+	for(u32 i = 0;i < count;i++)
 	{
 		u32 tmd_size;
 		ret = ES_GetTMDViewSize(title_list[i], &tmd_size);
 		if(ret<0)
 		{
-			gprintf("error getting TMD views Size. error %d on title %u\n",ret,i);
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles TMD size!"))*13/2))>>1, 208+16, "Failed to get the titles TMD size!");
+			gprintf("WARNING : error getting TMD views Size. error %d on title %x-%x\n",ret,title_list[i],(u32)title_list[i]);
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMDSize error on 00000000-00000000!"))*13/2))>>1, 208+16, "WARNING : TMDSize error on %08X-%08X",title_list[i],(u32)title_list[i]);
 			sleep(3);
-			return ret;
+			ClearScreen();
+			continue;
 		}
 		tmd_view *rTMD = (tmd_view*)memalign( 32, (tmd_size+31)&(~31) );
 		if( rTMD == NULL )
@@ -2624,19 +2641,18 @@ s32 LoadListTitles( void )
 		ret = ES_GetTMDView(title_list[i], (u8*)rTMD, tmd_size);
 		if(ret<0)
 		{
-			gprintf("error getting TMD views. error %d\n",ret);
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles TMD!"))*13/2))>>1, 208+16, "Failed to get the titles TMD!");
+			gprintf("error getting TMD views. error %d on title %x-%x\n",ret,title_list[i],(u32)title_list[i]);
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMD error on 00000000-00000000!"))*13/2))>>1, 208+16, "WARNING : TMD error on %08X-%08X!",title_list[i],(u32)title_list[i]);
 			sleep(3);
 			if(rTMD)
 			{
-				free(rTMD);
-				rTMD = NULL;
+				free_pointer(rTMD);
 			}
-			return ret;
+			ClearScreen();
+			continue;
 		}
-		u32 type = rTMD->title_id >> 32;
 
-		switch (type) 
+		switch (rTMD->title_id >> 32) 
 		{
 			case 1: // IOS, MIOS, BC, System Menu
 			case 0x10000: // TMD installed by running a disc
@@ -2657,14 +2673,30 @@ s32 LoadListTitles( void )
 		}
 		if(rTMD)
 		{
-			free(rTMD);
-			rTMD = NULL;
+			free_pointer(rTMD);
 		}
 	}
 	//done detecting titles. lets list them
+	if(list.size() <= 0)
+	{
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("ERROR : No VC/Wiiware channels found"))*13/2))>>1, 208+16, "ERROR : No VC/Wiiware channels found");
+		sleep(3);
+		return 0;
+	}
 	s8 redraw = true;
 	s16 cur_off = 0;
-	s16 max_pos = 23;
+	//eventho normally a tv would be able to show 23 titles; some TV's do 60hz in a horrible mannor 
+	//making title 23 out of the screen just like the main menu
+	s16 max_pos;
+	if( rmode->viTVMode == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
+	{
+		//ye, those tv's want a special treatment again >_>
+		max_pos = 18;
+	}
+	else
+	{
+		max_pos = 23;
+	}
 	s16 min_pos = 0;
 	if ((s32)list.size() < max_pos)
 		max_pos = list.size() -1;
@@ -2677,8 +2709,10 @@ s32 LoadListTitles( void )
 		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
 		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 		{
-			titles_ascii.clear();
-			list.clear();
+			if(titles_ascii.size())
+				titles_ascii.clear();
+			if(list.size())
+				list.clear();
 			break;
 		}
 		if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
@@ -2731,20 +2765,19 @@ s32 LoadListTitles( void )
 			sleep(1);
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to Load Title!"))*13/2))>>1, 208+16, "Failed to Load Title!");
 			sleep(3);
-			free(views);
-			views = NULL;
+			free_pointer(views);
 			redraw = true;
 		}			
 		if(redraw)
 		{
 			s8 i= min_pos;
-			if(max_pos >= 23 && (min_pos != (s32)list.size() - max_pos - 1))
+			if((s32)list.size() > max_pos && (min_pos != (s32)list.size() - max_pos - 1))
 			{
 				PrintFormat( 0,((rmode->viWidth /2)-((strlen("-----More-----"))*13/2))>>1,64+(max_pos+2)*16,"-----More-----");
 			}
 			if(min_pos > 0)
 			{
-				PrintFormat( 0,((rmode->viWidth /2)-((strlen("-----Less-----"))*13/2))>>1,64+(i-min_pos)*16,"-----Less-----");
+				PrintFormat( 0,((rmode->viWidth /2)-((strlen("-----Less-----"))*13/2))>>1,64,"-----Less-----");
 			}
 			for(; i<=(min_pos + max_pos); i++ )
 			{
@@ -2759,7 +2792,7 @@ s32 LoadListTitles( void )
 						title_ID[f] = '.';
 				}
 				title_ID[4]='\0';
-				PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "%s(%s)                   ",titles_ascii[i].c_str(), title_ID);
+				PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "(%d)%s(%s)                   ",i+1,titles_ascii[i].c_str(), title_ID);
 				PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Load Title       "))*13/2))>>1, rmode->viHeight-32, "A(A) Load Title");
 			}
 			redraw = false;
@@ -2809,49 +2842,20 @@ void DVDStopDisc( void )
 		DCFlushRange(inbuf, 0x20);
 		//why crediar used an async is beyond me but i looks wrong... :/
 		//IOS_IoctlAsync( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20, NULL, NULL);
-		IOS_Ioctl( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20);
 		//IOS_Close(di_fd);
+		IOS_Ioctl( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20);
 
-		free( outbuf );
-		outbuf = NULL;
-		free( inbuf );
-		inbuf = NULL;
+		free_pointer( outbuf );
+		free_pointer( inbuf );
 	}
 	else
 		gprintf("failed to get DI interface from IOS for DI shutdown\n");
-}
-void InitVideo ( void )
-{
-	VIDEO_Init();
-
-	rmode = VIDEO_GetPreferredMode(NULL);
-
-	//apparently the video likes to be bigger then it actually is on NTSC/PAL60/480p. lets fix that!
-	if( rmode->viTVMode == VI_NTSC || rmode->viTVMode == VI_EURGB60 || CONF_GetProgressiveScan() )
-	{
-		//the correct one would be * 0.035 to be sure to get on the Action safe of the screen. but thats way to much
-		GX_AdjustForOverscan(rmode, rmode, 0, rmode->viWidth * 0.026 ); 
-	}
-
-	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
-	
-	console_init( xfb, 20, 20, rmode->fbWidth, rmode->xfbHeight, rmode->fbWidth*VI_DISPLAY_PIX_SZ );
-
-	VIDEO_Configure(rmode);
-	VIDEO_SetNextFramebuffer(xfb);
-	VIDEO_SetBlack(FALSE);
-	VIDEO_Flush();
-
-	VIDEO_WaitVSync();
-	if(rmode->viTVMode&VI_NON_INTERLACE)
-		VIDEO_WaitVSync();
-	gprintf("resolution is %dx%d\n",rmode->viWidth,rmode->viHeight);
 }
 void Autoboot_System( void )
 {
   	if( SGetSetting(SETTING_PASSCHECKMENU) && SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED && SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_ERROR )
 	{
-		if ( SGetSetting(SETTING_SHOWDEBUGTEXT) == 0 )
+		if ( SGetSetting(SETTING_SHOWGECKOTEXT) == 0 )
 			InitVideo();
  		password_check();
 	}
@@ -2918,18 +2922,17 @@ int main(int argc, char **argv)
 		error=ERROR_ISFS_INIT;
 	}
 
-	LoadStub();
+	LoadHBCStub();
 	gprintf("\"Magic Priiloader word\": %x\n",*(vu32*)0x8132FFFB);
 	LoadSettings();
-	SetShowDebug(SGetSetting(SETTING_SHOWDEBUGTEXT));
-	if ( SGetSetting(SETTING_SHOWDEBUGTEXT) != 0 )
+	SetShowDebug(SGetSetting(SETTING_SHOWGECKOTEXT));
+	if ( SGetSetting(SETTING_SHOWGECKOTEXT) != 0 )
 	{
 		InitVideo();
 	}
 
 	s16 Bootstate = CheckBootState();
 	gprintf("BootState:%d\n", Bootstate );
-	
 	//Check reset button state
 	//TODO : move magic word handling to some place else (its own function?)
 	if( ((*(vu32*)0xCC003000)>>16)&1 && *(vu32*)0x8132FFFB != 0x4461636f && *(vu32*)0x8132FFFB != 0x50756e65) //0x4461636f = "Daco" in hex, 0x50756e65 = "Pune"
@@ -3060,7 +3063,7 @@ int main(int argc, char **argv)
 		gprintf("Reset Button is held down\n");
 	}
 	
-	if ( SGetSetting(SETTING_SHOWDEBUGTEXT) == 0 )
+	if ( SGetSetting(SETTING_SHOWGECKOTEXT) == 0 )
 	{
 		//init video first so we can see crashes :)
 		InitVideo();
@@ -3209,7 +3212,7 @@ int main(int argc, char **argv)
 			{
 				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d(beta v%d)", VERSION>>8, VERSION&0xFF, BETAVERSION&0xFF );
 			} else {
-				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%dc (r%s)", VERSION>>8, VERSION&0xFF,SVN_REV_STR );
+				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d (r%s)", VERSION>>8, VERSION&0xFF,SVN_REV_STR );
 			}
 			PrintFormat( 0, 16, rmode->viHeight-64, "IOS v%d", (*(vu32*)0x80003140)>>16 );
 			PrintFormat( 0, 16, rmode->viHeight-48, "Systemmenu v%d", SysVersion );			

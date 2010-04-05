@@ -370,11 +370,11 @@ int main(int argc, char **argv)
 			printf("IOS %d rev %d\n\n\n\n\n",IOS_GetVersion(),IOS_GetRevision());
         	__ES_Init();
 			fd = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)su_tmd, su_tmd_size, (signed_blob *)su_tik, su_tik_size, &tmp_ikey);
-			if(fd > 0)
+			if(fd < 0)
 			{
 				printf("\x1b[%u;%dm", 33, 1);
 				printf("ES_Identify failed, error %u. ios%d not patched with ES_DIVerify?\n",fd,IOS_GetVersion());
-				printf("using cios (holding b and then pressing + or - ) will probably solve this. NOTE: you need CIOS for this.\n");
+				printf("using cios (holding b and then pressing + or - ) will probably solve this.\nNOTE: you need CIOS for this.\n");
 				printf("Do you wish to continue?\n");
 				printf("A = Yes       B = No       Home/Start = Exit\n");
 				printf("\x1b[%u;%dm", 37, 1);
@@ -619,11 +619,27 @@ int main(int argc, char **argv)
 				printf("deleting extra priiloader files...\n");
 				ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
 				if(ret < 0)
+				{
+					printf("\x1b[%u;%dm", 33, 1);
 					printf("WARNING : /title/00000001/00000002/data/loader.ini not deleted. error %d\n",ret);
+					printf("\x1b[%u;%dm", 37, 1);
+					printf("continuing...\n");
+					sleep(4);
+				}
+				else
+					printf("'/title/00000001/00000002/data/loader.ini' deleted\n");
 				gprintf("loader.ini deletion returned %d\n",ret);
 				ret = ISFS_Delete("/title/00000001/00000002/data/password.txt");
 				if(ret < 0)
-					printf("WARNING : /title/00000001/00000002/data/password.txt not deleted. error %d\n",ret);
+				{
+					printf("\x1b[%u;%dm", 33, 1);
+					printf("WARNING : /title/00000001/00000002/data/password.txt not deleted. error %d",ret);
+					printf("\x1b[%u;%dm", 37, 1);
+					printf("continuing...\n");
+					sleep(4);
+				}
+				else
+					printf("'/title/00000001/00000002/data/password.txt' deleted\n");
 				gprintf("password.txt deletion returned %d\n",ret);
 				printf("Done!\n");
 				printf("Writing Priiloader app...");

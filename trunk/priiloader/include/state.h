@@ -25,6 +25,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <gccore.h>
 #include <string.h>
 
+#include "Global.h"
 
 #define TYPE_RETURN 3
 #define TYPE_NANDBOOT 4
