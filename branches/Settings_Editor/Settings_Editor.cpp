@@ -1,12 +1,11 @@
 // Settings_Editor.cpp : Defines the entry point for the console application.
 //
-#include "stdafx.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <conio.h>
 #include "Settings_Editor.h"
 #define VERSION 0
-#define SUBVERSION 1
+#define SUBVERSION 2
 #ifdef WIN32
 #include <windows.h>
 #define sleep(x) Sleep(x*1000)
@@ -150,7 +149,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			printf("\t5 : Light on error    :\t\t%s\n", Settings->LidSlotOnError?"on ":"off");
 			printf("\t6 : Ignore Standby    :\t\t%s\n", Settings->IgnoreShutDownMode?"on ":"off");
 			printf("\t7 : Background Color  :\t\t%s\n", Settings->BlackBackground?"Black":"White");
-			printf("\t8 : Show Debug Info   :\t\t%s\n", Settings->ShowDebugText?"on ":"off");
+			printf("\t8 : Show Debug Info   :\t\t%s\n", Settings->ShowGeckoOutput?"on ":"off");
 			//added options from versions > 3
 			if (file_version == 4)
 			{
@@ -249,24 +248,24 @@ int _tmain(int argc, _TCHAR* argv[])
 					redraw=1;
 					break;
 				case 54:// 6 , Ignore Standby
-					if( Settings->LidSlotOnError )
-						Settings->LidSlotOnError = 0;
+					if( Settings->IgnoreShutDownMode )
+						Settings->IgnoreShutDownMode = 0;
 					else 
-						Settings->LidSlotOnError = 1;
+						Settings->IgnoreShutDownMode = 1;
 					redraw=1;
 					break;
 				case 55:// 7 , Background Colour
-					if( Settings->LidSlotOnError )
-						Settings->LidSlotOnError = 0;
+					if( Settings->BlackBackground )
+						Settings->BlackBackground = 0;
 					else 
-						Settings->LidSlotOnError = 1;
+						Settings->BlackBackground = 1;
 					redraw=1;
 					break;
-				case 56:// 8 , Show Debug Info
-					if( Settings->LidSlotOnError )
-						Settings->LidSlotOnError = 0;
+				case 56:// 8 , Show Gecko Output
+					if( Settings->ShowGeckoOutput )
+						Settings->ShowGeckoOutput = 0;
 					else 
-						Settings->LidSlotOnError = 1;
+						Settings->ShowGeckoOutput = 1;
 					redraw=1;
 					break;
 				case 57: // 9 , Use System menu IOS

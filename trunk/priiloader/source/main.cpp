@@ -138,12 +138,6 @@ u8 DetectHBC( void )
         }
     }
 	free_pointer(list);
-	/*if(list)
-	{
-		gprintf("list still active\n");
-	}
-	else
-		gprintf("list isn't active anymore! :D\n");*/
     if(!ret)
 	{
 		gprintf("neither JODI nor HBC found");
@@ -2817,7 +2811,7 @@ void HandleSTMEvent(u32 event)
 				time_t inloop;
 				time(&inloop);
 				ontime = difftime(inloop, startloop);
-				gprintf("ontime = %d\n",ontime);
+				gprintf("ontime = %4.2fs\n",ontime);
 				if (ontime >= 15)
 					BootSysMenu = 1;
 			}
@@ -3213,7 +3207,7 @@ int main(int argc, char **argv)
 			{
 				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d(beta v%d)", VERSION>>8, VERSION&0xFF, BETAVERSION&0xFF );
 			} else {
-				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d (r%s)", VERSION>>8, VERSION&0xFF,SVN_REV_STR );
+				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%dc (r%s)", VERSION>>8, VERSION&0xFF,SVN_REV_STR );
 			}
 			PrintFormat( 0, 16, rmode->viHeight-64, "IOS v%d", (*(vu32*)0x80003140)>>16 );
 			PrintFormat( 0, 16, rmode->viHeight-48, "Systemmenu v%d", SysVersion );			

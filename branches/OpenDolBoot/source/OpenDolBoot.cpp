@@ -156,12 +156,14 @@ int main(int argc, char **argv)
 		exit(0);
 	}
 	printf("starting nand loader injection...\n");
-	printf("opening & putting the nboot in memory...");
 	FILE* nboot_fd = NULL;
 	Nandcode nboot;
 	long nbootSize;
 	if (Nand_Use_File != NULL)
 	{
+#ifdef DEBUG
+		printf("opening & putting the nboot in memory...");
+#endif
 		nboot_fd = fopen(Nand_Use_File,"rb");
 		if(!nboot_fd)
 		{
@@ -182,15 +184,18 @@ int main(int argc, char **argv)
 		  printf("\nreading error: %d & %d",result,(int)nbootSize);
 		  exit(0);
 		}
-			fclose(nboot_fd);
-		}
+		fclose(nboot_fd);
+#ifdef DEBUG
+		printf("Done\n");
+#endif
+	}
 	else
 	{
 		memcpy((void*)&nboot,_nboot, _nboot_size);
 		nbootSize = _nboot_size;
 	}
 
-	printf("Done\nchecking & editing data before saving...");
+	printf("checking & editing data before saving...");
 	if(DolHeader.sizeText[1] && DolHeader.addressText[1] && DolHeader.offsetText[1])
 	{
 		//o ow, text2 is already full. lets quit before we brick ppl
