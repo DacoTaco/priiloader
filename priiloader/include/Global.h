@@ -32,6 +32,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //---------------
 #ifdef PATCHED_ES
 #include "es.h"
+#else
+#include <ogc/es.h>
 #endif
 #include <gctypes.h>
 #include <gccore.h>

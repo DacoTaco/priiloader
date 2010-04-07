@@ -461,6 +461,7 @@ int main(int argc, char **argv)
 				bool CopyTicket = false;
 				bool Priiloader_found = false;
 				//check if the copy ticket exists
+				printf("Checking for Priiloader...\n");
 				gprintf("Checking for copy ticket...\n");
 				fd = ISFS_Open("/title/00000001/00000002/content/ticket",ISFS_OPEN_READ);
 				if (fd <0)
@@ -500,10 +501,9 @@ int main(int argc, char **argv)
 				}
 				ISFS_Close(fd);
 				
-				printf("Checking for Priiloader...\n");
 				//check copy app
 				gprintf("checking for copy of SystemMenu Dol\n");
-				//redo using the code from Luna + size check
+				//TODO : redo using the code from Luna + size check
 				fd = ISFS_Open(copy_app,ISFS_OPEN_RW);
 				if (fd < 0)
 				{

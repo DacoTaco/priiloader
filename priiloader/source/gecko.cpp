@@ -40,10 +40,9 @@ void gprintf( const char *str, ... )
 
 	va_list ap;
 	va_start(ap,str);
-
 	vsprintf( astr, str, ap );
-
 	va_end(ap);
+
 	if(GeckoFound)
 	{
 		usb_sendbuffer( 1, astr, strlen(astr) );
@@ -52,11 +51,20 @@ void gprintf( const char *str, ... )
 	if (ShowDebug)
 	{
 		printf(astr);
-		sleep(2);
+		time_t start,end;
+		time(&start);
+		//i hate while loops. but its safer when gprintf is called from a thread like the STM callback...
+		//sleep seems to shit brix when called from the STM callback
+		while(difftime(end, start) < 1)
+		{
+			time(&end);
+		}
 	}
 }
 void SetShowDebug( u8 value )
 {
+	if (value > 1)
+		return;
 	ShowDebug = value;
 }
 void InitGDBDebug( void )
