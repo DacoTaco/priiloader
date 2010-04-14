@@ -739,7 +739,7 @@ The following is for implementing a DISC_INTERFACE
 as used by libfat
 */
 
-static bool usb_inited=false;
+bool usb_inited=false;
 static bool __usbstorage_ReadSectors(u32, u32, void *);
 
 static bool __usbstorage_IsInserted(void);
@@ -789,6 +789,8 @@ static bool __usbstorage_IsInserted(void)
 		__lwp_heap_free(&__heap,buffer);
 		return false;
 	}
+	
+	usleep(100);
 
 	if(__vid!=0 || __pid!=0)
 	{

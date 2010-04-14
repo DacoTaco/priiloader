@@ -88,7 +88,9 @@ extern Settings *settings;
 extern u8 error;
 extern std::vector<hack> hacks;
 extern u32 *states;
+//usb shit >_>
 extern usbstorage_handle __usbfd;
+extern bool usb_inited;
 
 u8 Shutdown=0;
 u8 BootSysMenu = 0;
@@ -1634,7 +1636,7 @@ void BootMainSysMenu( void )
 	ShutdownDevices();
 	//butt ugly hack around the problem but i can't think of another way to fix it...
 	//TODO : make it less hacky by fixing the __io_usbstorage.shutdown()
-	if ( ( __io_usbstorage.isInserted() ) && ( __usbfd.usb_fd > 0 ))
+	if ( (usb_inited == true) && ( __usbfd.usb_fd > 0 ) )
 	{
 		USBStorage_Close(&__usbfd);
 	}
