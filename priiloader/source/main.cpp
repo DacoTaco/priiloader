@@ -2611,45 +2611,15 @@ s32 LoadListTitles( void )
 	}
 	std::vector<u64> list;
 	std::vector<string> titles_ascii;
+	tmd_view *rTMD;
 	char temp_name[256];
 	char title_ID[5];
 	list.clear();
 	titles_ascii.clear();
 	for(u32 i = 0;i < count;i++)
-	{
-		u32 tmd_size;
-		ret = ES_GetTMDViewSize(title_list[i], &tmd_size);
-		if(ret<0)
-		{
-			gprintf("WARNING : error getting TMD views Size. error %d on title %x-%x\n",ret,title_list[i],(u32)title_list[i]);
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMDSize error on 00000000-00000000!"))*13/2))>>1, 208+16, "WARNING : TMDSize error on %08X-%08X",title_list[i],(u32)title_list[i]);
-			sleep(3);
-			ClearScreen();
-			continue;
-		}
-		tmd_view *rTMD = (tmd_view*)memalign( 32, (tmd_size+31)&(~31) );
-		if( rTMD == NULL )
-		{
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to MemAlign TMD!"))*13/2))>>1, 208+16, "Failed to MemAlign TMD!");
-			sleep(3);
-			return 0;
-		}
-		memset(rTMD,0, (tmd_size+31)&(~31) );
-		ret = ES_GetTMDView(title_list[i], (u8*)rTMD, tmd_size);
-		if(ret<0)
-		{
-			gprintf("error getting TMD views. error %d on title %x-%x\n",ret,title_list[i],(u32)title_list[i]);
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMD error on 00000000-00000000!"))*13/2))>>1, 208+16, "WARNING : TMD error on %08X-%08X!",title_list[i],(u32)title_list[i]);
-			sleep(3);
-			if(rTMD)
-			{
-				free_pointer(rTMD);
-			}
-			ClearScreen();
-			continue;
-		}
-
-		switch (rTMD->title_id >> 32) 
+	{	
+		//u32 titletype = title_list[i] >> 32;
+		switch (title_list[i] >> 32)
 		{
 			case 1: // IOS, MIOS, BC, System Menu
 			case 0x10000: // TMD installed by running a disc
@@ -2659,6 +2629,37 @@ s32 LoadListTitles( void )
 				break;
 			case 0x10001: // Normal channels / VC
 			case 0x10002: // "System channels" -- News, Weather, etc.
+				u32 tmd_size;
+				ret = ES_GetTMDViewSize(title_list[i], &tmd_size);
+				if(ret<0)
+				{
+					gprintf("WARNING : error getting TMD views Size. error %d on title %x-%x\n",ret,title_list[i],(u32)title_list[i]);
+					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMDSize error on 00000000-00000000!"))*13/2))>>1, 208+16, "WARNING : TMDSize error on %08X-%08X",title_list[i],(u32)title_list[i]);
+					sleep(3);
+					ClearScreen();
+					continue;
+				}
+				rTMD = (tmd_view*)memalign( 32, (tmd_size+31)&(~31) );
+				if( rTMD == NULL )
+				{
+					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to MemAlign TMD!"))*13/2))>>1, 208+16, "Failed to MemAlign TMD!");
+					sleep(3);
+					return 0;
+				}
+				memset(rTMD,0, (tmd_size+31)&(~31) );
+				ret = ES_GetTMDView(title_list[i], (u8*)rTMD, tmd_size);
+				if(ret<0)
+				{
+					gprintf("error getting TMD views. error %d on title %x-%x\n",ret,title_list[i],(u32)title_list[i]);
+					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMD error on 00000000-00000000!"))*13/2))>>1, 208+16, "WARNING : TMD error on %08X-%08X!",title_list[i],(u32)title_list[i]);
+					sleep(3);
+					if(rTMD)
+					{
+						free_pointer(rTMD);
+					}
+					ClearScreen();
+					continue;
+				}
 				list.push_back(title_list[i]);
 				sprintf(temp_name,"????????");
 				GetTitleName(rTMD->title_id,rTMD->contents[0].cid,temp_name);
