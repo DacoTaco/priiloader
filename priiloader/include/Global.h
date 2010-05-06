@@ -26,7 +26,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 //DEFINES
 //---------------
-//#define PATCHED_ES //needed if your libogc version is lower then libogc 1.8.3
+//#define PATCHED_ES //needed if your libogc version is lower then libogc 1.8.3. 1.8.3 is needed for both the tmd views for ES_GetTMDView as the correct way to do ES_OpenTitleContent
+#ifdef PATCHED_ES
+#define ES_OpenTitleContent(x,y,z) ES_OpenTitleContent_patched(x,y,z)
+#endif
 
 //INCLUDES
 //---------------
@@ -95,14 +98,11 @@ extern "C"
 	extern s32 ES_OpenTitleContent_patched(u64 titleID, tikview *views, u16 index);
 #endif
 }
-#ifdef PATCHED_ES
-#define ES_OpenTitleContent(x,y,z) ES_OpenTitleContent_patched(x,y,z)
-#endif
 
 void InitVideo ( void );
 
 //#define free_pointer(x) {free(x); x=NULL;} 
 #define free_pointer(x) free_null_pointer((void**)&x)
-u8 free_null_pointer(void **ptr);
+s8 free_null_pointer(void **ptr);
 
 #endif

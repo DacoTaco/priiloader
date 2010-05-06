@@ -513,6 +513,7 @@ int main(int argc, char **argv)
 				else
 				{
 					status = (fstats*)memalign(32,sizeof(fstats));
+					memset(status,0,sizeof(fstats));
 					if (ISFS_GetFileStats(fd,status) < 0)
 					{
 						printf("\x1b[%u;%dm", 33, 1);
@@ -569,7 +570,6 @@ int main(int argc, char **argv)
 					sprintf(original_tik, "/ticket/00000001/00000002.tik");
 					sprintf(copy_tik, "/title/00000001/00000002/content/ticket");
 					if (nand_copy(original_tik,copy_tik) < 0)
-					//if (nand_copy((char*)"/ticket/00000001/00000002.tik",(char*)"/title/00000001/00000002/content/ticket") < 0)
 					{
 						abort("Unable to copy the system menu ticket");
 					}

@@ -53,9 +53,9 @@ void InitVideo ( void )
 	gprintf("resolution is %dx%d\n",rmode->viWidth,rmode->viHeight);
 }
 
-u8 free_null_pointer(void **ptr) 
+s8 free_null_pointer(void **ptr) 
 {
-	if(*ptr)
+	if(*ptr != NULL)
 	{
 		free(*ptr); 
 		*ptr = NULL;

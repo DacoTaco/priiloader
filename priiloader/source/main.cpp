@@ -1458,7 +1458,7 @@ void BootMainSysMenu( void )
 	if( !SGetSetting( SETTING_USESYSTEMMENUIOS ) )
 	{
 		s32 ToLoadIOS = SGetSetting(SETTING_SYSTEMMENUIOS);
-		gprintf("checking ios ...\n",ToLoadIOS);
+		gprintf("checking ios %d...\n",ToLoadIOS);
 		if ( ToLoadIOS != (u8)IOS_GetVersion() )
 		{
 			gprintf("checking ios %d for stub...\n",ToLoadIOS);
@@ -2484,11 +2484,12 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
     12 dutch
     */
     char file[256] ATTRIBUTE_ALIGN(32);
+	memset(file,0,256);
     sprintf(file, "/title/%08x/%08x/content/%08x.app", (u32)(id >> 32), (u32)id, app);
 #ifdef DEBUG
 	gprintf("%s\n",file);
 #endif
-	u32 cnt ATTRIBUTE_ALIGN(32);
+	u32 cnt ATTRIBUTE_ALIGN(32) = 0;
 	IMET *data = (IMET *)memalign(32, (sizeof(IMET)+31)&(~31));
 	if(data == NULL)
 	{
@@ -2542,13 +2543,19 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 	{
 		//ES method
 		u8* IMET_data = (u8*)memalign(32, (sizeof(IMET)+31)&(~31));
+		if(IMET_data == NULL)
+		{
+			gprintf("failed to align IMET_data!\n");
+			return -6;
+		}
 		r = ES_ReadContent(fh,IMET_data,sizeof(IMET));
 		if (r < 0) {
-			gprintf("failed to read IMET data. error %d\n",r);
+			gprintf("ES failed to read IMET data. error %d\n",r);
 			ES_CloseContent(fh);
+			free_pointer(IMET_data);
 			free_pointer(data);
 			free_pointer(views);
-			return -6;
+			return -7;
 		}
 		//free data and let it point to IMET_data so everything else can work just fine
 		free_pointer(data);
@@ -2591,12 +2598,12 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 s32 LoadListTitles( void )
 {
 	s32 ret;
-	u32 count;
+	u32 count = 0;
 	ret = ES_GetNumTitles(&count);
 	if (ret < 0)
 	{
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the amount of installed titles!"))*13/2))>>1, 208+16, "Failed to get the amount of installed titles!");
 		gprintf("failed to get Number of titles. error %d\n",ret);
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the amount of installed titles!"))*13/2))>>1, 208+16, "Failed to get the amount of installed titles!");
 		sleep(3);
 		return ret;
 	}
@@ -2604,8 +2611,8 @@ s32 LoadListTitles( void )
 	static u64 title_list[256] ATTRIBUTE_ALIGN(32);
 	ret = ES_GetTitles(title_list, count);
 	if (ret < 0) {
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+16, "Failed to get the titles list!");
 		gprintf("failed to gettitles list. error %d\n",ret);
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+16, "Failed to get the titles list!");
 		sleep(3);
 		return ret;
 	}
@@ -2623,8 +2630,9 @@ s32 LoadListTitles( void )
 		{
 			case 1: // IOS, MIOS, BC, System Menu
 			case 0x10000: // TMD installed by running a disc
-			case 0x10004: // "Hidden channels" -- WiiFit channel
+			case 0x10004: // "Hidden channels by discs" -- WiiFit channel
 			case 0x10008: // "Hidden channels" -- EULA, rgnsel
+			case 0x10005: // Downloadable Content for Wiiware
 			default:
 				break;
 			case 0x10001: // Normal channels / VC
@@ -2667,11 +2675,11 @@ s32 LoadListTitles( void )
 				gprintf("placed %s in the list\n",temp_name);
 #endif
 				titles_ascii.push_back(temp_name);
+				if(rTMD)
+				{
+					free_pointer(rTMD);
+				}
 				break;
-		}
-		if(rTMD)
-		{
-			free_pointer(rTMD);
 		}
 	}
 	//done detecting titles. lets list them
@@ -2751,16 +2759,140 @@ s32 LoadListTitles( void )
 		{
 			ClearScreen();
 			//lets start this bitch
-			u32 cnt ATTRIBUTE_ALIGN(32);
-			ES_GetNumTicketViews(list[cur_off], &cnt);
-			tikview *views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
-			ES_GetTicketViews(list[cur_off], views, cnt);
-			if( ClearState() < 0 )
+			u32 cnt ATTRIBUTE_ALIGN(32) = 0;
+			s32 ret = 0;
+			tikview *views = 0;
+			while(1)
 			{
-				gprintf("failed to clear state\n");
+				if (ES_GetNumTicketViews(list[cur_off], &cnt) < 0)
+				{
+					gprintf("failed to get number of Ticket Views!\n");
+					break;
+				}
+				views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
+				if(views == NULL)
+				{
+					gprintf("failed to memalign views!\n");
+					break;
+				}
+				memset(views,0,sizeof(tikview));
+				if (ES_GetTicketViews(list[cur_off], views, cnt) < 0 )
+				{
+					gprintf("failed to get Title Ticket Views!\n");
+					break;
+				}
+				if( ClearState() < 0 )
+				{
+					gprintf("failed to clear state\n");
+				}
+				//TODO: attempt to open the First app using ES/fopen(sd) (or even ISFS). if that fails we bail out
+				//its a hacky fix to ES_LaunchTitle screwing up if the title is invalid
+				//---------
+				//Check Title if Active
+				//---------
+				//Get TMD:
+				u32 tmd_size;
+				ret = ES_GetTMDViewSize(list[cur_off], &tmd_size);
+				if(ret<0)
+				{
+					gprintf("error getting TMD views Size. error %d\n",ret);
+					break;
+				}
+
+				tmd_view *Title_TMD = (tmd_view*)memalign( 32, (tmd_size+31)&(~31) );
+				if( Title_TMD == NULL )
+				{
+					gprintf("error making memory for tmd views\n");
+					break;
+				}
+				memset(Title_TMD,0, (tmd_size+31)&(~31) );
+				ret = ES_GetTMDView(list[cur_off], (u8*)Title_TMD, tmd_size);
+				if(ret<0)
+				{
+					gprintf("error getting TMD views. error %d\n",ret);
+					free_pointer( Title_TMD );
+					break;
+				}
+				//Check The first app:
+				//ES method
+				s32 fh = ES_OpenTitleContent(list[cur_off],views,0);
+				if ( fh >= 0 )
+				{
+					//would you look at that. its found!
+					ES_CloseContent(fh);
+					ret = ES_LaunchTitle(list[cur_off], &views[0]);
+					free_pointer( Title_TMD );
+					break;
+				}
+				if ( fh == -1026)
+				{
+					gprintf("ES_OpenTitleContent failed deu to no rights (error -1026).\n");
+					//free_pointer( Title_TMD );
+					//break;					
+				}
+				else
+				{
+					gprintf("ES_OpenTitleContent failed : error %d\n",fh);
+					//free_pointer( Title_TMD );
+					//break;
+				}
+				//ISFS fallback
+				char file[256] ATTRIBUTE_ALIGN(32);
+				memset(file,0,256);
+				sprintf(file, "/title/%08x/%08x/content/%08x.app", (u32)(list[cur_off] >> 32), (u32)list[cur_off], Title_TMD->contents[0].cid);
+				fh = ISFS_Open(file, ISFS_OPEN_READ);
+				if(fh > 0)
+				{
+					//success. the title is valid
+					gprintf("title found on NAND using ISFS!\n");
+					ISFS_Close(fh);
+					ret = ES_LaunchTitle(list[cur_off], &views[0]);
+					free_pointer( Title_TMD );
+					break;
+				}
+				else
+				{
+					//failed. its not on nand. or we dont have the rights. eitherway, we are fucked so lets not boot it.
+					gprintf("failed to get title app using ISFS. not booting title\n");
+					/*free_pointer( Title_TMD );
+					break;*/
+				}
+				if(Title_TMD)
+					free_pointer( Title_TMD );
+				//ES failed. we didn't have the rights or the shit is saved on SD. lets check SD eventho we dont support booting from SD
+				memset(title_ID,0,5);
+				u32 title_l = list[cur_off] & 0xFFFFFFFF;
+				memcpy(title_ID, &title_l, 4);
+				for (s8 f=0; f<4; f++)
+				{
+					if(title_ID[f] < 0x20)
+						title_ID[f] = '.';
+					if(title_ID[f] > 0x7E)
+						title_ID[f] = '.';
+				}
+				title_ID[4]='\0';
+				memset(file,0,256);
+				sprintf(file, "fat:/private/wii/title/%s/content.bin", title_ID);
+#ifdef DEBUG
+				gprintf ("SD : %s\n",file);
+#endif
+				FILE* SDHandler = fopen(file,"rb");
+				if (SDHandler)
+				{
+					//content.bin is there meaning its on SD
+					fclose(SDHandler);
+					gprintf("title is saved on SD. Priiloader doesn't support SD title loading...yet\n");
+					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Can not load title from SD!"))*13/2))>>1, 208, "Can not load title from SD!");
+					break;
+				}
+				else
+				{
+					//title isn't on SD either. ow well...
+					gprintf("failed to find title on any medium!\n");
+					break;
+				}
 			}
-			ES_LaunchTitle(list[cur_off], &views[0]);
-			sleep(1);
+			gprintf("ret = %d\n",ret);
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to Load Title!"))*13/2))>>1, 208+16, "Failed to Load Title!");
 			sleep(3);
 			free_pointer(views);
