@@ -47,6 +47,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <ctype.h>
 #include <time.h>
 
+#include <mp3player.h>
+#include "asndlib.h"
+
 //Project files
 #include "../../Shared/svnrev.h"
 #include "Global.h"
@@ -64,6 +67,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //Bin includes
 #include "certs_bin.h"
 #include "stub_bin.h"
+#include "Easter_mp3.h"
 
 using namespace std;
 
@@ -2470,6 +2474,44 @@ void HandleWiiMoteEvent(s32 chan)
 {
 	Shutdown=1;
 }
+s8 CheckTitleOnSD(u64 id)
+{
+	if (!__io_wiisd.isInserted())
+		return -1;
+	char title_ID[5];
+	//Check app on SD. it might be there. not that it matters cause we can't boot from SD
+	memset(title_ID,0,5);
+	u32 title_l = id & 0xFFFFFFFF;
+	memcpy(title_ID, &title_l, 4);
+	for (s8 f=0; f<4; f++)
+	{
+		if(title_ID[f] < 0x20)
+			title_ID[f] = '.';
+		if(title_ID[f] > 0x7E)
+			title_ID[f] = '.';
+	}
+	title_ID[4]='\0';
+	char file[256] ATTRIBUTE_ALIGN(32);
+	memset(file,0,256);
+	sprintf(file, "fat:/private/wii/title/%s/content.bin", title_ID);
+#ifdef DEBUG
+	gprintf ("SD : %s\n",file);
+#endif
+	FILE* SDHandler = fopen(file,"rb");
+	if (SDHandler)
+	{
+		//content.bin is there meaning its on SD
+		fclose(SDHandler);
+		gprintf("title is saved on SD. Priiloader doesn't support SD title loading...yet\n");
+		return 1;
+	}
+	else
+	{
+		//title isn't on SD either. ow well...
+		gprintf("failed to open content. file not found on NAND or SD\n");
+		return 0;
+	}
+}
 s8 GetTitleName(u64 id, u32 app, char* name) {
 	s32 r;
     int lang = CONF_GetLanguage();
@@ -2512,6 +2554,7 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 	if (fh == -106)
 	{
 		gprintf("ES_OpenTitleContent returned %d. app not found\n",fh);
+		CheckTitleOnSD(id);
 		free_pointer(data);
 		free_pointer(views);
 		return -3;
@@ -2522,12 +2565,17 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 		gprintf("ES_OpenTitleContent returned %d , falling back on ISFS\n",fh);
 		free_pointer(views);
 		fh = ISFS_Open(file, ISFS_OPEN_READ);
-		// fuck failed. lets GTFO
-		if (fh < 0)
+		// fuck failed. lets check SD & GTFO
+		if (fh == -106)
+		{
+			CheckTitleOnSD(id);
+			return -4;
+		}
+		else if (fh < 0)
 		{
 			free_pointer(data);
 			gprintf("failed to open %s. error %d\n",file,fh);
-			return -4;
+			return -5;
 		}
 		// read the completed IMET header
 		r = ISFS_Read(fh, data, sizeof(IMET));
@@ -2535,7 +2583,7 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 			gprintf("failed to read IMET data. error %d\n",r);
 			ISFS_Close(fh);
 			free_pointer(data);
-			return -5;
+			return -6;
 		}
 		ISFS_Close(fh);
 	}
@@ -2546,7 +2594,7 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 		if(IMET_data == NULL)
 		{
 			gprintf("failed to align IMET_data!\n");
-			return -6;
+			return -7;
 		}
 		r = ES_ReadContent(fh,IMET_data,sizeof(IMET));
 		if (r < 0) {
@@ -2555,7 +2603,7 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 			free_pointer(IMET_data);
 			free_pointer(data);
 			free_pointer(views);
-			return -7;
+			return -8;
 		}
 		//free data and let it point to IMET_data so everything else can work just fine
 		free_pointer(data);
@@ -2668,13 +2716,23 @@ s32 LoadListTitles( void )
 					ClearScreen();
 					continue;
 				}
-				list.push_back(title_list[i]);
 				sprintf(temp_name,"????????");
-				GetTitleName(rTMD->title_id,rTMD->contents[0].cid,temp_name);
+				ret = GetTitleName(rTMD->title_id,rTMD->contents[0].cid,temp_name);
+				if ( ret != -3 && ret != -4 )
+				{
 #ifdef DEBUG
-				gprintf("placed %s in the list\n",temp_name);
+					gprintf("ret = %d\n",ret);
+					gprintf("placed %s in the list\n",temp_name);
 #endif
-				titles_ascii.push_back(temp_name);
+					list.push_back(title_list[i]);
+					titles_ascii.push_back(temp_name);
+				}
+				else 
+				{
+#ifdef _DEBUG
+					gprintf("title %x-%x is either on SD/deleted or IOS trouble came up\n",title_list[i],(u32)title_list[i]);
+#endif
+				}
 				if(rTMD)
 				{
 					free_pointer(rTMD);
@@ -2760,139 +2818,29 @@ s32 LoadListTitles( void )
 			ClearScreen();
 			//lets start this bitch
 			u32 cnt ATTRIBUTE_ALIGN(32) = 0;
-			s32 ret = 0;
 			tikview *views = 0;
-			while(1)
+			if (ES_GetNumTicketViews(list[cur_off], &cnt) < 0)
 			{
-				if (ES_GetNumTicketViews(list[cur_off], &cnt) < 0)
-				{
-					gprintf("failed to get number of Ticket Views!\n");
-					break;
-				}
-				views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
-				if(views == NULL)
-				{
-					gprintf("failed to memalign views!\n");
-					break;
-				}
-				memset(views,0,sizeof(tikview));
-				if (ES_GetTicketViews(list[cur_off], views, cnt) < 0 )
-				{
-					gprintf("failed to get Title Ticket Views!\n");
-					break;
-				}
-				if( ClearState() < 0 )
-				{
-					gprintf("failed to clear state\n");
-				}
-				//TODO: attempt to open the First app using ES/fopen(sd) (or even ISFS). if that fails we bail out
-				//its a hacky fix to ES_LaunchTitle screwing up if the title is invalid
-				//---------
-				//Check Title if Active
-				//---------
-				//Get TMD:
-				u32 tmd_size;
-				ret = ES_GetTMDViewSize(list[cur_off], &tmd_size);
-				if(ret<0)
-				{
-					gprintf("error getting TMD views Size. error %d\n",ret);
-					break;
-				}
-
-				tmd_view *Title_TMD = (tmd_view*)memalign( 32, (tmd_size+31)&(~31) );
-				if( Title_TMD == NULL )
-				{
-					gprintf("error making memory for tmd views\n");
-					break;
-				}
-				memset(Title_TMD,0, (tmd_size+31)&(~31) );
-				ret = ES_GetTMDView(list[cur_off], (u8*)Title_TMD, tmd_size);
-				if(ret<0)
-				{
-					gprintf("error getting TMD views. error %d\n",ret);
-					free_pointer( Title_TMD );
-					break;
-				}
-				//Check The first app:
-				//ES method
-				s32 fh = ES_OpenTitleContent(list[cur_off],views,0);
-				if ( fh >= 0 )
-				{
-					//would you look at that. its found!
-					ES_CloseContent(fh);
-					ret = ES_LaunchTitle(list[cur_off], &views[0]);
-					free_pointer( Title_TMD );
-					break;
-				}
-				if ( fh == -1026)
-				{
-					gprintf("ES_OpenTitleContent failed deu to no rights (error -1026).\n");
-					//free_pointer( Title_TMD );
-					//break;					
-				}
-				else
-				{
-					gprintf("ES_OpenTitleContent failed : error %d\n",fh);
-					//free_pointer( Title_TMD );
-					//break;
-				}
-				//ISFS fallback
-				char file[256] ATTRIBUTE_ALIGN(32);
-				memset(file,0,256);
-				sprintf(file, "/title/%08x/%08x/content/%08x.app", (u32)(list[cur_off] >> 32), (u32)list[cur_off], Title_TMD->contents[0].cid);
-				fh = ISFS_Open(file, ISFS_OPEN_READ);
-				if(fh > 0)
-				{
-					//success. the title is valid
-					gprintf("title found on NAND using ISFS!\n");
-					ISFS_Close(fh);
-					ret = ES_LaunchTitle(list[cur_off], &views[0]);
-					free_pointer( Title_TMD );
-					break;
-				}
-				else
-				{
-					//failed. its not on nand. or we dont have the rights. eitherway, we are fucked so lets not boot it.
-					gprintf("failed to get title app using ISFS. not booting title\n");
-					/*free_pointer( Title_TMD );
-					break;*/
-				}
-				if(Title_TMD)
-					free_pointer( Title_TMD );
-				//ES failed. we didn't have the rights or the shit is saved on SD. lets check SD eventho we dont support booting from SD
-				memset(title_ID,0,5);
-				u32 title_l = list[cur_off] & 0xFFFFFFFF;
-				memcpy(title_ID, &title_l, 4);
-				for (s8 f=0; f<4; f++)
-				{
-					if(title_ID[f] < 0x20)
-						title_ID[f] = '.';
-					if(title_ID[f] > 0x7E)
-						title_ID[f] = '.';
-				}
-				title_ID[4]='\0';
-				memset(file,0,256);
-				sprintf(file, "fat:/private/wii/title/%s/content.bin", title_ID);
-#ifdef DEBUG
-				gprintf ("SD : %s\n",file);
-#endif
-				FILE* SDHandler = fopen(file,"rb");
-				if (SDHandler)
-				{
-					//content.bin is there meaning its on SD
-					fclose(SDHandler);
-					gprintf("title is saved on SD. Priiloader doesn't support SD title loading...yet\n");
-					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Can not load title from SD!"))*13/2))>>1, 208, "Can not load title from SD!");
-					break;
-				}
-				else
-				{
-					//title isn't on SD either. ow well...
-					gprintf("failed to find title on any medium!\n");
-					break;
-				}
+				gprintf("failed to get number of Ticket Views!\n");
+				break;
 			}
-			gprintf("ret = %d\n",ret);
+			views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
+			if(views == NULL)
+			{
+				gprintf("failed to memalign views!\n");
+				break;
+			}
+			memset(views,0,sizeof(tikview));
+			if (ES_GetTicketViews(list[cur_off], views, cnt) < 0 )
+			{
+				gprintf("failed to get Title Ticket Views!\n");
+				break;
+			}
+			if( ClearState() < 0 )
+			{
+				gprintf("failed to clear state\n");
+			}
+			ES_LaunchTitle(list[cur_off], &views[0]);
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to Load Title!"))*13/2))>>1, 208+16, "Failed to Load Title!");
 			sleep(3);
 			free_pointer(views);
@@ -3228,6 +3176,17 @@ int main(int argc, char **argv)
 	{
 		DVDStopDisc();
 	}
+	PAD_ScanPads();
+	u32 PAD_Pressed = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
+	//Easter Egg lol
+	if (PAD_Pressed & PAD_TRIGGER_Z)
+	{
+		ASND_Init();
+		ASND_Pause(0);
+		MP3Player_Init();
+		MP3Player_Volume(125);
+		MP3Player_PlayBuffer(Easter_mp3,Easter_mp3_size,NULL);
+	}
 	time(&startloop);
 	while(1)
 	{
@@ -3235,7 +3194,7 @@ int main(int argc, char **argv)
 		PAD_ScanPads();
 
 		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
-		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
+		PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
  
 #ifdef DEBUG
 		if ( (WPAD_Pressed & WPAD_BUTTON_HOME) || (PAD_Pressed & PAD_BUTTON_START) )
@@ -3256,6 +3215,8 @@ int main(int argc, char **argv)
 		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 		{
 			ClearScreen();
+			if(MP3Player_IsPlaying())
+				MP3Player_Stop();
 			switch(cur_off)
 			{
 				case 0:
@@ -3372,6 +3333,8 @@ int main(int argc, char **argv)
 
 		if( Shutdown )
 		{
+			if(MP3Player_IsPlaying())
+				MP3Player_Stop();
 			*(vu32*)0xCD8000C0 &= ~0x20;
 			//when we are in preloader itself we should make the video black before the user thinks its not shutting down...
 			//TODO : fade to black if possible without a gfx lib?
@@ -3408,6 +3371,8 @@ int main(int argc, char **argv)
 		//boot system menu
 		if(BootSysMenu)
 		{
+			if(MP3Player_IsPlaying())
+				MP3Player_Stop();
 			gprintf("booting main system menu...\n");
 			if ( !SGetSetting(SETTING_USESYSTEMMENUIOS) )
 			{

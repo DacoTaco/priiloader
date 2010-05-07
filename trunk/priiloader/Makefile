@@ -33,7 +33,7 @@ LDFLAGS	=	-g $(MACHDEP) -Wl,-Map,$(notdir $@).map -Wl,--section-start,.init=0x80
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project
 #---------------------------------------------------------------------------------
-LIBS	:=	-ldb -lwiiuse -lbte -lfat -logc -lm
+LIBS	:=	-ldb -lwiiuse -lbte -lasnd -lfat -logc -lm -lmad
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
@@ -157,6 +157,12 @@ $(OUTPUT).elf: $(OFILES)
 
 -include $(DEPENDS)
 
+%.mp3.o	:	%.mp3
+#---------------------------------------------------------------------------------
+	@echo $(notdir $<)
+	$(bin2o)
+	
+-include $(DEPENDS)
 #---------------------------------------------------------------------------------
 endif
 #---------------------------------------------------------------------------------
