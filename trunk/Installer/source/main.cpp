@@ -699,7 +699,7 @@ int main(int argc, char **argv)
 						status = NULL;
 					}
 					nand_copy(copy_app,original_app);
-					abort("Checksum comparison Failure! MemAlign Failure of AppData %u\n",ret);
+					abort("Checksum comparison Failure! MemAlign Failure of AppData\n");
 				}
 				if (ret < 0)
 				{
@@ -769,7 +769,7 @@ int main(int argc, char **argv)
 				}
 				else
 				{
-					printf("Priiloader installation found.removing...\n\nRemoving Priiloader...");
+					printf("Priiloader installation found.\n\nRemoving Priiloader app...");
 					ISFS_Delete(original_app);
 					printf("Done!\nRestoring System menu app...");
 					s32 ret = nand_copy(copy_app,original_app);
@@ -808,21 +808,33 @@ int main(int argc, char **argv)
 					ISFS_Close(fd);
 					ISFS_Delete(copy_app);
 					printf("Done!\n");
-					printf("Deleting extra Priiloader files...");
+					printf("Deleting extra Priiloader files...\n");
 					ret = ISFS_Delete("/title/00000001/00000002/data/password.txt");
 					gprintf("password.txt : %d\n",ret);
+					if(ret)
+						printf("password.txt deleted ...\n");
 					ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
 					gprintf("loader.ini : %d\n",ret);
+					if(ret)
+						printf("loader.ini deleted ...\n");
 					//its best we delete that ticket but its completely useless and will only get in our 
 					//way when installing again later...
 					ret = ISFS_Delete("/title/00000001/00000002/content/ticket");
 					gprintf("ticket : %d\n",ret);
+					if(ret)
+						printf("ticket copy deleted ...\n");
 					ret = ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini");
 					gprintf("hacks_s.ini : %d\n",ret);
+					if(ret)
+						printf("hacks_s.ini deleted ...\n");
 					ret = ISFS_Delete("/title/00000001/00000002/data/hacks.ini");
 					gprintf("hacks.ini : %d\n",ret);
+					if(ret)
+						printf("hacks.ini deleted ...\n");
 					ret = ISFS_Delete("/title/00000001/00000002/data/main.bin");
 					gprintf("main.bin : %d\n",ret);
+					if(ret)
+						printf("main.bin deleted ...");
 					printf("Done!\n\n");
 					printf("Removal done, exiting to loader... waiting 5s...\n");
 					ISFS_Deinitialize();
