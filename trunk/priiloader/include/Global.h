@@ -30,6 +30,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #ifdef PATCHED_ES
 #define ES_OpenTitleContent(x,y,z) ES_OpenTitleContent_patched(x,y,z)
 #endif
+#define _SHIFTL(v, s, w)	\
+    ((u32) (((u32)(v) & ((0x01 << (w)) - 1)) << (s)))
 
 //INCLUDES
 //---------------
@@ -104,5 +106,6 @@ void InitVideo ( void );
 //#define free_pointer(x) {free(x); x=NULL;} 
 #define free_pointer(x) free_null_pointer((void**)&x)
 s8 free_null_pointer(void **ptr);
+void Control_VI_Regs ( u8 mode );
 
 #endif

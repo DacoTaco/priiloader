@@ -1226,7 +1226,7 @@ void LoadBootMii( void )
 	WPAD_Init();
 	return;
 }
-void BootMainSysMenu( void )
+void BootMainSysMenu( u8 init )
 {
 	//memory block variables used within the function:
 	//ticket stuff:
@@ -1250,7 +1250,39 @@ void BootMainSysMenu( void )
 	//general:
 	s32 r = 0;
 	s32 fd = 0;
+
+	//little easter egg
+	if(init == 0)
+	{
+		r = PAD_Init();
+		gprintf("PAD_Init():%d\n", r );
+		//fucking wii specs. the VI (video) regs need to be init cause the SI clock is decided by VI regs (now to know which)
+		Control_VI_Regs(1);
+		AUDIO_Init (NULL);
+		DSP_Init ();
+		AUDIO_StopDMA();
+		AUDIO_RegisterDMACallback(NULL); 
 	
+		r = (s32)MountDevices();
+		gprintf("FAT_Init():%d\n", r );
+	}
+	r = PAD_ScanPads();
+	u32 PAD_Pressed = PAD_ButtonsHeld(0) | PAD_ButtonsHeld(1) | PAD_ButtonsHeld(2) | PAD_ButtonsHeld(3);
+	//Easter Egg lol
+	if (PAD_Pressed & PAD_TRIGGER_Z)
+	{
+		ASND_Init();
+		ASND_Pause(0);
+		MP3Player_Init();
+		MP3Player_Volume(125);
+		MP3Player_PlayBuffer(Easter_mp3,Easter_mp3_size,NULL);
+		gprintf(":3\n");
+		while(MP3Player_IsPlaying())
+			usleep(2000);
+		ASND_End();
+	}
+
+	//booting sys menu
 	ISFS_Deinitialize();
 	if( ISFS_Initialize() < 0 )
 	{
@@ -1644,6 +1676,7 @@ void BootMainSysMenu( void )
 	{
 		USBStorage_Close(&__usbfd);
 	}
+	Control_VI_Regs(0);
 	__STM_Close();
 	ISFS_Deinitialize();
 	__IOS_ShutdownSubsystems();
@@ -2531,7 +2564,8 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 #ifdef DEBUG
 	gprintf("%s\n",file);
 #endif
-	u32 cnt ATTRIBUTE_ALIGN(32) = 0;
+	u32 cnt ATTRIBUTE_ALIGN(32);
+	cnt = 0;
 	IMET *data = (IMET *)memalign(32, (sizeof(IMET)+31)&(~31));
 	if(data == NULL)
 	{
@@ -2539,14 +2573,27 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 		return -1;
 	}
 	memset(data,0,(sizeof(IMET)+31)&(~31));
-	ES_GetNumTicketViews(id, &cnt);
+	r = ES_GetNumTicketViews(id, &cnt);
+	if(r < 0)
+	{
+		gprintf("failed to get the number of ticket views! error %d!\n",r);
+		free_pointer(data);
+		return -1;
+	}
 	tikview *views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
 	if(views == NULL)
 	{
 		free_pointer(data);
 		return -2;
 	}
-	ES_GetTicketViews(id, views, cnt);
+	r = ES_GetTicketViews(id, views, cnt);
+	if (r < 0)
+	{
+		gprintf("failed to get Ticket Views! error %d \n",r);
+		free_pointer(data);
+		free_pointer(views);
+		return -2;
+	}
 
 	//lets get this party started with the right way to call ES_OpenTitleContent. and not like how libogc < 1.8.3 does it. patch was passed on , and is done correctly in 1.8.3
 	//the right way is ES_OpenTitleContent(u64 TitleID,tikview* views,u16 Index); note the views >_>
@@ -2721,17 +2768,17 @@ s32 LoadListTitles( void )
 				if ( ret != -3 && ret != -4 )
 				{
 #ifdef DEBUG
-					gprintf("ret = %d\n",ret);
 					gprintf("placed %s in the list\n",temp_name);
 #endif
 					list.push_back(title_list[i]);
 					titles_ascii.push_back(temp_name);
 				}
-				else 
+				if ( ret < 0 )
 				{
 #ifdef _DEBUG
 					gprintf("title %x-%x is either on SD/deleted or IOS trouble came up\n",title_list[i],(u32)title_list[i]);
 #endif
+					gprintf("ret = %d\n",ret);
 				}
 				if(rTMD)
 				{
@@ -2941,9 +2988,8 @@ void Autoboot_System( void )
 	switch( SGetSetting(SETTING_AUTBOOT) )
 	{
 		case AUTOBOOT_SYS:
-			MountDevices();
 			gprintf("AutoBoot:System Menu\n");
-			BootMainSysMenu();
+			BootMainSysMenu(0);
 			break;
 		case AUTOBOOT_HBC:
 			gprintf("AutoBoot:Homebrew Channel\n");
@@ -3017,33 +3063,18 @@ int main(int argc, char **argv)
 	{
 		//Check autoboot settings
 		StateFlags temp;
-#ifdef DEBUG
-		FILE* state;
-#endif
 		switch( Bootstate )
 		{
 			case TYPE_UNKNOWN: //255 or -1, only seen when shutting down from MIOS or booting dol from HBC. it is actually an invalid value
 				temp = GetStateFlags();
 				gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u\n",temp.type,temp.discstate,temp.returnto,temp.flags);
-#ifdef DEBUG
-				MountDevices();
-				state = fopen("fat:/state.dat","w");
-				if(state)
-				{
-					gprintf("writing state.dat...\n");
-					fwrite((void*)&temp,1,sizeof(StateFlags),state);
-					fclose(state);
-				}
-				ShutdownDevices();
-#endif
 				if( temp.flags == 130 ) //&& temp.discstate != 2)
 				{
 					//if the flag is 130, its probably shutdown from mios. in that case system menu 
 					//will handle it perfectly (it seemed to set bootstate to 5 and reboot. which causes priiloader 
 					//to shutdown )for safety we will boot system menu instead of shutting down. just to be sure
-					MountDevices();
 					gprintf("255:System Menu\n");
-					BootMainSysMenu();
+					BootMainSysMenu(0);
 				}
 				else
 				{
@@ -3090,9 +3121,8 @@ int main(int argc, char **argv)
 				switch( SGetSetting(SETTING_RETURNTO) )
 				{
 					case RETURNTO_SYSMENU:
-						MountDevices();
 						gprintf("ReturnTo:System Menu\n");
-						BootMainSysMenu();
+						BootMainSysMenu(0);
 					break;
 
 					case RETURNTO_AUTOBOOT:
@@ -3133,8 +3163,7 @@ int main(int argc, char **argv)
 		gprintf("clearing memory of the \"Magic Priiloader Word\" and starting system menu...\n");
 		*(vu32*)0x8132FFFB = 0x00000000;
 		DCFlushRange((void*)0x8132FFFB,4);
-		MountDevices();
-		BootMainSysMenu();
+		BootMainSysMenu(0);
 	}
 	else if( ( SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED && Bootstate < 2) || (SGetSetting(SETTING_RETURNTO) != RETURNTO_PRELOADER && Bootstate > 1) || (SGetSetting(SETTING_SHUTDOWNTOPRELOADER) == 0 && Bootstate == 5 ) )
 	{
@@ -3176,17 +3205,6 @@ int main(int argc, char **argv)
 	{
 		DVDStopDisc();
 	}
-	PAD_ScanPads();
-	u32 PAD_Pressed = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
-	//Easter Egg lol
-	if (PAD_Pressed & PAD_TRIGGER_Z)
-	{
-		ASND_Init();
-		ASND_Pause(0);
-		MP3Player_Init();
-		MP3Player_Volume(125);
-		MP3Player_PlayBuffer(Easter_mp3,Easter_mp3_size,NULL);
-	}
 	time(&startloop);
 	while(1)
 	{
@@ -3194,7 +3212,7 @@ int main(int argc, char **argv)
 		PAD_ScanPads();
 
 		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
-		PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
+		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
  
 #ifdef DEBUG
 		if ( (WPAD_Pressed & WPAD_BUTTON_HOME) || (PAD_Pressed & PAD_BUTTON_START) )
@@ -3220,7 +3238,7 @@ int main(int argc, char **argv)
 			switch(cur_off)
 			{
 				case 0:
-					BootMainSysMenu();
+					BootMainSysMenu(1);
 					if(!error)
 						error=ERROR_SYSMENU_GENERAL;
 				break;
@@ -3333,8 +3351,6 @@ int main(int argc, char **argv)
 
 		if( Shutdown )
 		{
-			if(MP3Player_IsPlaying())
-				MP3Player_Stop();
 			*(vu32*)0xCD8000C0 &= ~0x20;
 			//when we are in preloader itself we should make the video black before the user thinks its not shutting down...
 			//TODO : fade to black if possible without a gfx lib?
@@ -3371,15 +3387,13 @@ int main(int argc, char **argv)
 		//boot system menu
 		if(BootSysMenu)
 		{
-			if(MP3Player_IsPlaying())
-				MP3Player_Stop();
 			gprintf("booting main system menu...\n");
 			if ( !SGetSetting(SETTING_USESYSTEMMENUIOS) )
 			{
 				gprintf("Changed Settings to use System Menu IOS...\n");
 				settings->UseSystemMenuIOS = true;
 			}
-			BootMainSysMenu();
+			BootMainSysMenu(1);
 			if(!error)
 				error=ERROR_SYSMENU_GENERAL;
 			BootSysMenu = 0;
