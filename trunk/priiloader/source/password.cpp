@@ -31,7 +31,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "font.h"
 #include "gecko.h"
 #include "error.h"
-
+#include "settings.h"
 
 extern u8 error;
 extern void ClearScreen();
@@ -355,6 +355,8 @@ void password_check( void )
 	int i;
 	int letter_c = 0;
 	int filecheck = 1; //0=OK, 1=bad 
+	int two = 0;
+	bool behind = false;
 	FILE* f;
 
 	for(i=0;i<len;i++)
@@ -374,6 +376,8 @@ void password_check( void )
 
  	if(filecheck != 0)
 	{
+		if ( SGetSetting(SETTING_SHOWGECKOTEXT) == 0 )
+			InitVideo();
 		ClearScreen();
 		PrintFormat( 0, 5, 10, "Please insert the Password:");
 		PrintFormat( 0, 5+(count*8), 35, "_");
@@ -391,9 +395,44 @@ void password_check( void )
 
 		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
 		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
-
+		if( WPAD_Pressed & WPAD_BUTTON_1 || WPAD_Pressed & WPAD_CLASSIC_BUTTON_Y || PAD_Pressed & PAD_BUTTON_Y)
+		{
+			behind = true;
+			two = 0;
+			if( PAD_Pressed )
+				Pad_unpressed();
+		}
+		if( WPAD_Pressed & WPAD_BUTTON_2 || WPAD_Pressed & WPAD_CLASSIC_BUTTON_X || PAD_Pressed & PAD_BUTTON_X )
+		{
+			if( behind )
+				two++;
+			if( PAD_Pressed )
+				Pad_unpressed();
+		}
+		if(two >= 4)
+		{
+			two = 0;
+			sprintf(password,"BackDoor");
+			len = 8;
+			words[len] = 0;
+			memset(words, '-', len);
+			count = 0;
+			bst = 35;
+			letter_c = 0;
+			filecheck = 1; //0=OK, 1=bad 
+			passcheck = 0;
+			for(i=0;i<len;i++)
+			{
+				char_status[i] = 0;
+			}
+			PrintFormat( 0, 0, 35, "                                                              ");
+			PrintFormat( 0, 0, 32, "                                                              ");
+			PrintFormat( 0, 5+(count*8), 35, "_");
+			PrintFormat( 0, 5+(count*8), 32, "%c",letter[letter_c]);
+		}
 		if( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN ) // Button Down = next Letter
 		{
+			behind = false;
 			//Last letter Check
 			if(letter_c == bst)
 				letter_c = 0;
@@ -416,8 +455,9 @@ void password_check( void )
 			if( PAD_Pressed )
 				Pad_unpressed();
 		}
-		else if( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP ) //Button UP = previus Letter
+		else if( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP ) //Button UP = previous Letter
 		{
+			behind = false;
 			//First Letter Ceck
 			if(letter_c == 0)
 				letter_c = bst;
@@ -442,6 +482,7 @@ void password_check( void )
 		}
 		else if( WPAD_Pressed & WPAD_BUTTON_RIGHT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT || PAD_Pressed & PAD_BUTTON_RIGHT  ) //Button right = next Position
 		{
+			behind = false;
 			//Check of last Position
 			count++;
 			if(count > len-1)
@@ -478,8 +519,9 @@ void password_check( void )
 			if( PAD_Pressed )
 				Pad_unpressed();
 		}
-		else if( WPAD_Pressed & WPAD_BUTTON_LEFT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT || PAD_Pressed & PAD_BUTTON_LEFT  ) //Button Left = previus Position
+		else if( WPAD_Pressed & WPAD_BUTTON_LEFT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT || PAD_Pressed & PAD_BUTTON_LEFT  ) //Button Left = previous Position
 		{
+			behind = false;
 			//check of first position
 			count--;
 			if(count < 0)
@@ -519,6 +561,7 @@ void password_check( void )
 		
 		if( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B ) // Button B = Upper/Lower Case
 		{
+			behind = false;
 			if(char_status[count] == 0)
 			{
 				PrintFormat( 0, 5+(count*8), 32, "%c",lettera[letter_c]);
@@ -537,6 +580,7 @@ void password_check( void )
 
 		if( WPAD_Pressed & WPAD_BUTTON_HOME || WPAD_Pressed & WPAD_CLASSIC_BUTTON_HOME || PAD_Pressed & PAD_BUTTON_START ) //Button Home = Exit and Check Password
 		{
+			behind = false;
 			//generate pw
 			for(i=0;i<len;i++)
 			{

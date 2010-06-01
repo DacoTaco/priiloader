@@ -2979,11 +2979,7 @@ void DVDStopDisc( void )
 void Autoboot_System( void )
 {
   	if( SGetSetting(SETTING_PASSCHECKMENU) && SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED && SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_ERROR )
-	{
-		if ( SGetSetting(SETTING_SHOWGECKOTEXT) == 0 )
-			InitVideo();
  		password_check();
-	}
 
 	switch( SGetSetting(SETTING_AUTBOOT) )
 	{
