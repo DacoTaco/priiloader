@@ -32,9 +32,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <ogc/isfs.h>
 #include <ogc/ipc.h>
 #include <ogc/ios.h>
+#include <ogc/usb.h>
+#include <ogc/usbgecko.h>
 #include <fat.h>
 #include <sdcard/wiisd_io.h>
-#include <ogc/usbgecko.h>
 
 //rev version
 #include "../../Shared/svnrev.h"
@@ -80,6 +81,33 @@ void CheckForGecko( void )
 	}
 	return;
 }
+bool MountDevices(void)
+{
+	if ( !fatMountSimple("fat",&__io_wiisd) )
+	{
+		//sd mounting failed. lets go usb
+		//return fatMountSimple("fat", &__io_usbstorage);
+
+		//giantpune claims these value's have more support for some drives but apparently screws up when 
+		//loading sys menu dol (cause everything is shifted with 1MB, its a case of "wrong place at the wrong time"... 
+		//8 & 64 seems to work tho...
+		return fatMount("fat", &__io_usbstorage,0, 8, 64);
+	}
+	else
+	{
+		//it was ok. SD GO!
+		return true;
+	}
+}
+void ShutdownDevices()
+{
+	//unmount device
+	fatUnmount("fat:/");
+	//shutdown ports
+	__io_wiisd.shutdown();
+	__io_usbstorage.shutdown();
+}
+
 const char* abort(const char* msg, ...)
 {
 	va_list args;
@@ -325,8 +353,13 @@ int main(int argc, char **argv)
 
 	WPAD_Init();
 	PAD_Init();
-
 	CheckForGecko();
+
+	MountDevices();
+	remove("fat:/apps/Priiloader_Update/boot.dol");
+	remove("fat:/apps/Priiloader_Update");
+	ShutdownDevices();
+
 	gprintf("resolution is %dx%d\n",vmode->viWidth,vmode->viHeight);
 	printf("\x1b[2;0H");
 	printf("IOS %d rev %d\n\n\t",IOS_GetVersion(),IOS_GetRevision());
@@ -340,7 +373,7 @@ int main(int argc, char **argv)
 	printf("\t Press (-/Y) to remove Priiloader and restore system menu\n\t");
 	printf("\tHold Down (B) with any above options to use IOS249 (cios)\n\t");
 	printf("\t Press (HOME/Start) to chicken out and quit the installer!\n\n\t");
-	printf("\t\t\t\tEnjoy! DacoTaco, _Dax_ & /phpgeek\n							");
+	printf("\t\t\t\tEnjoy! DacoTaco, _Dax_ & BadUncle\n							");
 
 	while(1)
 	{
@@ -618,29 +651,43 @@ int main(int argc, char **argv)
 				}				  
 				printf("deleting extra priiloader files...\n");
 				ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
-				if(ret < 0)
+				gprintf("/title/00000001/00000002/data/loader.ini deletion returned %d\n",ret);
+				printf("Settings : ");
+				if(ret == -106)
+				{
+					printf("\x1b[%u;%dm", 32, 1);
+					printf("Not found\n");
+					printf("\x1b[%u;%dm", 37, 1);
+				}
+				else if(ret < 0)
 				{
 					printf("\x1b[%u;%dm", 33, 1);
-					printf("WARNING : Priiloader Settings not deleted. error %d\n",ret);
+					printf("\nWARNING : Priiloader Settings not deleted. error %d\n",ret);
 					printf("\x1b[%u;%dm", 37, 1);
 					printf("continuing...\n");
 					sleep(4);
 				}
 				else
-					printf("Priiloader Settings deleted\n");
-				gprintf("/title/00000001/00000002/data/loader.ini deletion returned %d\n",ret);
+					printf("Deleted\n");
 				ret = ISFS_Delete("/title/00000001/00000002/data/password.txt");
-				if(ret < 0)
+				gprintf("/title/00000001/00000002/data/password.txt deletion returned %d\n",ret);
+				printf("Password file : ");
+				if(ret == -106)
+				{
+					printf("\x1b[%u;%dm", 32, 1);
+					printf("Not found\n");
+					printf("\x1b[%u;%dm", 37, 1);
+				}
+				else if(ret < 0)
 				{
 					printf("\x1b[%u;%dm", 33, 1);
-					printf("WARNING : Priiloader Password file not deleted. error %d\n",ret);
+					printf("\nWARNING : Priiloader Password file not deleted. error %d\n",ret);
 					printf("\x1b[%u;%dm", 37, 1);
 					printf("continuing...\n");
 					sleep(4);
 				}
 				else
 					printf("Priiloader Password file deleted\n");
-				gprintf("/title/00000001/00000002/data/password.txt deletion returned %d\n",ret);
 				printf("Done!\n");
 				printf("Writing Priiloader app...");
 				gprintf("Writing Priiloader\n");
@@ -811,30 +858,108 @@ int main(int argc, char **argv)
 					printf("Deleting extra Priiloader files...\n");
 					ret = ISFS_Delete("/title/00000001/00000002/data/password.txt");
 					gprintf("password.txt : %d\n",ret);
-					if(ret)
-						printf("password.txt deleted ...\n");
+					printf("password file : ");
+					if(ret == -106)
+					{
+						printf("\x1b[%u;%dm", 32, 1);
+						printf("Not found\n");
+						printf("\x1b[%u;%dm", 37, 1);
+					}
+					else if (ret < 0)
+					{
+						printf("\x1b[%u;%dm", 33, 1);
+						printf("Error deleting file. error %d\n",ret);
+						printf("\x1b[%u;%dm", 37, 1);
+					}
+					else
+						printf("Deleted\n");
 					ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
 					gprintf("loader.ini : %d\n",ret);
-					if(ret)
-						printf("loader.ini deleted ...\n");
+					printf("Settings file : ");
+					if(ret == -106)
+					{
+						printf("\x1b[%u;%dm", 32, 1);
+						printf("Not found\n");
+						printf("\x1b[%u;%dm", 37, 1);
+					}
+					else if (ret < 0)
+					{
+						printf("\x1b[%u;%dm", 33, 1);
+						printf("Error deleting file. error %d\n",ret);
+						printf("\x1b[%u;%dm", 37, 1);
+					}
+					else
+						printf("Deleted\n");
 					//its best we delete that ticket but its completely useless and will only get in our 
 					//way when installing again later...
 					ret = ISFS_Delete("/title/00000001/00000002/content/ticket");
 					gprintf("ticket : %d\n",ret);
-					if(ret)
-						printf("ticket copy deleted ...\n");
+					printf("Ticket : ");
+					if(ret == -106)
+					{
+						printf("\x1b[%u;%dm", 32, 1);
+						printf("Not found\n");
+						printf("\x1b[%u;%dm", 37, 1);
+					}
+					else if (ret < 0)
+					{
+						printf("\x1b[%u;%dm", 33, 1);
+						printf("Error deleting file. error %d\n",ret);
+						printf("\x1b[%u;%dm", 37, 1);
+					}
+					else
+						printf("Deleted\n");
 					ret = ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini");
 					gprintf("hacks_s.ini : %d\n",ret);
-					if(ret)
-						printf("hacks_s.ini deleted ...\n");
+					printf("Hacks_s.ini : ");
+					if(ret == -106)
+					{
+						printf("\x1b[%u;%dm", 32, 1);
+						printf("Not found\n");
+						printf("\x1b[%u;%dm", 37, 1);
+					}
+					else if (ret < 0)
+					{
+						printf("\x1b[%u;%dm", 33, 1);
+						printf("Error deleting file. error %d\n",ret);
+						printf("\x1b[%u;%dm", 37, 1);
+					}
+					else
+						printf("Deleted\n");
 					ret = ISFS_Delete("/title/00000001/00000002/data/hacks.ini");
 					gprintf("hacks.ini : %d\n",ret);
-					if(ret)
-						printf("hacks.ini deleted ...\n");
+					printf("Hacks.ini : ");
+					if(ret == -106)
+					{
+						printf("\x1b[%u;%dm", 32, 1);
+						printf("Not found\n");
+						printf("\x1b[%u;%dm", 37, 1);
+					}
+					else if (ret < 0)
+					{
+						printf("\x1b[%u;%dm", 33, 1);
+						printf("Error deleting file. error %d\n",ret);
+						printf("\x1b[%u;%dm", 37, 1);
+					}
+					else
+						printf("Deleted\n");
 					ret = ISFS_Delete("/title/00000001/00000002/data/main.bin");
 					gprintf("main.bin : %d\n",ret);
+					printf("main.bin : ");
 					if(ret)
-						printf("main.bin deleted ...");
+						printf("Deleted\n");
+					else if(ret == -106)
+					{
+						printf("\x1b[%u;%dm", 32, 1);
+						printf("Not found\n");
+						printf("\x1b[%u;%dm", 37, 1);
+					}
+					else if (ret < 0)
+					{
+						printf("\x1b[%u;%dm", 33, 1);
+						printf("Error deleting file. error %d\n",ret);
+						printf("\x1b[%u;%dm", 37, 1);
+					}
 					printf("Done!\n\n");
 					printf("Removal done, exiting to loader... waiting 5s...\n");
 					ISFS_Deinitialize();

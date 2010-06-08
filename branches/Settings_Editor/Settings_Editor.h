@@ -5,6 +5,10 @@
 #include <stdio.h>
 #include <tchar.h>
 
+#ifndef MIN
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#endif
+
 typedef struct {
 	u32 fill;
 	u32 version;
@@ -39,7 +43,25 @@ typedef struct {
 	u8 SystemMenuIOS;
 	u8 UseSystemMenuIOS;
 	u8 BlackBackground;
-	u8 ShowDebugText;
+	u8 ShowGeckoOutput;
+	u8 PasscheckPriiloader;
+	u8 PasscheckMenu;
+	u32 ShowBetaUpdates;
+} Settings_5;
+
+typedef struct {
+	u32 autoboot;
+	u32 version;
+	u32 ReturnTo;
+	u8 ShutdownToPreloader;
+	u8 StopDisc;
+	u8 LidSlotOnError;
+	u8 IgnoreShutDownMode;
+	u32 BetaVersion;
+	u8 SystemMenuIOS;
+	u8 UseSystemMenuIOS;
+	u8 BlackBackground;
+	u8 ShowGeckoOutput;
 } Settings_3;
 
 enum {

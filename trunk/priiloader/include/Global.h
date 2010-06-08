@@ -46,6 +46,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <stdlib.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <errno.h>
+#include <network.h>
+#include "gecko.h"
 
 //STRUCTS
 //--------------
@@ -87,6 +90,10 @@ typedef struct _tmd_view_t
 }__attribute__((packed)) tmd_view;
 #endif
 
+
+//TYPEDEFS
+//--------------
+
 //VARIABLES
 //--------------
 extern GXRModeObj *rmode;
@@ -103,9 +110,25 @@ extern "C"
 
 void InitVideo ( void );
 
-//#define free_pointer(x) {free(x); x=NULL;} 
-#define free_pointer(x) free_null_pointer((void**)&x)
-s8 free_null_pointer(void **ptr);
+//#define free_pointer(x) free_null_pointer((void*&)x)
+//cause no f***ing compiler alive has export support (except 1 apparently) i NEED to add the function in this f***ing header.
+//how f***ing retarded is that?!
+template <class pointer>
+s8 free_pointer(pointer*& ptr)
+{
+	if(ptr != NULL)
+	{
+		free(ptr); 
+		ptr = NULL;
+		return 0;
+	}
+	else
+	{
+		return -1;
+	}
+}
+s8 free_null_pointer(void*& ptr);
 void Control_VI_Regs ( u8 mode );
+s8 InitNetwork();
 
 #endif

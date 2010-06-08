@@ -61,12 +61,16 @@ int _tmain(int argc, _TCHAR* argv[])
 	switch (SettingsSize)
 	{
 		case sizeof(Settings_3):
-			printf("Settings file from 0.3c ( rev 54 - rev 58 ) detected\n");
+			printf("Settings file from 0.3c ( rev 54 - rev 57 ) detected\n");
 			file_version = 3;
 			break;
 		case sizeof(Settings_4):
-			printf("Settings file from 0.4 ( rev 58 or above ) detected\n");
+			printf("Settings file from 0.4 ( rev 58 - 88 ) detected\n");
 			file_version = 4;
+			break;
+		case sizeof(Settings_5):
+			printf("Settings file from 0.5 ( rev 89 or above ) detected\n");
+			file_version = 5;
 			break;
 		default:
 			printf("unknown Settings File! exiting...\n");
@@ -90,8 +94,8 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	printf("reading Settings...\n");
 	sleep(2);
-	Settings_4 *Settings = (Settings_4*) malloc(sizeof(Settings_3));
-	memset(Settings,0,sizeof(Settings_4));
+	Settings_5 *Settings = (Settings_5*) malloc(sizeof(Settings_5));
+	memset(Settings,0,sizeof(Settings_5));
 	fread(Settings,1,SettingsSize,Settings_fd);
 	fclose(Settings_fd);
 	//start of main loop
@@ -151,10 +155,14 @@ int _tmain(int argc, _TCHAR* argv[])
 			printf("\t7 : Background Color  :\t\t%s\n", Settings->BlackBackground?"Black":"White");
 			printf("\t8 : Show Debug Info   :\t\t%s\n", Settings->ShowGeckoOutput?"on ":"off");
 			//added options from versions > 3
-			if (file_version == 4)
+			if (file_version >= 4)
 			{
 				printf("\tQ : Protect Priiloader:\t\t%s\n",Settings->PasscheckPriiloader?"on ":"off");
 				printf("\tW : Protect Autoboot  :\t\t%s\n",Settings->PasscheckMenu?"on ":"off");
+			}
+			if (file_version >= 5)
+			{
+				printf("\tE : Show Beta Updates :\t\t%s\n",Settings->ShowBetaUpdates?"on ":"off       ");
 			}
 			printf("\t9 : Use SysMenu IOS   :\t\t%s\n", Settings->UseSystemMenuIOS?"on ":"off");
 			if(!Settings->UseSystemMenuIOS)
@@ -196,10 +204,22 @@ int _tmain(int argc, _TCHAR* argv[])
 									sleep(2);
 									break;
 								}
-								if (file_version == 3)
-									fwrite(Settings,1,sizeof(Settings_3),Settings_fd);
-								else
-									fwrite(Settings,1,sizeof(Settings_4),Settings_fd);
+								switch(file_version)
+								{
+									case 3:
+										fwrite(Settings,1,sizeof(Settings_3),Settings_fd);
+										break;
+									case 4:
+										fwrite(Settings,1,sizeof(Settings_4),Settings_fd);
+										break;	
+									case 5:
+										fwrite(Settings,1,sizeof(Settings_5),Settings_fd);
+										break;
+									default:
+										printf("unknown version detected. refusing to save");
+										sleep(2);
+										exit(0);
+								}
 								fclose(Settings_fd);
 								printf("Saved\n");
 								sleep(2);
@@ -313,6 +333,20 @@ int _tmain(int argc, _TCHAR* argv[])
 					}
 					redraw = 1;
 					break;
+				case 69:
+				case 101: // E/e , ShowBetaUpdates
+				if (file_version < 5)
+					break;
+				if( Settings->ShowBetaUpdates )
+				{
+					Settings->ShowBetaUpdates = false;
+				}
+				else
+				{
+					Settings->ShowBetaUpdates = true;
+				}
+				redraw = 1;
+				break;
 				default:
 #ifdef _DEBUG
 					printf("key %c (int value %i) is pressed\n",test,test);

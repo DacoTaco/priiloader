@@ -63,6 +63,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "font.h"
 #include "gecko.h"
 #include "password.h"
+#include "sha1.h"
+#include "HTTP_Parser.h"
+
 
 //Bin includes
 #include "certs_bin.h"
@@ -296,7 +299,7 @@ void SysHackSettings( void )
 {
 	u8 DeviceFound = RemountDevices();
 
-	if( !LoadHacks() )
+	if( !LoadHacks(false) )
 	{
 		if(!DeviceFound)
 		{
@@ -939,7 +942,26 @@ void SetSettings( void )
 					redraw=true;
 				}
 			break;
-			case 10: //ignore ios reloading for system menu?
+			case 10: //download beta updates
+				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
+					 PAD_Pressed & PAD_BUTTON_LEFT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
+					 PAD_Pressed & PAD_BUTTON_RIGHT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_A				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
+					 PAD_Pressed & PAD_BUTTON_A
+					)
+				{
+					if ( settings->ShowBetaUpdates )
+						settings->ShowBetaUpdates = 0;
+					else
+						settings->ShowBetaUpdates = 1;
+					redraw=true;
+				}
+			break;				
+			case 11: //ignore ios reloading for system menu?
 			{
 				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
 					 PAD_Pressed & PAD_BUTTON_LEFT				||
@@ -975,7 +997,7 @@ void SetSettings( void )
 				}
 			}
 			break;
-			case 11:		//	System Menu IOS
+			case 12:		//	System Menu IOS
 			{
 				if ( WPAD_Pressed & WPAD_BUTTON_LEFT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT || PAD_Pressed & PAD_BUTTON_LEFT )
 				{
@@ -1013,14 +1035,14 @@ void SetSettings( void )
 				}
 
 			} break;
-			case 12:
+			case 13:
 			{
 				if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 				{
 					if( SaveSettings() )
-						PrintFormat( 0, 114, 128+192+16, "settings saved");
+						PrintFormat( 0, 114, 128+208+16, "settings saved");
 					else
-						PrintFormat( 0, 118, 128+192+16, "saving failed");
+						PrintFormat( 0, 118, 128+208+16, "saving failed");
 				}
 			} break;
 
@@ -1032,19 +1054,19 @@ void SetSettings( void )
 		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
 		{
 			cur_off++;
-			if( (settings->UseSystemMenuIOS) && (cur_off == 11))
+			if( (settings->UseSystemMenuIOS) && (cur_off == 12))
 				cur_off++;
-			if( cur_off >= 13)
+			if( cur_off >= 14)
 				cur_off = 0;
 			
 			redraw=true;
 		} else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
 		{
 			cur_off--;
-			if( (settings->UseSystemMenuIOS) && (cur_off == 11))
+			if( (settings->UseSystemMenuIOS) && (cur_off == 12))
 				cur_off--;
 			if( cur_off < 0 )
-				cur_off = 12;
+				cur_off = 13;
 			
 			redraw=true;
 		}
@@ -1100,17 +1122,18 @@ void SetSettings( void )
 			PrintFormat( cur_off==7, 0, 128+96, "    Protect Priiloader:          %s", settings->PasscheckPriiloader?"on ":"off");
 			PrintFormat( cur_off==8, 0, 128+112,"      Protect Autoboot:          %s", settings->PasscheckMenu?"on ":"off");
 			PrintFormat( cur_off==9, 0, 128+128,"   Display Gecko ouput:          %s", settings->ShowGeckoText?"on ":"off");
-			PrintFormat( cur_off==10,0, 128+144,"   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
+			PrintFormat( cur_off==10,0, 128+144,"     Show Beta Updates:          %s", settings->ShowBetaUpdates?"on ":"off");
+			PrintFormat( cur_off==11,0, 128+160,"   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
 			if(!settings->UseSystemMenuIOS)
 			{
-				PrintFormat( cur_off==11, 0, 128+160, "     IOS to use for SM:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
+				PrintFormat( cur_off==12, 0, 128+176, "     IOS to use for SM:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
 			}
 			else
 			{
-				PrintFormat( cur_off==11, 0, 128+160,	"                                        ");
+				PrintFormat( cur_off==12, 0, 128+176,	"                                        ");
 			}
-			PrintFormat( cur_off==12, 118, 128+192, "save settings");
-			PrintFormat( 0, 114, 128+192+16, "                 ");
+			PrintFormat( cur_off==13, 118, 128+208, "save settings");
+			PrintFormat( 0, 114, 128+208+16, "                 ");
 
 			redraw = false;
 		}
@@ -1226,6 +1249,193 @@ void LoadBootMii( void )
 	WPAD_Init();
 	return;
 }
+s8 BootDolFromDir( const char* Dir )
+{
+	if (!RemountDevices())
+	{
+		return -1;
+	}
+	//char filepath[MAXPATHLEN];
+	//sprintf(filepath, "fat:/%s", names[cur_off]);
+	FILE *dol = fopen(Dir,"rb");
+	//FILE *dol = fopen("fat:/apps/Priiloader_Update/boot.dol","rb");
+	if(dol == NULL)
+	{
+		gprintf("BootDolFromDir : Failed to open Dol %s\n",Dir);
+		return -2;
+	}
+	void	(*entrypoint)();
+
+	Elf32_Ehdr ElfHdr;
+
+	fread( &ElfHdr, sizeof( ElfHdr ), 1, dol );
+
+	if( ElfHdr.e_ident[EI_MAG0] == 0x7F ||
+		ElfHdr.e_ident[EI_MAG1] == 'E' ||
+		ElfHdr.e_ident[EI_MAG2] == 'L' ||
+		ElfHdr.e_ident[EI_MAG3] == 'F' )
+	{
+		gprintf("ELF Found\n");
+#ifdef DEBUG
+		gprintf("Type:      \t%04X\n", ElfHdr.e_type );
+		gprintf("Machine:   \t%04X\n", ElfHdr.e_machine );
+		gprintf("Version:  %08X\n", ElfHdr.e_version );
+		gprintf("Entry:    %08X\n", ElfHdr.e_entry );
+		gprintf("Flags:    %08X\n", ElfHdr.e_flags );
+		gprintf("EHsize:    \t%04X\n\n", ElfHdr.e_ehsize );
+
+		gprintf("PHoff:    %08X\n",	ElfHdr.e_phoff );
+		gprintf("PHentsize: \t%04X\n",	ElfHdr.e_phentsize );
+		gprintf("PHnum:     \t%04X\n\n",ElfHdr.e_phnum );
+
+		gprintf("SHoff:    %08X\n",	ElfHdr.e_shoff );
+		gprintf("SHentsize: \t%04X\n",	ElfHdr.e_shentsize );
+		gprintf("SHnum:     \t%04X\n",	ElfHdr.e_shnum );
+		gprintf("SHstrndx:  \t%04X\n\n",ElfHdr.e_shstrndx );
+#endif
+
+		if( ElfHdr.e_phnum == 0 )
+		{
+#ifdef DEBUG
+			printf("Warning program header entries are zero!\n");
+#endif
+		} else {
+
+			for( int i=0; i < ElfHdr.e_phnum; ++i )
+			{
+				fseek( dol, ElfHdr.e_phoff + sizeof( Elf32_Phdr ) * i, SEEK_SET );
+
+				Elf32_Phdr phdr;
+				fread( &phdr, sizeof( phdr ), 1, dol );
+
+#ifdef DEBUG
+				printf("Type:%08X Offset:%08X VAdr:%08X PAdr:%08X FileSz:%08X\n", phdr.p_type, phdr.p_offset, phdr.p_vaddr, phdr.p_paddr, phdr.p_filesz );
+#endif
+				fseek( dol, phdr.p_offset, 0 );
+				fread( (void*)(phdr.p_vaddr | 0x80000000), sizeof( u8 ), phdr.p_filesz, dol);
+			}
+		}
+
+		if( ElfHdr.e_shnum == 0 )
+		{
+#ifdef DEBUG
+			printf("Warning section header entries are zero!\n");
+#endif
+		} else {
+
+			for( int i=0; i < ElfHdr.e_shnum; ++i )
+			{
+				fseek( dol, ElfHdr.e_shoff + sizeof( Elf32_Shdr ) * i, SEEK_SET );
+
+				Elf32_Shdr shdr;
+				fread( &shdr, sizeof( shdr ), 1, dol );
+
+				if( shdr.sh_type == 0 )
+					continue;
+
+#ifdef DEBUG
+				if( shdr.sh_type > 17 )
+					printf("Warning the type: %08X could be invalid!\n", shdr.sh_type );
+
+				if( shdr.sh_flags & ~0xF0000007 )
+					printf("Warning the flag: %08X is invalid!\n", shdr.sh_flags );
+
+				printf("Type:%08X Offset:%08X Name:%08X Off:%08X Size:%08X\n", shdr.sh_type, shdr.sh_offset, shdr.sh_name, shdr.sh_addr, shdr.sh_size );
+#endif
+				fseek( dol, shdr.sh_offset, 0 );
+				fread( (void*)(shdr.sh_addr | 0x80000000), sizeof( u8 ), shdr.sh_size, dol);
+			}
+		}
+
+		entrypoint = (void (*)())(ElfHdr.e_entry | 0x80000000);
+
+		//sleep(20);
+		//return;
+
+	} else {
+#ifdef DEBUG
+		gprintf("DOL Detected\n");
+#endif
+		//Load the dol!, TODO: maybe add sanity checks?
+		//read the header
+		dolhdr hdr;
+		fseek( dol, 0, 0);
+		fread( &hdr, sizeof( dolhdr ), 1, dol );
+
+		//printf("\nText Sections:\n");
+
+		int i=0;
+		for (i = 0; i < 6; i++)
+		{
+			if( hdr.sizeText[i] && hdr.addressText[i] && hdr.offsetText[i] )
+			{
+				DCInvalidateRange( (void*)(hdr.addressText[i]), hdr.sizeText[i] );
+
+				fseek( dol, hdr.offsetText[i], SEEK_SET );
+				fread( (void*)(hdr.addressText[i]), sizeof( char ), hdr.sizeText[i], dol );
+
+				//printf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr.offsetText[i]), hdr.addressText[i], hdr.sizeText[i]);
+			}
+		}
+
+		//printf("\nData Sections:\n");
+
+		// data sections
+		for (i = 0; i <= 10; i++)
+		{
+			if( hdr.sizeData[i] && hdr.addressData[i] && hdr.offsetData[i] )
+			{
+				fseek( dol, hdr.offsetData[i], SEEK_SET );
+				fread( (void*)(hdr.addressData[i]), sizeof( char ), hdr.sizeData[i], dol );
+
+				DCFlushRangeNoSync( (void*)(hdr.addressData[i]), hdr.sizeData[i] );
+				//printf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr.offsetData[i]), hdr.addressData[i], hdr.sizeData[i]);
+			}
+		}
+
+		memset ((void *) hdr.addressBSS, 0, hdr.sizeBSS);
+		DCFlushRange((void *) hdr.addressBSS, hdr.sizeBSS);
+		fclose( dol );
+		entrypoint = (void (*)())(hdr.entrypoint);
+	}
+	if( entrypoint == 0x00000000 )
+	{
+		gprintf("bogus entrypoint of %08X detected\n",(u32)(entrypoint));
+		error = ERROR_BOOT_DOL_ENTRYPOINT;
+		return -2;
+	}
+	gprintf("binary loaded, starting dol...\n");
+	for (int i = 0;i < WPAD_MAX_WIIMOTES ;i++)
+	{
+		WPAD_Flush(i);
+		WPAD_Disconnect(i);
+	}
+	ClearState();
+	WPAD_Shutdown();
+	ShutdownDevices();
+	gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
+	if(isIOSstub(IOS_GetPreferredVersion()))
+	{
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
+		sleep(3);
+	}
+	else
+	{
+		IOS_ReloadIOS(IOS_GetPreferredVersion());
+		ReloadedIOS = 1;
+	}
+	__IOS_ShutdownSubsystems();
+	u32 level;
+	SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
+	_CPU_ISR_Disable (level);
+	mtmsr(mfmsr() & ~0x8000);
+	mtmsr(mfmsr() | 0x2002);
+	entrypoint();
+	_CPU_ISR_Restore (level);
+	__IOS_InitializeSubsystems();
+	WPAD_Init();
+	return -3;
+}
 void BootMainSysMenu( u8 init )
 {
 	//memory block variables used within the function:
@@ -1254,32 +1464,35 @@ void BootMainSysMenu( u8 init )
 	//little easter egg
 	if(init == 0)
 	{
-		r = PAD_Init();
-		gprintf("PAD_Init():%d\n", r );
-		//fucking wii specs. the VI (video) regs need to be init cause the SI clock is decided by VI regs (now to know which)
+		/*//fucking wii specs. the VI (video) regs need to be init cause the SI clock is decided by VI regs (now to know which).
+		//this leads us to only have the easter egg if the menu is loaded (and video init) cause otherwise we have other video issues that users dislike >_>
 		Control_VI_Regs(1);
+		PAD_Init();
 		AUDIO_Init (NULL);
 		DSP_Init ();
 		AUDIO_StopDMA();
-		AUDIO_RegisterDMACallback(NULL); 
-	
+		AUDIO_RegisterDMACallback(NULL);
+		*/
 		r = (s32)MountDevices();
 		gprintf("FAT_Init():%d\n", r );
 	}
-	r = PAD_ScanPads();
-	u32 PAD_Pressed = PAD_ButtonsHeld(0) | PAD_ButtonsHeld(1) | PAD_ButtonsHeld(2) | PAD_ButtonsHeld(3);
-	//Easter Egg lol
-	if (PAD_Pressed & PAD_TRIGGER_Z)
+	else
 	{
-		ASND_Init();
-		ASND_Pause(0);
-		MP3Player_Init();
-		MP3Player_Volume(125);
-		MP3Player_PlayBuffer(Easter_mp3,Easter_mp3_size,NULL);
-		gprintf(":3\n");
-		while(MP3Player_IsPlaying())
-			usleep(2000);
-		ASND_End();
+		PAD_ScanPads();
+		u32 PAD_Pressed = PAD_ButtonsHeld(0) | PAD_ButtonsHeld(1) | PAD_ButtonsHeld(2) | PAD_ButtonsHeld(3);
+		//Easter Egg lol
+		if (PAD_Pressed & PAD_TRIGGER_Z)
+		{
+			ASND_Init();
+			ASND_Pause(0);
+			MP3Player_Init();
+			MP3Player_Volume(125);
+			MP3Player_PlayBuffer(Easter_mp3,Easter_mp3_size,NULL);
+			gprintf(":3\n");
+			while(MP3Player_IsPlaying())
+				usleep(2000);
+			ASND_End();
+		}
 	}
 
 	//booting sys menu
@@ -1483,7 +1696,7 @@ void BootMainSysMenu( u8 init )
 	gprintf("entrypoint: %08X\n", entrypoint );
 
 	RemountDevices();
-	LoadHacks();
+	LoadHacks(true);
 	for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {
 		WPAD_Flush(i);
 		WPAD_Disconnect(i);
@@ -1676,7 +1889,8 @@ void BootMainSysMenu( u8 init )
 	{
 		USBStorage_Close(&__usbfd);
 	}
-	Control_VI_Regs(0);
+	if(init == 1 || SGetSetting(SETTING_SHOWGECKOTEXT) != 0 )
+		Control_VI_Regs(2);
 	__STM_Close();
 	ISFS_Deinitialize();
 	__IOS_ShutdownSubsystems();
@@ -1889,186 +2103,11 @@ void InstallLoadDOL( void )
 			//Load dol
 #ifdef libELM
 			sprintf(filepath, "elm:/sd/%s", names[cur_off]);
-			FILE *dol = fopen(filepath, "rb" );
 #else
 			sprintf(filepath, "fat:/%s", names[cur_off]);
-			FILE *dol = fopen(filepath,"rb");
 #endif
 			gprintf("loading fat:/%s\n",names[cur_off]);
-			if( dol == NULL )
-			{
-				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not open:\"%s\" for reading")+strlen(names[cur_off]))*13/2))>>1, 208, "Could not open:\"%s\" for reading", names[cur_off]);
-				sleep(5);
-				break;
-			}
-			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("Loading file...")+strlen(names[cur_off]))*13/2))>>1, 208, "Loading file...", names[cur_off]);
-			void	(*entrypoint)();
-
-			Elf32_Ehdr ElfHdr;
-
-			fread( &ElfHdr, sizeof( ElfHdr ), 1, dol );
-
-			if( ElfHdr.e_ident[EI_MAG0] == 0x7F ||
-				ElfHdr.e_ident[EI_MAG1] == 'E' ||
-				ElfHdr.e_ident[EI_MAG2] == 'L' ||
-				ElfHdr.e_ident[EI_MAG3] == 'F' )
-			{
-				gprintf("ELF Found\n");
-#ifdef DEBUG
-				gprintf("Type:      \t%04X\n", ElfHdr.e_type );
-				gprintf("Machine:   \t%04X\n", ElfHdr.e_machine );
-				gprintf("Version:  %08X\n", ElfHdr.e_version );
-				gprintf("Entry:    %08X\n", ElfHdr.e_entry );
-				gprintf("Flags:    %08X\n", ElfHdr.e_flags );
-				gprintf("EHsize:    \t%04X\n\n", ElfHdr.e_ehsize );
-
-				gprintf("PHoff:    %08X\n",	ElfHdr.e_phoff );
-				gprintf("PHentsize: \t%04X\n",	ElfHdr.e_phentsize );
-				gprintf("PHnum:     \t%04X\n\n",ElfHdr.e_phnum );
-
-				gprintf("SHoff:    %08X\n",	ElfHdr.e_shoff );
-				gprintf("SHentsize: \t%04X\n",	ElfHdr.e_shentsize );
-				gprintf("SHnum:     \t%04X\n",	ElfHdr.e_shnum );
-				gprintf("SHstrndx:  \t%04X\n\n",ElfHdr.e_shstrndx );
-#endif
-
-				if( ElfHdr.e_phnum == 0 )
-				{
-#ifdef DEBUG
-					printf("Warning program header entries are zero!\n");
-#endif
-				} else {
-
-					for( int i=0; i < ElfHdr.e_phnum; ++i )
-					{
-						fseek( dol, ElfHdr.e_phoff + sizeof( Elf32_Phdr ) * i, SEEK_SET );
-
-						Elf32_Phdr phdr;
-						fread( &phdr, sizeof( phdr ), 1, dol );
-
-#ifdef DEBUG
-						printf("Type:%08X Offset:%08X VAdr:%08X PAdr:%08X FileSz:%08X\n", phdr.p_type, phdr.p_offset, phdr.p_vaddr, phdr.p_paddr, phdr.p_filesz );
-#endif
-						fseek( dol, phdr.p_offset, 0 );
-						fread( (void*)(phdr.p_vaddr | 0x80000000), sizeof( u8 ), phdr.p_filesz, dol);
-					}
-				}
-
-				if( ElfHdr.e_shnum == 0 )
-				{
-#ifdef DEBUG
-					printf("Warning section header entries are zero!\n");
-#endif
-				} else {
-
-					for( int i=0; i < ElfHdr.e_shnum; ++i )
-					{
-						fseek( dol, ElfHdr.e_shoff + sizeof( Elf32_Shdr ) * i, SEEK_SET );
-
-						Elf32_Shdr shdr;
-						fread( &shdr, sizeof( shdr ), 1, dol );
-
-						if( shdr.sh_type == 0 )
-							continue;
-
-#ifdef DEBUG
-						if( shdr.sh_type > 17 )
-							printf("Warning the type: %08X could be invalid!\n", shdr.sh_type );
-
-						if( shdr.sh_flags & ~0xF0000007 )
-							printf("Warning the flag: %08X is invalid!\n", shdr.sh_flags );
-
-						printf("Type:%08X Offset:%08X Name:%08X Off:%08X Size:%08X\n", shdr.sh_type, shdr.sh_offset, shdr.sh_name, shdr.sh_addr, shdr.sh_size );
-#endif
-						fseek( dol, shdr.sh_offset, 0 );
-						fread( (void*)(shdr.sh_addr | 0x80000000), sizeof( u8 ), shdr.sh_size, dol);
-					}
-				}
-
-				entrypoint = (void (*)())(ElfHdr.e_entry | 0x80000000);
-
-				//sleep(20);
-				//return;
-
-			} else {
-#ifdef DEBUG
-				gprintf("DOL Detected\n");
-#endif
-				//Load the dol!, TODO: maybe add sanity checks?
-				//read the header
-				dolhdr hdr;
-				fseek( dol, 0, 0);
-				fread( &hdr, sizeof( dolhdr ), 1, dol );
-
-				//printf("\nText Sections:\n");
-
-				int i=0;
-				for (i = 0; i < 6; i++)
-				{
-					if( hdr.sizeText[i] && hdr.addressText[i] && hdr.offsetText[i] )
-					{
-						DCInvalidateRange( (void*)(hdr.addressText[i]), hdr.sizeText[i] );
-
-						fseek( dol, hdr.offsetText[i], SEEK_SET );
-						fread( (void*)(hdr.addressText[i]), sizeof( char ), hdr.sizeText[i], dol );
-
-						//printf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr.offsetText[i]), hdr.addressText[i], hdr.sizeText[i]);
-					}
-				}
-
-				//printf("\nData Sections:\n");
-
-				// data sections
-				for (i = 0; i <= 10; i++)
-				{
-					if( hdr.sizeData[i] && hdr.addressData[i] && hdr.offsetData[i] )
-					{
-						fseek( dol, hdr.offsetData[i], SEEK_SET );
-						fread( (void*)(hdr.addressData[i]), sizeof( char ), hdr.sizeData[i], dol );
-
-						DCFlushRangeNoSync( (void*)(hdr.addressData[i]), hdr.sizeData[i] );
-						//printf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr.offsetData[i]), hdr.addressData[i], hdr.sizeData[i]);
-					}
-				}
-
-				memset ((void *) hdr.addressBSS, 0, hdr.sizeBSS);
-				DCFlushRange((void *) hdr.addressBSS, hdr.sizeBSS);
-				fclose( dol );
-				entrypoint = (void (*)())(hdr.entrypoint);
-			}
-			if( entrypoint == 0x00000000 )
-			{
-				gprintf("bogus entrypoint of %08X detected\n",(u32)(entrypoint));
-				error = ERROR_BOOT_DOL_ENTRYPOINT;
-				return;
-			}
-			gprintf("binary loaded, starting dol...\n");
-			for (int i = 0;i < WPAD_MAX_WIIMOTES ;i++)
-			{
-				WPAD_Flush(i);
-				WPAD_Disconnect(i);
-			}
-			WPAD_Shutdown();
-			ShutdownDevices();
-			gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
-			if(isIOSstub(IOS_GetPreferredVersion()))
-			{
-				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
-				sleep(3);
-			}
-			else
-			{
-				IOS_ReloadIOS(IOS_GetPreferredVersion());
-				ReloadedIOS = 1;
-			}
-			__IOS_ShutdownSubsystems();
-			u32 level;
-			SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
-			_CPU_ISR_Disable (level);
-			mtmsr(mfmsr() & ~0x8000);
-			mtmsr(mfmsr() | 0x2002);
-			entrypoint();
-			_CPU_ISR_Restore (level);
+			BootDolFromDir(filepath);
 			redraw=true;
 		}
 
@@ -2364,8 +2403,6 @@ void AutoBootDol( void )
 		if( r < 0 )
 		{
 			gprintf("ISFS_Read failed:%d\n", r);
-			//sleep(5);
-			//exit(0);
 			error = ERROR_BOOT_DOL_SEEK;
 			return;
 		}
@@ -2375,8 +2412,6 @@ void AutoBootDol( void )
 		if( r < 0 || r != sizeof(dolhdr) )
 		{
 			gprintf("ISFS_Read failed:%d\n", r);
-			//sleep(5);
-			//exit(0);
 			error = ERROR_BOOT_DOL_READ;
 			return;
 		}
@@ -2926,6 +2961,209 @@ s32 LoadListTitles( void )
 	}
 	return 0;
 }
+void CheckForUpdate()
+{
+	ClearScreen();
+	PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Initialising Wifi..."))*13/2))>>1, 208, "Initialising Wifi...");
+	if (InitNetwork() < 0 )
+	{
+		return;
+	}
+	u32 socket = 0;
+	UpdateStruct *UpdateFile = (UpdateStruct*)memalign( 32, sizeof(UpdateStruct));
+	if (UpdateFile == NULL)
+	{
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to mem align memory for update"))*13/2))>>1, 224, "failed to mem align memory for update");
+		sleep(5);
+		free_pointer(UpdateFile);
+		return;
+	}
+	memset(UpdateFile,0,sizeof(UpdateStruct));
+	socket = ConnectSocket("www.nyleveia.com");
+	if (socket < 0)
+	{
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to connect to update server"))*13/2))>>1, 224, "failed to connect to update server");
+		gprintf("failed to connect to update server. error %d\n",socket);
+		sleep(5);
+		free_pointer(UpdateFile);
+		return;
+	}
+	s32 file_size = GetHTTPFile(socket,"www.nyleveia.com","/daco/version.dat",(u8*&)UpdateFile);
+	if ( file_size <= 0 || file_size != (s32)sizeof(UpdateStruct))
+	{
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("error getting file from server"))*13/2))>>1, 224, "error getting file from server");
+		if (file_size != (s32)sizeof(UpdateStruct))
+		{
+			gprintf("received file isn't the right size!\n");
+		}
+		sleep(5);
+		free_pointer(UpdateFile);
+		return;
+	}
+	if (
+		( 
+		 SGetSetting(SETTING_SHOWBETAUPDATES) && 
+		 (BETAVERSION < UpdateFile->beta_number) && 
+		 ( (VERSION) +1 == UpdateFile->beta_version || ( VERSION == UpdateFile->beta_version && BETAVERSION > 0 ) ) )
+		|| VERSION < UpdateFile->version )
+	{
+		s32 file_size = 0;
+		u8* Data = NULL;
+		u8 DownloadedBeta = 0;
+		socket = ConnectSocket("www.nyleveia.com");
+		ClearScreen();
+		if ( VERSION < UpdateFile->version || (VERSION == UpdateFile->version && BETAVERSION > 0) )
+		{
+			gprintf("Downloading update...\n");
+			PrintFormat( 1, ((640/2)-((strlen("downloading   .  ..."))*13/2))>>1, 208, "downloading %d.%d ...",UpdateFile->version >> 8,UpdateFile->version&0xFF);
+			file_size = GetHTTPFile(socket,"www.nyleveia.com","/daco/Priiloader_Update.dol",Data);
+		}
+		//to make the if short :
+		// - beta updates should be enabled
+		// - the current betaversion should be less then the online beta
+		// - the current version +1 should == the beta OR the version == the beta IF a beta is installed
+		else if ( 
+			SGetSetting(SETTING_SHOWBETAUPDATES) && 
+			(BETAVERSION < UpdateFile->beta_number) && 
+			( (VERSION) +1 == UpdateFile->beta_version || ( VERSION == UpdateFile->beta_version && BETAVERSION > 0 ) ) 
+			)
+		{
+			gprintf("downloading beta...\n");
+			PrintFormat( 1, ((640/2)-((strlen("downloading   .   beta   ..."))*13/2))>>1, 208, "downloading %d.%d beta %d...",UpdateFile->beta_version >> 8,UpdateFile->beta_version&0xFF, UpdateFile->beta_number);
+			file_size = GetHTTPFile(socket,"www.nyleveia.com","/daco/Priiloader_Beta.dol",Data);
+			DownloadedBeta = 1;
+		}
+		if ( file_size <= 0 )
+		{
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("error getting file from server"))*13/2))>>1, 224, "error getting file from server");
+			sleep(2);
+			free_pointer(UpdateFile);
+			return;
+		}
+		else
+		{
+			SHA1* sha1 = new SHA1();
+			sha1->addBytes( (const char*)Data, file_size );
+
+			u32 FileHash[5];
+			gprintf("Downloaded update  ");
+			sha1->getDigest(FileHash,NULL);
+			sha1->hexPrinter_array(FileHash);
+			gprintf("Online ");
+			if (!DownloadedBeta)
+				sha1->hexPrinter_array(UpdateFile->SHA1_Hash);
+			else
+				sha1->hexPrinter_array(UpdateFile->beta_SHA1_Hash);
+			delete sha1;
+
+			if (
+				( !DownloadedBeta && (
+				UpdateFile->SHA1_Hash[0] != FileHash[0] ||
+				UpdateFile->SHA1_Hash[1] != FileHash[1] ||
+				UpdateFile->SHA1_Hash[2] != FileHash[2] ||
+				UpdateFile->SHA1_Hash[3] != FileHash[3] ||
+				UpdateFile->SHA1_Hash[4] != FileHash[4] ) ) ||
+
+				( DownloadedBeta && (
+				UpdateFile->beta_SHA1_Hash[0] != FileHash[0] ||
+				UpdateFile->beta_SHA1_Hash[1] != FileHash[1] ||
+				UpdateFile->beta_SHA1_Hash[2] != FileHash[2] ||
+				UpdateFile->beta_SHA1_Hash[3] != FileHash[3] ||
+				UpdateFile->beta_SHA1_Hash[4] != FileHash[4] ) ) )
+			{
+				gprintf("hash isn't the same!  fffffffffffuuuuuuuuuuuuuuu\n");
+				PrintFormat( 1, ((640/2)-((strlen("Error Downloading Update"))*13/2))>>1, 224, "Error Downloading Update");
+				sleep(5);
+				free_pointer(UpdateFile);
+				free_pointer(Data);
+				return;
+			}
+			else
+			{
+				gprintf("Hash check complete. saving&booting file...\n");
+			}
+			if (!RemountDevices())
+			{
+				PrintFormat( 1, ((640/2)-((strlen("Error : Could not mount any FAT device"))*13/2))>>1, 224, "Error : Could not mount any FAT device");
+				gprintf("failed to mount FAT device\n");
+				sleep(5);
+				free_pointer(UpdateFile);
+				free_pointer(Data);
+				return;
+			}
+			mkdir("fat:/apps",0777);
+			mkdir("fat:/apps/Priiloader_Update",0777);
+			FILE* Output = fopen("fat:/apps/Priiloader_Update/boot.dol","wb");
+			if(Output == NULL)
+			{
+				PrintFormat( 1, ((640/2)-((strlen("Error : Could not save to FAT"))*13/2))>>1, 224, "Error : Could not save to FAT");
+				gprintf("failed to create file on SD\n");
+				sleep(5);
+				free_pointer(UpdateFile);
+				free_pointer(Data);
+				return;
+			}
+			gprintf( "Saving: %c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c\r",
+		176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176 );
+			if( file_size > 512)
+			{
+				s32 rsize = 0;
+				int bytesleft = file_size;
+				while (bytesleft > 0) 
+				{
+					int chunk = MIN(bytesleft, 512);
+					int ret = fwrite(Data+rsize, 1, chunk, Output);
+					if (ret != chunk)
+					{
+						//error!!!
+						gprintf("\nan error accured while writing the file. ret = %d, %d\n",ret,rsize);
+						PrintFormat( 1, ((640/2)-((strlen("Error Booting Update dol"))*13/2))>>1, 224, "Error Booting Update dol");
+						fclose(Output);
+						sleep(5);
+						free_pointer(UpdateFile);
+						free_pointer(Data);
+						return;
+					}
+					rsize += chunk;
+					bytesleft -= chunk;
+					int Sdone = (rsize *20 )/ file_size;
+					gprintf("Saving: ");
+					while( Sdone )
+					{
+						gprintf( "%c", 178 );
+						Sdone--;
+					}
+					gprintf( "\r" );
+				}
+				gprintf("\n");
+				fclose(Output);
+			}
+			else
+			{
+				fwrite(Data,1,file_size,Output);
+				fclose(Output);
+			}
+			free_pointer(Data);
+			//load the fresh installer
+			if ( BootDolFromDir("fat:/apps/Priiloader_Update/boot.dol") != -3 )
+			{
+				remove("fat:/apps/Priiloader_Update/boot.dol");
+				remove("fat:/apps/Priiloader_Update");
+			}
+			PrintFormat( 1, ((640/2)-((strlen("Error Booting Update dol"))*13/2))>>1, 224, "Error Booting Update dol");
+			sleep(5);
+		}
+	}
+	else
+	{
+		PrintFormat( 1, ((640/2)-((strlen("No update available"))*13/2))>>1, 224, "No update available");
+		sleep(2);
+	}
+	if(socket)
+		net_close(socket);
+	free_pointer(UpdateFile);
+	return;
+}
 void HandleSTMEvent(u32 event)
 {
 	f64 ontime;
@@ -3016,7 +3254,7 @@ int main(int argc, char **argv)
 #endif
 	gprintf("priiloader\n");
 	gprintf("Built   : %s %s\n", __DATE__, __TIME__ );
-	gprintf("Version : %d.%dc (rev %s)\n", VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
+	gprintf("Version : %d.%dd (rev %s)\n", VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
 	gprintf("Firmware: %d.%d.%d\n", *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143 );
 
 	*(vu32*)0x80000020 = 0x0D15EA5E;				// Magic word (how did the console boot?)
@@ -3086,9 +3324,16 @@ int main(int argc, char **argv)
 				{
 					gprintf("Shutting down...\n");
 					*(vu32*)0xCD8000C0 &= ~0x20;
+					Control_VI_Regs(0);
 					DVDStopDisc();
         			WPAD_Shutdown();
 					ShutdownDevices();
+					//butt ugly hack around the problem but i can't think of another way to fix it...
+					//TODO : make it less hacky by fixing the __io_usbstorage.shutdown()
+					if ( (usb_inited == true) && ( __usbfd.usb_fd > 0 ) )
+					{
+						USBStorage_Close(&__usbfd);
+					}
 					ClearState();
 					if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
 					{
@@ -3267,6 +3512,9 @@ int main(int argc, char **argv)
 				case 8:
 					SetSettings();
 				break;
+				case 9:
+					CheckForUpdate();
+				break;
 				default:
 				break;
 
@@ -3282,11 +3530,11 @@ int main(int argc, char **argv)
 
 			if( error == ERROR_UPDATE )
 			{
-				if( cur_off >= 10 )
+				if( cur_off >= 11 )
 					cur_off = 0;
 			}else {
 
-				if( cur_off >= 9 )
+				if( cur_off >= 10 )
 					cur_off = 0;
 			}
 
@@ -3299,9 +3547,9 @@ int main(int argc, char **argv)
 			{
 				if( error == ERROR_UPDATE )
 				{
-					cur_off=10-1;
+					cur_off=11-1;
 				} else {
-					cur_off=9-1;
+					cur_off=10-1;
 				}
 			}
 
@@ -3336,6 +3584,7 @@ int main(int argc, char **argv)
 			PrintFormat( cur_off==6, ((rmode->viWidth /2)-((strlen("System Menu Hacks"))*13/2))>>1, 176, "System Menu Hacks");
 			PrintFormat( cur_off==7, ((rmode->viWidth /2)-((strlen("Set Password"))*13/2))>>1, 192, "Set Password");
 			PrintFormat( cur_off==8, ((rmode->viWidth /2)-((strlen("Settings"))*13/2))>>1, 208, "Settings");
+			PrintFormat( cur_off==9, ((rmode->viWidth /2)-((strlen("Check For Update"))*13/2))>>1,224,"Check For Update");
 
 			if (error > 0)
 			{
@@ -3348,11 +3597,12 @@ int main(int argc, char **argv)
 		if( Shutdown )
 		{
 			*(vu32*)0xCD8000C0 &= ~0x20;
-			//when we are in preloader itself we should make the video black before the user thinks its not shutting down...
+			//when we are in preloader itself we should make the video black or de-init it before the user thinks its not shutting down...
 			//TODO : fade to black if possible without a gfx lib?
 			//STM_SetVIForceDimming ?
 			ClearState();
 			VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
+			Control_VI_Regs(0);
 			DVDStopDisc();
 			WPAD_Shutdown();
 			ShutdownDevices();
@@ -3365,7 +3615,7 @@ int main(int argc, char **argv)
 			{
 				if( CONF_GetShutdownMode() == CONF_SHUTDOWN_STANDBY )
 				{
-					//standby = red = off							
+					//standby = red = off
 					STM_ShutdownToStandby();
 				}
 				else

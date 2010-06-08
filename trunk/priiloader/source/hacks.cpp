@@ -98,7 +98,7 @@ char *GetLine( char *astr, unsigned int len )
 	foff+=llen+1;
 	return lbuf;
 }
-u32 LoadHacks( void )
+u32 LoadHacks( bool Force_Load_Nand )
 {
 	if( hacks.size() ) //Hacks already loaded
 	{
@@ -116,11 +116,15 @@ u32 LoadHacks( void )
 	char *buf=NULL;
 	fstats *status = NULL;
 	unsigned int size=0;
+	FILE* in = NULL;
+	if(!Force_Load_Nand)
+	{
 #ifndef libELM
-	FILE* in = fopen ("fat:/hacks.ini","rb");
+		in = fopen ("fat:/hacks.ini","rb");
 #else
-	FILE* in = fopen ("elm:/sd/hacks.ini","rb");
+		in = fopen ("elm:/sd/hacks.ini","rb");
 #endif
+	}
 	if( !in )
 	{
 		fd = ISFS_Open("/title/00000001/00000002/data/hacks.ini", 1 );

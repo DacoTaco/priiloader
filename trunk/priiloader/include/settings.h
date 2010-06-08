@@ -21,10 +21,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 
-#define VERSION		04
+#define VERSION		05
 //#define BETAVERSION	0x00000003
 #ifndef BETAVERSION
-#define BETAVERSION	0
+#define BETAVERSION	01
 #endif	
 #include "Global.h"
 
@@ -43,6 +43,7 @@ typedef struct {
 	u8 ShowGeckoText;
 	u8 PasscheckPriiloader;
 	u8 PasscheckMenu;
+	u32 ShowBetaUpdates;
 } Settings;
 enum {
 		SETTING_AUTBOOT,
@@ -59,6 +60,7 @@ enum {
 		SETTING_SHOWGECKOTEXT,
 		SETTING_PASSCHECKPRII,
 		SETTING_PASSCHECKMENU,
+		SETTING_SHOWBETAUPDATES
 };
 
 enum {

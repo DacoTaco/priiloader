@@ -21,7 +21,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 //global functions,defines & variables for priiloader
 #include "Global.h"
-#include "gecko.h"
 GXRModeObj *rmode = NULL;
 void *xfb = NULL;
 
@@ -266,13 +265,15 @@ void InitVideo ( void )
 		VIDEO_WaitVSync();
 	gprintf("resolution is %dx%d\n",rmode->viWidth,rmode->viHeight);
 }
-
-s8 free_null_pointer(void **ptr) 
+//the following doesn't work cause almost no compilers supports export ;_;
+/*export template <class pointer>
+s8 free_null_pointer(pointer*& ptr)*/
+s8 free_null_pointer(void*& ptr)
 {
-	if(*ptr != NULL)
+	if(ptr != NULL)
 	{
-		free(*ptr); 
-		*ptr = NULL;
+		free(ptr); 
+		ptr = NULL;
 		return 0;
 	}
 	else
@@ -284,6 +285,7 @@ s8 free_null_pointer(void **ptr)
 void Control_VI_Regs ( u8 mode )
 {
 	vu16* const _viReg = (u16*)0xCC002000;
+	u32 cnt = 0;
 	switch(mode)
 	{
 		case 0:
@@ -295,13 +297,48 @@ void Control_VI_Regs ( u8 mode )
 				while(cnt<1000) cnt++;
 				_viReg[1] = 0x00;
 			}
+			break;
 		case 1:
 			//init VI Registers for anything needing them...like SI
 			if(!(_viReg[1]&0x0001))
 				___VIInit();
+			while(cnt<1000) cnt++;
+			break;
+		case 2:
+			if((_viReg[1]&0x0001))
+			{
+				//reset VI
+				_viReg[1] = 0x02;
+				while(cnt<1000) cnt++;
+			}
 			break;
 		default:
 			break;
 
 	}
+}
+
+s8 InitNetwork()
+{
+	s32 result;
+	gprintf("Waiting for network to initialise...\n");
+    while ((result = net_init()) == -EAGAIN);
+    if (result >= 0) 
+	{
+        char myIP[16];
+		if (if_config(myIP, NULL, NULL, true) < 0) 
+		{
+			gprintf("Error reading IP address\n");
+			sleep(5);
+			return -1;
+		}
+        gprintf("Wii 's IP Address is %s\n",myIP);
+		return 1;
+    } 
+	else 
+	{
+		gprintf("Unable to initialise network, no router in range or no DHCP timed out\n");
+		sleep(5);
+		return -2;
+    }
 }

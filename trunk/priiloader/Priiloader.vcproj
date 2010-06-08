@@ -67,6 +67,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\source\HTTP_Parser.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\source\main.cpp"
 				>
 			</File>
@@ -76,6 +80,10 @@
 			</File>
 			<File
 				RelativePath=".\source\settings.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\source\sha1.cpp"
 				>
 			</File>
 			<File
@@ -121,6 +129,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\include\HTTP_Parser.h"
+				>
+			</File>
+			<File
 				RelativePath=".\include\password.h"
 				>
 			</File>
@@ -130,6 +142,10 @@
 			</File>
 			<File
 				RelativePath=".\include\settings.h"
+				>
+			</File>
+			<File
+				RelativePath=".\include\sha1.h"
 				>
 			</File>
 			<File
