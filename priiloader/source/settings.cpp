@@ -144,6 +144,8 @@ u32 SGetSetting( u32 s )
 			return settings->PasscheckPriiloader;
 		case SETTING_PASSCHECKMENU:
 			return settings->PasscheckMenu;
+		case SETTING_SHOWBETAUPDATES:
+			return settings->ShowBetaUpdates;
 		default:
 			return 0;
 		break;
@@ -167,6 +169,7 @@ void LoadSettings( void )
 		settings->version = VERSION;
 		settings->UseSystemMenuIOS = true;
 		settings->autoboot = AUTOBOOT_SYS;
+		settings->ShowBetaUpdates = false;
 		fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", 1|2 );
 		if( fd < 0 )
 		{

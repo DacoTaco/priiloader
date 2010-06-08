@@ -28,4 +28,4 @@ struct hack {
 };
 #include "Global.h"
 
-u32 LoadHacks( void );
+u32 LoadHacks( bool Force_Load_Nand );
