@@ -182,6 +182,12 @@ void LoadHBCStub ( void )
 	gprintf("HBC stub : Loaded\n");
 	return;	
 }
+void UnloadHBCStub( void )
+{
+	//some apps apparently dislike it if the stub stays in memory but for some reason isn't active :/
+	memset((void*)0x80001800, 0, stub_bin_size);
+	DCFlushRange((void*)0x80001800,stub_bin_size);	
+}
 bool MountDevices(void)
 {
 #ifndef libELM
@@ -1249,6 +1255,36 @@ void LoadBootMii( void )
 	WPAD_Init();
 	return;
 }
+void DVDStopDisc( bool do_async )
+{
+	s32 di_fd = IOS_Open("/dev/di",0);
+	if(di_fd)
+	{
+		u8 *inbuf = (u8*)memalign( 32, 0x20 );
+		u8 *outbuf = (u8*)memalign( 32, 0x20 );
+
+		memset(inbuf, 0, 0x20 );
+		memset(outbuf, 0, 0x20 );
+
+		((u32*)inbuf)[0x00] = 0xE3000000;
+		((u32*)inbuf)[0x01] = 0;
+		((u32*)inbuf)[0x02] = 0;
+
+		DCFlushRange(inbuf, 0x20);
+		//why crediar used an async is beyond me but i looks wrong -for a shutdown-... :/
+		if(!do_async)
+			IOS_Ioctl( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20);
+		else
+		{
+			IOS_IoctlAsync( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20, NULL, NULL);
+		}
+
+		free_pointer( outbuf );
+		free_pointer( inbuf );
+	}
+	else
+		gprintf("failed to get DI interface from IOS for DI shutdown\n");
+}
 s8 BootDolFromDir( const char* Dir )
 {
 	if (!RemountDevices())
@@ -1404,6 +1440,7 @@ s8 BootDolFromDir( const char* Dir )
 		error = ERROR_BOOT_DOL_ENTRYPOINT;
 		return -2;
 	}
+	DVDStopDisc(true);
 	gprintf("binary loaded, starting dol...\n");
 	for (int i = 0;i < WPAD_MAX_WIIMOTES ;i++)
 	{
@@ -2499,6 +2536,7 @@ void AutoBootDol( void )
 		error = ERROR_BOOT_DOL_ENTRYPOINT;
 		return;
 	}
+	DVDStopDisc(true);
 	for(int i=0;i<WPAD_MAX_WIIMOTES;i++) {
 		WPAD_Flush(i);
 		WPAD_Disconnect(i);
@@ -2897,6 +2935,7 @@ s32 LoadListTitles( void )
 		}
 		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 		{
+			DVDStopDisc(true);
 			ClearScreen();
 			//lets start this bitch
 			u32 cnt ATTRIBUTE_ALIGN(32) = 0;
@@ -3011,6 +3050,14 @@ void CheckForUpdate()
 		u8* Data = NULL;
 		u8 DownloadedBeta = 0;
 		socket = ConnectSocket("www.nyleveia.com");
+		if (socket < 0)
+		{
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to connect to update server"))*13/2))>>1, 224, "failed to connect to update server");
+			gprintf("failed to connect to update server to download update. error %d\n",socket);
+			sleep(5);
+			free_pointer(UpdateFile);
+			return;
+		}
 		ClearScreen();
 		if ( VERSION < UpdateFile->version || (VERSION == UpdateFile->version && BETAVERSION > 0) )
 		{
@@ -3187,33 +3234,6 @@ void HandleSTMEvent(u32 event)
 			break;
 	}
 }
-void DVDStopDisc( void )
-{
-	s32 di_fd = IOS_Open("/dev/di",0);
-	if(di_fd)
-	{
-		u8 *inbuf = (u8*)memalign( 32, 0x20 );
-		u8 *outbuf = (u8*)memalign( 32, 0x20 );
-
-		memset(inbuf, 0, 0x20 );
-		memset(outbuf, 0, 0x20 );
-
-		((u32*)inbuf)[0x00] = 0xE3000000;
-		((u32*)inbuf)[0x01] = 0;
-		((u32*)inbuf)[0x02] = 0;
-
-		DCFlushRange(inbuf, 0x20);
-		//why crediar used an async is beyond me but i looks wrong... :/
-		//IOS_IoctlAsync( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20, NULL, NULL);
-		//IOS_Close(di_fd);
-		IOS_Ioctl( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20);
-
-		free_pointer( outbuf );
-		free_pointer( inbuf );
-	}
-	else
-		gprintf("failed to get DI interface from IOS for DI shutdown\n");
-}
 void Autoboot_System( void )
 {
   	if( SGetSetting(SETTING_PASSCHECKMENU) && SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED && SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_ERROR )
@@ -3325,7 +3345,7 @@ int main(int argc, char **argv)
 					gprintf("Shutting down...\n");
 					*(vu32*)0xCD8000C0 &= ~0x20;
 					Control_VI_Regs(0);
-					DVDStopDisc();
+					DVDStopDisc(false);
         			WPAD_Shutdown();
 					ShutdownDevices();
 					//butt ugly hack around the problem but i can't think of another way to fix it...
@@ -3444,7 +3464,7 @@ int main(int argc, char **argv)
 
 	if( SGetSetting(SETTING_STOPDISC) )
 	{
-		DVDStopDisc();
+		DVDStopDisc(false);
 	}
 	time(&startloop);
 	while(1)
@@ -3482,41 +3502,39 @@ int main(int argc, char **argv)
 					BootMainSysMenu(1);
 					if(!error)
 						error=ERROR_SYSMENU_GENERAL;
-				break;
+					break;
 				case 1:		//Load HBC
-				{
 					LoadHBC();
-				} break;
+					break;
 				case 2: //Load Bootmii
 				{
 					LoadBootMii();
 					//well that failed...
 					error=ERROR_BOOT_BOOTMII;
 					break;
-				}
 				case 3: // show titles list
 					LoadListTitles();
-				break;
+					break;
 				case 4:		//load main.bin from /title/00000001/00000002/data/ dir
 					AutoBootDol();
-				break;
+					break;
 				case 5:
 					InstallLoadDOL();
-				break;
+					break;
 				case 6:
 					SysHackSettings();
-				break;
+					break;
 				case 7:
 					InstallPassword();
-				break;
+					break;
 				case 8:
-					SetSettings();
-				break;
-				case 9:
 					CheckForUpdate();
-				break;
+					break;
+				case 9:
+					SetSettings();
+					break;
 				default:
-				break;
+					break;
 
 			}
 
@@ -3583,8 +3601,8 @@ int main(int argc, char **argv)
 			PrintFormat( cur_off==5, ((rmode->viWidth /2)-((strlen("Load/Install File"))*13/2))>>1, 160, "Load/Install File");
 			PrintFormat( cur_off==6, ((rmode->viWidth /2)-((strlen("System Menu Hacks"))*13/2))>>1, 176, "System Menu Hacks");
 			PrintFormat( cur_off==7, ((rmode->viWidth /2)-((strlen("Set Password"))*13/2))>>1, 192, "Set Password");
-			PrintFormat( cur_off==8, ((rmode->viWidth /2)-((strlen("Settings"))*13/2))>>1, 208, "Settings");
-			PrintFormat( cur_off==9, ((rmode->viWidth /2)-((strlen("Check For Update"))*13/2))>>1,224,"Check For Update");
+			PrintFormat( cur_off==8, ((rmode->viWidth /2)-((strlen("Check For Update"))*13/2))>>1,224,"Check For Update");
+			PrintFormat( cur_off==9, ((rmode->viWidth /2)-((strlen("Settings"))*13/2))>>1, 208, "Settings");
 
 			if (error > 0)
 			{
@@ -3603,7 +3621,7 @@ int main(int argc, char **argv)
 			ClearState();
 			VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
 			Control_VI_Regs(0);
-			DVDStopDisc();
+			DVDStopDisc(false);
 			WPAD_Shutdown();
 			ShutdownDevices();
 			ClearState();
