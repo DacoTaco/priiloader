@@ -3507,7 +3507,6 @@ int main(int argc, char **argv)
 					LoadHBC();
 					break;
 				case 2: //Load Bootmii
-				{
 					LoadBootMii();
 					//well that failed...
 					error=ERROR_BOOT_BOOTMII;
@@ -3525,10 +3524,10 @@ int main(int argc, char **argv)
 					SysHackSettings();
 					break;
 				case 7:
-					InstallPassword();
+					CheckForUpdate();
 					break;
 				case 8:
-					CheckForUpdate();
+					InstallPassword();
 					break;
 				case 9:
 					SetSettings();
@@ -3589,9 +3588,6 @@ int main(int argc, char **argv)
 			PrintFormat( 0, 16, rmode->viHeight-48, "Systemmenu v%d", SysVersion );			
 			PrintFormat( 0, 16, rmode->viHeight-20, "Priiloader is a mod of Preloader 0.30");
 #endif
-			// ((rmode->viWidth /2)-(strlen("Systemmenu")*13/2))>>1
-			
-			//PrintFormat( 0, 16, 64, "Pos:%d", ((rmode->viWidth /2)-(strlen("Update")*13/2))>>1);
 
 			PrintFormat( cur_off==0, ((rmode->viWidth /2)-((strlen("System Menu"))*13/2))>>1, 64, "System Menu");
 			PrintFormat( cur_off==1, ((rmode->viWidth /2)-((strlen("Homebrew Channel"))*13/2))>>1, 80, "Homebrew Channel");
@@ -3600,9 +3596,9 @@ int main(int argc, char **argv)
 			PrintFormat( cur_off==4, ((rmode->viWidth /2)-((strlen("Installed File"))*13/2))>>1, 144, "Installed File");
 			PrintFormat( cur_off==5, ((rmode->viWidth /2)-((strlen("Load/Install File"))*13/2))>>1, 160, "Load/Install File");
 			PrintFormat( cur_off==6, ((rmode->viWidth /2)-((strlen("System Menu Hacks"))*13/2))>>1, 176, "System Menu Hacks");
-			PrintFormat( cur_off==7, ((rmode->viWidth /2)-((strlen("Set Password"))*13/2))>>1, 192, "Set Password");
-			PrintFormat( cur_off==8, ((rmode->viWidth /2)-((strlen("Check For Update"))*13/2))>>1,224,"Check For Update");
-			PrintFormat( cur_off==9, ((rmode->viWidth /2)-((strlen("Settings"))*13/2))>>1, 208, "Settings");
+			PrintFormat( cur_off==7, ((rmode->viWidth /2)-((strlen("Check For Update"))*13/2))>>1,192,"Check For Update");
+			PrintFormat( cur_off==8, ((rmode->viWidth /2)-((strlen("Set Password"))*13/2))>>1, 208, "Set Password");
+			PrintFormat( cur_off==9, ((rmode->viWidth /2)-((strlen("Settings"))*13/2))>>1, 224, "Settings");
 
 			if (error > 0)
 			{
