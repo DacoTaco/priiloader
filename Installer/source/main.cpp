@@ -50,6 +50,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 static GXRModeObj *vmode = NULL;
 static void *xfb = NULL;
 bool GeckoFound = false;
+char * original_app = NULL;
+char * copy_app = NULL;
 //a must have in every app
 s32 __IOS_LoadStartupIOS()
 {
@@ -334,7 +336,425 @@ bool UserYesNoStop()
 	//it should never get here, but to kill that silly warning... :)
 	return false;
 }
+u8 Delete_Priiloader_Files( u8 mode )
+{
+	bool settings = false;
+	bool hacks = false;
+	bool password = false;
+	bool main_bin = false;
+	bool ticket = false;
+	// 0 mode means install, 1 means update 2 means remove
+	switch(mode)
+	{
+		case 2:
+			hacks = true;
+			main_bin = true;
+			ticket = true;
+		case 1:
+			settings = true;
+			password = true;
+		default:
+		case 0:
+			break;
+	}
+	s32 ret = 0;
+	if(password)
+	{
+		ret = ISFS_Delete("/title/00000001/00000002/data/password.txt");
+		gprintf("password.txt : %d\n",ret);
+		printf("password file : ");
+		if(ret == -106)
+		{
+			printf("\x1b[%u;%dm", 32, 1);
+			printf("Not found\n");
+			printf("\x1b[%u;%dm", 37, 1);
+		}
+		else if (ret < 0)
+		{
+			printf("\x1b[%u;%dm", 33, 1);
+			printf("Error deleting file. error %d\n",ret);
+			printf("\x1b[%u;%dm", 37, 1);
+		}
+		else
+		{
+			printf("\x1b[%u;%dm", 32, 1);
+			printf("Deleted\n");
+			printf("\x1b[%u;%dm", 37, 1);
+		}
+	}
+	if(settings)
+	{
+		ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
+		gprintf("loader.ini : %d\n",ret);
+		printf("Settings file : ");
+		if(ret == -106)
+		{
+			printf("\x1b[%u;%dm", 32, 1);
+			printf("Not found\n");
+			printf("\x1b[%u;%dm", 37, 1);
+		}
+		else if (ret < 0)
+		{
+			printf("\x1b[%u;%dm", 33, 1);
+			printf("Error deleting file. error %d\n",ret);
+			printf("\x1b[%u;%dm", 37, 1);
+		}
+		else
+		{
+			printf("\x1b[%u;%dm", 32, 1);
+			printf("Deleted\n");
+			printf("\x1b[%u;%dm", 37, 1);
+		}
+	}
+	//its best we delete that ticket but its completely useless and will only get in our 
+	//way when installing again later...
+	if(ticket)
+	{
+		ret = ISFS_Delete("/title/00000001/00000002/content/ticket");
+		gprintf("ticket : %d\n",ret);
+		printf("Ticket : ");
+		if(ret == -106)
+		{
+			printf("\x1b[%u;%dm", 32, 1);
+			printf("Not found\n");
+			printf("\x1b[%u;%dm", 37, 1);
+		}
+		else if (ret < 0)
+		{
+			printf("\x1b[%u;%dm", 33, 1);
+			printf("Error deleting file. error %d\n",ret);
+			printf("\x1b[%u;%dm", 37, 1);
+		}
+		else
+		{
+			printf("\x1b[%u;%dm", 32, 1);
+			printf("Deleted\n");
+			printf("\x1b[%u;%dm", 37, 1);
+		}
+	}
+	if(hacks)
+	{
+		ret = ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini");
+		gprintf("hacks_s.ini : %d\n",ret);
+		printf("Hacks_s.ini : ");
+		if(ret == -106)
+		{
+			printf("\x1b[%u;%dm", 32, 1);
+			printf("Not found\n");
+			printf("\x1b[%u;%dm", 37, 1);
+		}
+		else if (ret < 0)
+		{
+			printf("\x1b[%u;%dm", 33, 1);
+			printf("Error deleting file. error %d\n",ret);
+			printf("\x1b[%u;%dm", 37, 1);
+		}
+		else
+		{
+			printf("\x1b[%u;%dm", 32, 1);
+			printf("Deleted\n");
+			printf("\x1b[%u;%dm", 37, 1);
+		}
+		ret = ISFS_Delete("/title/00000001/00000002/data/hacks.ini");
+		gprintf("hacks.ini : %d\n",ret);
+		printf("Hacks.ini : ");
+		if(ret == -106)
+		{
+			printf("\x1b[%u;%dm", 32, 1);
+			printf("Not found\n");
+			printf("\x1b[%u;%dm", 37, 1);
+		}
+		else if (ret < 0)
+		{
+			printf("\x1b[%u;%dm", 33, 1);
+			printf("Error deleting file. error %d\n",ret);
+			printf("\x1b[%u;%dm", 37, 1);
+		}
+		else
+		{
+			printf("\x1b[%u;%dm", 32, 1);
+			printf("Deleted\n");
+			printf("\x1b[%u;%dm", 37, 1);
+		}
+	}
+	if(main_bin)
+	{
+		ret = ISFS_Delete("/title/00000001/00000002/data/main.bin");
+		gprintf("main.bin : %d\n",ret);
+		printf("main.bin : ");
+		if(ret == -106)
+		{
+			printf("\x1b[%u;%dm", 32, 1);
+			printf("Not found\n");
+			printf("\x1b[%u;%dm", 37, 1);
+		}
+		else if (ret < 0)
+		{
+			printf("\x1b[%u;%dm", 33, 1);
+			printf("Error deleting file. error %d\n",ret);
+			printf("\x1b[%u;%dm", 37, 1);
+		}
+		else
+		{
+			printf("\x1b[%u;%dm", 32, 1);
+			printf("Deleted\n");
+			printf("\x1b[%u;%dm", 37, 1);
+		}
+	}
+	return 1;
+}
+s8 CopyTicket ( void )
+{
+	s32 fd = 0;
+	gprintf("Checking for copy ticket...\n");
+	fd = ISFS_Open("/title/00000001/00000002/content/ticket",ISFS_OPEN_READ);
+	if (fd <0)
+	{
+		printf("Priiloader system menu ticket not found.\n\tTrying to read original ticket...\n");
+		ISFS_Close(fd);
+		fd = ISFS_Open("/ticket/00000001/00000002.tik",ISFS_OPEN_READ);
+		//"/ticket/00000001/00000002.tik" -> original path which should be there on every wii.
+		//however needs nand permissions which trucha gives >_>
+		if (fd < 0)
+		{
+			switch(fd)
+			{
+				case ISFS_EINVAL:
+					abort("Unable to read ticket.path is wrong/too long or ISFS isn't init yet?");
+					break;
+				case ISFS_ENOMEM:
+					abort("Unable to read ticket.(Out of memory)");
+					break;
+				case -106:
+					abort("Ticket not found");
+					break;
+				case -102:
+					abort("Unauthorised to get ticket. is ios%d trucha signed?",IOS_GetVersion());
+					break;
+				default:
+					abort("Unable to read ticket. error %d. ",fd);
+					break;
+			}
 
+		}
+		else
+		{
+			ISFS_Close(fd);
+			printf("Copying system menu ticket...");
+			char original_tik[256];
+			char copy_tik[256];
+			sprintf(original_tik, "/ticket/00000001/00000002.tik");
+			sprintf(copy_tik, "/title/00000001/00000002/content/ticket");
+			if (nand_copy(original_tik,copy_tik) < 0)
+			{
+				abort("Unable to copy the system menu ticket");
+			}
+			printf("Done!\n");
+		}
+	}
+	else
+	{
+		printf("Skipping copy of system menu ticket...\n");
+		ISFS_Close(fd);
+	}
+	return 1;
+}
+s8 Copy_SysMenu( void )
+{
+	s32 ret = 0;
+	s32 fd = 0;
+	fstats* status = NULL;
+	//system menu coping
+	printf("Moving System Menu app...");
+	ret = nand_copy(original_app,copy_app);
+	if (ret < 0)
+	{
+		if (ret == -80)
+		{
+			//checksum issues
+			printf("\x1b[%u;%dm", 33, 1);
+			printf("\nWARNING!!\n  Installer could not calculate the Checksum for the System menu app");
+			printf("\nbut Copy was successfull.\n");
+			printf("Do you want the Continue ?\n");
+			printf("A = Yes       B = No       Home/Start = Exit\n  ");
+			printf("\x1b[%u;%dm", 37, 1);
+			if(!UserYesNoStop())
+			{
+				printf("reverting changes...\n");
+				ISFS_Delete(copy_app);
+				abort("System Menu Copying Failure");
+			}		
+			else
+				printf("\nDone!\n");
+		}
+		else
+			abort("\nUnable to move the system menu");
+	}
+	else
+	{
+		gprintf("Moving System Menu Done\n");
+		printf("Done!\n");
+	}
+	return 1;
+}
+s8 WritePriiloader( void )
+{
+	s32 ret = 0;
+	s32 fd = 0;
+	fstats* status = NULL;
+
+	printf("Writing Priiloader app...");
+	gprintf("Writing Priiloader\n");
+
+	ISFS_Delete(original_app);
+	ISFS_CreateFile(original_app,0,ISFS_OPEN_RW,ISFS_OPEN_RW,ISFS_OPEN_RW);
+	fd = ISFS_Open(original_app,ISFS_OPEN_RW);
+	if (fd < 0)
+	{
+		nand_copy(copy_app,original_app);
+		abort("\nFailed to open file for Priiloader writing.");
+	}
+	ret = ISFS_Write(fd,priiloader_app,priiloader_app_size);
+	if (ret < 0 ) //check if the app was writen correctly				
+	{
+		ISFS_Close(fd);
+		nand_copy(copy_app,original_app);
+		gprintf("Write failed. ret %d\n",ret);
+		abort("\nWrite of Priiloader app failed.");
+	}
+	printf("Done!!\n");
+	gprintf("Wrote Priiloader App.Checking Installation\n");
+	printf("\nChecking Priiloader Installation...\n");
+	status = (fstats*)memalign(32,sizeof(fstats));
+	if (ISFS_GetFileStats(fd,status) < 0)
+	{
+		ISFS_Close(fd);
+		nand_copy(copy_app,original_app);
+		abort("Failed to get stats of %s. System Menu Recovered.",original_app);
+	}
+	else
+	{
+		if ( status->file_length != priiloader_app_size )
+		{
+			ISFS_Close(fd);
+			nand_copy(copy_app,original_app);
+			abort("Written Priiloader app isn't the correct size.System Menu Recovered.");
+		}
+		else
+		{
+			gprintf("Size Check Success\n");
+			printf("Size Check Success!\n");
+		}
+	}
+	//reset fd. otherwise the read data isn't correct? (checked by writing data away before comparing) :-/
+	ISFS_Close(fd);
+	fd = ISFS_Open(original_app,ISFS_OPEN_READ);
+	u8 *AppData = (u8 *)memalign(32,status->file_length);
+	if (AppData)
+		ret = ISFS_Read(fd,AppData,status->file_length);
+	else
+	{
+		ISFS_Close(fd);
+		if(status)
+		{
+			free(status);
+			status = NULL;
+		}
+		nand_copy(copy_app,original_app);
+		abort("Checksum comparison Failure! MemAlign Failure of AppData\n");
+	}
+	if (ret < 0)
+	{
+		ISFS_Close(fd);
+		if (AppData)
+		{
+			free(AppData);
+			AppData = NULL;
+		}
+		if(status)
+		{
+			free(status);
+			status = NULL;
+		}
+		nand_copy(copy_app,original_app);
+		abort("Checksum comparison Failure! read of priiloader app returned %u\n",ret);
+	}
+	if(CompareChecksum((u8*)priiloader_app,priiloader_app_size,AppData,status->file_length))
+		printf("Checksum comparison Success!\n");
+	else
+	{
+		ISFS_Close(fd);
+		if (AppData)
+		{
+			free(AppData);
+			AppData = NULL;
+		}
+		if(status)
+		{
+			free(status);
+			status = NULL;
+		}
+		nand_copy(copy_app,original_app);
+		ISFS_Delete(copy_app);
+		abort("Checksum comparison Failure!\n");
+	}
+	if (AppData)
+	{
+		free(AppData);
+		AppData = NULL;
+	}
+	if(status)
+	{
+		free(status);
+		status = NULL;
+	}
+	ISFS_Close(fd);
+	gprintf("Priiloader Update Complete\n");
+	printf("Done!\n\n");
+	return 1;
+}
+s8 RemovePriiloader ( void )
+{
+	s32 fd = 0;
+	ISFS_Delete(original_app);
+	printf("Done!\nRestoring System menu app...");
+	s32 ret = nand_copy(copy_app,original_app);
+	if (ret < 0)
+	{
+		if(ret == -80)
+		{
+			//checksum issues
+			printf("\x1b[%u;%dm", 33, 1);
+			printf("\nWARNING!!\n  Installer could not calculate the Checksum when coping the System menu app\n");
+			printf("back! the app however was copied...\n");
+			printf("Do you want to Continue ?\n");
+			printf("A = Yes       B = No       Home/Start = Exit\n  ");
+			printf("\x1b[%u;%dm", 37, 1);
+			if(!UserYesNoStop())
+			{
+				printf("reverting changes...\n");
+				ISFS_Close(fd);
+				ISFS_CreateFile(original_app,0,3,3,3);
+				fd = ISFS_Open(original_app,ISFS_OPEN_RW);
+				ISFS_Write(fd,priiloader_app,priiloader_app_size);
+				ISFS_Close(fd);
+				abort("System Menu Copying Failure");
+			}		
+		}
+		else
+		{
+			ISFS_Close(fd);
+			ISFS_CreateFile(original_app,0,3,3,3);
+			fd = ISFS_Open(original_app,ISFS_OPEN_RW);
+			ISFS_Write(fd,priiloader_app,priiloader_app_size);
+			ISFS_Close(fd);
+			abort("\nUnable to restore the system menu! (ret = %d)",ret);
+		}
+	}
+	ret = ISFS_Delete(copy_app);
+	printf("Done!\n");
+	return 1;
+}
 int main(int argc, char **argv)
 {
 	VIDEO_Init();
@@ -465,8 +885,8 @@ int main(int argc, char **argv)
 				abort("Unable to retrieve title id");
 			}
 
-			char * original_app = (char*)memalign(32,256);
-			char * copy_app = (char*)memalign(32,256);
+			original_app = (char*)memalign(32,256);
+			copy_app = (char*)memalign(32,256);
 			if (original_app == NULL || copy_app == NULL)
 			{
 				free(TMD);
@@ -490,58 +910,16 @@ int main(int argc, char **argv)
 			{
 				//install or update
 				fstats * status;
-				s32 ret = 0;
-				bool CopyTicket = false;
-				bool Priiloader_found = false;
-				//check if the copy ticket exists
-				printf("Checking for Priiloader...\n");
-				gprintf("Checking for copy ticket...\n");
-				fd = ISFS_Open("/title/00000001/00000002/content/ticket",ISFS_OPEN_READ);
-				if (fd <0)
-				{
-					printf("\tPriiloader system menu ticket not found.\n\tTrying to read original ticket...\n");
-					ISFS_Close(fd);
-					fd = ISFS_Open("/ticket/00000001/00000002.tik",ISFS_OPEN_READ);
-					//"/ticket/00000001/00000002.tik" -> original path which should be there on every wii.
-					//however needs nand permissions which trucha gives >_>
-					if (fd < 0)
-					{
-						switch(fd)
-						{
-							case ISFS_EINVAL:
-								abort("Unable to read ticket.path is wrong/too long or ISFS isn't init yet?");
-								break;
-							case ISFS_ENOMEM:
-								abort("Unable to read ticket.(Out of memory)");
-								break;
-							case -106:
-								abort("Ticket not found");
-								break;
-							case -102:
-								abort("Unauthorised to get ticket. is ios%d trucha signed?",IOS_GetVersion());
-								break;
-							default:
-								abort("Unable to read ticket. error %d. ",fd);
-								break;
-						}
-
-					}
-					else
-					{
-						printf("\tOriginal ticket loaded & set for copy\n");
-						CopyTicket = true;
-					}
-				}
-				ISFS_Close(fd);
-				
+				bool _Copy_Sysmenu = true;
+				printf("Checking for Priiloader...\n");				
 				//check copy app
-				gprintf("checking for copy of SystemMenu Dol\n");
+				gprintf("checking for SystemMenu Dol\n");
 				//TODO : redo using the code from Luna + size check
 				fd = ISFS_Open(copy_app,ISFS_OPEN_RW);
 				if (fd < 0)
 				{
-					Priiloader_found = false;
-					printf("Priiloader not found.\nInstalling Priiloader...\n\n\n");
+					printf("Priiloader not found.\nInstalling Priiloader...\n");
+					_Copy_Sysmenu = true;
 				}
 				else
 				{
@@ -556,12 +934,12 @@ int main(int argc, char **argv)
 						if(UserYesNoStop())
 						{
 							printf("Ignoring Priiloader Installation...\n\n");
-							Priiloader_found = false;
+							_Copy_Sysmenu = true;
 						}
 						else
 						{
 							printf("Using Current Priiloader Installation...\n\n");
-							Priiloader_found = true;
+							_Copy_Sysmenu = false;
 						}
 					}
 					else
@@ -576,18 +954,18 @@ int main(int argc, char **argv)
 							if(UserYesNoStop())
 							{
 								printf("Ignoring Priiloader \"Installation\"...\n\nReinstalling Priiloader...\n\n\n");
-								Priiloader_found = false;
+								_Copy_Sysmenu = true;
 								break;
 							}
 							else
 							{
 								printf("Using Current Priiloader \"Installation\"...\n\nUpdating Priiloader...\n\n\n");
-								Priiloader_found = true;
+								_Copy_Sysmenu = false;
 							}
 						}
 						else
 						{
-							Priiloader_found = true;
+							_Copy_Sysmenu = false;
 							printf("Priiloader installation found\nUpdating Priiloader...\n\n\n");
 						}
 					}
@@ -595,211 +973,24 @@ int main(int argc, char **argv)
 					status = NULL;
 					ISFS_Close(fd);
 				}
-				if(CopyTicket)
+				CopyTicket();
+				if(_Copy_Sysmenu)
+					Copy_SysMenu();
+				WritePriiloader();
+				if(!_Copy_Sysmenu)
 				{
-					printf("Copying system menu ticket...");
-					char original_tik[256];
-					char copy_tik[256];
-					sprintf(original_tik, "/ticket/00000001/00000002.tik");
-					sprintf(copy_tik, "/title/00000001/00000002/content/ticket");
-					if (nand_copy(original_tik,copy_tik) < 0)
-					{
-						abort("Unable to copy the system menu ticket");
-					}
-					printf("Done!\n");
+					printf("deleting extra priiloader files...\n");
+					Delete_Priiloader_Files(1);
+					printf("\n\nUpdate done, exiting to loader... waiting 5s...\n");
 				}
-				else
+				else if(_Copy_Sysmenu)
 				{
-					printf("Skipping copy of system menu ticket...\n");
-				}
-				if(!Priiloader_found)
-				{
-					printf("Moving System Menu app...");
-					ret = nand_copy(original_app,copy_app);
-					if (ret < 0)
-					{
-						if (ret == -80)
-						{
-							//checksum issues
-							printf("\x1b[%u;%dm", 33, 1);
-							printf("\nWARNING!!\n  Installer could not calculate the Checksum for the System menu app");
-							printf("\nbut Copy was successfull.\n");
-							printf("Do you want the Continue ?\n");
-							printf("A = Yes       B = No       Home/Start = Exit\n  ");
-							printf("\x1b[%u;%dm", 37, 1);
-							if(!UserYesNoStop())
-							{
-								printf("reverting changes...\n");
-								ISFS_Delete(copy_app);
-								abort("System Menu Copying Failure");
-							}		
-							else
-								printf("\nDone!\n");
-						}
-						else
-							abort("\nUnable to move the system menu");
-					}
-					else
-					{
-						gprintf("Moving System Menu Done\n");
-						printf("Done!\n");
-					}
-				}
-				else
-				{
-					printf("Skipping Moving of System menu app...\n");
-				}				  
-				printf("deleting extra priiloader files...\n");
-				ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
-				gprintf("/title/00000001/00000002/data/loader.ini deletion returned %d\n",ret);
-				printf("Settings : ");
-				if(ret == -106)
-				{
-					printf("\x1b[%u;%dm", 32, 1);
-					printf("Not found\n");
-					printf("\x1b[%u;%dm", 37, 1);
-				}
-				else if(ret < 0)
-				{
-					printf("\x1b[%u;%dm", 33, 1);
-					printf("\nWARNING : Priiloader Settings not deleted. error %d\n",ret);
-					printf("\x1b[%u;%dm", 37, 1);
-					printf("continuing...\n");
-					sleep(4);
-				}
-				else
-					printf("Deleted\n");
-				ret = ISFS_Delete("/title/00000001/00000002/data/password.txt");
-				gprintf("/title/00000001/00000002/data/password.txt deletion returned %d\n",ret);
-				printf("Password file : ");
-				if(ret == -106)
-				{
-					printf("\x1b[%u;%dm", 32, 1);
-					printf("Not found\n");
-					printf("\x1b[%u;%dm", 37, 1);
-				}
-				else if(ret < 0)
-				{
-					printf("\x1b[%u;%dm", 33, 1);
-					printf("\nWARNING : Priiloader Password file not deleted. error %d\n",ret);
-					printf("\x1b[%u;%dm", 37, 1);
-					printf("continuing...\n");
-					sleep(4);
-				}
-				else
-					printf("Priiloader Password file deleted\n");
-				printf("Done!\n");
-				printf("Writing Priiloader app...");
-				gprintf("Writing Priiloader\n");
-				ISFS_Delete(original_app);
-				ISFS_CreateFile(original_app,0,ISFS_OPEN_RW,ISFS_OPEN_RW,ISFS_OPEN_RW);
-				fd = ISFS_Open(original_app,ISFS_OPEN_RW);
-				if (fd < 0)
-				{
-					nand_copy(copy_app,original_app);
-					abort("\nFailed to open file for Priiloader writing.");
-				}
-				ret = ISFS_Write(fd,priiloader_app,priiloader_app_size);
-				if (ret < 0 ) //check if the app was writen correctly				
-				{
-					ISFS_Close(fd);
-					nand_copy(copy_app,original_app);
-					gprintf("Write failed. ret %d\n",ret);
-					abort("\nWrite of Priiloader app failed.");
-				}
-				printf("Done!!\n");
-				gprintf("Wrote Priiloader App.Checking Installation\n");
-				printf("\nChecking Priiloader Installation...\n");
-				status = (fstats*)memalign(32,sizeof(fstats));
-				if (ISFS_GetFileStats(fd,status) < 0)
-				{
-					ISFS_Close(fd);
-					nand_copy(copy_app,original_app);
-					abort("Failed to get stats of %s. System Menu Recovered.",original_app);
-				}
-				else
-				{
-					if ( status->file_length != priiloader_app_size )
-					{
-						ISFS_Close(fd);
-						nand_copy(copy_app,original_app);
-						abort("Written Priiloader app isn't the correct size.System Menu Recovered.");
-					}
-					else
-					{
-						gprintf("Size Check Success\n");
-						printf("Size Check Success!\n");
-					}
-				}
-				//reset fd. otherwise the read data isn't correct? (checked by writing data away before comparing) :-/
-				ISFS_Close(fd);
-				fd = ISFS_Open(original_app,ISFS_OPEN_READ);
-				u8 *AppData = (u8 *)memalign(32,status->file_length);
-				if (AppData)
-					ret = ISFS_Read(fd,AppData,status->file_length);
-				else
-				{
-					ISFS_Close(fd);
-					if(status)
-					{
-						free(status);
-						status = NULL;
-					}
-					nand_copy(copy_app,original_app);
-					abort("Checksum comparison Failure! MemAlign Failure of AppData\n");
-				}
-				if (ret < 0)
-				{
-					ISFS_Close(fd);
-					if (AppData)
-					{
-						free(AppData);
-						AppData = NULL;
-					}
-					if(status)
-					{
-						free(status);
-						status = NULL;
-					}
-					nand_copy(copy_app,original_app);
-					abort("Checksum comparison Failure! read of priiloader app returned %u\n",ret);
-				}
-				if(CompareChecksum((u8*)priiloader_app,priiloader_app_size,AppData,status->file_length))
-					printf("Checksum comparison Success!\n");
-				else
-				{
-					ISFS_Close(fd);
-					if (AppData)
-					{
-						free(AppData);
-						AppData = NULL;
-					}
-					if(status)
-					{
-						free(status);
-						status = NULL;
-					}
-					nand_copy(copy_app,original_app);
-					ISFS_Delete(copy_app);
-					abort("Checksum comparison Failure!\n");
-				}
-				if (AppData)
-				{
-					free(AppData);
-					AppData = NULL;
-				}
-				if(status)
-				{
-					free(status);
-					status = NULL;
-				}
-				ISFS_Close(fd);
-				gprintf("Priiloader Installation Complete\n");
-				printf("Done!!!\n\n");
-				if(Priiloader_found)
-					printf("Update done, exiting to loader... waiting 5s...\n");
-				else
+					//currently mode 0 means no extra files to delete so why do the printf?
+					//printf("deleting extra priiloader files...\n");
+					Delete_Priiloader_Files(0);
 					printf("Install done, exiting to loader... waiting 5s...\n");
+				}
+					
 				ISFS_Deinitialize();
 				__ES_Close();
 				sleep(5);
@@ -816,150 +1007,11 @@ int main(int argc, char **argv)
 				}
 				else
 				{
-					printf("Priiloader installation found.\n\nRemoving Priiloader app...");
-					ISFS_Delete(original_app);
-					printf("Done!\nRestoring System menu app...");
-					s32 ret = nand_copy(copy_app,original_app);
-					if (ret < 0)
-					{
-						if(ret == -80)
-						{
-							//checksum issues
-							printf("\x1b[%u;%dm", 33, 1);
-							printf("\nWARNING!!\n  Installer could not calculate the Checksum when coping the System menu app\n");
-							printf("back! the app however was copied...\n");
-							printf("Do you want to Continue ?\n");
-							printf("A = Yes       B = No       Home/Start = Exit\n  ");
-							printf("\x1b[%u;%dm", 37, 1);
-							if(!UserYesNoStop())
-							{
-								printf("reverting changes...\n");
-								ISFS_Close(fd);
-								ISFS_CreateFile(original_app,0,3,3,3);
-								fd = ISFS_Open(original_app,ISFS_OPEN_RW);
-								ISFS_Write(fd,priiloader_app,priiloader_app_size);
-								ISFS_Close(fd);
-								abort("System Menu Copying Failure");
-							}		
-						}
-						else
-						{
-							ISFS_Close(fd);
-							ISFS_CreateFile(original_app,0,3,3,3);
-							fd = ISFS_Open(original_app,ISFS_OPEN_RW);
-							ISFS_Write(fd,priiloader_app,priiloader_app_size);
-							ISFS_Close(fd);
-							abort("\nUnable to restore the system menu! (ret = %d)",ret);
-						}
-					}
 					ISFS_Close(fd);
-					ISFS_Delete(copy_app);
-					printf("Done!\n");
+					printf("Priiloader installation found.\n\nRemoving Priiloader app...");
+					RemovePriiloader();
 					printf("Deleting extra Priiloader files...\n");
-					ret = ISFS_Delete("/title/00000001/00000002/data/password.txt");
-					gprintf("password.txt : %d\n",ret);
-					printf("password file : ");
-					if(ret == -106)
-					{
-						printf("\x1b[%u;%dm", 32, 1);
-						printf("Not found\n");
-						printf("\x1b[%u;%dm", 37, 1);
-					}
-					else if (ret < 0)
-					{
-						printf("\x1b[%u;%dm", 33, 1);
-						printf("Error deleting file. error %d\n",ret);
-						printf("\x1b[%u;%dm", 37, 1);
-					}
-					else
-						printf("Deleted\n");
-					ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
-					gprintf("loader.ini : %d\n",ret);
-					printf("Settings file : ");
-					if(ret == -106)
-					{
-						printf("\x1b[%u;%dm", 32, 1);
-						printf("Not found\n");
-						printf("\x1b[%u;%dm", 37, 1);
-					}
-					else if (ret < 0)
-					{
-						printf("\x1b[%u;%dm", 33, 1);
-						printf("Error deleting file. error %d\n",ret);
-						printf("\x1b[%u;%dm", 37, 1);
-					}
-					else
-						printf("Deleted\n");
-					//its best we delete that ticket but its completely useless and will only get in our 
-					//way when installing again later...
-					ret = ISFS_Delete("/title/00000001/00000002/content/ticket");
-					gprintf("ticket : %d\n",ret);
-					printf("Ticket : ");
-					if(ret == -106)
-					{
-						printf("\x1b[%u;%dm", 32, 1);
-						printf("Not found\n");
-						printf("\x1b[%u;%dm", 37, 1);
-					}
-					else if (ret < 0)
-					{
-						printf("\x1b[%u;%dm", 33, 1);
-						printf("Error deleting file. error %d\n",ret);
-						printf("\x1b[%u;%dm", 37, 1);
-					}
-					else
-						printf("Deleted\n");
-					ret = ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini");
-					gprintf("hacks_s.ini : %d\n",ret);
-					printf("Hacks_s.ini : ");
-					if(ret == -106)
-					{
-						printf("\x1b[%u;%dm", 32, 1);
-						printf("Not found\n");
-						printf("\x1b[%u;%dm", 37, 1);
-					}
-					else if (ret < 0)
-					{
-						printf("\x1b[%u;%dm", 33, 1);
-						printf("Error deleting file. error %d\n",ret);
-						printf("\x1b[%u;%dm", 37, 1);
-					}
-					else
-						printf("Deleted\n");
-					ret = ISFS_Delete("/title/00000001/00000002/data/hacks.ini");
-					gprintf("hacks.ini : %d\n",ret);
-					printf("Hacks.ini : ");
-					if(ret == -106)
-					{
-						printf("\x1b[%u;%dm", 32, 1);
-						printf("Not found\n");
-						printf("\x1b[%u;%dm", 37, 1);
-					}
-					else if (ret < 0)
-					{
-						printf("\x1b[%u;%dm", 33, 1);
-						printf("Error deleting file. error %d\n",ret);
-						printf("\x1b[%u;%dm", 37, 1);
-					}
-					else
-						printf("Deleted\n");
-					ret = ISFS_Delete("/title/00000001/00000002/data/main.bin");
-					gprintf("main.bin : %d\n",ret);
-					printf("main.bin : ");
-					if(ret)
-						printf("Deleted\n");
-					else if(ret == -106)
-					{
-						printf("\x1b[%u;%dm", 32, 1);
-						printf("Not found\n");
-						printf("\x1b[%u;%dm", 37, 1);
-					}
-					else if (ret < 0)
-					{
-						printf("\x1b[%u;%dm", 33, 1);
-						printf("Error deleting file. error %d\n",ret);
-						printf("\x1b[%u;%dm", 37, 1);
-					}
+					Delete_Priiloader_Files(2);
 					printf("Done!\n\n");
 					printf("Removal done, exiting to loader... waiting 5s...\n");
 					ISFS_Deinitialize();

@@ -810,9 +810,9 @@ static bool __usbstorage_IsInserted(void)
 			}
 		}
 		USBStorage_Close(&__usbfd);
+		memset(&__usbfd, 0, sizeof(__usbfd));
 	}
 
-	memset(&__usbfd, 0, sizeof(__usbfd));
 	__lun = 0;
 	__vid = 0;
 	__pid = 0;
