@@ -3018,7 +3018,7 @@ void CheckForUpdate()
 		return;
 	}
 	memset(UpdateFile,0,sizeof(UpdateStruct));
-	s32 file_size = GetHTTPFile("www.nyleveia.com","/daco/version9002.dat",(u8*&)UpdateFile,0);
+	s32 file_size = GetHTTPFile("www.nyleveia.com","/daco/version.dat",(u8*&)UpdateFile,0);
 	if ( file_size <= 0 || file_size != (s32)sizeof(UpdateStruct))
 	{
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("error getting file from server"))*13/2))>>1, 224, "error getting file from server");
