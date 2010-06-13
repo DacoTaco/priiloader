@@ -1,19 +1,37 @@
 //HTTP Parser By DacoTaco
 //Note by DacoTaco : yes this isn't the prettiest HTTP Parser alive but it does the job so stop complaining :)
 #include "HTTP_Parser.h"
-s32 GetHTTPFile(int socket, const char *host,const char *file,u8*& Data)
+static char HTTP_Reply[4];
+s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket_to_use)
 {
 	//URL_REQUEST
 	if(Data)
 	{
 		free_pointer(Data);
 	}
+	if(HTTP_Reply[0] != 0)
+	{
+		//reset last reply
+		memset(HTTP_Reply,0,4);
+	}
 	char buffer[1024];
 	s32 bytes_read = 0;
 	s32 bytes_send = 0;
 	s32 file_size = 0;
+	int socket;
 	char URL_Request[512];
 	sprintf( URL_Request, "GET %s HTTP/1.0\r\nHost: %s\r\n\r\n", file,host );
+	if(external_socket_to_use == 0)
+	{
+		socket = ConnectSocket(host);
+		if(socket < 0)
+			return socket;
+	}
+	else
+	{
+		socket = external_socket_to_use;
+	}
+	//receive the header. it starts with something like "HTTP/1.1 [reply number like '200'] [name of code. 200 = 'OK']" { 48 54 54 50 2F 31 2E 31 20 xx xx xx 20 yy yy}
 	bytes_send = net_send(socket, URL_Request, strlen(URL_Request), 0);
 	if ( bytes_send > 0)
 	{
@@ -30,7 +48,7 @@ s32 GetHTTPFile(int socket, const char *host,const char *file,u8*& Data)
 				if( n <= 0 )
 				{
 					gprintf("server closed connection\n");
-					return -1;
+					return -5;
 				}
 
 				i += n;
@@ -41,7 +59,22 @@ s32 GetHTTPFile(int socket, const char *host,const char *file,u8*& Data)
 						break;
 				}
 			}
-
+			if(HTTP_Reply[0] == 0)
+			{
+				strncpy(HTTP_Reply,&buffer[9],3);
+				HTTP_Reply[3] = '\0';
+				//process the HTTP reply. full list @ http://en.wikipedia.org/wiki/List_of_HTTP_status_codes
+				switch(atoi(HTTP_Reply))
+				{
+					case 200: // 200 - OK . everything is fine. lets proceed
+						break;
+					case 404: //File Not Found. nothing special we can do :)
+					default: //o ow, a reply we dont understand yet D: close connection and bail out
+						net_close(socket);
+						return -6;
+						break;
+				}
+			}	
 			if( !memcmp( buffer, "Content-Length: ", 16 ) )
 			{
 				sscanf( buffer , "Content-Length: %d", &file_size );
@@ -52,8 +85,9 @@ s32 GetHTTPFile(int socket, const char *host,const char *file,u8*& Data)
 		if(file_size == 0)
 		{
 			gprintf("file size unknown!\n");
-			net_close(socket);
-			return -2;
+			if(!external_socket_to_use)
+				net_close(socket);
+			return -7;
 		}
 		else
 		{
@@ -64,8 +98,7 @@ s32 GetHTTPFile(int socket, const char *host,const char *file,u8*& Data)
 		Data = (u8*)memalign( 32, file_size );
 		if (Data == NULL)
 		{
-			gprintf("failed to mem align memory for update\n");
-			return -3;
+			return -8;
 		}
 		memset(Data,0,sizeof(u8));
 		s32 total = 0;
@@ -77,9 +110,12 @@ s32 GetHTTPFile(int socket, const char *host,const char *file,u8*& Data)
 			bytes_read = net_recv(socket,buffer,1024, 0);
 			if(!bytes_read)
 			{
-				net_close(socket);
+				if(!external_socket_to_use)
+					net_close(socket);
+				free(Data);
+				Data = NULL;
 				gprintf("\nconnection to server closed. error %d\n",bytes_read);
-				return -4;
+				return -9;
 			}
 			memcpy( &Data[total], buffer, bytes_read );
 			total += bytes_read;
@@ -98,19 +134,19 @@ s32 GetHTTPFile(int socket, const char *host,const char *file,u8*& Data)
 	{
 		gprintf("failed to send request packet to server! error %d",bytes_send);
 		net_close(socket);
-		return -1;
+		free(Data);
+			Data = NULL;
+		return -4;
 	}
 	net_close(socket);
 	return file_size;
 }
-u32 ConnectSocket(const char *hostname)
+s32 ConnectSocket(const char *hostname)
 {
-	u32 socket = 0;
+	s32 socket = 0;
 	struct sockaddr_in connect_addr;
 	if ( (socket = net_socket(AF_INET,SOCK_STREAM,IPPROTO_IP)) < 0)
 	{
-		net_close(socket);
-		gprintf("error creating socket");
 		sleep(1);
 		return -1;
 	}
@@ -134,15 +170,18 @@ u32 ConnectSocket(const char *hostname)
 			memcpy(&connect_addr.sin_addr, host->h_addr_list[0], host->h_length);
 		}
 	}
-	//gprintf("connecting to %s(%s)...\n",hostname,inet_ntoa(connect_addr.sin_addr));
 	if (net_connect(socket, (struct sockaddr*)&connect_addr , sizeof(connect_addr)) == -1 )
 	{
-		gprintf("failed to connect to %s! something wrong in routing or is %s down?\nDNS server is up but could not connect"
-				,inet_ntoa(connect_addr.sin_addr) , hostname );
+		/*gprintf("failed to connect to %s! something wrong in routing or is %s down?\nDNS server is up but could not connect"
+				,inet_ntoa(connect_addr.sin_addr) , hostname );*/
 		net_close(socket);
 		sleep(1);
 		return -3;
 	}
 	return socket;
 
+}
+const char* Get_Last_reply( void )
+{
+	return HTTP_Reply;
 }

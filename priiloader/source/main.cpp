@@ -3018,20 +3018,24 @@ void CheckForUpdate()
 		return;
 	}
 	memset(UpdateFile,0,sizeof(UpdateStruct));
-	socket = ConnectSocket("www.nyleveia.com");
-	if (socket < 0)
-	{
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to connect to update server"))*13/2))>>1, 224, "failed to connect to update server");
-		gprintf("failed to connect to update server. error %d\n",socket);
-		sleep(5);
-		free_pointer(UpdateFile);
-		return;
-	}
-	s32 file_size = GetHTTPFile(socket,"www.nyleveia.com","/daco/version.dat",(u8*&)UpdateFile);
+	s32 file_size = GetHTTPFile("www.nyleveia.com","/daco/version9002.dat",(u8*&)UpdateFile,0);
 	if ( file_size <= 0 || file_size != (s32)sizeof(UpdateStruct))
 	{
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("error getting file from server"))*13/2))>>1, 224, "error getting file from server");
-		if (file_size != (s32)sizeof(UpdateStruct))
+		if (file_size < 0 && file_size > -4)
+		{
+			//errors connecting to server
+			gprintf("failed to connect to update server. error %d\n",file_size);
+		}
+		else if (file_size == -6)
+		{
+			gprintf("HTTP Error %s!\n",Get_Last_reply());
+		}
+		else if ( file_size < 0 )
+		{
+			gprintf("error %d getting file from server\n",file_size);
+		}
+		else if (file_size != (s32)sizeof(UpdateStruct))
 		{
 			gprintf("received file isn't the right size!\n");
 		}
@@ -3039,6 +3043,10 @@ void CheckForUpdate()
 		free_pointer(UpdateFile);
 		return;
 	}
+
+
+//Download Update if any
+//----------------------------------------
 	if (
 		( 
 		 SGetSetting(SETTING_SHOWBETAUPDATES) && 
@@ -3046,24 +3054,15 @@ void CheckForUpdate()
 		 ( (VERSION) +1 == UpdateFile->beta_version || ( VERSION == UpdateFile->beta_version && BETAVERSION > 0 ) ) )
 		|| VERSION < UpdateFile->version )
 	{
-		s32 file_size = 0;
+		file_size = 0;
 		u8* Data = NULL;
 		u8 DownloadedBeta = 0;
-		socket = ConnectSocket("www.nyleveia.com");
-		if (socket < 0)
-		{
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to connect to update server"))*13/2))>>1, 224, "failed to connect to update server");
-			gprintf("failed to connect to update server to download update. error %d\n",socket);
-			sleep(5);
-			free_pointer(UpdateFile);
-			return;
-		}
 		ClearScreen();
 		if ( VERSION < UpdateFile->version || (VERSION == UpdateFile->version && BETAVERSION > 0) )
 		{
 			gprintf("Downloading update...\n");
 			PrintFormat( 1, ((640/2)-((strlen("downloading   .  ..."))*13/2))>>1, 208, "downloading %d.%d ...",UpdateFile->version >> 8,UpdateFile->version&0xFF);
-			file_size = GetHTTPFile(socket,"www.nyleveia.com","/daco/Priiloader_Update.dol",Data);
+			file_size = GetHTTPFile("www.nyleveia.com","/daco/Priiloader_Update.dol",Data,0);
 		}
 		//to make the if short :
 		// - beta updates should be enabled
@@ -3077,11 +3076,22 @@ void CheckForUpdate()
 		{
 			gprintf("downloading beta...\n");
 			PrintFormat( 1, ((640/2)-((strlen("downloading   .   beta   ..."))*13/2))>>1, 208, "downloading %d.%d beta %d...",UpdateFile->beta_version >> 8,UpdateFile->beta_version&0xFF, UpdateFile->beta_number);
-			file_size = GetHTTPFile(socket,"www.nyleveia.com","/daco/Priiloader_Beta.dol",Data);
+			file_size = GetHTTPFile("www.nyleveia.com","/daco/Priiloader_Beta.dol",Data,0);
 			DownloadedBeta = 1;
 		}
 		if ( file_size <= 0 )
 		{
+			if (file_size < 0 && file_size > -4)
+			{
+				//errors connecting to server
+				gprintf("failed to connect to update server. error %d\n",file_size);
+			}
+			else if (file_size == -6)
+			{
+				gprintf("HTTP Error %s!\n",Get_Last_reply());
+			}
+			else
+				gprintf("getting update error %d\n",file_size);
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("error getting file from server"))*13/2))>>1, 224, "error getting file from server");
 			sleep(2);
 			free_pointer(UpdateFile);
@@ -3129,6 +3139,11 @@ void CheckForUpdate()
 			{
 				gprintf("Hash check complete. saving&booting file...\n");
 			}
+
+
+
+//Remount FAT device and save. the boot the dol
+//---------------------------------------------------
 			if (!RemountDevices())
 			{
 				PrintFormat( 1, ((640/2)-((strlen("Error : Could not mount any FAT device"))*13/2))>>1, 224, "Error : Could not mount any FAT device");
@@ -3620,6 +3635,12 @@ int main(int argc, char **argv)
 			DVDStopDisc(false);
 			WPAD_Shutdown();
 			ShutdownDevices();
+			//butt ugly hack around the problem but i can't think of another way to fix it...
+			//TODO : make it less hacky by fixing the __io_usbstorage.shutdown()
+			if ( (usb_inited == true) && ( __usbfd.usb_fd > 0 ) )
+			{
+				USBStorage_Close(&__usbfd);
+			}
 			ClearState();
 			if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
 			{

@@ -336,6 +336,34 @@ bool UserYesNoStop()
 	//it should never get here, but to kill that silly warning... :)
 	return false;
 }
+u8 proccess_delete_ret( s32 ret )
+{
+	if(ret == -106)
+	{
+		printf("\x1b[%u;%dm", 32, 1);
+		printf("Not found\n");
+		printf("\x1b[%u;%dm", 37, 1);
+	}
+	else if(ret == -102)
+	{
+		printf("\x1b[%u;%dm", 33, 1);
+		printf("Error deleting file: access denied\n");
+		printf("\x1b[%u;%dm", 37, 1);
+	}
+	else if (ret < 0)
+	{
+		printf("\x1b[%u;%dm", 33, 1);
+		printf("Error deleting file. error %d\n",ret);
+		printf("\x1b[%u;%dm", 37, 1);
+	}
+	else
+	{
+		printf("\x1b[%u;%dm", 32, 1);
+		printf("Deleted\n");
+		printf("\x1b[%u;%dm", 37, 1);
+	}
+	return 1;
+}
 u8 Delete_Priiloader_Files( u8 mode )
 {
 	bool settings = false;
@@ -363,48 +391,14 @@ u8 Delete_Priiloader_Files( u8 mode )
 		ret = ISFS_Delete("/title/00000001/00000002/data/password.txt");
 		gprintf("password.txt : %d\n",ret);
 		printf("password file : ");
-		if(ret == -106)
-		{
-			printf("\x1b[%u;%dm", 32, 1);
-			printf("Not found\n");
-			printf("\x1b[%u;%dm", 37, 1);
-		}
-		else if (ret < 0)
-		{
-			printf("\x1b[%u;%dm", 33, 1);
-			printf("Error deleting file. error %d\n",ret);
-			printf("\x1b[%u;%dm", 37, 1);
-		}
-		else
-		{
-			printf("\x1b[%u;%dm", 32, 1);
-			printf("Deleted\n");
-			printf("\x1b[%u;%dm", 37, 1);
-		}
+		proccess_delete_ret(ret);
 	}
 	if(settings)
 	{
 		ret = ISFS_Delete("/title/00000001/00000002/data/loader.ini");
 		gprintf("loader.ini : %d\n",ret);
 		printf("Settings file : ");
-		if(ret == -106)
-		{
-			printf("\x1b[%u;%dm", 32, 1);
-			printf("Not found\n");
-			printf("\x1b[%u;%dm", 37, 1);
-		}
-		else if (ret < 0)
-		{
-			printf("\x1b[%u;%dm", 33, 1);
-			printf("Error deleting file. error %d\n",ret);
-			printf("\x1b[%u;%dm", 37, 1);
-		}
-		else
-		{
-			printf("\x1b[%u;%dm", 32, 1);
-			printf("Deleted\n");
-			printf("\x1b[%u;%dm", 37, 1);
-		}
+		proccess_delete_ret(ret);
 	}
 	//its best we delete that ticket but its completely useless and will only get in our 
 	//way when installing again later...
@@ -413,93 +407,26 @@ u8 Delete_Priiloader_Files( u8 mode )
 		ret = ISFS_Delete("/title/00000001/00000002/content/ticket");
 		gprintf("ticket : %d\n",ret);
 		printf("Ticket : ");
-		if(ret == -106)
-		{
-			printf("\x1b[%u;%dm", 32, 1);
-			printf("Not found\n");
-			printf("\x1b[%u;%dm", 37, 1);
-		}
-		else if (ret < 0)
-		{
-			printf("\x1b[%u;%dm", 33, 1);
-			printf("Error deleting file. error %d\n",ret);
-			printf("\x1b[%u;%dm", 37, 1);
-		}
-		else
-		{
-			printf("\x1b[%u;%dm", 32, 1);
-			printf("Deleted\n");
-			printf("\x1b[%u;%dm", 37, 1);
-		}
+		proccess_delete_ret(ret);
 	}
 	if(hacks)
 	{
 		ret = ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini");
 		gprintf("hacks_s.ini : %d\n",ret);
 		printf("Hacks_s.ini : ");
-		if(ret == -106)
-		{
-			printf("\x1b[%u;%dm", 32, 1);
-			printf("Not found\n");
-			printf("\x1b[%u;%dm", 37, 1);
-		}
-		else if (ret < 0)
-		{
-			printf("\x1b[%u;%dm", 33, 1);
-			printf("Error deleting file. error %d\n",ret);
-			printf("\x1b[%u;%dm", 37, 1);
-		}
-		else
-		{
-			printf("\x1b[%u;%dm", 32, 1);
-			printf("Deleted\n");
-			printf("\x1b[%u;%dm", 37, 1);
-		}
+		proccess_delete_ret(ret);
+
 		ret = ISFS_Delete("/title/00000001/00000002/data/hacks.ini");
 		gprintf("hacks.ini : %d\n",ret);
 		printf("Hacks.ini : ");
-		if(ret == -106)
-		{
-			printf("\x1b[%u;%dm", 32, 1);
-			printf("Not found\n");
-			printf("\x1b[%u;%dm", 37, 1);
-		}
-		else if (ret < 0)
-		{
-			printf("\x1b[%u;%dm", 33, 1);
-			printf("Error deleting file. error %d\n",ret);
-			printf("\x1b[%u;%dm", 37, 1);
-		}
-		else
-		{
-			printf("\x1b[%u;%dm", 32, 1);
-			printf("Deleted\n");
-			printf("\x1b[%u;%dm", 37, 1);
-		}
+		proccess_delete_ret(ret);
 	}
 	if(main_bin)
 	{
 		ret = ISFS_Delete("/title/00000001/00000002/data/main.bin");
 		gprintf("main.bin : %d\n",ret);
 		printf("main.bin : ");
-		if(ret == -106)
-		{
-			printf("\x1b[%u;%dm", 32, 1);
-			printf("Not found\n");
-			printf("\x1b[%u;%dm", 37, 1);
-		}
-		else if (ret < 0)
-		{
-			printf("\x1b[%u;%dm", 33, 1);
-			printf("Error deleting file. error %d\n",ret);
-			printf("\x1b[%u;%dm", 37, 1);
-		}
-		else
-		{
-			printf("\x1b[%u;%dm", 32, 1);
-			printf("Deleted\n");
-			printf("\x1b[%u;%dm", 37, 1);
-		}
+		proccess_delete_ret(ret);
 	}
 	return 1;
 }
@@ -562,8 +489,6 @@ s8 CopyTicket ( void )
 s8 Copy_SysMenu( void )
 {
 	s32 ret = 0;
-	s32 fd = 0;
-	fstats* status = NULL;
 	//system menu coping
 	printf("Moving System Menu app...");
 	ret = nand_copy(original_app,copy_app);
