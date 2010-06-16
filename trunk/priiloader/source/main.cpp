@@ -3006,22 +3006,15 @@ void CheckForUpdate()
 	PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Initialising Wifi..."))*13/2))>>1, 208, "Initialising Wifi...");
 	if (InitNetwork() < 0 )
 	{
-		return;
-	}
-	u32 socket = 0;
-	UpdateStruct *UpdateFile = (UpdateStruct*)memalign( 32, sizeof(UpdateStruct));
-	if (UpdateFile == NULL)
-	{
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to mem align memory for update"))*13/2))>>1, 224, "failed to mem align memory for update");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to initialise wifi"))*13/2))>>1, 224, "failed to initialise wifi");
 		sleep(5);
-		free_pointer(UpdateFile);
 		return;
 	}
-	memset(UpdateFile,0,sizeof(UpdateStruct));
-	s32 file_size = GetHTTPFile("www.nyleveia.com","/daco/version.dat",(u8*&)UpdateFile,0);
+	UpdateStruct *UpdateFile = NULL;
+	s32 file_size = GetHTTPFile("www.nyleveia.com","/daco/priiloader/version.dat",(u8*&)UpdateFile,0);
 	if ( file_size <= 0 || file_size != (s32)sizeof(UpdateStruct))
 	{
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("error getting file from server"))*13/2))>>1, 224, "error getting file from server");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("error getting versions from server"))*13/2))>>1, 224, "error getting versions from server");
 		if (file_size < 0 && file_size > -4)
 		{
 			//errors connecting to server
@@ -3041,188 +3034,344 @@ void CheckForUpdate()
 		}
 		sleep(5);
 		free_pointer(UpdateFile);
+		net_deinit();
 		return;
 	}
 
 
-//Download Update if any
+//generate update list if any
 //----------------------------------------
-	if (
-		( 
-		 SGetSetting(SETTING_SHOWBETAUPDATES) && 
-		 (BETAVERSION < UpdateFile->beta_number) && 
-		 ( (VERSION) +1 == UpdateFile->beta_version || ( VERSION == UpdateFile->beta_version && BETAVERSION > 0 ) ) )
-		|| VERSION < UpdateFile->version )
+	file_size = 0;
+	u8* Data = NULL;
+	u8 DownloadedBeta = 0;
+	u8 BetaUpdates = 0;
+	u8 VersionUpdates = 0;
+	u8* Changelog = NULL;
+	u8 redraw = 1;
+	s8 cur_off = 0;
+	ClearScreen();
+	//make a nice list of the updates
+	if ( (VERSION < UpdateFile->version) || (VERSION == UpdateFile->version && BETAVERSION > 0) )
+		VersionUpdates = 1;
+	else
+	//to make the if short :
+	// - beta updates should be enabled
+	// - the current betaversion should be less then the online beta
+	// - the current version +1 should == the beta OR the version == the beta IF a beta is installed
+	if ( 
+		SGetSetting(SETTING_SHOWBETAUPDATES) && 
+		(BETAVERSION < UpdateFile->beta_number) && 
+		( ( (VERSION) +1 == UpdateFile->beta_version && BETAVERSION == 0 ) || ( VERSION == UpdateFile->beta_version && BETAVERSION > 0 ) ) 
+		)
 	{
-		file_size = 0;
-		u8* Data = NULL;
-		u8 DownloadedBeta = 0;
-		ClearScreen();
-		if ( VERSION < UpdateFile->version || (VERSION == UpdateFile->version && BETAVERSION > 0) )
+		BetaUpdates = 1;
+	}
+
+	if (BetaUpdates == 0 && VersionUpdates == 0)
+	{
+		//ooooh, no updates :P
+		PrintFormat( 1, ((640/2)-((strlen("No update available"))*13/2))>>1, 224, "No update available");
+		sleep(2);
+		free_pointer(UpdateFile);
+		return;
+	}
+	while(1)
+	{
+		if(redraw)
 		{
-			gprintf("Downloading update...\n");
-			PrintFormat( 1, ((640/2)-((strlen("downloading   .  ..."))*13/2))>>1, 208, "downloading %d.%d ...",UpdateFile->version >> 8,UpdateFile->version&0xFF);
-			file_size = GetHTTPFile("www.nyleveia.com","/daco/Priiloader_Update.dol",Data,0);
-		}
-		//to make the if short :
-		// - beta updates should be enabled
-		// - the current betaversion should be less then the online beta
-		// - the current version +1 should == the beta OR the version == the beta IF a beta is installed
-		else if ( 
-			SGetSetting(SETTING_SHOWBETAUPDATES) && 
-			(BETAVERSION < UpdateFile->beta_number) && 
-			( (VERSION) +1 == UpdateFile->beta_version || ( VERSION == UpdateFile->beta_version && BETAVERSION > 0 ) ) 
-			)
-		{
-			gprintf("downloading beta...\n");
-			PrintFormat( 1, ((640/2)-((strlen("downloading   .   beta   ..."))*13/2))>>1, 208, "downloading %d.%d beta %d...",UpdateFile->beta_version >> 8,UpdateFile->beta_version&0xFF, UpdateFile->beta_number);
-			file_size = GetHTTPFile("www.nyleveia.com","/daco/Priiloader_Beta.dol",Data,0);
-			DownloadedBeta = 1;
-		}
-		if ( file_size <= 0 )
-		{
-			if (file_size < 0 && file_size > -4)
+			if ( VersionUpdates )
 			{
-				//errors connecting to server
-				gprintf("failed to connect to update server. error %d\n",file_size);
-			}
-			else if (file_size == -6)
-			{
-				gprintf("HTTP Error %s!\n",Get_Last_reply());
+				PrintFormat( cur_off == 0, 16, 64+(16*1), "Update to %d.%d",UpdateFile->version >> 8,UpdateFile->version&0xFF);
 			}
 			else
-				gprintf("getting update error %d\n",file_size);
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("error getting file from server"))*13/2))>>1, 224, "error getting file from server");
-			sleep(2);
+			{
+				PrintFormat( cur_off == 0, 16, 64+(16*1), "No official update\n");
+			}
+			if (SGetSetting(SETTING_SHOWBETAUPDATES))
+			{
+				PrintFormat( 0, ((rmode->viWidth /2)-((strlen("--------------------"))*13/2))>>1, 64+(16*3), "--------------------");
+				if ( BetaUpdates )
+				{
+					PrintFormat( cur_off==1, 16, 64+(16*5), "Update to %d.%d beta %d",UpdateFile->beta_version >> 8,UpdateFile->beta_version&0xFF, UpdateFile->beta_number);
+				}
+				else
+				{
+					PrintFormat( cur_off==1, 16, 64+(16*5), "No Beta update\n");
+				}
+			}
+
+
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Download Update       "))*13/2))>>1, rmode->viHeight-48, "A(A) Download Update       ");
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("B(B) Cancel Update         "))*13/2))>>1, rmode->viHeight-32, "B(B) Cancel Update         ");
+			redraw = 0;
+		}
+		WPAD_ScanPads();
+		PAD_ScanPads();
+
+		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
+		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
+
+		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
+		{
 			free_pointer(UpdateFile);
+			return;
+		}
+		else if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
+		{
+			if(cur_off == 0 && VersionUpdates == 1)
+			{
+				DownloadedBeta = 0;
+				break;
+			}
+			else if (cur_off == 1 && BetaUpdates == 1)
+			{
+				DownloadedBeta = 1;
+				break;
+			}
+			redraw = 1;
+		}
+		else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
+		{
+			if (SGetSetting(SETTING_SHOWBETAUPDATES))
+			{
+				cur_off++;
+				if(cur_off > 1)
+					cur_off = 0;
+				redraw = 1;
+			}
+		}
+		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
+		{
+			if (SGetSetting(SETTING_SHOWBETAUPDATES))
+			{
+				cur_off++;
+				if(cur_off > 1)
+					cur_off = 0;
+				redraw = 1;
+			}
+		}
+	}
+//Download changelog and ask to proceed or not
+//------------------------------------------------------
+	gprintf("downloading changelog...\n");
+	if(DownloadedBeta)
+	{
+		file_size = GetHTTPFile("www.nyleveia.com","/daco/priiloader/changelog_beta.txt",Changelog,0);
+	}
+	else
+	{
+		file_size = GetHTTPFile("www.nyleveia.com","/daco/priiloader/changelog.txt",Changelog,0);
+	}
+	if (file_size > 0)
+	{
+		ClearScreen();
+		char se[5];
+		int line = 0;
+		char *ptr;
+		if( strpbrk((char*)Changelog , "\r\n") )
+			sprintf(se, "\r\n");
+		else
+			sprintf(se, "\n");
+		ptr = strtok((char*)Changelog, se);
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen(" Changelog "))*13/2))>>1, 64+(16*1), " Changelog ");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("-----------"))*13/2))>>1, 64+(16*2), "-----------");
+		while (ptr != NULL)
+		{
+			PrintFormat( 0, 16, 64 + ((line+3)*16), "%s", ptr);
+			line++;
+			ptr = strtok (NULL, se);
+		}
+		PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A)  Proceed(Download)"))*13/2))>>1, rmode->viHeight-48, "A(A)  Proceed(Download)");
+		PrintFormat( 0, ((rmode->viWidth /2)-((strlen("B(B)  Cancel Update    "))*13/2))>>1, rmode->viHeight-32, "B(B)  Cancel Update    ");
+		u32 PAD_Pressed = 0;
+		u32 WPAD_Pressed = 0;
+		while(1)
+		{
+			WPAD_ScanPads();
+			PAD_ScanPads();
+
+			WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
+			PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
+			if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
+			{
+				free_pointer(Changelog);
+				break;
+			}
+			if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
+			{
+				free_pointer(Changelog);
+				free_pointer(UpdateFile);
+				ClearScreen();
+				return;
+			}
+		}
+	}
+	else if(file_size < 0)
+	{
+		if(file_size != -8)
+			free_pointer(Changelog);
+		gprintf("failed to get changelog.error %d, HTTP reply %d\n",file_size,Get_Last_reply());
+	}
+//The choice is made. lets download what the user wanted :)
+//--------------------------------------------------------------
+	ClearScreen();
+	if(DownloadedBeta)
+	{
+		gprintf("downloading beta...\n");
+		PrintFormat( 1, ((640/2)-((strlen("downloading   .   beta   ..."))*13/2))>>1, 208, "downloading %d.%d beta %d...",UpdateFile->beta_version >> 8,UpdateFile->beta_version&0xFF, UpdateFile->beta_number);
+		file_size = GetHTTPFile("www.nyleveia.com","/daco/priiloader/Priiloader_Beta.dol",Data,0);
+		//download beta
+	}
+	else
+	{
+		gprintf("Downloading update...\n");
+		PrintFormat( 1, ((640/2)-((strlen("downloading   .  ..."))*13/2))>>1, 208, "downloading %d.%d ...",UpdateFile->version >> 8,UpdateFile->version&0xFF);
+		file_size = GetHTTPFile("www.nyleveia.com","/daco/priiloader/Priiloader_Update.dol",Data,0);
+		//download Update
+	}
+	if ( file_size <= 0 )
+	{
+		if (file_size < 0 && file_size > -4)
+		{
+			//errors connecting to server
+			gprintf("failed to connect to update server. error %d\n",file_size);
+		}
+		else if (file_size == -6)
+		{
+			gprintf("HTTP Error %s!\n",Get_Last_reply());
+		}
+		else
+			gprintf("getting update error %d\n",file_size);
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("error getting file from server"))*13/2))>>1, 224, "error getting file from server");
+		sleep(2);
+		free_pointer(UpdateFile);
+		return;
+	}
+	else
+	{
+		SHA1* sha1 = new SHA1();
+		sha1->addBytes( (const char*)Data, file_size );
+
+		u32 FileHash[5];
+		gprintf("Downloaded update  ");
+		sha1->getDigest(FileHash,NULL);
+		sha1->hexPrinter_array(FileHash);
+		gprintf("Online ");
+		if (!DownloadedBeta)
+			sha1->hexPrinter_array(UpdateFile->SHA1_Hash);
+		else
+			sha1->hexPrinter_array(UpdateFile->beta_SHA1_Hash);
+		delete sha1;
+
+		if (
+			( !DownloadedBeta && (
+			UpdateFile->SHA1_Hash[0] != FileHash[0] ||
+			UpdateFile->SHA1_Hash[1] != FileHash[1] ||
+			UpdateFile->SHA1_Hash[2] != FileHash[2] ||
+			UpdateFile->SHA1_Hash[3] != FileHash[3] ||
+			UpdateFile->SHA1_Hash[4] != FileHash[4] ) ) ||
+
+			( DownloadedBeta && (
+			UpdateFile->beta_SHA1_Hash[0] != FileHash[0] ||
+			UpdateFile->beta_SHA1_Hash[1] != FileHash[1] ||
+			UpdateFile->beta_SHA1_Hash[2] != FileHash[2] ||
+			UpdateFile->beta_SHA1_Hash[3] != FileHash[3] ||
+			UpdateFile->beta_SHA1_Hash[4] != FileHash[4] ) ) )
+		{
+			gprintf("hash isn't the same!  fffffffffffuuuuuuuuuuuuuuu\n");
+			PrintFormat( 1, ((640/2)-((strlen("Error Downloading Update"))*13/2))>>1, 224, "Error Downloading Update");
+			sleep(5);
+			free_pointer(UpdateFile);
+			free_pointer(Data);
 			return;
 		}
 		else
 		{
-			SHA1* sha1 = new SHA1();
-			sha1->addBytes( (const char*)Data, file_size );
-
-			u32 FileHash[5];
-			gprintf("Downloaded update  ");
-			sha1->getDigest(FileHash,NULL);
-			sha1->hexPrinter_array(FileHash);
-			gprintf("Online ");
-			if (!DownloadedBeta)
-				sha1->hexPrinter_array(UpdateFile->SHA1_Hash);
-			else
-				sha1->hexPrinter_array(UpdateFile->beta_SHA1_Hash);
-			delete sha1;
-
-			if (
-				( !DownloadedBeta && (
-				UpdateFile->SHA1_Hash[0] != FileHash[0] ||
-				UpdateFile->SHA1_Hash[1] != FileHash[1] ||
-				UpdateFile->SHA1_Hash[2] != FileHash[2] ||
-				UpdateFile->SHA1_Hash[3] != FileHash[3] ||
-				UpdateFile->SHA1_Hash[4] != FileHash[4] ) ) ||
-
-				( DownloadedBeta && (
-				UpdateFile->beta_SHA1_Hash[0] != FileHash[0] ||
-				UpdateFile->beta_SHA1_Hash[1] != FileHash[1] ||
-				UpdateFile->beta_SHA1_Hash[2] != FileHash[2] ||
-				UpdateFile->beta_SHA1_Hash[3] != FileHash[3] ||
-				UpdateFile->beta_SHA1_Hash[4] != FileHash[4] ) ) )
-			{
-				gprintf("hash isn't the same!  fffffffffffuuuuuuuuuuuuuuu\n");
-				PrintFormat( 1, ((640/2)-((strlen("Error Downloading Update"))*13/2))>>1, 224, "Error Downloading Update");
-				sleep(5);
-				free_pointer(UpdateFile);
-				free_pointer(Data);
-				return;
-			}
-			else
-			{
-				gprintf("Hash check complete. saving&booting file...\n");
-			}
-
-
+			gprintf("Hash check complete. saving&booting file...\n");
+		}
 
 //Remount FAT device and save. the boot the dol
 //---------------------------------------------------
-			if (!RemountDevices())
-			{
-				PrintFormat( 1, ((640/2)-((strlen("Error : Could not mount any FAT device"))*13/2))>>1, 224, "Error : Could not mount any FAT device");
-				gprintf("failed to mount FAT device\n");
-				sleep(5);
-				free_pointer(UpdateFile);
-				free_pointer(Data);
-				return;
-			}
-			mkdir("fat:/apps",0777);
-			mkdir("fat:/apps/Priiloader_Update",0777);
-			FILE* Output = fopen("fat:/apps/Priiloader_Update/boot.dol","wb");
-			if(Output == NULL)
-			{
-				PrintFormat( 1, ((640/2)-((strlen("Error : Could not save to FAT"))*13/2))>>1, 224, "Error : Could not save to FAT");
-				gprintf("failed to create file on SD\n");
-				sleep(5);
-				free_pointer(UpdateFile);
-				free_pointer(Data);
-				return;
-			}
-			gprintf( "Saving: %c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c\r",
-		176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176 );
-			if( file_size > 512)
-			{
-				s32 rsize = 0;
-				int bytesleft = file_size;
-				while (bytesleft > 0) 
-				{
-					int chunk = MIN(bytesleft, 512);
-					int ret = fwrite(Data+rsize, 1, chunk, Output);
-					if (ret != chunk)
-					{
-						//error!!!
-						gprintf("\nan error accured while writing the file. ret = %d, %d\n",ret,rsize);
-						PrintFormat( 1, ((640/2)-((strlen("Error Booting Update dol"))*13/2))>>1, 224, "Error Booting Update dol");
-						fclose(Output);
-						sleep(5);
-						free_pointer(UpdateFile);
-						free_pointer(Data);
-						return;
-					}
-					rsize += chunk;
-					bytesleft -= chunk;
-					int Sdone = (rsize *20 )/ file_size;
-					gprintf("Saving: ");
-					while( Sdone )
-					{
-						gprintf( "%c", 178 );
-						Sdone--;
-					}
-					gprintf( "\r" );
-				}
-				gprintf("\n");
-				fclose(Output);
-			}
-			else
-			{
-				fwrite(Data,1,file_size,Output);
-				fclose(Output);
-			}
-			free_pointer(Data);
-			//load the fresh installer
-			if ( BootDolFromDir("fat:/apps/Priiloader_Update/boot.dol") != -3 )
-			{
-				remove("fat:/apps/Priiloader_Update/boot.dol");
-				remove("fat:/apps/Priiloader_Update");
-			}
-			PrintFormat( 1, ((640/2)-((strlen("Error Booting Update dol"))*13/2))>>1, 224, "Error Booting Update dol");
-			sleep(5);
+		ClearScreen();
+		if(DownloadedBeta)
+		{
+			PrintFormat( 1, ((640/2)-((strlen("loading   .   beta   ..."))*13/2))>>1, 208, "loading %d.%d beta %d...",UpdateFile->beta_version >> 8,UpdateFile->beta_version&0xFF, UpdateFile->beta_number);
 		}
+		else
+		{
+			PrintFormat( 1, ((640/2)-((strlen("loading   .  ..."))*13/2))>>1, 208, "loading %d.%d ...",UpdateFile->version >> 8,UpdateFile->version&0xFF);
+		}
+		if (!RemountDevices())
+		{
+			gprintf("failed to mount FAT device\n");
+			PrintFormat( 1, ((640/2)-((strlen("Error : Could not mount any FAT device"))*13/2))>>1, 224, "Error : Could not mount any FAT device");
+			sleep(5);
+			free_pointer(UpdateFile);
+			free_pointer(Data);
+			return;
+		}
+		mkdir("fat:/apps",0777);
+		mkdir("fat:/apps/Priiloader_Update",0777);
+		FILE* Output = fopen("fat:/apps/Priiloader_Update/boot.dol","wb");
+		if(Output == NULL)
+		{
+			gprintf("failed to create file on SD\n");
+			PrintFormat( 1, ((640/2)-((strlen("Error : Could not save to FAT"))*13/2))>>1, 224, "Error : Could not save to FAT");
+			sleep(5);
+			free_pointer(UpdateFile);
+			free_pointer(Data);
+			return;
+		}
+		gprintf( "Saving: %c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c\r",
+	176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176 );
+		if( file_size > 512)
+		{
+			s32 rsize = 0;
+			int bytesleft = file_size;
+			while (bytesleft > 0) 
+			{
+				int chunk = MIN(bytesleft, 512);
+				int ret = fwrite(Data+rsize, 1, chunk, Output);
+				if (ret != chunk)
+				{
+					//error!!!
+					gprintf("\nan error accured while writing the file. ret = %d, %d\n",ret,rsize);
+					PrintFormat( 1, ((640/2)-((strlen("Error Booting Update dol"))*13/2))>>1, 224, "Error Booting Update dol");
+					fclose(Output);
+					sleep(5);
+					free_pointer(UpdateFile);
+					free_pointer(Data);
+					return;
+				}
+				rsize += chunk;
+				bytesleft -= chunk;
+				int Sdone = (rsize *20 )/ file_size;
+				gprintf("Saving: ");
+				while( Sdone )
+				{
+					gprintf( "%c", 178 );
+					Sdone--;
+				}
+				gprintf( "\r" );
+			}
+			gprintf("\n");
+			fclose(Output);
+		}
+		else
+		{
+			fwrite(Data,1,file_size,Output);
+			fclose(Output);
+		}
+		free_pointer(Data);
+		//load the fresh installer
+		if ( BootDolFromDir("fat:/apps/Priiloader_Update/boot.dol") != -3 )
+		{
+			remove("fat:/apps/Priiloader_Update/boot.dol");
+			remove("fat:/apps/Priiloader_Update");
+		}
+		PrintFormat( 1, ((640/2)-((strlen("Error Booting Update dol"))*13/2))>>1, 224, "Error Booting Update dol");
+		sleep(5);
 	}
-	else
-	{
-		PrintFormat( 1, ((640/2)-((strlen("No update available"))*13/2))>>1, 224, "No update available");
-		sleep(2);
-	}
-	if(socket)
-		net_close(socket);
 	free_pointer(UpdateFile);
 	return;
 }

@@ -329,7 +329,6 @@ s8 InitNetwork()
 		if (if_config(myIP, NULL, NULL, true) < 0) 
 		{
 			gprintf("Error reading IP address\n");
-			sleep(5);
 			return -1;
 		}
         gprintf("Wii 's IP Address is %s\n",myIP);
@@ -338,7 +337,6 @@ s8 InitNetwork()
 	else 
 	{
 		gprintf("Unable to initialise network, no router in range or no DHCP timed out\n");
-		sleep(5);
 		return -2;
     }
 }
