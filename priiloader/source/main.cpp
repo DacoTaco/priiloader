@@ -3168,11 +3168,11 @@ void CheckForUpdate()
 		char se[5];
 		int line = 0;
 		char *ptr;
-		if( strpbrk((char*)Changelog , "\r\n") )
+		if( strpbrk((char*&)Changelog , "\r\n") )
 			sprintf(se, "\r\n");
 		else
 			sprintf(se, "\n");
-		ptr = strtok((char*)Changelog, se);
+		ptr = strtok((char*&)Changelog, se);
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen(" Changelog "))*13/2))>>1, 64+(16*1), " Changelog ");
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("-----------"))*13/2))>>1, 64+(16*2), "-----------");
 		while (ptr != NULL)
@@ -3183,6 +3183,7 @@ void CheckForUpdate()
 		}
 		PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A)  Proceed(Download)"))*13/2))>>1, rmode->viHeight-48, "A(A)  Proceed(Download)");
 		PrintFormat( 0, ((rmode->viWidth /2)-((strlen("B(B)  Cancel Update    "))*13/2))>>1, rmode->viHeight-32, "B(B)  Cancel Update    ");
+		free_pointer(Changelog);
 		u32 PAD_Pressed = 0;
 		u32 WPAD_Pressed = 0;
 		while(1)
@@ -3194,12 +3195,10 @@ void CheckForUpdate()
 			PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
 			if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 			{
-				free_pointer(Changelog);
 				break;
 			}
 			if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 			{
-				free_pointer(Changelog);
 				free_pointer(UpdateFile);
 				ClearScreen();
 				return;
@@ -3301,12 +3300,12 @@ void CheckForUpdate()
 		{
 			PrintFormat( 1, ((640/2)-((strlen("loading   .  ..."))*13/2))>>1, 208, "loading %d.%d ...",UpdateFile->version >> 8,UpdateFile->version&0xFF);
 		}
+		free_pointer(UpdateFile);
 		if (!RemountDevices())
 		{
 			gprintf("failed to mount FAT device\n");
 			PrintFormat( 1, ((640/2)-((strlen("Error : Could not mount any FAT device"))*13/2))>>1, 224, "Error : Could not mount any FAT device");
 			sleep(5);
-			free_pointer(UpdateFile);
 			free_pointer(Data);
 			return;
 		}
@@ -3318,7 +3317,6 @@ void CheckForUpdate()
 			gprintf("failed to create file on SD\n");
 			PrintFormat( 1, ((640/2)-((strlen("Error : Could not save to FAT"))*13/2))>>1, 224, "Error : Could not save to FAT");
 			sleep(5);
-			free_pointer(UpdateFile);
 			free_pointer(Data);
 			return;
 		}
@@ -3339,7 +3337,6 @@ void CheckForUpdate()
 					PrintFormat( 1, ((640/2)-((strlen("Error Booting Update dol"))*13/2))>>1, 224, "Error Booting Update dol");
 					fclose(Output);
 					sleep(5);
-					free_pointer(UpdateFile);
 					free_pointer(Data);
 					return;
 				}
@@ -3372,7 +3369,6 @@ void CheckForUpdate()
 		PrintFormat( 1, ((640/2)-((strlen("Error Booting Update dol"))*13/2))>>1, 224, "Error Booting Update dol");
 		sleep(5);
 	}
-	free_pointer(UpdateFile);
 	return;
 }
 void HandleSTMEvent(u32 event)
