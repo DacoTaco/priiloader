@@ -135,7 +135,7 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket
 		gprintf("failed to send request packet to server! error %d",bytes_send);
 		net_close(socket);
 		free(Data);
-			Data = NULL;
+		Data = NULL;
 		return -4;
 	}
 	net_close(socket);

@@ -571,7 +571,7 @@ s8 WritePriiloader( void )
 			printf("Size Check Success!\n");
 		}
 	}
-	//reset fd. otherwise the read data isn't correct? (checked by writing data away before comparing) :-/
+	//reset fd. the write might have been delayed. a close causes the delayed write to happen and creates the the file correctly
 	ISFS_Close(fd);
 	fd = ISFS_Open(original_app,ISFS_OPEN_READ);
 	u8 *AppData = (u8 *)memalign(32,status->file_length);

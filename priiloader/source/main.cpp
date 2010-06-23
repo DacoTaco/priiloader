@@ -70,7 +70,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //Bin includes
 #include "certs_bin.h"
 #include "stub_bin.h"
-#include "Easter_mp3.h"
 
 using namespace std;
 
@@ -104,7 +103,7 @@ u8 BootSysMenu = 0;
 u8 ReloadedIOS = 0;
 time_t startloop;
 
-extern s32 __IOS_ShutdownSubsystems();
+//extern s32 __IOS_ShutdownSubsystems();
 s32 __IOS_LoadStartupIOS()
 {
         return 0;
@@ -1285,26 +1284,17 @@ void DVDStopDisc( bool do_async )
 	else
 		gprintf("failed to get DI interface from IOS for DI shutdown\n");
 }
-s8 BootDolFromDir( const char* Dir )
+s8 BootDolFromMem( void *dolstart ) 
 {
-	if (!RemountDevices())
-	{
+	if(dolstart == NULL)
 		return -1;
-	}
-	//char filepath[MAXPATHLEN];
-	//sprintf(filepath, "fat:/%s", names[cur_off]);
-	FILE *dol = fopen(Dir,"rb");
-	//FILE *dol = fopen("fat:/apps/Priiloader_Update/boot.dol","rb");
-	if(dol == NULL)
-	{
-		gprintf("BootDolFromDir : Failed to open Dol %s\n",Dir);
-		return -2;
-	}
-	void	(*entrypoint)();
 
+    u32 i;
+	void	(*entrypoint)();
+	
 	Elf32_Ehdr ElfHdr;
 
-	fread( &ElfHdr, sizeof( ElfHdr ), 1, dol );
+	memcpy(&ElfHdr,dolstart,sizeof(Elf32_Ehdr));
 
 	if( ElfHdr.e_ident[EI_MAG0] == 0x7F ||
 		ElfHdr.e_ident[EI_MAG1] == 'E' ||
@@ -1329,128 +1319,102 @@ s8 BootDolFromDir( const char* Dir )
 		gprintf("SHnum:     \t%04X\n",	ElfHdr.e_shnum );
 		gprintf("SHstrndx:  \t%04X\n\n",ElfHdr.e_shstrndx );
 #endif
-
 		if( ElfHdr.e_phnum == 0 )
 		{
 #ifdef DEBUG
-			printf("Warning program header entries are zero!\n");
+			gprintf("Warning program header entries are zero!\n");
 #endif
 		} else {
 
-			for( int i=0; i < ElfHdr.e_phnum; ++i )
+			for( s32 i=0; i < ElfHdr.e_phnum; ++i )
 			{
-				fseek( dol, ElfHdr.e_phoff + sizeof( Elf32_Phdr ) * i, SEEK_SET );
-
 				Elf32_Phdr phdr;
-				fread( &phdr, sizeof( phdr ), 1, dol );
-
+				ICInvalidateRange (&phdr ,sizeof( phdr ) );
+				memmove(&phdr,(void*)(dolstart + (ElfHdr.e_phoff + sizeof( Elf32_Phdr ) * i) ),sizeof( phdr ) );
 #ifdef DEBUG
-				printf("Type:%08X Offset:%08X VAdr:%08X PAdr:%08X FileSz:%08X\n", phdr.p_type, phdr.p_offset, phdr.p_vaddr, phdr.p_paddr, phdr.p_filesz );
+				gprintf("Type:%08X Offset:%08X VAdr:%08X PAdr:%08X FileSz:%08X\n", phdr.p_type, phdr.p_offset, phdr.p_vaddr, phdr.p_paddr, phdr.p_filesz );
 #endif
-				fseek( dol, phdr.p_offset, 0 );
-				fread( (void*)(phdr.p_vaddr | 0x80000000), sizeof( u8 ), phdr.p_filesz, dol);
+				ICInvalidateRange ((void*)(phdr.p_vaddr | 0x80000000),phdr.p_filesz);
+				memmove((void*)(phdr.p_vaddr | 0x80000000), (void*)(dolstart + phdr.p_offset ) , phdr.p_filesz);
 			}
 		}
-
 		if( ElfHdr.e_shnum == 0 )
 		{
 #ifdef DEBUG
-			printf("Warning section header entries are zero!\n");
+			gprintf("Warning section header entries are zero!\n");
 #endif
 		} else {
 
-			for( int i=0; i < ElfHdr.e_shnum; ++i )
+			for( s32 i=0; i < ElfHdr.e_shnum; ++i )
 			{
-				fseek( dol, ElfHdr.e_shoff + sizeof( Elf32_Shdr ) * i, SEEK_SET );
 
 				Elf32_Shdr shdr;
-				fread( &shdr, sizeof( shdr ), 1, dol );
+				memmove(&shdr, (void*)(dolstart + (ElfHdr.e_shoff + sizeof( Elf32_Shdr ) * i) ),sizeof( shdr ) );
+				DCFlushRangeNoSync(&shdr ,sizeof( shdr ) );
 
 				if( shdr.sh_type == 0 )
 					continue;
 
 #ifdef DEBUG
 				if( shdr.sh_type > 17 )
-					printf("Warning the type: %08X could be invalid!\n", shdr.sh_type );
+					gprintf("Warning the type: %08X could be invalid!\n", shdr.sh_type );
 
 				if( shdr.sh_flags & ~0xF0000007 )
-					printf("Warning the flag: %08X is invalid!\n", shdr.sh_flags );
+					gprintf("Warning the flag: %08X is invalid!\n", shdr.sh_flags );
 
-				printf("Type:%08X Offset:%08X Name:%08X Off:%08X Size:%08X\n", shdr.sh_type, shdr.sh_offset, shdr.sh_name, shdr.sh_addr, shdr.sh_size );
+				gprintf("Type:%08X Offset:%08X Name:%08X Off:%08X Size:%08X\n", shdr.sh_type, shdr.sh_offset, shdr.sh_name, shdr.sh_addr, shdr.sh_size );
 #endif
-				fseek( dol, shdr.sh_offset, 0 );
-				fread( (void*)(shdr.sh_addr | 0x80000000), sizeof( u8 ), shdr.sh_size, dol);
+				memmove((void*)(shdr.sh_addr | 0x80000000), (void*)(dolstart + shdr.sh_offset),shdr.sh_size);
+				DCFlushRangeNoSync((void*)(shdr.sh_addr | 0x80000000),shdr.sh_size);
 			}
 		}
-
 		entrypoint = (void (*)())(ElfHdr.e_entry | 0x80000000);
-
-		//sleep(20);
-		//return;
-
-	} else {
-#ifdef DEBUG
-		gprintf("DOL Detected\n");
-#endif
-		//Load the dol!, TODO: maybe add sanity checks?
-		//read the header
-		dolhdr hdr;
-		fseek( dol, 0, 0);
-		fread( &hdr, sizeof( dolhdr ), 1, dol );
-
-		//printf("\nText Sections:\n");
-
-		int i=0;
-		for (i = 0; i < 6; i++)
-		{
-			if( hdr.sizeText[i] && hdr.addressText[i] && hdr.offsetText[i] )
-			{
-				DCInvalidateRange( (void*)(hdr.addressText[i]), hdr.sizeText[i] );
-
-				fseek( dol, hdr.offsetText[i], SEEK_SET );
-				fread( (void*)(hdr.addressText[i]), sizeof( char ), hdr.sizeText[i], dol );
-
-				//printf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr.offsetText[i]), hdr.addressText[i], hdr.sizeText[i]);
-			}
-		}
-
-		//printf("\nData Sections:\n");
-
-		// data sections
-		for (i = 0; i <= 10; i++)
-		{
-			if( hdr.sizeData[i] && hdr.addressData[i] && hdr.offsetData[i] )
-			{
-				fseek( dol, hdr.offsetData[i], SEEK_SET );
-				fread( (void*)(hdr.addressData[i]), sizeof( char ), hdr.sizeData[i], dol );
-
-				DCFlushRangeNoSync( (void*)(hdr.addressData[i]), hdr.sizeData[i] );
-				//printf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr.offsetData[i]), hdr.addressData[i], hdr.sizeData[i]);
-			}
-		}
-
-		memset ((void *) hdr.addressBSS, 0, hdr.sizeBSS);
-		DCFlushRange((void *) hdr.addressBSS, hdr.sizeBSS);
-		fclose( dol );
-		entrypoint = (void (*)())(hdr.entrypoint);
 	}
-	if( entrypoint == 0x00000000 )
+	else
+	{
+		gprintf("DOL detected\n");
+		dolhdr *dolfile;
+		dolfile = (dolhdr *) dolstart;
+		for (i = 0; i < 7; i++) {
+			if ((!dolfile->sizeText[i]) || (dolfile->addressText[i] < 0x100)) continue;
+			ICInvalidateRange ((void *) dolfile->addressText[i],dolfile->sizeText[i]);
+			memmove ((void *) dolfile->addressText[i],dolstart+dolfile->offsetText[i],dolfile->sizeText[i]);
+		}
+#ifdef DEBUG
+		gprintf("Data Sections :\n");
+#endif
+		for (i = 0; i < 11; i++) {
+			if ((!dolfile->sizeData[i]) || (dolfile->offsetData[i] < 0x100)) continue;
+			memmove ((void *) dolfile->addressData[i],dolstart+dolfile->offsetData[i],dolfile->sizeData[i]);
+			DCFlushRangeNoSync ((void *) dolfile->offsetData[i],dolfile->sizeData[i]);
+#ifdef DEBUG
+			gprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (dolfile->offsetData[i]), dolfile->addressData[i], dolfile->sizeData[i]);
+#endif
+		}
+
+		memset ((void *) dolfile->addressBSS, 0, dolfile->sizeBSS);
+		DCFlushRange((void *) dolfile->addressBSS, dolfile->sizeBSS);
+		entrypoint = (void (*)())(dolfile->entrypoint);
+	}
+	if(entrypoint == 0x00000000 )
 	{
 		gprintf("bogus entrypoint of %08X detected\n",(u32)(entrypoint));
-		error = ERROR_BOOT_DOL_ENTRYPOINT;
 		return -2;
 	}
-	DVDStopDisc(true);
-	gprintf("binary loaded, starting dol...\n");
+	gprintf("binary loaded, starting binary...\n");
+	//NOTE : some elfs like fail geckoOS crash priiloader somewhere between the above gprintf & the ios reloading. i dont know why :/
 	for (int i = 0;i < WPAD_MAX_WIIMOTES ;i++)
 	{
-		WPAD_Flush(i);
-		WPAD_Disconnect(i);
+		if(WPAD_Probe(i,0) > 0)
+		{
+			WPAD_Flush(i);
+			WPAD_Disconnect(i);
+		}
 	}
 	ClearState();
 	WPAD_Shutdown();
 	ShutdownDevices();
-	gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
+	DVDStopDisc(false);
 	if(isIOSstub(IOS_GetPreferredVersion()))
 	{
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
@@ -1461,17 +1425,86 @@ s8 BootDolFromDir( const char* Dir )
 		IOS_ReloadIOS(IOS_GetPreferredVersion());
 		ReloadedIOS = 1;
 	}
+	gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
+
+	__STM_Close();
+	ISFS_Deinitialize();
+	ShutdownDevices();
 	__IOS_ShutdownSubsystems();
-	u32 level;
-	SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
-	_CPU_ISR_Disable (level);
 	mtmsr(mfmsr() & ~0x8000);
 	mtmsr(mfmsr() | 0x2002);
+	ICSync();
 	entrypoint();
-	_CPU_ISR_Restore (level);
+	/*
+	//alternate booting code. seems to be as good(or bad) as the above code
+	u32 level;
+	__STM_Close();
+	ISFS_Deinitialize();
+	ShutdownDevices();
+	__IOS_ShutdownSubsystems();
+	SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
+    _CPU_ISR_Disable (level);
+	mtmsr(mfmsr() & ~0x8000);
+	mtmsr(mfmsr() | 0x2002);
+	ICSync();
+    entrypoint();
+    _CPU_ISR_Restore (level);*/
+
+	//it failed. FAIL!
 	__IOS_InitializeSubsystems();
+	MountDevices();
+	ISFS_Initialize();
 	WPAD_Init();
-	return -3;
+	PAD_Init();
+	return -1;
+}
+
+s8 BootDolFromDir( const char* Dir )
+{
+	if (!RemountDevices())
+	{
+		return -1;
+	}
+	FILE* dol;
+	s32 lSize;
+	u8* buffer;
+	dol = fopen(Dir,"rb");
+	if (dol)
+	{
+		// obtain file size:
+		fseek (dol , 0 , SEEK_END);
+		lSize = ftell (dol);
+		rewind (dol);
+		// allocate memory to contain the whole file:
+		buffer = (u8*) memalign (32,sizeof(u8)*lSize);
+		if (buffer == NULL) 
+		{
+			gprintf("failed to align memory for dol");
+			return -3;
+		}
+		else
+		{
+			//// copy the file into the buffer:
+			s32 result = fread (buffer,1,lSize,dol);
+			if (result != lSize) 
+			{
+				gprintf("failed to read dol into memory\n");
+				free_pointer(buffer);
+				return -4;
+			}
+			else
+			{
+				BootDolFromMem(buffer);
+				free_pointer(buffer);
+				return -5;
+			}
+		}
+	}
+	else
+	{
+		gprintf("could not open %s!D: \n",Dir);
+		return -2;
+	}
 }
 void BootMainSysMenu( u8 init )
 {
@@ -1498,40 +1531,12 @@ void BootMainSysMenu( u8 init )
 	s32 r = 0;
 	s32 fd = 0;
 
-	//little easter egg
+
 	if(init == 0)
 	{
-		/*//fucking wii specs. the VI (video) regs need to be init cause the SI clock is decided by VI regs (now to know which).
-		//this leads us to only have the easter egg if the menu is loaded (and video init) cause otherwise we have other video issues that users dislike >_>
-		Control_VI_Regs(1);
-		PAD_Init();
-		AUDIO_Init (NULL);
-		DSP_Init ();
-		AUDIO_StopDMA();
-		AUDIO_RegisterDMACallback(NULL);
-		*/
 		r = (s32)MountDevices();
 		gprintf("FAT_Init():%d\n", r );
 	}
-	else
-	{
-		PAD_ScanPads();
-		u32 PAD_Pressed = PAD_ButtonsHeld(0) | PAD_ButtonsHeld(1) | PAD_ButtonsHeld(2) | PAD_ButtonsHeld(3);
-		//Easter Egg lol
-		if (PAD_Pressed & PAD_TRIGGER_Z)
-		{
-			ASND_Init();
-			ASND_Pause(0);
-			MP3Player_Init();
-			MP3Player_Volume(125);
-			MP3Player_PlayBuffer(Easter_mp3,Easter_mp3_size,NULL);
-			gprintf(":3\n");
-			while(MP3Player_IsPlaying())
-				usleep(2000);
-			ASND_End();
-		}
-	}
-
 	//booting sys menu
 	ISFS_Deinitialize();
 	if( ISFS_Initialize() < 0 )
@@ -1706,7 +1711,6 @@ void BootMainSysMenu( u8 init )
 			if( (((boot_hdr->addressData[i])&0xF0000000) != 0x80000000) || (boot_hdr->sizeData[i]>(10*1024*1024)) )
 			{
 				gprintf("bogus offsets:Data\n");
-				gprintf("offset : %08x\taddress : %08x\tsize : %08x\t\t\n", (boot_hdr->offsetData[i]), boot_hdr->addressData[i], boot_hdr->sizeData[i]);
 				ISFS_Close(fd);
 				goto free_and_return;
 			}
@@ -1933,6 +1937,7 @@ void BootMainSysMenu( u8 init )
 	__IOS_ShutdownSubsystems();
 	mtmsr(mfmsr() & ~0x8000);
 	mtmsr(mfmsr() | 0x2002);
+	ICSync();
 	_unstub_start();
 free_and_return:
 	if(rTMD)
@@ -2136,15 +2141,18 @@ void InstallLoadDOL( void )
 				sleep(5);
 				break;
 			}
-
-			//Load dol
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Loading binary..."))*13/2))>>1, 208, "Loading binary...");
+			//Load binary
 #ifdef libELM
 			sprintf(filepath, "elm:/sd/%s", names[cur_off]);
 #else
 			sprintf(filepath, "fat:/%s", names[cur_off]);
 #endif
-			gprintf("loading fat:/%s\n",names[cur_off]);
+			gprintf("loading %s\n",filepath);
 			BootDolFromDir(filepath);
+			sleep(1);
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to load binary"))*13/2))>>1, 224, "failed to load binary");
+			sleep(3);
 			redraw=true;
 		}
 
@@ -2452,10 +2460,9 @@ void AutoBootDol( void )
 			error = ERROR_BOOT_DOL_READ;
 			return;
 		}
-
-		//printf("read:%d\n", r );
-
+#ifdef DEBUG
 		gprintf("\nText Sections:\n");
+#endif
 
 		int i=0;
 		for (i = 0; i < 6; i++)
@@ -2486,8 +2493,9 @@ void AutoBootDol( void )
 					}
 				//}
 				DCInvalidateRange( (void*)(hdr->addressText[i]), hdr->sizeText[i] );
-
+#ifdef DEBUG
 				gprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr->offsetText[i]), hdr->addressText[i], hdr->sizeText[i]);
+#endif
 			}
 		}
 
@@ -2523,8 +2531,9 @@ void AutoBootDol( void )
 				//}
 
 				DCInvalidateRange( (void*)(hdr->addressData[i]), hdr->sizeData[i] );
-
+#ifdef DEBUG
 				gprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr->offsetData[i]), hdr->addressData[i], hdr->sizeData[i]);
+#endif
 			}
 		}
 
@@ -2673,7 +2682,7 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 	s32 fh = ES_OpenTitleContent(id, views, 0);
 	if (fh == -106)
 	{
-		gprintf("ES_OpenTitleContent returned %d. app not found\n",fh);
+		gprintf("ES_OpenTitleContent : app not found\n",fh);
 		CheckTitleOnSD(id);
 		free_pointer(data);
 		free_pointer(views);
@@ -2770,7 +2779,7 @@ s32 LoadListTitles( void )
 	ret = ES_GetNumTitles(&count);
 	if (ret < 0)
 	{
-		gprintf("failed to get Number of titles. error %d\n",ret);
+		gprintf("failed to get Nr of titles. error %d\n",ret);
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the amount of installed titles!"))*13/2))>>1, 208+16, "Failed to get the amount of installed titles!");
 		sleep(3);
 		return ret;
@@ -2937,6 +2946,8 @@ s32 LoadListTitles( void )
 		{
 			DVDStopDisc(true);
 			ClearScreen();
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Loading title..."))*13/2))>>1, 208, "Loading title...");
+
 			//lets start this bitch
 			u32 cnt ATTRIBUTE_ALIGN(32) = 0;
 			tikview *views = 0;
@@ -2962,7 +2973,7 @@ s32 LoadListTitles( void )
 				gprintf("failed to clear state\n");
 			}
 			ES_LaunchTitle(list[cur_off], &views[0]);
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to Load Title!"))*13/2))>>1, 208+16, "Failed to Load Title!");
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to Load Title!"))*13/2))>>1, 224, "Failed to Load Title!");
 			sleep(3);
 			free_pointer(views);
 			redraw = true;
@@ -3075,6 +3086,7 @@ void CheckForUpdate()
 		free_pointer(UpdateFile);
 		return;
 	}
+
 	while(1)
 	{
 		if(redraw)
@@ -3209,8 +3221,32 @@ void CheckForUpdate()
 	{
 		if(file_size != -8)
 			free_pointer(Changelog);
-		gprintf("failed to get changelog.error %d, HTTP reply %d\n",file_size,Get_Last_reply());
+		gprintf("failed to get changelog.error %d, HTTP reply %s\n",file_size,Get_Last_reply());
 	}
+//Check Pad for lulz or not
+//-----------------------------
+	file_size = 0;
+	u8 *Easter_egg = NULL;
+	PAD_ScanPads();
+	u32 PAD_Pressed  = PAD_ButtonsHeld(0);// | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3); //PAD_ButtonsHeld
+	if (PAD_Pressed & PAD_TRIGGER_Z)
+	{
+		file_size = GetHTTPFile("www.nyleveia.com","/daco/priiloader/Easter.mp3",Easter_egg,0);
+		if(file_size)
+		{
+			ASND_Init();
+			ASND_Pause(0);
+			MP3Player_Init();
+			MP3Player_Volume(125);
+			MP3Player_PlayBuffer(Easter_egg,file_size,NULL);
+			ClearScreen();
+			PrintFormat( 1, ((640/2)-((strlen("MOOT MOOT ;D"))*13/2))>>1, 208, "MOOT MOOT ;D");
+			while(MP3Player_IsPlaying())
+				usleep(2000);
+			ASND_End();
+		}
+	}
+	free_pointer(Easter_egg);
 //The choice is made. lets download what the user wanted :)
 //--------------------------------------------------------------
 	ClearScreen();
@@ -3249,7 +3285,7 @@ void CheckForUpdate()
 	else
 	{
 		SHA1* sha1 = new SHA1();
-		sha1->addBytes( (const char*)Data, file_size );
+		sha1->addBytes( (char*)Data, file_size );
 
 		u32 FileHash[5];
 		gprintf("Downloaded update  ");
@@ -3286,10 +3322,10 @@ void CheckForUpdate()
 		}
 		else
 		{
-			gprintf("Hash check complete. saving&booting file...\n");
+			gprintf("Hash check complete. booting file...\n");
 		}
 
-//Remount FAT device and save. the boot the dol
+//Load the dol
 //---------------------------------------------------
 		ClearScreen();
 		if(DownloadedBeta)
@@ -3301,71 +3337,10 @@ void CheckForUpdate()
 			PrintFormat( 1, ((640/2)-((strlen("loading   .  ..."))*13/2))>>1, 208, "loading %d.%d ...",UpdateFile->version >> 8,UpdateFile->version&0xFF);
 		}
 		free_pointer(UpdateFile);
-		if (!RemountDevices())
-		{
-			gprintf("failed to mount FAT device\n");
-			PrintFormat( 1, ((640/2)-((strlen("Error : Could not mount any FAT device"))*13/2))>>1, 224, "Error : Could not mount any FAT device");
-			sleep(5);
-			free_pointer(Data);
-			return;
-		}
-		mkdir("fat:/apps",0777);
-		mkdir("fat:/apps/Priiloader_Update",0777);
-		FILE* Output = fopen("fat:/apps/Priiloader_Update/boot.dol","wb");
-		if(Output == NULL)
-		{
-			gprintf("failed to create file on SD\n");
-			PrintFormat( 1, ((640/2)-((strlen("Error : Could not save to FAT"))*13/2))>>1, 224, "Error : Could not save to FAT");
-			sleep(5);
-			free_pointer(Data);
-			return;
-		}
-		gprintf( "Saving: %c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c\r",
-	176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176 );
-		if( file_size > 512)
-		{
-			s32 rsize = 0;
-			int bytesleft = file_size;
-			while (bytesleft > 0) 
-			{
-				int chunk = MIN(bytesleft, 512);
-				int ret = fwrite(Data+rsize, 1, chunk, Output);
-				if (ret != chunk)
-				{
-					//error!!!
-					gprintf("\nan error accured while writing the file. ret = %d, %d\n",ret,rsize);
-					PrintFormat( 1, ((640/2)-((strlen("Error Booting Update dol"))*13/2))>>1, 224, "Error Booting Update dol");
-					fclose(Output);
-					sleep(5);
-					free_pointer(Data);
-					return;
-				}
-				rsize += chunk;
-				bytesleft -= chunk;
-				int Sdone = (rsize *20 )/ file_size;
-				gprintf("Saving: ");
-				while( Sdone )
-				{
-					gprintf( "%c", 178 );
-					Sdone--;
-				}
-				gprintf( "\r" );
-			}
-			gprintf("\n");
-			fclose(Output);
-		}
-		else
-		{
-			fwrite(Data,1,file_size,Output);
-			fclose(Output);
-		}
-		free_pointer(Data);
+		sleep(1);
 		//load the fresh installer
-		if ( BootDolFromDir("fat:/apps/Priiloader_Update/boot.dol") != -3 )
-		{
-			remove("fat:/apps/Priiloader_Update/boot.dol");
-			remove("fat:/apps/Priiloader_Update");
-		}
+		BootDolFromMem(Data);
+		free_pointer(Data);
 		PrintFormat( 1, ((640/2)-((strlen("Error Booting Update dol"))*13/2))>>1, 224, "Error Booting Update dol");
 		sleep(5);
 	}
