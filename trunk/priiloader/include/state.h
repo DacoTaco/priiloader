@@ -44,6 +44,21 @@ typedef struct {
 	u32 unknown[6];
 } __attribute__((packed)) StateFlags;
 
+typedef struct {
+       u32 checksum;
+       u32 argsoff;
+       u8 unk1;
+       u8 unk2;
+       u8 apptype;
+       u8 titletype;
+       u32 launchcode;
+       u32 unknown[2];
+       u64 launcher;
+       u8 argbuf[0x1000];
+} __attribute__((packed)) NANDBootInfo;
+
 s32 CheckBootState( void );
 s32 ClearState( void );
 StateFlags GetStateFlags( void );
+s32 SetBootState( u8 type , u8 flags , u8 returnto , u8 discstate );
+s8 VerifyNandBootInfo ( void );

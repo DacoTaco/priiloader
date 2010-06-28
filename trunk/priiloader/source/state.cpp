@@ -83,32 +83,83 @@ u32 CalcStateChk(u32 *buf, u32 size)
 }
 s32 ClearState( void )
 {
+	return SetBootState(0,0,0,0);
+
+}
+s32 SetBootState( u8 type , u8 flags , u8 returnto , u8 discstate )
+{
 	StateFlags *sf = (StateFlags *)memalign( 32, sizeof(StateFlags) );
 	memset( sf, 0, sizeof(StateFlags) );
 
 	s32 fd = ISFS_Open("/title/00000001/00000002/data/state.dat", 1|2 );
 	if(fd < 0)
+	{
+		free_pointer( sf );
 		return -1;
+	}
 	
 	s32 ret = ISFS_Read(fd, sf, sizeof(StateFlags));
 
 	if(ret != sizeof(StateFlags))
+	{
+		free_pointer( sf );
 		return -2 ;
+	}
 
-	sf->type = 0;
-	sf->returnto = 0;
-	sf->flags = 0;
+	sf->type = type;
+	sf->returnto = returnto;
+	sf->flags = flags;
+	sf->discstate = discstate;
 	sf->checksum= CalcStateChk( (u32*)sf, sizeof(StateFlags) );
 
 	if(ISFS_Seek( fd, 0, 0 )<0)
+	{
+		free_pointer( sf );
 		return -3;
+	}
 
 	if(ISFS_Write(fd, sf, sizeof(StateFlags))!=sizeof(StateFlags))
+	{
+		free_pointer( sf );
 		return -4;
+	}
 
 	ISFS_Close(fd);
 
 	free_pointer( sf );
 	return 1;
 
+}
+s8 VerifyNandBootInfo ( void )
+{
+	// path : /shared2/sys/NANDBOOTINFO
+	NANDBootInfo *Boot_Info = (NANDBootInfo *)memalign( 32, sizeof(NANDBootInfo) );
+	memset( Boot_Info, 0, sizeof(NANDBootInfo) );
+
+	s32 fd = ISFS_Open("/shared2/sys/NANDBOOTINFO", 1 );
+	if(fd < 0)
+	{
+		free_pointer( Boot_Info );
+		return -1;
+	}
+	
+	s32 ret = ISFS_Read(fd, Boot_Info, sizeof(NANDBootInfo));
+	if(ret != sizeof(NANDBootInfo))
+	{
+		ISFS_Close(fd);
+		free_pointer( Boot_Info );
+		return -2 ;
+	}
+	ISFS_Close(fd);
+
+	u8 r = Boot_Info->titletype;
+	free_pointer( Boot_Info );
+
+	if (r == 8)
+	{
+		SetBootState(4,132,0,0);
+		return 1;
+	}
+	else
+		return 0;
 }
