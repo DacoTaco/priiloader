@@ -1284,7 +1284,7 @@ void DVDStopDisc( bool do_async )
 	else
 		gprintf("failed to get DI interface from IOS for DI shutdown\n");
 }
-s8 BootDolFromMem( void *dolstart ) 
+s8 BootDolFromMem( u8 *dolstart ) 
 {
 	if(dolstart == NULL)
 		return -1;
@@ -1321,35 +1321,35 @@ s8 BootDolFromMem( void *dolstart )
 #endif
 		if( ElfHdr.e_phnum == 0 )
 		{
-#ifdef DEBUG
 			gprintf("Warning program header entries are zero!\n");
-#endif
-		} else {
+		} 
+		else 
+		{
 
 			for( s32 i=0; i < ElfHdr.e_phnum; ++i )
 			{
 				Elf32_Phdr phdr;
 				ICInvalidateRange (&phdr ,sizeof( phdr ) );
-				memmove(&phdr,(void*)(dolstart + (ElfHdr.e_phoff + sizeof( Elf32_Phdr ) * i) ),sizeof( phdr ) );
+				memmove(&phdr,dolstart + (ElfHdr.e_phoff + sizeof( Elf32_Phdr ) * i) ,sizeof( phdr ) );
 #ifdef DEBUG
 				gprintf("Type:%08X Offset:%08X VAdr:%08X PAdr:%08X FileSz:%08X\n", phdr.p_type, phdr.p_offset, phdr.p_vaddr, phdr.p_paddr, phdr.p_filesz );
 #endif
 				ICInvalidateRange ((void*)(phdr.p_vaddr | 0x80000000),phdr.p_filesz);
-				memmove((void*)(phdr.p_vaddr | 0x80000000), (void*)(dolstart + phdr.p_offset ) , phdr.p_filesz);
+				memmove((void*)(phdr.p_vaddr | 0x80000000), dolstart + phdr.p_offset , phdr.p_filesz);
 			}
 		}
 		if( ElfHdr.e_shnum == 0 )
 		{
-#ifdef DEBUG
 			gprintf("Warning section header entries are zero!\n");
-#endif
-		} else {
+		} 
+		else 
+		{
 
 			for( s32 i=0; i < ElfHdr.e_shnum; ++i )
 			{
 
 				Elf32_Shdr shdr;
-				memmove(&shdr, (void*)(dolstart + (ElfHdr.e_shoff + sizeof( Elf32_Shdr ) * i) ),sizeof( shdr ) );
+				memmove(&shdr, dolstart + (ElfHdr.e_shoff + sizeof( Elf32_Shdr ) * i) ,sizeof( shdr ) );
 				DCFlushRangeNoSync(&shdr ,sizeof( shdr ) );
 
 				if( shdr.sh_type == 0 )
@@ -1364,7 +1364,7 @@ s8 BootDolFromMem( void *dolstart )
 
 				gprintf("Type:%08X Offset:%08X Name:%08X Off:%08X Size:%08X\n", shdr.sh_type, shdr.sh_offset, shdr.sh_name, shdr.sh_addr, shdr.sh_size );
 #endif
-				memmove((void*)(shdr.sh_addr | 0x80000000), (void*)(dolstart + shdr.sh_offset),shdr.sh_size);
+				memmove((void*)(shdr.sh_addr | 0x80000000), dolstart + shdr.sh_offset,shdr.sh_size);
 				DCFlushRangeNoSync((void*)(shdr.sh_addr | 0x80000000),shdr.sh_size);
 			}
 		}
@@ -2498,9 +2498,9 @@ void AutoBootDol( void )
 #endif
 			}
 		}
-
+#ifdef DEBUG
 		gprintf("\nData Sections:\n");
-
+#endif
 		// data sections
 		for (i = 0; i <= 10; i++)
 		{
@@ -2545,7 +2545,7 @@ void AutoBootDol( void )
 		error = ERROR_BOOT_DOL_ENTRYPOINT;
 		return;
 	}
-	DVDStopDisc(true);
+	DVDStopDisc(false);
 	for(int i=0;i<WPAD_MAX_WIIMOTES;i++) {
 		WPAD_Flush(i);
 		WPAD_Disconnect(i);
@@ -3180,11 +3180,11 @@ void CheckForUpdate()
 		char se[5];
 		int line = 0;
 		char *ptr;
-		if( strpbrk((char*&)Changelog , "\r\n") )
+		if( strpbrk((char*)Changelog , "\r\n") )
 			sprintf(se, "\r\n");
 		else
 			sprintf(se, "\n");
-		ptr = strtok((char*&)Changelog, se);
+		ptr = strtok((char*)Changelog, se);
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen(" Changelog "))*13/2))>>1, 64+(16*1), " Changelog ");
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("-----------"))*13/2))>>1, 64+(16*2), "-----------");
 		while (ptr != NULL)
@@ -3475,6 +3475,17 @@ int main(int argc, char **argv)
 				{
 					gprintf("failed to clear state\n");
 				}
+				//check for valid nandboot shitzle. if its found we need to change bootstate to 4.
+				//yellow8 claims system menu reset everything then, but it didn't on my wii (joy). this is why its not activated code.
+				//its not fully confirmed system menu does it(or ios while being standby) and if system menu does indeed clear it.
+				/*if(VerifyNandBootInfo())
+				{
+					gprintf("Verifty of NandBootInfo : 1\nbootstate changed to %d\n",CheckBootState());
+				}
+				else
+				{
+					gprintf("Verifty of NandBootInfo : 0\n");
+				}*/
 				if(!SGetSetting(SETTING_SHUTDOWNTOPRELOADER))
 				{
 					gprintf("Shutting down...\n");
@@ -3489,7 +3500,6 @@ int main(int argc, char **argv)
 					{
 						USBStorage_Close(&__usbfd);
 					}
-					ClearState();
 					if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
 					{
 						STM_ShutdownToStandby();
@@ -3529,7 +3539,9 @@ int main(int argc, char **argv)
 					break;
 				}
 				break;
-			case TYPE_NANDBOOT: // 4 - unknown. guessing its like 0 >_>
+			case TYPE_NANDBOOT: // 4 - nandboot
+				//apparently a boot state in which the system menu auto boots a title. read more : http://wiibrew.org/wiki/WiiConnect24#WC24_title_booting
+				//as it hardly happens i guess nothing bad can happen if we ignore it and just do autoboot instead :)
 			case RETURN_TO_SETTINGS: // 1 - Boot when fully shutdown & wiiconnect24 is off. why its called RETURN_TO_SETTINGS i have no clue...
 			case RETURN_TO_MENU: // 0 - boot when wiiconnect24 is on
 				Autoboot_System();
@@ -3561,7 +3573,11 @@ int main(int argc, char **argv)
 		DCFlushRange((void*)0x8132FFFB,4);
 		BootMainSysMenu(0);
 	}
-	else if( ( SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED && Bootstate < 2) || (SGetSetting(SETTING_RETURNTO) != RETURNTO_PRELOADER && Bootstate > 1) || (SGetSetting(SETTING_SHUTDOWNTOPRELOADER) == 0 && Bootstate == 5 ) )
+	else if( 
+			( SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED && ( Bootstate < 2 || Bootstate == 4 ) ) 
+		 || ( SGetSetting(SETTING_RETURNTO) != RETURNTO_PRELOADER && Bootstate > 1 && Bootstate != 4 ) 
+		 || ( SGetSetting(SETTING_SHUTDOWNTOPRELOADER) == 0 && Bootstate == 5 ) 
+		)
 	{
 		gprintf("Reset Button is held down\n");
 	}
