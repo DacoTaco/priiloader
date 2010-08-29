@@ -102,7 +102,6 @@ u32 LoadHacks( bool Force_Load_Nand )
 {
 	if( hacks.size() ) //Hacks already loaded
 	{
-		gprintf("hacks already loaded\n");
 		hacks.clear();
 		if(states)
 		{
@@ -130,11 +129,7 @@ u32 LoadHacks( bool Force_Load_Nand )
 		fd = ISFS_Open("/title/00000001/00000002/data/hacks.ini", 1 );
 		if( fd < 0 )
 		{
-			//printf("Couldn't find \"hacks.ini\" neither on FAT nor on NAND!\n");
-			/*PrintFormat( 1, ((640/2)-((strlen("Couldn't find \"hacks.ini\""))*13/2))>>1, 208, "Couldn't find \"hacks.ini\"");
-			PrintFormat( 1, ((640/2)-((strlen("neither on FAT nor on NAND!"))*13/2))>>1, 228, "neither on FAT nor on NAND!");
-			sleep(2);*/
-			gprintf("Hacks.ini not found on neither FAT or NAND. ISFS_Open returned %d\n",fd);
+			gprintf("LoadHacks : Hacks.ini not on FAT or Nand. ISFS_Open error %d\n",fd);
 			return 0;
 		} 
 		mode = false;

@@ -63,7 +63,7 @@ void gprintf( const char *str, ... )
 }
 void SetShowDebug( u8 value )
 {
-	if (value > 1)
+	if (value != 1 && value != 0)
 		return;
 	ShowDebug = value;
 }

@@ -1,5 +1,24 @@
-//HTTP Parser By DacoTaco
-//Note by DacoTaco : yes this isn't the prettiest HTTP Parser alive but it does the job so stop complaining :)
+/*
+
+HTTP Parser by DacoTaco
+Copyright (C) 2009-20010  DacoTaco
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation version 2.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+
+*/
+//Note by DacoTaco : yes this isn't the prettiest HTTP Parser alive but it does the job better then loads of http parsers so stop complaining :)
 #include "HTTP_Parser.h"
 static char HTTP_Reply[4];
 s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket_to_use)
@@ -8,6 +27,11 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket
 	if(Data)
 	{
 		free_pointer(Data);
+	}
+	if(host == NULL || file == NULL)
+	{
+		//blaarg, we didn't get host or file. fail!
+		return -4;
 	}
 	if(HTTP_Reply[0] != 0)
 	{
@@ -20,10 +44,11 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket
 	s32 file_size = 0;
 	int socket;
 	char URL_Request[512];
-	sprintf( URL_Request, "GET %s HTTP/1.0\r\nHost: %s\r\n\r\n", file,host );
+	//example : "GET /daco/version.dat HTTP/1.0\r\nHost: www.dacotaco.com\r\nUser-Agent: DacoTacoIsGod\r\n\r\n\0"
+	sprintf( URL_Request, "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: DacoTacoIsGod\r\n\r\n", file,host );
 	if(external_socket_to_use == 0)
 	{
-		socket = ConnectSocket(host);
+		socket = ConnectSocket(host,80);
 		if(socket < 0)
 			return socket;
 	}
@@ -31,10 +56,10 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket
 	{
 		socket = external_socket_to_use;
 	}
-	//receive the header. it starts with something like "HTTP/1.1 [reply number like '200'] [name of code. 200 = 'OK']" { 48 54 54 50 2F 31 2E 31 20 xx xx xx 20 yy yy}
 	bytes_send = net_send(socket, URL_Request, strlen(URL_Request), 0);
 	if ( bytes_send > 0)
 	{
+		//receive the header. it starts with something like "HTTP/1.1 [reply number like '200'] [name of code. 200 = 'OK']" { 48 54 54 50 2F 31 2E 31 20 xx xx xx 20 yy yy}
 		for( ;; )
 		{
 			bytes_read = 0;
@@ -47,8 +72,8 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket
 
 				if( n <= 0 )
 				{
-					gprintf("server closed connection\n");
-					return -5;
+					//gprintf("GetHTTPFile : net_recv(header) error %d\n",n);
+					return -6;
 				}
 
 				i += n;
@@ -68,10 +93,11 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket
 				{
 					case 200: // 200 - OK . everything is fine. lets proceed
 						break;
+					case 302: //moved. to lazy to implement that :P
 					case 404: //File Not Found. nothing special we can do :)
 					default: //o ow, a reply we dont understand yet D: close connection and bail out
 						net_close(socket);
-						return -6;
+						return -7;
 						break;
 				}
 			}	
@@ -84,21 +110,21 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket
 		}
 		if(file_size == 0)
 		{
-			gprintf("file size unknown!\n");
+			//gprintf("GetHTTPFile : file size unknown!\n");
 			if(!external_socket_to_use)
 				net_close(socket);
-			return -7;
+			return -8;
 		}
 		else
 		{
-#ifdef _DEBUG
-			gprintf("file is %d bytes\n",file_size);
+#ifdef DEBUG
+			gprintf("GetHTTPFile : file is %d bytes\n",file_size);
 #endif
 		}
 		Data = (u8*)memalign( 32, file_size );
 		if (Data == NULL)
 		{
-			return -8;
+			return -9;
 		}
 		memset(Data,0,sizeof(u8));
 		s32 total = 0;
@@ -114,8 +140,8 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket
 					net_close(socket);
 				free(Data);
 				Data = NULL;
-				gprintf("\nconnection to server closed. error %d\n",bytes_read);
-				return -9;
+				//gprintf("\nGetHTTPFile : net_recv(buffer) error %d\n",bytes_read);
+				return -10;
 			}
 			memcpy( &Data[total], buffer, bytes_read );
 			total += bytes_read;
@@ -132,50 +158,43 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket
 	}
 	else
 	{
-		gprintf("failed to send request packet to server! error %d",bytes_send);
+		//gprintf("GetHTTPFile : net_send(request packet) error %d",bytes_send);
 		net_close(socket);
 		free(Data);
 		Data = NULL;
-		return -4;
+		return -5;
 	}
 	net_close(socket);
 	return file_size;
 }
-s32 ConnectSocket(const char *hostname)
+s32 ConnectSocket(const char *hostname, u32 port)
 {
 	s32 socket = 0;
 	struct sockaddr_in connect_addr;
 	if ( (socket = net_socket(AF_INET,SOCK_STREAM,IPPROTO_IP)) < 0)
 	{
-		sleep(1);
 		return -1;
 	}
 	else
 	{
-		//gprintf("created socket!\nresolving %s to ip...\n",hostname);
 		//resolving hostname
 		struct hostent *host = 0;
 		host = net_gethostbyname(hostname);
 		if ( host == NULL )
 		{
 			//resolving failed
-			gprintf("failed to resolve %s to ip.\n",hostname);
-			sleep(1);
 			return -2;
 		}
 		else
 		{
 			connect_addr.sin_family = AF_INET;
-			connect_addr.sin_port = 80;
+			connect_addr.sin_port = port;
 			memcpy(&connect_addr.sin_addr, host->h_addr_list[0], host->h_length);
 		}
 	}
 	if (net_connect(socket, (struct sockaddr*)&connect_addr , sizeof(connect_addr)) == -1 )
 	{
-		/*gprintf("failed to connect to %s! something wrong in routing or is %s down?\nDNS server is up but could not connect"
-				,inet_ntoa(connect_addr.sin_addr) , hostname );*/
 		net_close(socket);
-		sleep(1);
 		return -3;
 	}
 	return socket;

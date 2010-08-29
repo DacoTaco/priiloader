@@ -179,22 +179,24 @@ unsigned char* SHA1::getDigest(unsigned int* message_digest_array , char bool_re
 	storeBigEndianUint32( footer + neededZeros + 4, totalBitsL );
 	// finish the final block
 	addBytes( (char*)footer, neededZeros );//+ 8 );
-	// allocate memory for the digest bytes
-	unsigned char* digest = (unsigned char*)malloc( 20 );
 	// copy the digest bytes
 	message_digest_array[0] = H0;
 	message_digest_array[1] = H1;
 	message_digest_array[2] = H2;
 	message_digest_array[3] = H3;
 	message_digest_array[4] = H4;
-	storeBigEndianUint32( digest, H0 );
-	storeBigEndianUint32( digest + 4, H1 );
-	storeBigEndianUint32( digest + 8, H2 );
-	storeBigEndianUint32( digest + 12, H3 );
-	storeBigEndianUint32( digest + 16, H4 );
-	// return the digest
 	if (bool_return_2_byte_version)
+	{
+		// allocate memory for the digest bytes
+		unsigned char* digest = (unsigned char*)malloc( 20 );
+		storeBigEndianUint32( digest, H0 );
+		storeBigEndianUint32( digest + 4, H1 );
+		storeBigEndianUint32( digest + 8, H2 );
+		storeBigEndianUint32( digest + 12, H3 );
+		storeBigEndianUint32( digest + 16, H4 );
+		// return the digest
 		return digest;
+	}
 	else
 		return (unsigned char*)1;
 }

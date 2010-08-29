@@ -30,13 +30,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 #include <gccore.h>
-#include <ogc/ios.h>
 #include <wiiuse/wpad.h>
 #include <sdcard/wiisd_io.h>
 #ifndef libELM
 #include <fat.h>
 #include <ogc/usb.h>
-#include <ogc/es.h>
+#include <ogc/machine/processor.h>
+#include <ogc/machine/asm.h>
 #include "usbstorage.h"
 #else
 #include "elm.h"
@@ -44,11 +44,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <sys/dir.h>
 #include <malloc.h>
 #include <vector>
-#include <ctype.h>
 #include <time.h>
 
 #include <mp3player.h>
-#include "asndlib.h"
+#include <asndlib.h>
 
 //Project files
 #include "../../Shared/svnrev.h"
@@ -56,8 +55,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "settings.h"
 #include "state.h"
 #include "elf.h"
-#include "processor.h"
-#include "asm.h"
 #include "error.h"
 #include "hacks.h"
 #include "font.h"
@@ -71,12 +68,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "certs_bin.h"
 #include "stub_bin.h"
 
-using namespace std;
-
 extern "C"
 {
 	extern void _unstub_start(void);
-	extern usbstorage_handle USBStorage_ReturnHandle( void );
 }
 typedef struct {
 	unsigned int offsetText[7];
@@ -103,7 +97,6 @@ u8 BootSysMenu = 0;
 u8 ReloadedIOS = 0;
 time_t startloop;
 
-//extern s32 __IOS_ShutdownSubsystems();
 s32 __IOS_LoadStartupIOS()
 {
         return 0;
@@ -117,7 +110,7 @@ u8 DetectHBC( void )
     ret = ES_GetNumTitles(&titlecount);
     if(ret < 0)
 	{
-		gprintf("failed to get num titles while detecting HBC\n");
+		gprintf("DetectHBC : ES_GetNumTitles failure\n");
 		return 0;
 	}
 
@@ -125,30 +118,34 @@ u8 DetectHBC( void )
 
     ret = ES_GetTitles(list, titlecount);
     if(ret < 0) {
-		gprintf("get titles failed while detecting HBC\n");
+		gprintf("DetectHBC :ES_GetTitles failure\n");
 		free_pointer(list);
 		return 0;
     }
 	ret = 0;
-	//lets check for JODI or HAXX. as HAXX is found BEFORE JODI and JODI > HAXX, we break on JODI but not HAXX.
+	//lets check for known HBC title id's.
     for(u32 i=0; i<titlecount; i++) 
 	{
+		if (list[i] == 0x00010001AF1BF516LL)
+		{
+			if(ret < 3)
+				ret = 3;
+		}
 		if (list[i] == 0x000100014A4F4449LL)
 		{
-			//gprintf("JODI detected\n");
-			ret = 1;
-			break;
+			if (ret < 2)
+				ret = 2;
 		}
         if (list[i] == 0x0001000148415858LL)
         {
-			//gprintf("HAXX detected\n");
-            ret = 2;
+			if (ret < 1)
+				ret = 1;
         }
     }
 	free_pointer(list);
-    if(!ret)
+    if(ret < 1)
 	{
-		gprintf("neither JODI nor HBC found");
+		gprintf("HBC not found\n");
 	}
 	return ret;
 }
@@ -160,7 +157,6 @@ void LoadHBCStub ( void )
 	//HBC >= 1.0.5 = JODI or 4A4F 4449
 	if ( *(vu32*)0x80001804 == 0x53545542 && *(vu32*)0x80001808 == 0x48415858 )
 	{
-		gprintf("HBC stub : already loaded\n");
 		return;
 	}
 	//load Stub, contains JODI by default.
@@ -170,11 +166,16 @@ void LoadHBCStub ( void )
 	//see if changes are needed to change it to HAXX
     switch(DetectHBC())
 	{
-		case 2: //HAXX
+		case 3:
+			gprintf("changing stub to load HBC...\n");
+			*(vu16*)0x800024CA = 0xAF1B;
+			*(vu16*)0x800024D2 = 0xF516;
+			break;
+		case 1: //HAXX
 			gprintf("changing stub to load HAXX...\n");
 			*(vu16*)0x800024CA = 0x4841;//"HA";
 			*(vu16*)0x800024D2 = 0x5858;//"XX";
-		case 1: //JODI, no changes are needed
+		case 2: //JODI, no changes are needed
 		default: //not good, no HBC was detected >_> lets keep the stub anyway
 			break;
 	}
@@ -256,18 +257,18 @@ bool isIOSstub(u8 ios_number)
 	if (!tmd_size)
 	{
 		//getting size failed. invalid or fake tmd for sure!
-		gprintf("failed to get tmd for ios %d\n",ios_number);
+		gprintf("isIOSstub : ES_GetTMDViewSize fail ios %d\n",ios_number);
 		return true;
 	}
 	ios_tmd = (tmd_view *)memalign( 32, (tmd_size+31)&(~31) );
 	if(!ios_tmd)
 	{
-		gprintf("failed to mem align the TMD struct!\n");
+		gprintf("isIOSstub : TMD align failure\n");
 		return true;
 	}
 	memset(ios_tmd , 0, tmd_size);
 	ES_GetTMDView(0x0000000100000000ULL | ios_number, (u8*)ios_tmd , tmd_size);
-	gprintf("IOS %d is rev %d(0x%x) with tmd size of %u and %u contents\n",ios_number,ios_tmd->title_version,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
+	gprintf("isIOSstub : IOS %d is rev %d(0x%x) with tmd size of %u and %u contents\n",ios_number,ios_tmd->title_version,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
 	/*Stubs have a few things in common:
 	- title version : it is mostly 65280 , or even better : in hex the last 2 digits are 0. 
 		example : IOS 60 rev 6400 = 0x1900 = 00 = stub
@@ -276,26 +277,23 @@ bool isIOSstub(u8 ios_number)
 	eventho the 00 check seems to work fine , we'll only use other knowledge as well cause some
 	people/applications install an ios with a stub rev >_> ...*/
 	u8 Version = ios_tmd->title_version;
-#ifdef DEBUG
-	gprintf("Version = 0x%x\n",Version);
-#endif
 	//version now contains the last 2 bytes. as said above, if this is 00, its a stub
 	if ( Version == 0 )
 	{
 		if ( ( ios_tmd->num_contents == 3) && (ios_tmd->contents[0].type == 1 && ios_tmd->contents[1].type == 0x8001 && ios_tmd->contents[2].type == 0x8001) )
 		{
-			gprintf("IOS %d is a stub\n",ios_number);
+			gprintf("isIOSstub : %d is stub",ios_number);
 			free_pointer(ios_tmd);
 			return true;
 		}
 		else
 		{
-			gprintf("IOS %d is active\n",ios_number);
+			gprintf("isIOSstub : %d is active\n",ios_number);
 			free_pointer(ios_tmd);
 			return false;
 		}
 	}
-	gprintf("IOS %d is active\n",ios_number);
+	gprintf("isIOSstub : %d is active\n",ios_number);
 	free_pointer(ios_tmd);
 	return false;
 }
@@ -383,7 +381,7 @@ void SysHackSettings( void )
 				}
 				else
 				{
-					gprintf("no FAT device found to look for hacks.ini\n");
+					gprintf("no FAT device found\n");
 				}
 				if( in != NULL )
 				{
@@ -405,31 +403,42 @@ void SysHackSettings( void )
 						ISFS_Close( fd );
 						if(ISFS_Delete("/title/00000001/00000002/data/hacks.ini") <0)
 						{
-							gprintf("delete of hacks.ini failed.\n");
 							fail=1;
+							free_pointer(buf);
+							goto handle_hacks_fail;
 						}
 					}
 					if(ISFS_CreateFile("/title/00000001/00000002/data/hacks.ini", 0, 3, 3, 3)<0)
 					{
 						fail=2;
-						gprintf("create of hacks.ini failed\n");
+						free_pointer(buf);
+						goto handle_hacks_fail;
 					}
 					fd = ISFS_Open("/title/00000001/00000002/data/hacks.ini", 1|2 );
 					if( fd < 0 )
 					{
-						gprintf("hacks.ini open failure\n");
 						fail=3;
+						ISFS_Close( fd );
+						free_pointer(buf);
+						goto handle_hacks_fail;
 					}
 
 					if(ISFS_Write( fd, buf, size )<0)
 					{
-						gprintf("hacks.ini writing failure\n");
 						fail = 4;
+						ISFS_Close( fd );
+						free_pointer(buf);
+						goto handle_hacks_fail;
 					}
 					ISFS_Close( fd );
 					free_pointer(buf);
 				}
-
+handle_hacks_fail:
+				if(fail > 0)
+				{
+					gprintf("hacks.ini save error %d\n",fail);
+				}
+				
 				s32 fd = ISFS_Open("/title/00000001/00000002/data/hacks_s.ini", 1|2 );
 
 				if( fd >= 0 )
@@ -438,32 +447,38 @@ void SysHackSettings( void )
 					ISFS_Close( fd );
 					if(ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini")<0)
 					{
-						gprintf("removal of hacks_s.ini failed.\n");
 						fail = 5;
+						goto handle_hacks_s_fail;
 					}
 				}
 
 				if(ISFS_CreateFile("/title/00000001/00000002/data/hacks_s.ini", 0, 3, 3, 3)<0)
 				{
-					gprintf("hacks_s.ini creating failure\n");
 					fail = 6;
+					goto handle_hacks_s_fail;
 				}
 				fd = ISFS_Open("/title/00000001/00000002/data/hacks_s.ini", 1|2 );
 				if( fd < 0 )
 				{
-					gprintf("hacks_s.ini open failure\n");
 					fail=7;
+					goto handle_hacks_s_fail;
 				}
 				if(ISFS_Write( fd, states, sizeof( u32 ) * hacks.size() )<0)
 				{
-					gprintf("hacks_s.ini writing failure\n");
 					fail = 8;
+					ISFS_Close(fd);
+					goto handle_hacks_s_fail;
 				}
 
 				ISFS_Close( fd );
+handle_hacks_s_fail:
+				if(fail > 0)
+				{
+					gprintf("hacks.ini save error %d\n",fail);
+				}
 
 				if( fail )
-					PrintFormat( 0, 118, rmode->viHeight-48, "saving failed:%d", fail);
+					PrintFormat( 0, 118, rmode->viHeight-48, "saving failed");
 				else
 					PrintFormat( 0, 118, rmode->viHeight-48, "settings saved");
 			} 
@@ -480,9 +495,6 @@ void SysHackSettings( void )
 							break;
 					}
 				}
-
-				//printf("\x1b[26;0Hi:%d,%d,%d\n", i, j, states[i] );
-				//sleep(5);
 
 				if(states[i])
 					states[i]=0;
@@ -553,9 +565,6 @@ void SysHackSettings( void )
 					{
 						skip--;
 					} else {
-						//clear line
-						for( u32 c=0; c<40; ++c)
-							PrintFormat( 0, 16+c*6, 48+j*16, " ");
 
 						PrintFormat( cur_off==j, 16, 48+j*16, "%s", hacks[i].desc );
 
@@ -573,7 +582,7 @@ void SysHackSettings( void )
 
 			PrintFormat( cur_off==(signed)DispCount, 118, rmode->viHeight-64, "save settings");
 
-			PrintFormat( 0, 118, rmode->viHeight-48, "                    ");
+			PrintFormat( 0, 118, rmode->viHeight-48, "              ");
 
 			redraw = false;
 		}
@@ -1114,7 +1123,7 @@ void SetSettings( void )
 					PrintFormat( cur_off==1, 0, 128,    "             Return to:          Autoboot   ");
 				break;
 				default:
-					gprintf("unknown return to value %d !\n",settings->ReturnTo);
+					gprintf("SetSettings : unknown return to value %d\n",settings->ReturnTo);
 			}
 			
 			//PrintFormat( 0, 16, 64, "Pos:%d", ((rmode->viWidth /2)-(strlen("settings saved")*13/2))>>1);
@@ -1150,18 +1159,23 @@ void SetSettings( void )
 }
 void LoadHBC( void )
 {
-	//Note By DacoTaco :check for new (0x00010001/4A4F4449 - JODI) HBC id
-	//or old one(0x0001000/148415858 - HAXX)
+	//Note By DacoTaco :check for (0x00010001/4A4F4449 - JODI) HBC id
+	//or old one(0x00010001/148415858 - HAXX)
+	//or latest 0x00010001/AF1BF516
 	u64 TitleID = 0;
 	switch (DetectHBC())
 	{
-		case 2: //HAXX
-			gprintf("HAXX detected\n");
+		case 1: //HAXX
+			gprintf("LoadHBC : HAXX detected\n");
 			TitleID = 0x0001000148415858LL;
 			break;
-		case 1: //JODI
-			gprintf("JODI detected\n");
+		case 2: //JODI
+			gprintf("LoadHBC : JODI detected\n");
 			TitleID = 0x000100014A4F4449LL;
+			break;
+		case 3: //0.7
+			gprintf("LoadHBC : 0.7 HBC detected\n");
+			TitleID = 0x00010001AF1BF516LL;
 			break;
 		default: //LOL nothing?
 			error = ERROR_BOOT_HBC;
@@ -1173,7 +1187,7 @@ void LoadHBC( void )
 	ES_GetTicketViews(TitleID, views, cnt);
 	if( ClearState() < 0 )
 	{
-		gprintf("failed to clear state\n");
+		gprintf("ClearState failure\n");
 	}
 	ES_LaunchTitle(TitleID, &views[0]);
 	//well that went wrong
@@ -1244,7 +1258,7 @@ void LoadBootMii( void )
 	//clear the bootstate before going on
 	if( ClearState() < 0 )
 	{
-		gprintf("failed to clear state\n");
+		gprintf("ClearState failure\n");
 	}
 	IOS_ReloadIOS(254);
 	//launching bootmii failed. lets wait a bit for the launch(it could be delayed) and then load the other ios back
@@ -1282,7 +1296,7 @@ void DVDStopDisc( bool do_async )
 		free_pointer( inbuf );
 	}
 	else
-		gprintf("failed to get DI interface from IOS for DI shutdown\n");
+		gprintf("DVDStopDisc : IOS_Open error %d\n",di_fd);
 }
 s8 BootDolFromMem( u8 *dolstart ) 
 {
@@ -1301,8 +1315,8 @@ s8 BootDolFromMem( u8 *dolstart )
 		ElfHdr.e_ident[EI_MAG2] == 'L' ||
 		ElfHdr.e_ident[EI_MAG3] == 'F' )
 	{
-		gprintf("ELF Found\n");
 #ifdef DEBUG
+		gprintf("BootDolFromMem : ELF Found\n");
 		gprintf("Type:      \t%04X\n", ElfHdr.e_type );
 		gprintf("Machine:   \t%04X\n", ElfHdr.e_machine );
 		gprintf("Version:  %08X\n", ElfHdr.e_version );
@@ -1321,11 +1335,12 @@ s8 BootDolFromMem( u8 *dolstart )
 #endif
 		if( ElfHdr.e_phnum == 0 )
 		{
-			gprintf("Warning program header entries are zero!\n");
+#ifdef DEBUG
+			gprintf("BootDolFromMem : Warning program header entries are zero!\n");
+#endif
 		} 
 		else 
 		{
-
 			for( s32 i=0; i < ElfHdr.e_phnum; ++i )
 			{
 				Elf32_Phdr phdr;
@@ -1335,12 +1350,18 @@ s8 BootDolFromMem( u8 *dolstart )
 				gprintf("Type:%08X Offset:%08X VAdr:%08X PAdr:%08X FileSz:%08X\n", phdr.p_type, phdr.p_offset, phdr.p_vaddr, phdr.p_paddr, phdr.p_filesz );
 #endif
 				ICInvalidateRange ((void*)(phdr.p_vaddr | 0x80000000),phdr.p_filesz);
-				memmove((void*)(phdr.p_vaddr | 0x80000000), dolstart + phdr.p_offset , phdr.p_filesz);
+				if(phdr.p_type == PT_LOAD )
+					memmove((void*)(phdr.p_vaddr | 0x80000000), dolstart + phdr.p_offset , phdr.p_filesz);
 			}
 		}
+
+		//according to dhewg the section headers are totally un-needed (infact, they break a few elf loading)
+		//however, checking for the type does the trick to make them work :)
 		if( ElfHdr.e_shnum == 0 )
 		{
-			gprintf("Warning section header entries are zero!\n");
+#ifdef DEBUG
+			gprintf("BootDolFromMem : Warning section header entries are zero!\n");
+#endif
 		} 
 		else 
 		{
@@ -1352,11 +1373,11 @@ s8 BootDolFromMem( u8 *dolstart )
 				memmove(&shdr, dolstart + (ElfHdr.e_shoff + sizeof( Elf32_Shdr ) * i) ,sizeof( shdr ) );
 				DCFlushRangeNoSync(&shdr ,sizeof( shdr ) );
 
-				if( shdr.sh_type == 0 )
+				if( shdr.sh_type == SHT_NULL )
 					continue;
 
 #ifdef DEBUG
-				if( shdr.sh_type > 17 )
+				if( shdr.sh_type > SHT_GROUP )
 					gprintf("Warning the type: %08X could be invalid!\n", shdr.sh_type );
 
 				if( shdr.sh_flags & ~0xF0000007 )
@@ -1364,15 +1385,20 @@ s8 BootDolFromMem( u8 *dolstart )
 
 				gprintf("Type:%08X Offset:%08X Name:%08X Off:%08X Size:%08X\n", shdr.sh_type, shdr.sh_offset, shdr.sh_name, shdr.sh_addr, shdr.sh_size );
 #endif
-				memmove((void*)(shdr.sh_addr | 0x80000000), dolstart + shdr.sh_offset,shdr.sh_size);
-				DCFlushRangeNoSync((void*)(shdr.sh_addr | 0x80000000),shdr.sh_size);
+				if (shdr.sh_type == SHT_NOBITS)
+				{
+					memmove((void*)(shdr.sh_addr | 0x80000000), dolstart + shdr.sh_offset,shdr.sh_size);
+					DCFlushRangeNoSync((void*)(shdr.sh_addr | 0x80000000),shdr.sh_size);
+				}
 			}
 		}
 		entrypoint = (void (*)())(ElfHdr.e_entry | 0x80000000);
 	}
 	else
 	{
-		gprintf("DOL detected\n");
+#ifdef DEBUG
+		gprintf("BootDolFromMem : DOL detected\n");
+#endif
 		dolhdr *dolfile;
 		dolfile = (dolhdr *) dolstart;
 		for (i = 0; i < 7; i++) {
@@ -1398,11 +1424,10 @@ s8 BootDolFromMem( u8 *dolstart )
 	}
 	if(entrypoint == 0x00000000 )
 	{
-		gprintf("bogus entrypoint of %08X detected\n",(u32)(entrypoint));
+		gprintf("BootDolFromMem : bogus entrypoint of %08X detected\n",(u32)(entrypoint));
 		return -2;
 	}
-	gprintf("binary loaded, starting binary...\n");
-	//NOTE : some elfs like fail geckoOS crash priiloader somewhere between the above gprintf & the ios reloading. i dont know why :/
+	gprintf("BootDolFromMem : starting binary...\n");
 	for (int i = 0;i < WPAD_MAX_WIIMOTES ;i++)
 	{
 		if(WPAD_Probe(i,0) > 0)
@@ -1415,17 +1440,30 @@ s8 BootDolFromMem( u8 *dolstart )
 	WPAD_Shutdown();
 	ShutdownDevices();
 	DVDStopDisc(false);
-	if(isIOSstub(IOS_GetPreferredVersion()))
+
+	if(ReloadedIOS)
 	{
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
-		sleep(3);
+		if( isIOSstub(58) )
+		{
+			if( isIOSstub(IOS_GetPreferredVersion()) )
+			{
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
+				sleep(3);
+			}
+			else
+			{
+				IOS_ReloadIOS(IOS_GetPreferredVersion());
+				ReloadedIOS = 1;
+			}
+		}
+		else
+		{
+			IOS_ReloadIOS(58);
+			ReloadedIOS = 1;
+		}
 	}
-	else
-	{
-		IOS_ReloadIOS(IOS_GetPreferredVersion());
-		ReloadedIOS = 1;
-	}
-	gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
+	
+	gprintf("BootDolFromMem : Entrypoint: %08X\n", (u32)(entrypoint) );
 
 	__STM_Close();
 	ISFS_Deinitialize();
@@ -1456,6 +1494,7 @@ s8 BootDolFromMem( u8 *dolstart )
 	ISFS_Initialize();
 	WPAD_Init();
 	PAD_Init();
+	gprintf("BootDolFromMem : booting failure\n");
 	return -1;
 }
 
@@ -1469,6 +1508,7 @@ s8 BootDolFromDir( const char* Dir )
 	s32 lSize;
 	u8* buffer;
 	dol = fopen(Dir,"rb");
+	gprintf("BootDolFromDir : loading %s\n",Dir);
 	if (dol)
 	{
 		// obtain file size:
@@ -1476,10 +1516,9 @@ s8 BootDolFromDir( const char* Dir )
 		lSize = ftell (dol);
 		rewind (dol);
 		// allocate memory to contain the whole file:
-		buffer = (u8*) memalign (32,sizeof(u8)*lSize);
+		buffer = (u8*) memalign (32,(sizeof(u8)*lSize+31)&(~31));
 		if (buffer == NULL) 
 		{
-			gprintf("failed to align memory for dol");
 			return -3;
 		}
 		else
@@ -1488,7 +1527,7 @@ s8 BootDolFromDir( const char* Dir )
 			s32 result = fread (buffer,1,lSize,dol);
 			if (result != lSize) 
 			{
-				gprintf("failed to read dol into memory\n");
+				gprintf("BootDolFromDir : fread failure\n");
 				free_pointer(buffer);
 				return -4;
 			}
@@ -1502,7 +1541,7 @@ s8 BootDolFromDir( const char* Dir )
 	}
 	else
 	{
-		gprintf("could not open %s!D: \n",Dir);
+		gprintf("BootDolFromDir : fopen(%s) fail\n",Dir);
 		return -2;
 	}
 }
@@ -1553,7 +1592,7 @@ void BootMainSysMenu( u8 init )
 	r = ES_GetTMDViewSize(TitleID, &tmd_size);
 	if(r<0)
 	{
-		gprintf("error getting TMD views Size. error %d\n",r);
+		gprintf("GetTMDViewSize error %d\n",r);
 		error = ERROR_SYSMENU_GETTMDSIZEFAILED;
 		goto free_and_return;
 	}
@@ -1567,11 +1606,13 @@ void BootMainSysMenu( u8 init )
 	r = ES_GetTMDView(TitleID, (u8*)rTMD, tmd_size);
 	if(r<0)
 	{
-		gprintf("error getting TMD views. error %d\n",r);
+		gprintf("GetTMDView error %d\n",r);
 		error = ERROR_SYSMENU_GETTMDFAILED;
 		goto free_and_return;
 	}
-	gprintf("SM ios version: %u\n",(u8)rTMD->sys_version);
+#ifdef DEBUG
+	gprintf("ios version: %u\n",(u8)rTMD->sys_version);
+#endif
 
 	//get main.dol filename
 	/*for(u32 z=0; z < rTMD->num_contents; ++z)
@@ -1586,7 +1627,7 @@ void BootMainSysMenu( u8 init )
 		}
 	}*/
 	fileID = rTMD->contents[rTMD->num_contents-1].cid;
-	gprintf("using %08X for booting. REPORT IF INCORRECT!\n",rTMD->contents[rTMD->num_contents-1].cid);
+	gprintf("using %08X for booting\n",rTMD->contents[rTMD->num_contents-1].cid);
 
 	if( fileID == 0 )
 	{
@@ -1597,11 +1638,10 @@ void BootMainSysMenu( u8 init )
 	sprintf( file, "/title/00000001/00000002/content/%08x.app", fileID );
 	//small fix that Phpgeek didn't forget but i did
 	file[33] = '1'; // installing preloader renamed system menu so we change the app file to have the right name
-	gprintf("filename %s\n",file);
 
 	fd = ISFS_Open( file, 1 );
 #ifdef DEBUG
-	printf("IOS_Open(%s, %d):%d\n", file, 1, fd );
+	gprintf("ISFS_Open(%s, %d):%d\n", file, 1, fd );
 	sleep(1);
 #endif
 	if( fd < 0 )
@@ -1638,17 +1678,17 @@ void BootMainSysMenu( u8 init )
 	boot_hdr = (dolhdr *)memalign(32, (sizeof( dolhdr )+31)&(~31) );
 	if(boot_hdr == NULL)
 	{
-		gprintf("failed to allocate dol header\n");
+		gprintf("memalign failure(dolhdr)\n");
 		error = ERROR_MALLOC;
 		ISFS_Close(fd);
 		goto free_and_return;
 	}
 	memset( boot_hdr, 0, (sizeof( dolhdr )+31)&(~31) );
 	
-	ISFS_Seek( fd, 0, SEEK_SET );
+	r = ISFS_Seek( fd, 0, SEEK_SET );
 	if ( r < 0)
 	{
-		gprintf("failed to seek to start of boot file\n");
+		gprintf("ISFS_Seek error %d(dolhdr)\n",r);
 		ISFS_Close(fd);
 		goto free_and_return;
 	}
@@ -1660,13 +1700,13 @@ void BootMainSysMenu( u8 init )
 
 	if( r < 0 || r != sizeof(dolhdr) )
 	{
-		gprintf("failed to read dol to mem block!\n");
+		gprintf("ISFS_Read error %d of dolhdr\n",r);
 		ISFS_Close( fd );
 		goto free_and_return;
 	}
 	if( boot_hdr->entrypoint != 0x3400 )
 	{
-		gprintf("Bogus Entrypoint Detected\n");
+		gprintf("Bogus Entrypoint detected!\n");
 		ISFS_Close( fd );
 		goto free_and_return;
 	}
@@ -1682,7 +1722,7 @@ void BootMainSysMenu( u8 init )
 #endif
 			if( (((boot_hdr->addressText[i])&0xF0000000) != 0x80000000) || (boot_hdr->sizeText[i]>(10*1024*1024)) )
 			{
-				gprintf("bogus offsets:Text\n");
+				gprintf("bogus Text offset\n");
 				ISFS_Close( fd );
 				goto free_and_return;
 			}
@@ -1690,7 +1730,7 @@ void BootMainSysMenu( u8 init )
 			r = ISFS_Seek( fd, boot_hdr->offsetText[i], SEEK_SET );
 			if ( r < 0)
 			{
-				gprintf("failed to seek to start of boot file\n");
+				gprintf("ISFS_Seek error %d(offsetText)\n");
 				ISFS_Close(fd);
 				goto free_and_return;
 			}
@@ -1710,7 +1750,7 @@ void BootMainSysMenu( u8 init )
 #endif
 			if( (((boot_hdr->addressData[i])&0xF0000000) != 0x80000000) || (boot_hdr->sizeData[i]>(10*1024*1024)) )
 			{
-				gprintf("bogus offsets:Data\n");
+				gprintf("bogus Data offsets\n");
 				ISFS_Close(fd);
 				goto free_and_return;
 			}
@@ -1718,14 +1758,14 @@ void BootMainSysMenu( u8 init )
 			r = ISFS_Seek( fd, boot_hdr->offsetData[i], SEEK_SET );
 			if ( r < 0)
 			{
-				gprintf("failed to seek to start of boot file\n");
+				gprintf("ISFS_Seek error %d(offsetData)\n");
 				ISFS_Close(fd);
 				goto free_and_return;
 			}
 			r = ISFS_Read( fd, (void*)boot_hdr->addressData[i], boot_hdr->sizeData[i] );
 			if (r < 0)
 			{
-				gprintf("failed to read offset %d\n",boot_hdr->addressData[i]);
+				gprintf("ISFS_Read error %d(addressdata)\n",r);
 				ISFS_Close(fd);
 				goto free_and_return;
 			}
@@ -1734,7 +1774,7 @@ void BootMainSysMenu( u8 init )
 
 	}
 	entrypoint = (void (*)())(boot_hdr->entrypoint);
-	gprintf("entrypoint: %08X\n", entrypoint );
+	gprintf("entrypoint %08X\n", entrypoint );
 
 	RemountDevices();
 	LoadHacks(true);
@@ -1748,10 +1788,9 @@ void BootMainSysMenu( u8 init )
 	if( !SGetSetting( SETTING_USESYSTEMMENUIOS ) )
 	{
 		s32 ToLoadIOS = SGetSetting(SETTING_SYSTEMMENUIOS);
-		gprintf("checking ios %d...\n",ToLoadIOS);
 		if ( ToLoadIOS != (u8)IOS_GetVersion() )
 		{
-			gprintf("checking ios %d for stub...\n",ToLoadIOS);
+			gprintf("BootMainSysMenu : IsIOSStub(%d)...\n",ToLoadIOS);
 			if ( !isIOSstub(ToLoadIOS) )
 			{
 				__ES_Close();
@@ -1760,7 +1799,7 @@ void BootMainSysMenu( u8 init )
 				__IOS_LaunchNewIOS ( ToLoadIOS );
 				//why the hell the es needs 2 init's is beyond me... it just happens (see IOS_ReloadIOS in libogc's ios.c)
 				__ES_Init();
-				gprintf("launched ios %d for system menu\n",IOS_GetVersion());
+				gprintf("BootMainSysMenu : ios %d launched\n",IOS_GetVersion());
 				//__IOS_LaunchNewIOS ( (u8)rTMD->sys_version );
 				//__IOS_LaunchNewIOS ( 249 );
 				ReloadedIOS = 1;
@@ -1769,13 +1808,12 @@ void BootMainSysMenu( u8 init )
 			{
 				WPAD_Init();
 				error=ERROR_SYSMENU_IOSSTUB;
-				gprintf("ios %d is stub! Stopping boot of system menu...\n",ToLoadIOS);
 				goto free_and_return;
 			}
 		}
 		else
 		{
-			gprintf("skipping IOS reload to %d(its already loaded)\n",ToLoadIOS);
+			gprintf("skipping IOS reload\n");
 		}
 	}
 	/*
@@ -1796,9 +1834,9 @@ void BootMainSysMenu( u8 init )
 	if (((u8)IOS_GetVersion() != (u8)rTMD->sys_version) || (ReloadedIOS) )
 	{
 		if (ReloadedIOS)
-			gprintf("Forced into ES_Identify (reloaded IOS since startup) ...\n");
+			gprintf("Forced into ES_Identify\n");
 		else
-			gprintf("using IOS(%d) other then system menu IOS(%u)\nforcing ES_Identify...\n",IOS_GetVersion(),(u8)rTMD->sys_version);
+			gprintf("IOS(%d) != SM IOS(%d). forcing ES_Identify\n",IOS_GetVersion(),(u8)rTMD->sys_version);
 		//read ticket from FS
 		fd = ISFS_Open("/title/00000001/00000002/content/ticket", 1 );
 		if( fd < 0 )
@@ -1849,7 +1887,7 @@ void BootMainSysMenu( u8 init )
 		if(r < 0)
 		{
 			error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
-			gprintf("ES_Identify failed : Failed to get TMDSize! error %d\n",r);
+			gprintf("ES_Identify: GetStoredTMDSize error %d\n",r);
 			__IOS_InitializeSubsystems();
 			WPAD_Init();
 			goto free_and_return;
@@ -1857,7 +1895,7 @@ void BootMainSysMenu( u8 init )
 		TMD = (signed_blob *)memalign( 32, (tmd_size_temp+31)&(~31) );
 		if(TMD == NULL)
 		{
-			gprintf("failed to allocate the TMD\n");
+			gprintf("ES_Identify: memalign TMD failure\n");
 			error = ERROR_MALLOC;
 			__IOS_InitializeSubsystems();
 			WPAD_Init();
@@ -1869,7 +1907,7 @@ void BootMainSysMenu( u8 init )
 		if(r < 0)
 		{
 			error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
-			gprintf("ES_Identify failed : Failed to get TMD! error %d\n",r);
+			gprintf("ES_Identify: GetStoredTMD error %d\n",r);
 			__IOS_InitializeSubsystems();
 			WPAD_Init();
 			goto free_and_return;
@@ -1879,7 +1917,7 @@ void BootMainSysMenu( u8 init )
 		{	
 			error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
 			//__IOS_LaunchNewIOS ( (u8)rTMD->sys_version );
-			gprintf("ES_Identify failed! error %d\n",r);
+			gprintf("ES_Identify error %d\n",r);
 			__IOS_InitializeSubsystems();
 			WPAD_Init();
 			goto free_and_return;
@@ -2039,7 +2077,7 @@ void InstallLoadDOL( void )
 			ClearScreen();
 			if ( (SDInserted && !__io_wiisd.isInserted()) || (!SDInserted && !__io_usbstorage.isInserted()) )
 			{
-				gprintf("SD/USB isn't in the same state anymore\n");
+				gprintf("SD/USB not in same state\n");
 				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("FAT device removed before loading!"))*13/2))>>1, 208, "FAT device removed before loading!");
 				sleep(5);
 				break;
@@ -2104,7 +2142,7 @@ void InstallLoadDOL( void )
 			ClearScreen();
 			//Delete file
 
-			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("Delete installed File..."))*13/2))>>1, 208, "Delete installed File...");
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("Deleting installed File..."))*13/2))>>1, 208, "Deleting installed File...");
 
 			//Check if there is already a main.dol installed
 			s32 fd = ISFS_Open("/title/00000001/00000002/data/main.bin", 1|2 );
@@ -2136,7 +2174,7 @@ void InstallLoadDOL( void )
 			ClearScreen();
 			if ( (SDInserted && !__io_wiisd.isInserted()) || (!SDInserted && !__io_usbstorage.isInserted()) )
 			{
-				gprintf("SD/USB isn't in the same state anymore\n");
+				gprintf("SD/USB not in same state\n");
 				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("FAT device removed before loading!"))*13/2))>>1, 208, "FAT device removed before loading!");
 				sleep(5);
 				break;
@@ -2148,11 +2186,11 @@ void InstallLoadDOL( void )
 #else
 			sprintf(filepath, "fat:/%s", names[cur_off]);
 #endif
-			gprintf("loading %s\n",filepath);
 			BootDolFromDir(filepath);
 			sleep(1);
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to load binary"))*13/2))>>1, 224, "failed to load binary");
 			sleep(3);
+			ClearScreen();
 			redraw=true;
 		}
 
@@ -2181,7 +2219,7 @@ void InstallLoadDOL( void )
 
 			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Install File"))*13/2))>>1, rmode->viHeight-64, "A(A) Install FIle");
 			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("1(Z) Load File   "))*13/2))>>1, rmode->viHeight-48, "1(Y) Load File");
-			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("2(X) Delete File "))*13/2))>>1, rmode->viHeight-32, "2(X) Delete File");
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("2(X) Delete installed File"))*13/2))>>1, rmode->viHeight-32, "2(X) Delete installed File");
 
 			redraw = false;
 		}
@@ -2217,9 +2255,6 @@ void AutoBootDol( void )
 	s32 r = ISFS_Read( fd, ElfHdr, sizeof( Elf32_Ehdr ) );
 	if( r < 0 || r != sizeof( Elf32_Ehdr ) )
 	{
-#ifdef DEBUG
-		sleep(10);
-#endif
 		error = ERROR_BOOT_DOL_READ;
 		return;
 	}
@@ -2229,8 +2264,8 @@ void AutoBootDol( void )
 		ElfHdr->e_ident[EI_MAG2] == 'L' ||
 		ElfHdr->e_ident[EI_MAG3] == 'F' )
 	{
-		gprintf("ELF Found\n");
 #ifdef DEBUG
+		gprintf("ELF Found\n");
 		gprintf("Type:      \t%04X\n", ElfHdr->e_type );
 		gprintf("Machine:   \t%04X\n", ElfHdr->e_machine );
 		gprintf("Version:  %08X\n", ElfHdr->e_version );
@@ -2260,21 +2295,25 @@ void AutoBootDol( void )
 				r = ISFS_Seek( fd, ElfHdr->e_phoff + sizeof( Elf32_Phdr ) * i, SEEK_SET );
 				if( r < 0 )
 				{
-#ifdef DEBUG
-					sleep(10);
-#endif
 					error = ERROR_BOOT_DOL_SEEK;
+					free_pointer(ElfHdr);
 					return;
 				}
 
 				Elf32_Phdr *phdr = (Elf32_Phdr *)memalign( 32, (sizeof( Elf32_Phdr )+31)&(~31) );
+				if( phdr == NULL )
+				{
+					error = ERROR_MALLOC;
+					free_pointer(ElfHdr);
+					return;
+				}
+				memset(phdr,0,sizeof(Elf32_Phdr));
 				r = ISFS_Read( fd, phdr, sizeof( Elf32_Phdr ) );
 				if( r < 0 )
 				{
-#ifdef DEBUG
-					sleep(10);
-#endif
 					error = ERROR_BOOT_DOL_READ;
+					free_pointer( phdr );
+					free_pointer(ElfHdr);
 					return;
 				}
 #ifdef DEBUG
@@ -2283,54 +2322,24 @@ void AutoBootDol( void )
 				r = ISFS_Seek( fd, phdr->p_offset, 0 );
 				if( r < 0 )
 				{
-#ifdef DEBUG
-					sleep(10);
-#endif
 					error = ERROR_BOOT_DOL_SEEK;
+					free_pointer( phdr );
+					free_pointer(ElfHdr);
 					return;
 				}
 
-				//DacoTaco : hacky check, i know
-				if ( (phdr->p_vaddr != 0) && (phdr->p_filesz != 0) )
+				if(phdr->p_type == PT_LOAD && phdr->p_vaddr != 0)
 				{
-					//Check if target address is aligned by 32, otherwise create a temp buffer and load it from there!
-					if( phdr->p_vaddr&(~31))
+					r = ISFS_Read( fd, (void*)phdr->p_vaddr, phdr->p_filesz);
+					if( r < 0 )
 					{
-						u8 *tbuf = (u8*)memalign(32, (phdr->p_filesz+31)&(~31) );
-
-						r = ISFS_Read( fd, tbuf, phdr->p_filesz);
-						if( r < 0 )
-						{
-#ifdef DEBUG
-							sleep(10);
-#endif
-							gprintf("read failed of the program section addr(%u). error 1.%d.%u\n",phdr->p_vaddr,r,phdr->p_filesz);
-							error = ERROR_BOOT_DOL_READ;
-							return;
-						}
-
-						memcpy( (void*)(phdr->p_vaddr | 0x80000000), tbuf, phdr->p_filesz );
-
-						free_pointer( tbuf);
-					} else {
-
-						r = ISFS_Read( fd, (void*)(phdr->p_vaddr | 0x80000000), phdr->p_filesz);
-						if( r < 0 )
-						{
-#ifdef DEBUG
-							sleep(10);
-#endif
-							gprintf("read failed of the program section addr(%u). error 2.%d.%u\n",phdr->p_vaddr,r,phdr->p_filesz);
-							error = ERROR_BOOT_DOL_READ;
-							return;
-						}
+						gprintf("AutoBootDol : ISFS_Read(%d)read failed of the program section addr\n",r);
+						error = ERROR_BOOT_DOL_READ;
+						free_pointer( phdr );
+						free_pointer(ElfHdr);
+						return;
 					}
 				}
-				else
-				{
-					gprintf("warning! program section nr %d address is 0!(%u - %u)\n",i,phdr->p_vaddr, phdr->p_filesz);
-				}
-
 				free_pointer( phdr );
 			}
 		}
@@ -2342,26 +2351,30 @@ void AutoBootDol( void )
 		} else {
 
 			Elf32_Shdr *shdr = (Elf32_Shdr *)memalign( 32, (sizeof( Elf32_Shdr )+31)&(~31) );
-
+			if( shdr == NULL )
+			{
+				error = ERROR_MALLOC;
+				free_pointer(ElfHdr);
+				return;
+			}
+			memset(shdr,0,sizeof(Elf32_Shdr));
 			for( int i=0; i < ElfHdr->e_shnum; ++i )
 			{
 				r = ISFS_Seek( fd, ElfHdr->e_shoff + sizeof( Elf32_Shdr ) * i, SEEK_SET );
 				if( r < 0 )
 				{
-#ifdef DEBUG
-					sleep(10);
-#endif
 					error = ERROR_BOOT_DOL_SEEK;
+					free_pointer( shdr );
+					free_pointer(ElfHdr);
 					return;
 				}
 
 				r = ISFS_Read( fd, shdr, sizeof( Elf32_Shdr ) );
 				if( r < 0 )
 				{
-#ifdef DEBUG
-					sleep(10);
-#endif
 					error = ERROR_BOOT_DOL_READ;
+					free_pointer( shdr );
+					free_pointer(ElfHdr);
 					return;
 				}
 
@@ -2380,43 +2393,22 @@ void AutoBootDol( void )
 				r = ISFS_Seek( fd, shdr->sh_offset, 0 );
 				if( r < 0 )
 				{
-#ifdef DEBUG
-					sleep(10);
-#endif
 					error = ERROR_BOOT_DOL_SEEK;
+					free_pointer( shdr );
+					free_pointer(ElfHdr);
 					return;
 				}
 
-
-				//Check if target address is aligned by 32, otherwise create a temp buffer and load it from there!
-				if( (shdr->sh_addr == 0) || shdr->sh_addr&(~31) )
+				
+				if (shdr->sh_type == SHT_NOBITS)
 				{
-					u8 *tbuf = (u8*)memalign(32, (shdr->sh_size+31)&(~31) );
-
-					r = ISFS_Read( fd, tbuf, shdr->sh_size);
-					if( r < 0 )
-					{
-#ifdef DEBUG
-						sleep(10);
-#endif
-						gprintf("error reading file, error code 5.%d\n",r);
-						error = ERROR_BOOT_DOL_READ;
-						return;
-					}
-
-					memcpy( (void*)(shdr->sh_addr | 0x80000000), tbuf, shdr->sh_size );
-
-					free_pointer( tbuf);
-				} else {
-
 					r = ISFS_Read( fd, (void*)(shdr->sh_addr | 0x80000000), shdr->sh_size);
 					if( r < 0 )
 					{
-#ifdef DEBUG
-						sleep(10);
-#endif
-						gprintf("error reading file, error code 6.%d\n",r);
+						gprintf("AutoBootDol : ISFS_Read(%d) data header\n",r);
 						error = ERROR_BOOT_DOL_READ;
+						free_pointer( shdr );
+						free_pointer(ElfHdr);
 						return;
 					}
 				}
@@ -2427,15 +2419,10 @@ void AutoBootDol( void )
 
 		ISFS_Close( fd );
 		entrypoint = (void (*)())(ElfHdr->e_entry | 0x80000000);
-
-		//sleep(20);
-		//return;
+		free_pointer(ElfHdr);
 
 	} else {
-	//	printf("DOL found\n");
-
-		//Load the dol!, TODO: maybe add sanity checks?
-
+		//Dol
 		//read the header
 		dolhdr *hdr = (dolhdr *)memalign(32, (sizeof( dolhdr )+31)&(~31) );
 		if( hdr == NULL )
@@ -2447,7 +2434,7 @@ void AutoBootDol( void )
 		s32 r = ISFS_Seek( fd, 0, 0);
 		if( r < 0 )
 		{
-			gprintf("ISFS_Read failed:%d\n", r);
+			gprintf("AutoBootDol : ISFS_Seek(%d)\n", r);
 			error = ERROR_BOOT_DOL_SEEK;
 			return;
 		}
@@ -2456,7 +2443,7 @@ void AutoBootDol( void )
 
 		if( r < 0 || r != sizeof(dolhdr) )
 		{
-			gprintf("ISFS_Read failed:%d\n", r);
+			gprintf("AutoBootDol : ISFS_Read(%d)\n", r);
 			error = ERROR_BOOT_DOL_READ;
 			return;
 		}
@@ -2474,24 +2461,11 @@ void AutoBootDol( void )
 					error = ERROR_BOOT_DOL_SEEK;
 					return;
 				}
-				
-				//if( hdr->addressText[i] & (~31) )
-				//{
-				//	u8 *tbuf = (u8*)memalign(32, (hdr->sizeText[i]+31)&(~31) );
-
-				//	ISFS_Read( fd, tbuf, hdr->sizeText[i]);
-
-				//	memcpy( (void*)(hdr->addressText[i]), tbuf, hdr->sizeText[i] );
-
-				//	free_pointer( tbuf);
-
-				//} else {
-					if(ISFS_Read( fd, (void*)(hdr->addressText[i]), hdr->sizeText[i] )<0)
-					{
-						error = ERROR_BOOT_DOL_READ;
-						return;
-					}
-				//}
+				if(ISFS_Read( fd, (void*)(hdr->addressText[i]), hdr->sizeText[i] )<0)
+				{
+					error = ERROR_BOOT_DOL_READ;
+					return;
+				}
 				DCInvalidateRange( (void*)(hdr->addressText[i]), hdr->sizeText[i] );
 #ifdef DEBUG
 				gprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr->offsetText[i]), hdr->addressText[i], hdr->sizeText[i]);
@@ -2511,24 +2485,11 @@ void AutoBootDol( void )
 					error = ERROR_BOOT_DOL_SEEK;
 					return;
 				}
-				
-				//if( hdr->addressData[i] & (~31) )
-				//{
-				//	u8 *tbuf = (u8*)memalign(32, (hdr->sizeData[i]+31)&(~31) );
-
-				//	ISFS_Read( fd, tbuf, hdr->sizeData[i]);
-
-				//	memcpy( (void*)(hdr->addressData[i]), tbuf, hdr->sizeData[i] );
-
-				//	free_pointer( tbuf);
-
-				//} else {
-					if( ISFS_Read( fd, (void*)(hdr->addressData[i]), hdr->sizeData[i] )<0)
-					{
-						error = ERROR_BOOT_DOL_READ;
-						return;
-					}
-				//}
+				if( ISFS_Read( fd, (void*)(hdr->addressData[i]), hdr->sizeData[i] )<0)
+				{
+					error = ERROR_BOOT_DOL_READ;
+					return;
+				}
 
 				DCInvalidateRange( (void*)(hdr->addressData[i]), hdr->sizeData[i] );
 #ifdef DEBUG
@@ -2553,25 +2514,34 @@ void AutoBootDol( void )
 	WPAD_Shutdown();
 	if( ClearState() < 0 )
 	{
-		gprintf("failed to clear state\n");
+		gprintf("ClearState failure\n");
 	}
 	ISFS_Deinitialize();
 	ShutdownDevices();
 	gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
-	//IOS_ReloadIOS(IOS_GetPreferredVersion());
-	if(isIOSstub(IOS_GetPreferredVersion()))
+
+	if(ReloadedIOS)
 	{
-		if(rmode != NULL)
+		if( isIOSstub(58) )
 		{
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
-			sleep(3);
+			if( isIOSstub(IOS_GetPreferredVersion()) )
+			{
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
+				sleep(3);
+			}
+			else
+			{
+				IOS_ReloadIOS(IOS_GetPreferredVersion());
+				ReloadedIOS = 1;
+			}
+		}
+		else
+		{
+			IOS_ReloadIOS(58);
+			ReloadedIOS = 1;
 		}
 	}
-	else
-	{
-		IOS_ReloadIOS(IOS_GetPreferredVersion());
-		ReloadedIOS = 1;
-	}
+
 	__IOS_ShutdownSubsystems();
 	//slightly modified loading code from USBLOADER GX...
 	u32 level;
@@ -2582,6 +2552,8 @@ void AutoBootDol( void )
 	entrypoint();
 	_CPU_ISR_Restore (level);
 	//never gonna happen; but failsafe
+	WPAD_Init();
+	PAD_Init();
 	ISFS_Initialize();
 	return;
 }
@@ -2610,55 +2582,61 @@ s8 CheckTitleOnSD(u64 id)
 	memset(file,0,256);
 	sprintf(file, "fat:/private/wii/title/%s/content.bin", title_ID);
 #ifdef DEBUG
-	gprintf ("SD : %s\n",file);
+	gprintf ("CheckTitleOnSD : %s\n",file);
 #endif
 	FILE* SDHandler = fopen(file,"rb");
 	if (SDHandler)
 	{
 		//content.bin is there meaning its on SD
 		fclose(SDHandler);
-		gprintf("title is saved on SD. Priiloader doesn't support SD title loading...yet\n");
+		gprintf("CheckTitleOnSD : title is saved on SD\n");
 		return 1;
 	}
 	else
 	{
 		//title isn't on SD either. ow well...
-		gprintf("failed to open content. file not found on NAND or SD\n");
+		gprintf("CheckTitleOnSD : content not found on NAND or SD\n");
 		return 0;
 	}
 }
 s8 GetTitleName(u64 id, u32 app, char* name) {
 	s32 r;
-    int lang = CONF_GetLanguage();
+    int lang = 1; //CONF_GetLanguage();
     /*
     languages:
-    0 jap
-    2 eng
-    4 german
-    6 french
-    8 spanish
-    10 italian
-    12 dutch
+    enum {
+	CONF_LANG_JAPANESE = 0,
+	CONF_LANG_ENGLISH,
+	CONF_LANG_GERMAN,
+	CONF_LANG_FRENCH,
+	CONF_LANG_SPANISH,
+	CONF_LANG_ITALIAN,
+	CONF_LANG_DUTCH,
+	CONF_LANG_SIMP_CHINESE,
+	CONF_LANG_TRAD_CHINESE,
+	CONF_LANG_KOREAN
+	};
+	cause we dont support unicode stuff in font.cpp we will force to use english then(1)
     */
     char file[256] ATTRIBUTE_ALIGN(32);
 	memset(file,0,256);
     sprintf(file, "/title/%08x/%08x/content/%08x.app", (u32)(id >> 32), (u32)id, app);
 #ifdef DEBUG
-	gprintf("%s\n",file);
+	gprintf("GetTitleName : %s\n",file);
 #endif
 	u32 cnt ATTRIBUTE_ALIGN(32);
 	cnt = 0;
 	IMET *data = (IMET *)memalign(32, (sizeof(IMET)+31)&(~31));
 	if(data == NULL)
 	{
-		gprintf("failed to align IMET header\n");
+		gprintf("GetTitleName : IMET header align failure\n");
 		return -1;
 	}
 	memset(data,0,(sizeof(IMET)+31)&(~31));
 	r = ES_GetNumTicketViews(id, &cnt);
 	if(r < 0)
 	{
-		gprintf("failed to get the number of ticket views! error %d!\n",r);
+		gprintf("GetTitleName : GetNumTicketViews error %d!\n",r);
 		free_pointer(data);
 		return -1;
 	}
@@ -2671,7 +2649,7 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 	r = ES_GetTicketViews(id, views, cnt);
 	if (r < 0)
 	{
-		gprintf("failed to get Ticket Views! error %d \n",r);
+		gprintf("GetTitleName : GetTicketViews error %d \n",r);
 		free_pointer(data);
 		free_pointer(views);
 		return -2;
@@ -2682,7 +2660,7 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 	s32 fh = ES_OpenTitleContent(id, views, 0);
 	if (fh == -106)
 	{
-		gprintf("ES_OpenTitleContent : app not found\n",fh);
+		gprintf("GetTitleName : app not found\n",fh);
 		CheckTitleOnSD(id);
 		free_pointer(data);
 		free_pointer(views);
@@ -2691,7 +2669,7 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 	else if(fh < 0)
 	{
 		//ES method failed. remove tikviews from memory and fall back on ISFS method
-		gprintf("ES_OpenTitleContent returned %d , falling back on ISFS\n",fh);
+		gprintf("GetTitleName : ES_OpenTitleContent error %d\nGetTitleName : ISFS : ",fh);
 		free_pointer(views);
 		fh = ISFS_Open(file, ISFS_OPEN_READ);
 		// fuck failed. lets check SD & GTFO
@@ -2703,17 +2681,18 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 		else if (fh < 0)
 		{
 			free_pointer(data);
-			gprintf("failed to open %s. error %d\n",file,fh);
+			gprintf("open %s error %d\n",file,fh);
 			return -5;
 		}
 		// read the completed IMET header
 		r = ISFS_Read(fh, data, sizeof(IMET));
 		if (r < 0) {
-			gprintf("failed to read IMET data. error %d\n",r);
+			gprintf("IMET read error %d\n",r);
 			ISFS_Close(fh);
 			free_pointer(data);
 			return -6;
 		}
+		gprintf("success\n");
 		ISFS_Close(fh);
 	}
 	else
@@ -2722,12 +2701,12 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 		u8* IMET_data = (u8*)memalign(32, (sizeof(IMET)+31)&(~31));
 		if(IMET_data == NULL)
 		{
-			gprintf("failed to align IMET_data!\n");
+			gprintf("GetTitleName : IMET header align failure\n");
 			return -7;
 		}
 		r = ES_ReadContent(fh,IMET_data,sizeof(IMET));
 		if (r < 0) {
-			gprintf("ES failed to read IMET data. error %d\n",r);
+			gprintf("GetTitleName : ES_ReadContent error %d\n",r);
 			ES_CloseContent(fh);
 			free_pointer(IMET_data);
 			free_pointer(data);
@@ -2764,11 +2743,13 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 	free_pointer(data);
 	if(str[lang][0] != '\0')
 	{
-		gprintf("getting ready to return %s\n",str[lang]);
+#ifdef DEBUG
+		gprintf("GetTitleName : title %s\n",str[lang]);
+#endif
 		sprintf(name, "%s", str[lang]);
 	}
 	else
-		gprintf("str is empty. leaving name at ????????\n");
+		gprintf("GetTitleName: no name found\n");
 	memset(str,0,10*84);
 	return 1;
 }
@@ -2779,22 +2760,29 @@ s32 LoadListTitles( void )
 	ret = ES_GetNumTitles(&count);
 	if (ret < 0)
 	{
-		gprintf("failed to get Nr of titles. error %d\n",ret);
+		gprintf("GetNumTitles error %d\n",ret);
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the amount of installed titles!"))*13/2))>>1, 208+16, "Failed to get the amount of installed titles!");
 		sleep(3);
 		return ret;
 	}
-	gprintf("%u titles detected\n",count);
+	gprintf("%u titles\n",count);
 	static u64 title_list[256] ATTRIBUTE_ALIGN(32);
 	ret = ES_GetTitles(title_list, count);
 	if (ret < 0) {
-		gprintf("failed to gettitles list. error %d\n",ret);
+		gprintf("ES_GetTitles error %d\n",ret);
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+16, "Failed to get the titles list!");
+		sleep(3);
+		return ret;
+	}
+	if(count == 0)
+	{
+		gprintf("count == 0\n",ret);
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+16, "Failed to get the titles list!");
 		sleep(3);
 		return ret;
 	}
 	std::vector<u64> list;
-	std::vector<string> titles_ascii;
+	std::vector<std::string> titles_ascii;
 	tmd_view *rTMD;
 	char temp_name[256];
 	char title_ID[5];
@@ -2818,7 +2806,7 @@ s32 LoadListTitles( void )
 				ret = ES_GetTMDViewSize(title_list[i], &tmd_size);
 				if(ret<0)
 				{
-					gprintf("WARNING : error getting TMD views Size. error %d on title %x-%x\n",ret,title_list[i],(u32)title_list[i]);
+					gprintf("WARNING : GetTMDViewSize error %d on title %x-%x\n",ret,title_list[i],(u32)title_list[i]);
 					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMDSize error on 00000000-00000000!"))*13/2))>>1, 208+16, "WARNING : TMDSize error on %08X-%08X",title_list[i],(u32)title_list[i]);
 					sleep(3);
 					ClearScreen();
@@ -2835,7 +2823,7 @@ s32 LoadListTitles( void )
 				ret = ES_GetTMDView(title_list[i], (u8*)rTMD, tmd_size);
 				if(ret<0)
 				{
-					gprintf("error getting TMD views. error %d on title %x-%x\n",ret,title_list[i],(u32)title_list[i]);
+					gprintf("WARNING : GetTMDView error %d on title %x-%x\n",ret,title_list[i],(u32)title_list[i]);
 					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMD error on 00000000-00000000!"))*13/2))>>1, 208+16, "WARNING : TMD error on %08X-%08X!",title_list[i],(u32)title_list[i]);
 					sleep(3);
 					if(rTMD)
@@ -2850,7 +2838,7 @@ s32 LoadListTitles( void )
 				if ( ret != -3 && ret != -4 )
 				{
 #ifdef DEBUG
-					gprintf("placed %s in the list\n",temp_name);
+					gprintf("LoadListTitles : added %s\n",temp_name);
 #endif
 					list.push_back(title_list[i]);
 					titles_ascii.push_back(temp_name);
@@ -2860,7 +2848,7 @@ s32 LoadListTitles( void )
 #ifdef _DEBUG
 					gprintf("title %x-%x is either on SD/deleted or IOS trouble came up\n",title_list[i],(u32)title_list[i]);
 #endif
-					gprintf("ret = %d\n",ret);
+					gprintf("LoadListTitles : GetTitleName error %d\n",ret);
 				}
 				if(rTMD)
 				{
@@ -2953,24 +2941,24 @@ s32 LoadListTitles( void )
 			tikview *views = 0;
 			if (ES_GetNumTicketViews(list[cur_off], &cnt) < 0)
 			{
-				gprintf("failed to get number of Ticket Views!\n");
+				gprintf("GetNumTicketViews failure\n");
 				break;
 			}
 			views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
 			if(views == NULL)
 			{
-				gprintf("failed to memalign views!\n");
+				gprintf("memalign views failure\n");
 				break;
 			}
 			memset(views,0,sizeof(tikview));
 			if (ES_GetTicketViews(list[cur_off], views, cnt) < 0 )
 			{
-				gprintf("failed to get Title Ticket Views!\n");
+				gprintf("ES_GetTicketViews failure!\n");
 				break;
 			}
 			if( ClearState() < 0 )
 			{
-				gprintf("failed to clear state\n");
+				gprintf("ClearState failure\n");
 			}
 			ES_LaunchTitle(list[cur_off], &views[0]);
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to Load Title!"))*13/2))>>1, 224, "Failed to Load Title!");
@@ -3022,26 +3010,31 @@ void CheckForUpdate()
 		return;
 	}
 	UpdateStruct *UpdateFile = NULL;
-	s32 file_size = GetHTTPFile("www.nyleveia.com","/daco/priiloader/version.dat",(u8*&)UpdateFile,0);
+	s32 file_size = GetHTTPFile("www.dacotaco.com","/priiloader/version.dat",(u8*&)UpdateFile,0);
 	if ( file_size <= 0 || file_size != (s32)sizeof(UpdateStruct))
 	{
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("error getting versions from server"))*13/2))>>1, 224, "error getting versions from server");
+		if (file_size < -9)
+		{
+			//free pointer
+			free_pointer(UpdateFile);
+		}
 		if (file_size < 0 && file_size > -4)
 		{
 			//errors connecting to server
-			gprintf("failed to connect to update server. error %d\n",file_size);
+			gprintf("connection failure. error %d\n",file_size);
 		}
-		else if (file_size == -6)
+		else if (file_size == -7)
 		{
-			gprintf("HTTP Error %s!\n",Get_Last_reply());
+			gprintf("CheckForUpdate : HTTP Error %s!\n",Get_Last_reply());
 		}
 		else if ( file_size < 0 )
 		{
-			gprintf("error %d getting file from server\n",file_size);
+			gprintf("CheckForUpdate : GetHTTPFile error %d\n",file_size);
 		}
 		else if (file_size != (s32)sizeof(UpdateStruct))
 		{
-			gprintf("received file isn't the right size!\n");
+			gprintf("CheckForUpdate : file_size != UpdateStruct\n");
 		}
 		sleep(5);
 		free_pointer(UpdateFile);
@@ -3060,9 +3053,13 @@ void CheckForUpdate()
 	u8* Changelog = NULL;
 	u8 redraw = 1;
 	s8 cur_off = 0;
+	s8 Language = 0;
+	UpdateStruct* UpdateGer = NULL;
+	UpdateStruct* UpdateFr = NULL;
+	UpdateStruct* UpdateSp = NULL;
 	ClearScreen();
 	//make a nice list of the updates
-	if ( (VERSION < UpdateFile->version) || (VERSION == UpdateFile->version && BETAVERSION > 0) )
+	if ( (VERSION < UpdateFile->version) || (VERSION == UpdateFile->version && EN_BETAVERSION > 0) )
 		VersionUpdates = 1;
 	else
 	//to make the if short :
@@ -3071,20 +3068,11 @@ void CheckForUpdate()
 	// - the current version +1 should == the beta OR the version == the beta IF a beta is installed
 	if ( 
 		SGetSetting(SETTING_SHOWBETAUPDATES) && 
-		(BETAVERSION < UpdateFile->beta_number) && 
-		( ( (VERSION) +1 == UpdateFile->beta_version && BETAVERSION == 0 ) || ( VERSION == UpdateFile->beta_version && BETAVERSION > 0 ) ) 
+		(EN_BETAVERSION < UpdateFile->beta_number) && 
+		( ( (VERSION) +1 == UpdateFile->beta_version && EN_BETAVERSION == 0 ) || ( VERSION == UpdateFile->beta_version && EN_BETAVERSION > 0 ) ) 
 		)
 	{
 		BetaUpdates = 1;
-	}
-
-	if (BetaUpdates == 0 && VersionUpdates == 0)
-	{
-		//ooooh, no updates :P
-		PrintFormat( 1, ((640/2)-((strlen("No update available"))*13/2))>>1, 224, "No update available");
-		sleep(2);
-		free_pointer(UpdateFile);
-		return;
 	}
 
 	while(1)
@@ -3101,16 +3089,24 @@ void CheckForUpdate()
 			}
 			if (SGetSetting(SETTING_SHOWBETAUPDATES))
 			{
-				PrintFormat( 0, ((rmode->viWidth /2)-((strlen("--------------------"))*13/2))>>1, 64+(16*3), "--------------------");
+				
 				if ( BetaUpdates )
 				{
-					PrintFormat( cur_off==1, 16, 64+(16*5), "Update to %d.%d beta %d",UpdateFile->beta_version >> 8,UpdateFile->beta_version&0xFF, UpdateFile->beta_number);
+					PrintFormat( cur_off==1, 16, 64+(16*2), "Update to %d.%d beta %d",UpdateFile->beta_version >> 8,UpdateFile->beta_version&0xFF, UpdateFile->beta_number);
 				}
 				else
 				{
-					PrintFormat( cur_off==1, 16, 64+(16*5), "No Beta update\n");
+					PrintFormat( cur_off==1, 16, 64+(16*2), "No Beta update\n");
 				}
+				PrintFormat( 0, ((rmode->viWidth /2)-((strlen("--------------------"))*13/2))>>1, 64+(16*4), "--------------------");
+				PrintFormat( cur_off==2, 16, 64+(16*6), "Other Languages --->\n");
 			}
+			else
+			{
+				PrintFormat( 0, ((rmode->viWidth /2)-((strlen("--------------------"))*13/2))>>1, 64+(16*3), "--------------------");
+				PrintFormat( cur_off==1, 16, 64+(16*5), "Other Languages --->\n");
+			}
+			
 
 
 			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Download Update       "))*13/2))>>1, rmode->viHeight-48, "A(A) Download Update       ");
@@ -3140,62 +3136,396 @@ void CheckForUpdate()
 				DownloadedBeta = 1;
 				break;
 			}
+			else if( (SGetSetting(SETTING_SHOWBETAUPDATES) && cur_off == 2) || (!SGetSetting(SETTING_SHOWBETAUPDATES) && cur_off == 1) )
+			{
+				ClearScreen();
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("NOTE:other languages are not officially supported"))*13/2))>>1, 192, "NOTE: other languages are not officially supported");
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("they could have bugs the original doesnt"))*13/2))>>1, 208, "they could have bugs the original doesnt");
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("check readme.txt for their websites"))*13/2))>>1, 224, "check readme.txt for their websites");
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Press A to continue or B to bail out"))*13/2))>>1, 224+16, "Press A to continue or B to bail out");
+				while(1)
+				{
+					WPAD_ScanPads();
+					PAD_ScanPads();
+
+					WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
+					PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
+					if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
+					{
+						Language = 1;
+						break;
+					}
+					else if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
+					{
+						ClearScreen();
+						redraw = 1;
+						break;
+					}
+				}
+				if(Language == 1)
+				{
+					ClearScreen();
+					Language = 0;
+					s8 failure = 0;
+					s8 LangUpdate = 0;
+					s8 LangBetaUpdate = 0;
+					//german : http://priiloader.baduncles.de/update/version.dat
+					//french : none 
+					//spanish : none
+					
+					//download all the updatefiles o.o;
+					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("checking for updates..."))*13/2))>>1, 208, "checking for updates...");
+					//repeat below code for french and spanish once i get them.
+					//every added language should be a power of 2 more. example : german is +=1 , french +=2 , spanish +=4, 4th language +=8, 5th +=16 etc etc
+					//this way we can easily tell what language failed( or succeeded ) by the numbers like chmod (bitwise & ) :)
+					//info : http://catcode.com/teachmod/numeric.html
+					//since we dont have them yet ill set them as autofailure :)
+					failure = 6;
+					s32 file_size = GetHTTPFile("priiloader.baduncles.de","/update/version.dat",(u8*&)UpdateGer,0);
+					if(file_size < 0)
+					{
+						failure += 1;	
+					}
+					//add download other languages' version.dat here
+					
+
+
+					//check if any updates are available
+					if(failure & 1)
+					{
+						gprintf("german mod version.dat failed to download\n");
+					}
+					else
+					{
+						//it downloaded, lets check for updates.
+						if ( (VERSION < UpdateGer->version) || (VERSION == UpdateGer->version && GER_BETAVERSION > 0) )
+							LangUpdate += 1;
+						else if ( 
+							SGetSetting(SETTING_SHOWBETAUPDATES) && 
+							(GER_BETAVERSION < UpdateGer->beta_number) && 
+							( ( (VERSION) +1 == UpdateGer->beta_version && GER_BETAVERSION == 0 ) || ( VERSION == UpdateGer->beta_version && GER_BETAVERSION > 0 ) || (VERSION == UpdateGer->beta_version && BETAVERSION > 0 ) )
+							)
+						{
+							LangBetaUpdate+= 1;
+						}
+					}
+					if(failure & 2)
+					{
+						gprintf("French mod version.dat failed to download\n");
+					}
+					else
+					{
+						//it downloaded, lets check for updates.
+						if ( (VERSION < UpdateFr->version) || (VERSION == UpdateFr->version && FR_BETAVERSION > 0) )
+							LangUpdate += 2;
+						else if ( 
+							SGetSetting(SETTING_SHOWBETAUPDATES) && 
+							(FR_BETAVERSION < UpdateFr->beta_number) && 
+							( ( (VERSION) +1 == UpdateFr->beta_version && FR_BETAVERSION == 0 ) || ( VERSION == UpdateFr->beta_version && FR_BETAVERSION > 0 ) || (VERSION == UpdateFr->beta_version && BETAVERSION > 0 ) )
+							)
+						{
+							LangBetaUpdate+= 2;
+						}
+					}
+					if (failure & 4)
+					{
+						gprintf("Spanish mod version.dat failed to download\n");
+					}
+					else
+					{
+						if ( (VERSION < UpdateSp->version) || (VERSION == UpdateSp->version && SP_BETAVERSION > 0) )
+							LangUpdate += 4;
+						else if ( 
+							SGetSetting(SETTING_SHOWBETAUPDATES) && 
+							(SP_BETAVERSION < UpdateSp->beta_number) && 
+							( ( (VERSION) +1 == UpdateSp->beta_version && SP_BETAVERSION == 0 ) || ( VERSION == UpdateSp->beta_version && SP_BETAVERSION > 0 ) || (VERSION == UpdateSp->beta_version && BETAVERSION > 0 ) )
+							)
+						{
+							LangBetaUpdate+= 4;
+						}
+					}
+					if(LangUpdate != 0 || LangBetaUpdate != 0)
+					{
+						cur_off = 0;
+						ClearScreen();
+						redraw = 1;
+						while(1)
+						{
+							if(redraw)
+							{
+								//german
+								if(LangUpdate & 1)
+								{
+									PrintFormat( cur_off == 0, 16, 64+(16*1), "Update to %d.%d(german)",UpdateGer->version >> 8,UpdateGer->version&0xFF);
+								}
+								else
+								{
+									PrintFormat( cur_off == 0, 16, 64+(16*1), "No German version Update");
+								}
+								if(LangBetaUpdate & 1)
+								{
+									PrintFormat( cur_off == 1, 16, 64+(16*2), "Update to %d.%d(german beta %d)",UpdateGer->beta_version >> 8,UpdateGer->beta_version&0xFF,UpdateGer->beta_number);
+								}
+								else
+								{
+									PrintFormat( cur_off == 1, 16, 64+(16*2), "No German Beta Updates");
+								}
+								//french
+								if(LangUpdate & 2)
+								{
+									PrintFormat( cur_off == 2, 16, 64+(16*4), "Update to %d.%d(french)",UpdateFr->version >> 8,UpdateFr->version&0xFF);
+								}
+								else
+								{
+									PrintFormat( cur_off == 2, 16, 64+(16*4), "No French version Update");
+								}
+								if(LangBetaUpdate & 2)
+								{
+									PrintFormat( cur_off == 3, 16, 64+(16*5), "Update to %d.%d(french beta %d)",UpdateFr->version >> 8,UpdateFr->version&0xFF,UpdateFr->beta_number);
+								}
+								else
+								{
+									PrintFormat( cur_off == 4, 16, 64+(16*5), "No French Beta Updates");
+								}
+								//spanish (if it will even get done some day lol)
+								if(LangUpdate & 4)
+								{
+									PrintFormat( cur_off == 5, 16, 64+(16*7), "Update to %d.%d(spanish)",UpdateSp->version >> 8,UpdateSp->version&0xFF);
+								}
+								else
+								{
+									PrintFormat( cur_off == 5, 16, 64+(16*7), "No Spanish version Update");
+								}
+								if(LangBetaUpdate & 4)
+								{
+									PrintFormat( cur_off == 6, 16, 64+(16*8), "Update to %d.%d(spanish beta %d)",UpdateSp->version >> 8,UpdateSp->version&0xFF,UpdateSp->beta_number);
+								}
+								else
+								{
+									PrintFormat( cur_off == 6, 16, 64+(16*8), "No Spanish Beta Updates");
+								}
+								redraw = 0;
+							}
+							WPAD_ScanPads();
+							PAD_ScanPads();
+
+							WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
+							PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
+							if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
+							{
+								//repeative code i know. sorry. the whole language part needs fucking clean up
+								switch(cur_off)
+								{
+								case 0: //german mod - update
+									if(LangUpdate & 1)
+									{
+										Language = cur_off +1;
+									}
+									break;
+								case 1: //german mod - beta
+									if(LangBetaUpdate & 1)
+									{
+										Language = cur_off +1;
+									}
+									break;
+								case 2: // french mod - update
+									if(LangUpdate & 2)
+									{
+										Language = cur_off +1;
+									}
+									break;
+								case 3: // french mod - beta
+									if(LangBetaUpdate & 2)
+									{
+										Language = cur_off +1;
+									}
+									break;
+								case 4: // french mod - update
+									if(LangUpdate & 4)
+									{
+										Language = cur_off +1;
+									}
+									break;
+								case 5: // french mod - beta
+									if(LangBetaUpdate & 4)
+									{
+										Language = cur_off +1;
+									}
+									break;
+								default:
+									break;
+								}
+								if(Language != 0)
+									break;
+								redraw = 1;
+							}
+							else if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
+							{
+								ClearScreen();
+								break;
+							}
+							else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
+							{
+								cur_off--;
+								if(cur_off < 0)
+									cur_off = 6;
+								redraw = 1;
+							}
+							else if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
+							{
+								cur_off++;
+								if(cur_off > 6)
+									cur_off = 0;
+								redraw = 1;
+							}
+						} // exit while of list language updates
+						redraw = 1;
+						if(Language != 0)
+							break;	
+						else
+						{
+							//reset everything from language stuff. we are going back to the main menu :')
+							if(UpdateGer)
+								free_pointer(UpdateGer);
+							if(UpdateFr)
+								free_pointer(UpdateFr);
+							if(UpdateSp)
+								free_pointer(UpdateSp);
+							cur_off = 0;
+						}
+					}
+					else
+					{
+						PrintFormat( 1, ((rmode->viWidth /2)-((strlen("no updates found"))*13/2))>>1, 224, "no updates found");
+						sleep(2);
+						if(UpdateGer)
+							free_pointer(UpdateGer);
+						if(UpdateFr)
+							free_pointer(UpdateFr);
+						if(UpdateSp)
+							free_pointer(UpdateSp);
+						//no updates o.o;
+
+					}
+					redraw = 1;
+				} //exit if of if they agreed or not
+			} // exit whole if it s a language they want
 			redraw = 1;
 		}
 		else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
 		{
-			if (SGetSetting(SETTING_SHOWBETAUPDATES))
+			cur_off--;
+			if(cur_off < 0)
 			{
-				cur_off++;
-				if(cur_off > 1)
-					cur_off = 0;
-				redraw = 1;
+				if (SGetSetting(SETTING_SHOWBETAUPDATES))
+				{	
+					
+						cur_off = 2;			
+				}
+				else
+				{
+						cur_off = 1;	
+				}
 			}
+			redraw = 1;
 		}
-		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
+		else if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
 		{
+			cur_off++;
 			if (SGetSetting(SETTING_SHOWBETAUPDATES))
 			{
-				cur_off++;
+				if(cur_off > 2)
+					cur_off = 0;
+			}
+			else
+			{
 				if(cur_off > 1)
 					cur_off = 0;
-				redraw = 1;
 			}
+			redraw = 1;
 		}
 	}
 //Download changelog and ask to proceed or not
 //------------------------------------------------------
 	gprintf("downloading changelog...\n");
-	if(DownloadedBeta)
+	if (Language == 0)
 	{
-		file_size = GetHTTPFile("www.nyleveia.com","/daco/priiloader/changelog_beta.txt",Changelog,0);
+		if(DownloadedBeta)
+		{
+			file_size = GetHTTPFile("www.dacotaco.com","/priiloader/changelog_beta.txt",Changelog,0);
+		}
+		else
+		{
+			file_size = GetHTTPFile("www.dacotaco.com","/priiloader/changelog.txt",Changelog,0);
+		}
 	}
 	else
 	{
-		file_size = GetHTTPFile("www.nyleveia.com","/daco/priiloader/changelog.txt",Changelog,0);
+		switch(Language)
+		{
+			case 1:
+				//http://priiloader.baduncles.de/update/changelog.txt
+				file_size = GetHTTPFile("priiloader.baduncles.de","/update/changelog.txt",Changelog,0);
+				break;
+			case 2:
+				file_size = GetHTTPFile("priiloader.baduncles.de","/update/changelog_beta.txt",Changelog,0);
+				break;
+			case 3:
+				file_size = -1;
+				break;
+			case 4:
+				file_size = -1;
+				break;
+			case 5:
+				file_size = -1;
+				break;
+			case 6:
+				file_size = -1;
+				break;
+			default:
+				file_size = -1;
+				break;
+		}
 	}
 	if (file_size > 0)
 	{
 		ClearScreen();
 		char se[5];
-		int line = 0;
+		u8 line = 0;
+		u8 min_line = 0;
+		u8 max_line = 0;
+		if( rmode->viTVMode == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
+			max_line = 14;
+		else
+			max_line = 19;
+		u8 redraw = 1;
+
 		char *ptr;
+		std::vector<char*> lines;
+
 		if( strpbrk((char*)Changelog , "\r\n") )
 			sprintf(se, "\r\n");
 		else
 			sprintf(se, "\n");
 		ptr = strtok((char*)Changelog, se);
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen(" Changelog "))*13/2))>>1, 64+(16*1), " Changelog ");
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("-----------"))*13/2))>>1, 64+(16*2), "-----------");
 		while (ptr != NULL)
 		{
-			PrintFormat( 0, 16, 64 + ((line+3)*16), "%s", ptr);
-			line++;
+			lines.push_back(ptr);
 			ptr = strtok (NULL, se);
+		}
+		free_pointer(Changelog);
+		if( max_line >= lines.size() )
+			max_line = lines.size()-1;
+
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen(" Changelog "))*13/2))>>1, 64+(16*1), " Changelog ");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("-----------"))*13/2))>>1, 64+(16*2), "-----------");
+		if((lines.size() -1) > max_line)
+		{
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("Up    Scroll Up        "))*13/2))>>1, rmode->viHeight-80, "Up    Scroll Up");
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("Down  Scroll Down      "))*13/2))>>1, rmode->viHeight-64, "Down  Scroll Down");
 		}
 		PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A)  Proceed(Download)"))*13/2))>>1, rmode->viHeight-48, "A(A)  Proceed(Download)");
 		PrintFormat( 0, ((rmode->viWidth /2)-((strlen("B(B)  Cancel Update    "))*13/2))>>1, rmode->viHeight-32, "B(B)  Cancel Update    ");
-		free_pointer(Changelog);
 		u32 PAD_Pressed = 0;
 		u32 WPAD_Pressed = 0;
 		while(1)
@@ -3212,26 +3542,67 @@ void CheckForUpdate()
 			if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 			{
 				free_pointer(UpdateFile);
+				if (Language > 0)
+				{
+					if(UpdateGer)
+						free_pointer(UpdateGer);
+					if(UpdateFr)
+						free_pointer(UpdateFr);
+					if(UpdateSp)
+						free_pointer(UpdateSp);
+				}
 				ClearScreen();
 				return;
+			}
+			if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
+			{
+				if ( (min_line+max_line) < lines.size()-1 )
+				{
+					min_line++;
+					redraw = true;
+				}
+			}
+			if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
+			{
+				if ( min_line > 0 )
+				{
+					min_line--;
+					redraw = true;
+				}
+			}
+			if ( redraw )
+			{
+				for(u8 i = min_line; i <= (min_line+max_line); i++)
+				{
+					PrintFormat( 0, 16, 64 + ((line+3)*16), "                                                                ");
+					PrintFormat( 0, 16, 64 + ((line+3)*16), "%s", lines[i]);
+					if( i < lines.size()-1 && i == (min_line+max_line) )
+						PrintFormat( 0, 16, 64 + ((line+4)*16), "...");
+					else
+						PrintFormat( 0, 16, 64 + ((line+4)*16), "   ");
+					line++;
+				}
+				redraw = false;
+				line = 0;
 			}
 		}
 	}
 	else if(file_size < 0)
 	{
-		if(file_size != -8)
+		if(file_size < -9)
 			free_pointer(Changelog);
-		gprintf("failed to get changelog.error %d, HTTP reply %s\n",file_size,Get_Last_reply());
+		gprintf("CheckForUpdate : failed to get changelog.error %d, HTTP reply %s\n",file_size,Get_Last_reply());
 	}
 //Check Pad for lulz or not
 //-----------------------------
 	file_size = 0;
 	u8 *Easter_egg = NULL;
 	PAD_ScanPads();
-	u32 PAD_Pressed  = PAD_ButtonsHeld(0);// | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3); //PAD_ButtonsHeld
+	WPAD_ScanPads();
+	u32 PAD_Pressed  = PAD_ButtonsHeld(0) | PAD_ButtonsHeld(1) | PAD_ButtonsHeld(2) | PAD_ButtonsHeld(3);// | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3); //PAD_ButtonsHeld
 	if (PAD_Pressed & PAD_TRIGGER_Z)
 	{
-		file_size = GetHTTPFile("www.nyleveia.com","/daco/priiloader/Easter.mp3",Easter_egg,0);
+		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/Easter.mp3",Easter_egg,0);
 		if(file_size)
 		{
 			ASND_Init();
@@ -3242,41 +3613,100 @@ void CheckForUpdate()
 			ClearScreen();
 			PrintFormat( 1, ((640/2)-((strlen("MOOT MOOT ;D"))*13/2))>>1, 208, "MOOT MOOT ;D");
 			while(MP3Player_IsPlaying())
-				usleep(2000);
+				sleep(1);
 			ASND_End();
 		}
 	}
 	free_pointer(Easter_egg);
 //The choice is made. lets download what the user wanted :)
 //--------------------------------------------------------------
-	ClearScreen();
-	if(DownloadedBeta)
+
+//if a language was downloaded we shall place all the data of the selected lang into UpdateFile. and if a beta was chosen update DownloadedBeta with the info
+	if(Language != 0)
 	{
-		gprintf("downloading beta...\n");
-		PrintFormat( 1, ((640/2)-((strlen("downloading   .   beta   ..."))*13/2))>>1, 208, "downloading %d.%d beta %d...",UpdateFile->beta_version >> 8,UpdateFile->beta_version&0xFF, UpdateFile->beta_number);
-		file_size = GetHTTPFile("www.nyleveia.com","/daco/priiloader/Priiloader_Beta.dol",Data,0);
-		//download beta
+		if(UpdateFile)
+			free_pointer(UpdateFile);
+		switch(Language)
+		{
+		case 2:
+			DownloadedBeta = 1;
+		case 1:
+			UpdateFile = UpdateGer;
+			break;
+		case 4:
+			DownloadedBeta = 1;
+		case 3:
+			UpdateFile = UpdateFr;
+			break;
+		case 6:
+			DownloadedBeta = 1;
+		case 5:
+			UpdateFile = UpdateSp;
+			break;
+		}
+	}
+
+	ClearScreen();
+	if (Language == 0)
+	{
+		gprintf("downloading %s\n",DownloadedBeta?"beta":"update");
+		if(DownloadedBeta)
+		{
+			PrintFormat( 1, ((640/2)-((strlen("downloading   .   beta   ..."))*13/2))>>1, 208, "downloading %d.%d beta %d...",UpdateFile->beta_version >> 8,UpdateFile->beta_version&0xFF, UpdateFile->beta_number);
+			file_size = GetHTTPFile("www.dacotaco.com","/priiloader/Priiloader_Beta.dol",Data,0);
+			//download beta
+		}
+		else
+		{
+			PrintFormat( 1, ((640/2)-((strlen("downloading   .  ..."))*13/2))>>1, 208, "downloading %d.%d ...",UpdateFile->version >> 8,UpdateFile->version&0xFF);
+			file_size = GetHTTPFile("www.dacotaco.com","/priiloader/Priiloader_Update.dol",Data,0);
+			//download Update
+		}
 	}
 	else
 	{
-		gprintf("Downloading update...\n");
-		PrintFormat( 1, ((640/2)-((strlen("downloading   .  ..."))*13/2))>>1, 208, "downloading %d.%d ...",UpdateFile->version >> 8,UpdateFile->version&0xFF);
-		file_size = GetHTTPFile("www.nyleveia.com","/daco/priiloader/Priiloader_Update.dol",Data,0);
-		//download Update
+		gprintf("downloading language mod...\n");
+		PrintFormat( 1, ((640/2)-((strlen("Downloading Language mod update..."))*13/2))>>1, 208, "Downloading Language mod update...");
+		switch(Language)
+		{
+			case 1:
+				//http://priiloader.baduncles.de/update/Priiloader_Beta.dol
+				file_size = GetHTTPFile("priiloader.baduncles.de","/update/Priiloader.dol",Data,0);
+				break;
+			case 2:
+				file_size = GetHTTPFile("priiloader.baduncles.de","/update/Priiloader_Beta.dol",Data,0);
+				break;
+			case 3:
+				file_size = -1;
+				break;
+			case 4:
+				file_size = -1;
+				break;
+			case 5:
+				file_size = -1;
+				break;
+			case 6:
+				file_size = -1;
+				break;
+		}
 	}
 	if ( file_size <= 0 )
 	{
 		if (file_size < 0 && file_size > -4)
 		{
 			//errors connecting to server
-			gprintf("failed to connect to update server. error %d\n",file_size);
+			gprintf("connection failure: error %d\n",file_size);
 		}
-		else if (file_size == -6)
+		else if (file_size == -7)
 		{
 			gprintf("HTTP Error %s!\n",Get_Last_reply());
 		}
 		else
+		{
+			if(file_size < -9)
+				free_pointer(Data);
 			gprintf("getting update error %d\n",file_size);
+		}
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("error getting file from server"))*13/2))>>1, 224, "error getting file from server");
 		sleep(2);
 		free_pointer(UpdateFile);
@@ -3288,7 +3718,7 @@ void CheckForUpdate()
 		sha1->addBytes( (char*)Data, file_size );
 
 		u32 FileHash[5];
-		gprintf("Downloaded update  ");
+		gprintf("Downloaded update ");
 		sha1->getDigest(FileHash,NULL);
 		sha1->hexPrinter_array(FileHash);
 		gprintf("Online ");
@@ -3313,7 +3743,7 @@ void CheckForUpdate()
 			UpdateFile->beta_SHA1_Hash[3] != FileHash[3] ||
 			UpdateFile->beta_SHA1_Hash[4] != FileHash[4] ) ) )
 		{
-			gprintf("hash isn't the same!  fffffffffffuuuuuuuuuuuuuuu\n");
+			gprintf("File not the same : hash check failure!\n");
 			PrintFormat( 1, ((640/2)-((strlen("Error Downloading Update"))*13/2))>>1, 224, "Error Downloading Update");
 			sleep(5);
 			free_pointer(UpdateFile);
@@ -3328,13 +3758,27 @@ void CheckForUpdate()
 //Load the dol
 //---------------------------------------------------
 		ClearScreen();
-		if(DownloadedBeta)
+		if (Language == 0)
 		{
-			PrintFormat( 1, ((640/2)-((strlen("loading   .   beta   ..."))*13/2))>>1, 208, "loading %d.%d beta %d...",UpdateFile->beta_version >> 8,UpdateFile->beta_version&0xFF, UpdateFile->beta_number);
+			if(DownloadedBeta)
+			{
+				PrintFormat( 1, ((640/2)-((strlen("loading   .   beta   ..."))*13/2))>>1, 208, "loading %d.%d beta %d...",UpdateFile->beta_version >> 8,UpdateFile->beta_version&0xFF, UpdateFile->beta_number);
+			}
+			else
+			{
+				PrintFormat( 1, ((640/2)-((strlen("loading   .  ..."))*13/2))>>1, 208, "loading %d.%d ...",UpdateFile->version >> 8,UpdateFile->version&0xFF);
+			}
 		}
 		else
 		{
-			PrintFormat( 1, ((640/2)-((strlen("loading   .  ..."))*13/2))>>1, 208, "loading %d.%d ...",UpdateFile->version >> 8,UpdateFile->version&0xFF);
+			if(DownloadedBeta)
+			{
+				PrintFormat( 1, ((640/2)-((strlen("loading lang mod   .   beta   ..."))*13/2))>>1, 208, "loading lang mod %d.%d beta %d...",UpdateFile->beta_version >> 8,UpdateFile->beta_version&0xFF, UpdateFile->beta_number);
+			}
+			else
+			{
+				PrintFormat( 1, ((640/2)-((strlen("loading lang mod  .  ..."))*13/2))>>1, 208, "loading lang mod %d.%d ...",UpdateFile->version >> 8,UpdateFile->version&0xFF);
+			}
 		}
 		free_pointer(UpdateFile);
 		sleep(1);
@@ -3473,7 +3917,7 @@ int main(int argc, char **argv)
 			case TYPE_SHUTDOWNSYSTEM: // 5 - shutdown
 				if( ClearState() < 0 )
 				{
-					gprintf("failed to clear state\n");
+					gprintf("ClearState failure\n");
 				}
 				//check for valid nandboot shitzle. if its found we need to change bootstate to 4.
 				//yellow8 claims system menu reset everything then, but it didn't on my wii (joy). this is why its not activated code.
@@ -3550,7 +3994,7 @@ int main(int argc, char **argv)
 				if( ClearState() < 0 )
 				{
 					error = ERROR_STATE_CLEAR;
-					gprintf("failed to clear state\n");
+					gprintf("ClearState failure\n");
 				}
 				break;
 
@@ -3618,6 +4062,7 @@ int main(int argc, char **argv)
 		DVDStopDisc(false);
 	}
 	time(&startloop);
+
 	while(1)
 	{
 		WPAD_ScanPads();
@@ -3645,8 +4090,6 @@ int main(int argc, char **argv)
 		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 		{
 			ClearScreen();
-			if(MP3Player_IsPlaying())
-				MP3Player_Stop();
 			switch(cur_off)
 			{
 				case 0:
@@ -3733,7 +4176,7 @@ int main(int argc, char **argv)
 			{
 				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d(beta v%d)", VERSION>>8, VERSION&0xFF, BETAVERSION&0xFF );
 			} else {
-				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%dc (r%s)", VERSION>>8, VERSION&0xFF,SVN_REV_STR );
+				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d (r%s)", VERSION>>8, VERSION&0xFF,SVN_REV_STR );
 			}
 			PrintFormat( 0, 16, rmode->viHeight-64, "IOS v%d", (*(vu32*)0x80003140)>>16 );
 			PrintFormat( 0, 16, rmode->viHeight-48, "Systemmenu v%d", SysVersion );			

@@ -21,11 +21,35 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 
+//version is absolete. i wont allow languages to just go past this eventho i can't fully control this now can i ? :P
 #define VERSION		05
-#define BETAVERSION	0x00000002
-#ifndef BETAVERSION
-#define BETAVERSION	0
-#endif	
+
+//define of the language beta
+#define EN_BETAVERSION	0x00000000
+
+//define english
+#ifndef EN_BETAVERSION
+#define EN_BETAVERSION	0
+#endif
+	
+//define german
+#ifndef GER_BETAVERSION
+#define GER_BETAVERSION 0
+#endif
+
+//define french
+#ifndef FR_BETAVERSION
+#define FR_BETAVERSION 0
+#endif
+
+//define Spanish
+#ifndef SP_BETAVERSION
+#define SP_BETAVERSION 0
+#endif
+
+//and dont forget to rename the following define
+#define BETAVERSION EN_BETAVERSION
+
 #include "Global.h"
 
 typedef struct {

@@ -101,10 +101,6 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
-				RelativePath=".\include\asm.h"
-				>
-			</File>
-			<File
 				RelativePath=".\include\elf.h"
 				>
 			</File>
@@ -134,10 +130,6 @@
 			</File>
 			<File
 				RelativePath=".\include\password.h"
-				>
-			</File>
-			<File
-				RelativePath=".\include\processor.h"
 				>
 			</File>
 			<File
