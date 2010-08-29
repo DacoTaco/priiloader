@@ -1,8 +1,8 @@
 /*
 
-priiloader/preloader 0.30 - A tool which allows to change the default boot up sequence on the Wii console
+priiloader(preloader mod) - A tool which allows to change the default boot up sequence on the Wii console
 
-Copyright (C) 2008-2009  crediar
+Copyright (C) 2009-2010  DacoTaco
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -321,22 +321,22 @@ void Control_VI_Regs ( u8 mode )
 s8 InitNetwork()
 {
 	s32 result;
-	gprintf("Waiting for network to initialise...\n");
+	gprintf("InitNetwork : Waiting for network to initialise...\n");
     while ((result = net_init()) == -EAGAIN);
     if (result >= 0) 
 	{
         char myIP[16];
 		if (if_config(myIP, NULL, NULL, true) < 0) 
 		{
-			gprintf("Error reading IP address\n");
+			gprintf("InitNetwork : Error reading IP address\n");
 			return -1;
 		}
-        gprintf("Wii 's IP Address is %s\n",myIP);
+		gprintf("InitNetwork : IP Address -> %s\n",myIP);
 		return 1;
     } 
 	else 
 	{
-		gprintf("Unable to initialise network, no router in range or no DHCP timed out\n");
+		gprintf("InitNetwork : DHCP timeout or no known access point availble\n");
 		return -2;
     }
 }

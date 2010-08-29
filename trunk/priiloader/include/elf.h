@@ -72,3 +72,51 @@ typedef struct {
 #define EI_VERSION	6
 #define EI_PAD		7
 #define EI_NIDENT	16	//size of ident
+
+/* Segment types - p_type */
+#define PT_NULL         0               /* unused */
+#define PT_LOAD         1               /* loadable segment */
+#define PT_DYNAMIC      2               /* dynamic linking section */
+#define PT_INTERP       3               /* the RTLD */
+#define PT_NOTE         4               /* auxiliary information */
+#define PT_SHLIB        5               /* reserved - purpose undefined */
+#define PT_PHDR         6               /* program header */
+#define PT_TLS          7               /* Thread local storage template */
+#define PT_NUM          8               /* Number of segment types */
+#define PT_LOOS         0x60000000      /* reserved range for operating */
+#define PT_HIOS         0x6fffffff      /*   system specific segment types */
+#define PT_LOPROC       0x70000000      /* reserved range for processor */
+#define PT_HIPROC       0x7fffffff      /*  specific segment types */
+
+/* Segment flags - p_flags */
+#define PF_X            0x1             /* Executable */
+#define PF_W            0x2             /* Writable */
+#define PF_R            0x4             /* Readable */
+#define PF_MASKOS       0x0ff00000      /* OS specific segment flags */
+#define PF_MASKPROC     0xf0000000      /* reserved bits for processor */
+
+/* sh_type */
+#define SHT_NULL        0               /* inactive */
+#define SHT_PROGBITS    1               /* program defined information */
+#define SHT_SYMTAB      2               /* symbol table section */
+#define SHT_STRTAB      3               /* string table section */
+#define SHT_RELA        4               /* relocation section with addends*/
+#define SHT_HASH        5               /* symbol hash table section */
+#define SHT_DYNAMIC     6               /* dynamic section */
+#define SHT_NOTE        7               /* note section */
+#define SHT_NOBITS      8               /* no space section */
+#define SHT_REL         9               /* relation section without addends */
+#define SHT_SHLIB       10              /* reserved - purpose unknown */
+#define SHT_DYNSYM      11              /* dynamic symbol table section */
+#define SHT_INIT_ARRAY  14              /* Array of constructors */
+#define SHT_FINI_ARRAY  15              /* Array of destructors */
+#define SHT_PREINIT_ARRAY 16            /* Array of pre-constructors */
+#define SHT_GROUP       17              /* Section group */
+#define SHT_SYMTAB_SHNDX 18             /* Extended section indeces */
+#define SHT_NUM         19              /* number of section types */
+#define SHT_LOOS        0x60000000      /* Start OS-specific */
+#define SHT_HIOS        0x6fffffff      /* End OS-specific */
+#define SHT_LOPROC      0x70000000      /* reserved range for processor */
+#define SHT_HIPROC      0x7fffffff      /*  specific section header types */
+#define SHT_LOUSER      0x80000000      /* reserved range for application */
+#define SHT_HIUSER      0xffffffff      /*  specific indexes */

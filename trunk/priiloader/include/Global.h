@@ -1,8 +1,8 @@
 /*
 
-priiloader/preloader 0.30 - A tool which allows to change the default boot up sequence on the Wii console
+priiloader(preloader mod) - A tool which allows to change the default boot up sequence on the Wii console
 
-Copyright (C) 2008-2009  crediar
+Copyright (C) 2009-2010  DacoTaco
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -118,6 +118,11 @@ s8 free_pointer(pointer*& ptr)
 {
 	if(ptr != NULL)
 	{
+		if( sizeof(pointer) > 0 )
+		{
+			//protection incase empty type was given
+			memset(ptr,0,sizeof(pointer));
+		}
 		free(ptr); 
 		ptr = NULL;
 		return 0;

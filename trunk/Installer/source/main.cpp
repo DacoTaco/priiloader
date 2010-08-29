@@ -18,8 +18,8 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
-
-
+//defines
+//#define BETA 1
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,13 +29,16 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <unistd.h>
 #include <wiiuse/wpad.h>
 
+#include <ogc/machine/processor.h>
+#include <ogc/machine/asm.h>
 #include <ogc/isfs.h>
 #include <ogc/ipc.h>
 #include <ogc/ios.h>
 #include <ogc/usb.h>
 #include <ogc/usbgecko.h>
-#include <fat.h>
-#include <sdcard/wiisd_io.h>
+#include <ogc/es.h>
+
+//project includes
 
 //rev version
 #include "../../Shared/svnrev.h"
@@ -52,7 +55,8 @@ static void *xfb = NULL;
 bool GeckoFound = false;
 char * original_app = NULL;
 char * copy_app = NULL;
-//a must have in every app
+
+//a must have in every app imo
 s32 __IOS_LoadStartupIOS()
 {
 	return 0;
@@ -83,33 +87,6 @@ void CheckForGecko( void )
 	}
 	return;
 }
-bool MountDevices(void)
-{
-	if ( !fatMountSimple("fat",&__io_wiisd) )
-	{
-		//sd mounting failed. lets go usb
-		//return fatMountSimple("fat", &__io_usbstorage);
-
-		//giantpune claims these value's have more support for some drives but apparently screws up when 
-		//loading sys menu dol (cause everything is shifted with 1MB, its a case of "wrong place at the wrong time"... 
-		//8 & 64 seems to work tho...
-		return fatMount("fat", &__io_usbstorage,0, 8, 64);
-	}
-	else
-	{
-		//it was ok. SD GO!
-		return true;
-	}
-}
-void ShutdownDevices()
-{
-	//unmount device
-	fatUnmount("fat:/");
-	//shutdown ports
-	__io_wiisd.shutdown();
-	__io_usbstorage.shutdown();
-}
-
 const char* abort(const char* msg, ...)
 {
 	va_list args;
@@ -118,8 +95,8 @@ const char* abort(const char* msg, ...)
 	strcpy( text + vsprintf( text,msg,args ),""); 
 	va_end( args );
 	printf("\x1b[%u;%dm", 36, 1);
-	printf("%s, aborting mission...", text);
-	gprintf("%s, aborting mission...", text);
+	printf("%s, aborting mission...\n", text);
+	gprintf("%s, aborting mission...\n", text);
 	ISFS_Deinitialize();
 	__ES_Close();
 	sleep(5);
@@ -166,11 +143,11 @@ bool CompareChecksum(u8 *Data1,u32 Data1_Size,u8 *Data2,u32 Data2_Size)
 	}
 	return false;
 }
-s32 nand_copy(char source[1024], char destination[1024])
+s32 nand_copy(const char *source, const char *destination)
 {
     u8 *buffer = NULL;
-    s32 source_handler, dest_handler, ret;
-
+    s32 source_handler, ret, dest_handler;
+	ISFS_Delete(destination);
     source_handler = ISFS_Open(source,ISFS_OPEN_READ);
     if (source_handler < 0)
             return source_handler;
@@ -181,11 +158,16 @@ s32 nand_copy(char source[1024], char destination[1024])
 	{
 		printf("Failed to create file %s. ret = %d\n",destination,ret);
 		gprintf("Failed to create file %s. ret = %d\n",destination,ret);
+		ISFS_Close(source_handler);
 		return ret;
 	}
     dest_handler = ISFS_Open(destination,ISFS_OPEN_RW);
     if (dest_handler < 0)
-            return dest_handler;
+	{
+		ISFS_Delete(destination);
+		ISFS_Close(source_handler);
+		return dest_handler;
+	}
 
     fstats * status = (fstats*)memalign(32,sizeof(fstats));
     ret = ISFS_GetFileStats(source_handler,status);
@@ -209,7 +191,13 @@ s32 nand_copy(char source[1024], char destination[1024])
     buffer = (u8 *)memalign(32,(status->file_length+31)&(~31));
 	if (buffer == NULL)
 	{
-		gprintf("buffer failed to allign\n");
+		gprintf("buffer failed to align\n");
+		sleep(2);
+        ISFS_Close(source_handler);
+        ISFS_Close(dest_handler);
+        ISFS_Delete(destination);
+        free(status);
+		status = NULL;
 		return 0;
 	}
 
@@ -305,9 +293,11 @@ free_and_Return:
 		buffer = NULL;
 	}
 	if (temp < 0)
+	{
+		ISFS_Delete(destination);
 		return -80;
-
-    return 0;
+	}
+    return 1;
 }
 bool UserYesNoStop()
 {
@@ -329,7 +319,7 @@ bool UserYesNoStop()
 		}
 		if (pDown & WPAD_BUTTON_HOME || GCpDown & PAD_BUTTON_START)
 		{
-			abort("User command.");
+			abort("User command");
 			break;
 		}
 	}
@@ -513,7 +503,7 @@ s8 Copy_SysMenu( void )
 				printf("\nDone!\n");
 		}
 		else
-			abort("\nUnable to move the system menu");
+			abort("\nUnable to move the system menu. error %d",ret);
 	}
 	else
 	{
@@ -537,6 +527,7 @@ s8 WritePriiloader( void )
 	if (fd < 0)
 	{
 		nand_copy(copy_app,original_app);
+		ISFS_Delete(copy_app);
 		abort("\nFailed to open file for Priiloader writing.");
 	}
 	ret = ISFS_Write(fd,priiloader_app,priiloader_app_size);
@@ -544,6 +535,7 @@ s8 WritePriiloader( void )
 	{
 		ISFS_Close(fd);
 		nand_copy(copy_app,original_app);
+		ISFS_Delete(copy_app);
 		gprintf("Write failed. ret %d\n",ret);
 		abort("\nWrite of Priiloader app failed.");
 	}
@@ -551,11 +543,20 @@ s8 WritePriiloader( void )
 	gprintf("Wrote Priiloader App.Checking Installation\n");
 	printf("\nChecking Priiloader Installation...\n");
 	status = (fstats*)memalign(32,sizeof(fstats));
+	//reset fd. the write might have been delayed. a close causes the delayed write to happen and creates the the file correctly
+	ISFS_Close(fd);
+	fd = ISFS_Open(original_app,ISFS_OPEN_READ);
+	if (fd < 0)
+	{
+		nand_copy(copy_app,original_app);
+		ISFS_Delete(copy_app);
+		abort("\nFailed to open file for Priiloader checking");
+	}
 	if (ISFS_GetFileStats(fd,status) < 0)
 	{
 		ISFS_Close(fd);
 		nand_copy(copy_app,original_app);
-		abort("Failed to get stats of %s. System Menu Recovered.",original_app);
+		abort("Failed to get stats of %s. System Menu Recovered",original_app);
 	}
 	else
 	{
@@ -563,7 +564,8 @@ s8 WritePriiloader( void )
 		{
 			ISFS_Close(fd);
 			nand_copy(copy_app,original_app);
-			abort("Written Priiloader app isn't the correct size.System Menu Recovered.");
+			ISFS_Delete(copy_app);
+			abort("Written Priiloader app isn't the correct size.System Menu Recovered");
 		}
 		else
 		{
@@ -571,9 +573,7 @@ s8 WritePriiloader( void )
 			printf("Size Check Success!\n");
 		}
 	}
-	//reset fd. the write might have been delayed. a close causes the delayed write to happen and creates the the file correctly
-	ISFS_Close(fd);
-	fd = ISFS_Open(original_app,ISFS_OPEN_READ);
+	//fd = ISFS_Open(original_app,ISFS_OPEN_READ);
 	u8 *AppData = (u8 *)memalign(32,status->file_length);
 	if (AppData)
 		ret = ISFS_Read(fd,AppData,status->file_length);
@@ -586,11 +586,12 @@ s8 WritePriiloader( void )
 			status = NULL;
 		}
 		nand_copy(copy_app,original_app);
+		ISFS_Delete(copy_app);
 		abort("Checksum comparison Failure! MemAlign Failure of AppData\n");
 	}
+	ISFS_Close(fd);
 	if (ret < 0)
 	{
-		ISFS_Close(fd);
 		if (AppData)
 		{
 			free(AppData);
@@ -602,13 +603,13 @@ s8 WritePriiloader( void )
 			status = NULL;
 		}
 		nand_copy(copy_app,original_app);
+		ISFS_Delete(copy_app);
 		abort("Checksum comparison Failure! read of priiloader app returned %u\n",ret);
 	}
 	if(CompareChecksum((u8*)priiloader_app,priiloader_app_size,AppData,status->file_length))
 		printf("Checksum comparison Success!\n");
 	else
 	{
-		ISFS_Close(fd);
 		if (AppData)
 		{
 			free(AppData);
@@ -633,7 +634,6 @@ s8 WritePriiloader( void )
 		free(status);
 		status = NULL;
 	}
-	ISFS_Close(fd);
 	gprintf("Priiloader Update Complete\n");
 	printf("Done!\n\n");
 	return 1;
@@ -668,7 +668,7 @@ s8 RemovePriiloader ( void )
 		}
 		else
 		{
-			ISFS_Close(fd);
+			//ISFS_Close(fd);
 			ISFS_CreateFile(original_app,0,3,3,3);
 			fd = ISFS_Open(original_app,ISFS_OPEN_RW);
 			ISFS_Write(fd,priiloader_app,priiloader_app_size);
@@ -700,12 +700,8 @@ int main(int argc, char **argv)
 	PAD_Init();
 	CheckForGecko();
 
-	MountDevices();
-	remove("fat:/apps/Priiloader_Update/boot.dol");
-	remove("fat:/apps/Priiloader_Update");
-	ShutdownDevices();
-
 	gprintf("resolution is %dx%d\n",vmode->viWidth,vmode->viHeight);
+
 	printf("\x1b[2;0H");
 	printf("IOS %d rev %d\n\n\t",IOS_GetVersion(),IOS_GetRevision());
 	printf("Priiloader rev %d (preloader v0.30 mod) Installation / Removal Tool\n\n\n\n\t",SVN_REV);
@@ -714,11 +710,11 @@ int main(int argc, char **argv)
 	printf("\t\tYOU ACCEPT THAT YOU INSTALL THIS AT YOUR OWN RISK\n\n\n\t");
 	printf("THE AUTHOR(S) CANNOT BE HELD LIABLE FOR ANY DAMAGE IT MIGHT CAUSE\n\n\t");
 	printf("\tIF YOU DO NOT AGREE WITH THESE TERMS TURN YOUR WII OFF\n\n\n\n\t");
-	printf("\t\t\tPress (+/A) to install or update Priiloader\n\t");
+	printf("\r\t\t\tPress (+/A) to install or update Priiloader\n\t");
 	printf("\t Press (-/Y) to remove Priiloader and restore system menu\n\t");
-	printf("\tHold Down (B) with any above options to use IOS249 (cios)\n\t");
+	printf("\tHold Down (B) with any above options to use IOS36\n\t");
 	printf("\t Press (HOME/Start) to chicken out and quit the installer!\n\n\t");
-	printf("\t\t\t\tEnjoy! DacoTaco, _Dax_ & BadUncle\n							");
+	printf("\t\t\t\tEnjoy! DacoTaco, _Dax_ & BadUncle\n");
 
 	while(1)
 	{
@@ -730,30 +726,34 @@ int main(int argc, char **argv)
 		u16 GCpHeld = PAD_ButtonsHeld(0);
 		if (pDown & WPAD_BUTTON_PLUS || pDown & WPAD_BUTTON_MINUS || GCpDown & PAD_BUTTON_A || GCpDown & PAD_BUTTON_Y)
 		{
+			if (pHeld & WPAD_BUTTON_B || GCpHeld & PAD_BUTTON_B )
+			{
+				if(IOS_GetVersion() != 36)
+				{
+					WPAD_Shutdown();
+    				IOS_ReloadIOS(36);
+    				WPAD_Init();
+				}
+        	}
 			static u32 tmp_ikey ATTRIBUTE_ALIGN(32);
 			static u32 tmd_size ATTRIBUTE_ALIGN(32);
 			static u64 title_id ATTRIBUTE_ALIGN(32)=0x0000000100000002LL;
+			//static u64 title_id ATTRIBUTE_ALIGN(32)=0x0001000147534654LL;
 
 			s32 fd,fs;
 			u32 id = 0;
+			s32 ret = 0;
 
-			if (pHeld & WPAD_BUTTON_B || GCpHeld & PAD_BUTTON_B )
-			{
-				WPAD_Shutdown();
-        		IOS_ReloadIOS(249);
-        		WPAD_Init();
-        	}
 			printf("\x1b[2J\x1b[2;0H");
 			fflush(stdout);
-			printf("IOS %d rev %d\n\n\n\n\n",IOS_GetVersion(),IOS_GetRevision());
-        	__ES_Init();
+			printf("IOS %d rev %d\n\n\n",IOS_GetVersion(),IOS_GetRevision());
 			fd = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)su_tmd, su_tmd_size, (signed_blob *)su_tik, su_tik_size, &tmp_ikey);
 			if(fd < 0)
 			{
 				printf("\x1b[%u;%dm", 33, 1);
-				printf("ES_Identify failed,error %d(-%#x).ios%d not patched with ES_DIVerify?\n",fd,-fd,IOS_GetVersion());
-				printf("using cios (holding b and then pressing + or - ) will probably solve this.\nNOTE: you need CIOS for this.\n");
-				printf("Do you wish to continue?\n");
+				printf("ES_Identify failed,error %d(-%#X).ios%d not patched with ES_DIVerify?\n",fd,-fd,IOS_GetVersion());
+				printf("using IOS36 (holding b and then pressing + or - ) will probably solve this.\nNOTE: you need a patched IOS36\n");
+				printf("Do you wish to continue installing (or attempt to install)?\n");
 				printf("A = Yes       B = No       Home/Start = Exit\n");
 				printf("\x1b[%u;%dm", 37, 1);
 				if(!UserYesNoStop())
@@ -767,10 +767,12 @@ int main(int argc, char **argv)
 			}
 			else
 				printf("Logged in as \"su\"!\n");
+
 			if (ISFS_Initialize() < 0)
-				abort("Failed to get root");
+			{
+				abort("\n\nFailed to init ISFS");
+			}
 			printf("Got ROOT!\n");
-		
 			//read TMD so we can get the main booting dol
 			fs = ES_GetStoredTMDSize(title_id,&tmd_size);
 			if (fs < 0)
@@ -821,6 +823,8 @@ int main(int argc, char **argv)
 
 			memset(original_app,0,256);
 			memset(copy_app,0,256);
+			//sprintf(original_app, "/title/00010001/47534654/content/%08x.app",id);
+			//sprintf(copy_app, "/title/00010001/47534654/content/%08x.app",id);
 			sprintf(original_app, "/title/00000001/00000002/content/%08x.app",id);
 			sprintf(copy_app, "/title/00000001/00000002/content/%08x.app",id);
 			copy_app[33] = '1';
@@ -830,9 +834,19 @@ int main(int argc, char **argv)
 				free(TMD);
 				TMD = NULL;
 			}
-			
 			if (pDown & WPAD_BUTTON_PLUS || GCpDown & PAD_BUTTON_A)
 			{
+#ifdef BETA
+				printf("\x1b[%u;%dm", 33, 1);
+				printf("\nWARNING : ");
+				printf("\x1b[%u;%dm", 37, 1);
+				printf("this is a beta version. are you SURE you want to install this?\nA to confirm, Home/Start to abort\n");
+				sleep(1);
+				if(!UserYesNoStop())
+				{
+					abort("user command");
+				}
+#endif
 				//install or update
 				fstats * status;
 				bool _Copy_Sysmenu = true;
@@ -856,6 +870,7 @@ int main(int argc, char **argv)
 						printf("\n\nWARNING: failed to get stats of %s.  Ignore Priiloader \"installation\" ?\n",copy_app);
 						printf("A = Yes       B = No(Recommended if priiloader is installed)       Home/Start = Exit\n");
 						printf("\x1b[%u;%dm", 37, 1);
+						ISFS_Close(fd);
 						if(UserYesNoStop())
 						{
 							printf("Ignoring Priiloader Installation...\n\n");
@@ -869,6 +884,7 @@ int main(int argc, char **argv)
 					}
 					else
 					{
+						ISFS_Close(fd);
 						if ( status->file_length == 0 )
 						{
 							printf("\x1b[%u;%dm", 33, 1);
@@ -896,7 +912,6 @@ int main(int argc, char **argv)
 					}
 					free(status);
 					status = NULL;
-					ISFS_Close(fd);
 				}
 				CopyTicket();
 				if(_Copy_Sysmenu)
@@ -917,7 +932,6 @@ int main(int argc, char **argv)
 				}
 					
 				ISFS_Deinitialize();
-				__ES_Close();
 				sleep(5);
 				exit(0);
 			}
@@ -951,6 +965,7 @@ int main(int argc, char **argv)
 			printf("\x1b[2J\x1b[2;0H");
 			fflush(stdout);
 			printf("Sorry, but our princess is in another castle... goodbye!");
+			gprintf("aboring the fun\n");
 			sleep(5);
 			exit(0);
 		}
