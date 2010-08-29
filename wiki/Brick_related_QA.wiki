@@ -1,9 +1,9 @@
 =Brick protection=
 
 Priiloader does not provide as complete protection as Bootmii/boot2, but it's still useful for solving many of the most common bricks, accessing it through the Homebrew Channel or Bootmii/IOS to fix them. It is the best protection that can be installed in consoles that can not install Bootmii/boot2. In theory, the only elements that would impede the functioning of Priiloader if they are deleted or corrupted are:
- * IOS36
- * Homebrew Channel IOS (usually IOS34 and IOS61)
- * System Menu IOS (usually IOS30, IOS50, IOS60 and IOS70)
+ * IOS36?
+ * Homebrew Channel IOS (usually IOS58)
+ * System Menu IOS (usually IOS30, IOS50, IOS60, IOS70 and IOS80)
  * System Menu (in this case even if it is corrupt but it's bootable Priiloader still works, but not if it was deleted)
 
-Therefore, Priiloader is not useful in case of a full brick or black brick where the menu system and / or basic IOS has been erased, corrupted or replaced by stubbed IOS.
+Therefore, Priiloader is not useful in case of a full brick or black brick where the system menu and / or basic IOS has been erased, corrupted or replaced by stubbed IOS.
