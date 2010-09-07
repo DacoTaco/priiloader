@@ -20,7 +20,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 */
 
-
+#ifndef _SETTINGS_H_
+#define _SETTINGS_H_
 //version is absolete. i wont allow languages to just go past this eventho i can't fully control this now can i ? :P
 #define VERSION		05
 
@@ -108,3 +109,5 @@ u32 GetSysMenuIOS( void );
 u32 SGetSetting( u32 s );
 void LoadSettings( void );
 int SaveSettings( void );
+
+#endif
