@@ -19,7 +19,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 */
-//#define libELM // To use libELM define libELM in the priiloader project & dont forget to link it in the makefile
 //#define DEBUG
 
 #include <stdio.h>
@@ -32,15 +31,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <gccore.h>
 #include <wiiuse/wpad.h>
 #include <sdcard/wiisd_io.h>
-#ifndef libELM
 #include <fat.h>
 #include <ogc/usb.h>
 #include <ogc/machine/processor.h>
 #include <ogc/machine/asm.h>
 #include "usbstorage.h"
-#else
-#include "elm.h"
-#endif
+
 #include <sys/dir.h>
 #include <malloc.h>
 #include <vector>
@@ -88,13 +84,12 @@ extern Settings *settings;
 extern u8 error;
 extern std::vector<hack> hacks;
 extern u32 *states;
-//usb shit >_>
-extern usbstorage_handle __usbfd;
-extern bool usb_inited;
 
 u8 Shutdown=0;
 u8 BootSysMenu = 0;
 u8 ReloadedIOS = 0;
+s8 Mounted = 0;
+s8 Device_Not_Mountable = 0;
 time_t startloop;
 
 s32 __IOS_LoadStartupIOS()
@@ -188,55 +183,99 @@ void UnloadHBCStub( void )
 	memset((void*)0x80001800, 0, stub_bin_size);
 	DCFlushRange((void*)0x80001800,stub_bin_size);	
 }
-bool MountDevices(void)
+bool PollDevices( void )
 {
-#ifndef libELM
-	if ( !fatMountSimple("fat",&__io_wiisd) )
+	//check mounted device's status and unmount or mount if needed
+	if( ( (Mounted & 2) && !__io_wiisd.isInserted() ) || ( (Mounted & 1) && !__io_usbstorage.isInserted() ) )
 	{
-		//sd mounting failed. lets go usb
-		//return fatMountSimple("fat", &__io_usbstorage);
-
-		//giantpune claims these value's have more support for some drives but apparently screws up when 
-		//loading sys menu dol (cause everything is shifted with 1MB, its a case of "wrong place at the wrong time"... 
-		//8 & 64 seems to work tho...
-		return fatMount("fat", &__io_usbstorage,0, 8, 64);
+		fatUnmount("fat:/");
+		if(Mounted & 1)
+		{
+			gprintf("USB removed. unmounting...\n");
+			__io_usbstorage.shutdown();
+		}
+		if(Mounted & 2)
+		{
+			gprintf("SD removed. unmounting...\n");
+			__io_wiisd.shutdown();
+		}			
+		Mounted = 0;
 	}
-	else
+	//check if SD is mountable
+	else if( !(Mounted & 2) && __io_wiisd.startup() &&  __io_wiisd.isInserted() && !(Device_Not_Mountable & 2) )
 	{
-		//it was ok. SD GO!
-		return true;
-	}
-#else
-	__io_wiisd.startup();
-	if ( __io_wiisd.isInserted() )
-	{
-		if ( ELM_MountDevice(ELM_SD) < 0)
-			return false
+		if(Mounted & 1)
+		{
+			//USB is mounted. lets kick it out and use SD instead :P
+			fatUnmount("fat:/");
+			__io_usbstorage.shutdown();
+			gprintf("USB unmounted for SD\n");
+			Mounted = 0;
+		}
+		if(fatMountSimple("fat",&__io_wiisd))
+		{
+			Mounted |= 2;
+			gprintf("SD inserted and mounted\n");
+		}
 		else
-			return true;
+		{
+			gprintf("inserted SD failed to mount : not fat?\n");
+			Device_Not_Mountable |= 2;
+		}
 	}
+	//check if USB is mountable
+	else if( (Mounted == 0) && __io_usbstorage.startup() && __io_usbstorage.isInserted() && !(Device_Not_Mountable & 1) )
+	{
+		//if( fatMountSimple("fat", &__io_usbstorage) )
+		if( fatMount("fat", &__io_usbstorage,0, 8, 64) )
+		{
+			gprintf("USB inserted and mounted\n");
+			Mounted |= 1;
+		}
+		else
+		{
+			gprintf("inserted USB device failed to mount : not fat?\n");
+			Device_Not_Mountable |= 1;
+		}
+	}
+	else if ( Device_Not_Mountable > 0 )
+	{
+		if ( ( Device_Not_Mountable & 1 ) && !__io_usbstorage.isInserted() )
+		{
+			gprintf("reseting not-mountable-USB flag\n");
+			Device_Not_Mountable -= 1;
+			//shutdown so the port gets reset :')
+			__io_usbstorage.shutdown();
+		}
+		if ( ( Device_Not_Mountable & 2 ) &&  !__io_wiisd.isInserted() )
+		{
+			//not needed for SD yet but just to be on the safe side
+			gprintf("reseting not-mountable-SD flag\n");
+			Device_Not_Mountable -= 2;
+			__io_wiisd.shutdown();
+		}
+	}
+	if ( Mounted > 0)
+		return true;
 	else
 		return false;
-#endif
 }
 void ShutdownDevices()
 {
-#ifndef libELM
 	//unmount device
-	fatUnmount("fat:/");
-	//shutdown ports
-	__io_wiisd.shutdown();
+	if(Mounted != 0)
+	{
+		fatUnmount("fat:/");
+		Mounted = 0;
+	}
 	__io_usbstorage.shutdown();
-#else
-	//only SD support atm, srry
-	ELM_UnmountDevice(ELM_SD);
-	__io_wiisd.shutdown();
-#endif
+	__io_wiisd.shutdown();	
+	return;
 }
 bool RemountDevices( void )
 {
 	ShutdownDevices();
-	return MountDevices();
+	return PollDevices();
 }
 void ClearScreen()
 {
@@ -300,11 +339,9 @@ bool isIOSstub(u8 ios_number)
 
 void SysHackSettings( void )
 {
-	u8 DeviceFound = RemountDevices();
-
 	if( !LoadHacks(false) )
 	{
-		if(!DeviceFound)
+		if(Mounted == 0)
 		{
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to mount FAT device"))*13/2))>>1, 208+16, "Failed to mount FAT device");
 		}
@@ -371,17 +408,18 @@ void SysHackSettings( void )
 				//first try to open the file on the SD card/USB, if we found it copy it, other wise skip
 				s16 fail = 0;
 				FILE *in = NULL;
-				if (RemountDevices())
+				if (Mounted != 0)
 				{
-#ifndef libELM
 					in = fopen ("fat:/hacks.ini","rb");
-#else
-					in = fopen ("elm:/sd/hacks.ini","rb");
-#endif
 				}
 				else
 				{
 					gprintf("no FAT device found\n");
+				}
+				if ( ( (Mounted & 2) && !__io_wiisd.isInserted() ) || ( (Mounted & 1) && !__io_usbstorage.isInserted() ) )
+				{
+					PrintFormat( 0, 103, rmode->viHeight-48, "saving failed : SD/USB error");
+					continue;
 				}
 				if( in != NULL )
 				{
@@ -582,7 +620,7 @@ handle_hacks_s_fail:
 
 			PrintFormat( cur_off==(signed)DispCount, 118, rmode->viHeight-64, "save settings");
 
-			PrintFormat( 0, 118, rmode->viHeight-48, "              ");
+			PrintFormat( 0, 103, rmode->viHeight-48, "                            ");
 
 			redraw = false;
 		}
@@ -1207,7 +1245,7 @@ void LoadBootMii( void )
 		}
 		return;
 	}
-	if (!RemountDevices() || !__io_wiisd.isInserted())
+	if ( !(Mounted & 2) )
 	{
 		if(rmode != NULL)
 		{
@@ -1216,11 +1254,7 @@ void LoadBootMii( void )
 		}
 		return;
 	}
-#ifndef libELM
 	FILE* BootmiiFile = fopen("fat:/bootmii/armboot.bin","r");
-#else
-	FILE* BootmiiFile = fopen("elm:/sd/bootmii/armboot.bin","r");
-#endif
 	if (!BootmiiFile)
 	{
 		if(rmode != NULL)
@@ -1233,11 +1267,7 @@ void LoadBootMii( void )
 	else
 	{
 		fclose(BootmiiFile);
-#ifndef libELM
 		BootmiiFile = fopen("fat:/bootmii/ppcboot.elf","r");
-#else
-		BootmiiFile = fopen("elm:/sd/bootmii/ppcboot.elf","r");
-#endif
 		if(!BootmiiFile)
 		{
 			if(rmode != NULL)
@@ -1468,6 +1498,7 @@ s8 BootDolFromMem( u8 *dolstart )
 	__STM_Close();
 	ISFS_Deinitialize();
 	ShutdownDevices();
+	USB_Deinitialize();
 	__IOS_ShutdownSubsystems();
 	mtmsr(mfmsr() & ~0x8000);
 	mtmsr(mfmsr() | 0x2002);
@@ -1479,6 +1510,7 @@ s8 BootDolFromMem( u8 *dolstart )
 	__STM_Close();
 	ISFS_Deinitialize();
 	ShutdownDevices();
+	USB_Deinitialize();
 	__IOS_ShutdownSubsystems();
 	SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
     _CPU_ISR_Disable (level);
@@ -1490,7 +1522,7 @@ s8 BootDolFromMem( u8 *dolstart )
 
 	//it failed. FAIL!
 	__IOS_InitializeSubsystems();
-	MountDevices();
+	PollDevices();
 	ISFS_Initialize();
 	WPAD_Init();
 	PAD_Init();
@@ -1500,7 +1532,7 @@ s8 BootDolFromMem( u8 *dolstart )
 
 s8 BootDolFromDir( const char* Dir )
 {
-	if (!RemountDevices())
+	if (Mounted == 0)
 	{
 		return -1;
 	}
@@ -1573,8 +1605,7 @@ void BootMainSysMenu( u8 init )
 
 	if(init == 0)
 	{
-		r = (s32)MountDevices();
-		gprintf("FAT_Init():%d\n", r );
+		//dont do jack shit. nothing that we need extra atm when autobooting (leaving code so its easy to change stuff
 	}
 	//booting sys menu
 	ISFS_Deinitialize();
@@ -1646,6 +1677,7 @@ void BootMainSysMenu( u8 init )
 #endif
 	if( fd < 0 )
 	{
+		gprintf("error opening %08x.app! error %d\n",fileID,fd);
 		ISFS_Close( fd );
 		error = ERROR_SYSMENU_BOOTOPENFAILED;
 		goto free_and_return;
@@ -1776,7 +1808,6 @@ void BootMainSysMenu( u8 init )
 	entrypoint = (void (*)())(boot_hdr->entrypoint);
 	gprintf("entrypoint %08X\n", entrypoint );
 
-	RemountDevices();
 	LoadHacks(true);
 	for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {
 		WPAD_Flush(i);
@@ -1830,7 +1861,7 @@ void BootMainSysMenu( u8 init )
 		gprintf("launched ios %d for system menu\n",IOS_GetVersion());
 		ReloadedIOS = 1;
 	}*/
-	//Step 2 of IOS handling : ES_Identify if we are on a different ios or if we reloaded ios once already. note that is only supported by ios > 20
+	//Step 2 of IOS handling : ES_Identify if we are on a different ios or if we reloaded ios once already. note that the ES_Identify is only supported by ios > 20
 	if (((u8)IOS_GetVersion() != (u8)rTMD->sys_version) || (ReloadedIOS) )
 	{
 		if (ReloadedIOS)
@@ -1923,7 +1954,7 @@ void BootMainSysMenu( u8 init )
 			goto free_and_return;
 		}
 	}
-	//ES_SetUID(TitleID);
+	ES_SetUID(TitleID);
 	if(tstatus)
 	{
 		free_pointer( tstatus );
@@ -1962,12 +1993,7 @@ void BootMainSysMenu( u8 init )
 	sleep(20);
 #endif
 	ShutdownDevices();
-	//butt ugly hack around the problem but i can't think of another way to fix it...
-	//TODO : make it less hacky by fixing the __io_usbstorage.shutdown()
-	if ( (usb_inited == true) && ( __usbfd.usb_fd > 0 ) )
-	{
-		USBStorage_Close(&__usbfd);
-	}
+	USB_Deinitialize();
 	if(init == 1 || SGetSetting(SETTING_SHOWGECKOTEXT) != 0 )
 		Control_VI_Regs(2);
 	__STM_Close();
@@ -2008,20 +2034,13 @@ void InstallLoadDOL( void )
 	struct stat st;
 	DIR_ITER* dir;
 
-	if (!RemountDevices() )
+	if(Mounted == 0)
 	{
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("NO fat device found!"))*13/2))>>1, 208, "NO fat device found!");
 		sleep(5);
 		return;
 	}
-	u8 SDInserted = 0;
-	if(__io_wiisd.isInserted())
-		SDInserted = 1;
-#ifndef libELM
 	dir = diropen ("fat:/");
-#else
-	dir = diropen("elm:/sd/");
-#endif
 	if( dir == NULL )
 	{
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to open root of Device!"))*13/2))>>1, 208, "Failed to open root of Device!");
@@ -2075,7 +2094,7 @@ void InstallLoadDOL( void )
 		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 		{
 			ClearScreen();
-			if ( (SDInserted && !__io_wiisd.isInserted()) || (!SDInserted && !__io_usbstorage.isInserted()) )
+			if ( ( (Mounted & 2) && !__io_wiisd.isInserted() ) || ( (Mounted & 1) && !__io_usbstorage.isInserted() ) )
 			{
 				gprintf("SD/USB not in same state\n");
 				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("FAT device removed before loading!"))*13/2))>>1, 208, "FAT device removed before loading!");
@@ -2083,13 +2102,8 @@ void InstallLoadDOL( void )
 				break;
 			}
 			//Install file
-#ifdef libELM
-			sprintf(filepath, "elm:/sd/%s",names[cur_off]);
-			FILE *dol = fopen(filepath, "rb" );
-#else
 			sprintf(filepath, "fat:/%s",names[cur_off]);
 			FILE *dol = fopen(filepath, "rb" );
-#endif
 			if( dol == NULL )
 			{
 				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not open:\"%s\" for reading")+strlen(names[cur_off]))*13/2))>>1, 208, "Could not open:\"%s\" for reading", names[cur_off]);
@@ -2172,7 +2186,7 @@ void InstallLoadDOL( void )
 		if ( WPAD_Pressed & WPAD_BUTTON_1 || WPAD_Pressed & WPAD_CLASSIC_BUTTON_Y || PAD_Pressed & PAD_BUTTON_Y )
 		{
 			ClearScreen();
-			if ( (SDInserted && !__io_wiisd.isInserted()) || (!SDInserted && !__io_usbstorage.isInserted()) )
+			if ( ( (Mounted & 2) && !__io_wiisd.isInserted() ) || ( (Mounted & 1) && !__io_usbstorage.isInserted() ) )
 			{
 				gprintf("SD/USB not in same state\n");
 				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("FAT device removed before loading!"))*13/2))>>1, 208, "FAT device removed before loading!");
@@ -2181,11 +2195,7 @@ void InstallLoadDOL( void )
 			}
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Loading binary..."))*13/2))>>1, 208, "Loading binary...");
 			//Load binary
-#ifdef libELM
-			sprintf(filepath, "elm:/sd/%s", names[cur_off]);
-#else
 			sprintf(filepath, "fat:/%s", names[cur_off]);
-#endif
 			BootDolFromDir(filepath);
 			sleep(1);
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to load binary"))*13/2))>>1, 224, "failed to load binary");
@@ -2518,6 +2528,7 @@ void AutoBootDol( void )
 	}
 	ISFS_Deinitialize();
 	ShutdownDevices();
+	USB_Deinitialize();
 	gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
 
 	if(ReloadedIOS)
@@ -2563,7 +2574,9 @@ void HandleWiiMoteEvent(s32 chan)
 }
 s8 CheckTitleOnSD(u64 id)
 {
-	if (!__io_wiisd.isInserted())
+	//check Mounted Devices so that IF the SD is inserted it also gets mounted
+	PollDevices();
+	if (!__io_wiisd.isInserted()) //no SD inserted, lets bail out
 		return -1;
 	char title_ID[5];
 	//Check app on SD. it might be there. not that it matters cause we can't boot from SD
@@ -2960,6 +2973,8 @@ s32 LoadListTitles( void )
 			{
 				gprintf("ClearState failure\n");
 			}
+			VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
+			VIDEO_WaitVSync();
 			ES_LaunchTitle(list[cur_off], &views[0]);
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to Load Title!"))*13/2))>>1, 224, "Failed to Load Title!");
 			sleep(3);
@@ -3904,8 +3919,8 @@ int main(int argc, char **argv)
 				if( temp.flags == 130 ) //&& temp.discstate != 2)
 				{
 					//if the flag is 130, its probably shutdown from mios. in that case system menu 
-					//will handle it perfectly (it seemed to set bootstate to 5 and reboot. which causes priiloader 
-					//to shutdown )for safety we will boot system menu instead of shutting down. just to be sure
+					//will handle it perfectly (and i quote from SM's OSreport : "Shutdown system from GC!")
+					//it seems to reboot into bootstate 5. but its safer to let SM handle it
 					gprintf("255:System Menu\n");
 					BootMainSysMenu(0);
 				}
@@ -3938,12 +3953,7 @@ int main(int argc, char **argv)
 					DVDStopDisc(false);
         			WPAD_Shutdown();
 					ShutdownDevices();
-					//butt ugly hack around the problem but i can't think of another way to fix it...
-					//TODO : make it less hacky by fixing the __io_usbstorage.shutdown()
-					if ( (usb_inited == true) && ( __usbfd.usb_fd > 0 ) )
-					{
-						USBStorage_Close(&__usbfd);
-					}
+					USB_Deinitialize();
 					if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
 					{
 						STM_ShutdownToStandby();
@@ -4039,7 +4049,7 @@ int main(int argc, char **argv)
 	AUDIO_StopDMA();
 	AUDIO_RegisterDMACallback(NULL);
 
-	r = (s32)MountDevices();
+	r = (s32)PollDevices();
 	gprintf("FAT_Init():%d\n", r );
 
 	r = PAD_Init();
@@ -4176,7 +4186,7 @@ int main(int argc, char **argv)
 			{
 				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d(beta v%d)", VERSION>>8, VERSION&0xFF, BETAVERSION&0xFF );
 			} else {
-				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d (r%s)", VERSION>>8, VERSION&0xFF,SVN_REV_STR );
+				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%dd (r%s)", VERSION>>8, VERSION&0xFF,SVN_REV_STR );
 			}
 			PrintFormat( 0, 16, rmode->viHeight-64, "IOS v%d", (*(vu32*)0x80003140)>>16 );
 			PrintFormat( 0, 16, rmode->viHeight-48, "Systemmenu v%d", SysVersion );			
@@ -4201,7 +4211,6 @@ int main(int argc, char **argv)
 			}
 			redraw = false;
 		}
-
 		if( Shutdown )
 		{
 			*(vu32*)0xCD8000C0 &= ~0x20;
@@ -4214,13 +4223,7 @@ int main(int argc, char **argv)
 			DVDStopDisc(false);
 			WPAD_Shutdown();
 			ShutdownDevices();
-			//butt ugly hack around the problem but i can't think of another way to fix it...
-			//TODO : make it less hacky by fixing the __io_usbstorage.shutdown()
-			if ( (usb_inited == true) && ( __usbfd.usb_fd > 0 ) )
-			{
-				USBStorage_Close(&__usbfd);
-			}
-			ClearState();
+			USB_Deinitialize();
 			if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
 			{
 				STM_ShutdownToStandby();
@@ -4258,8 +4261,9 @@ int main(int argc, char **argv)
 				error=ERROR_SYSMENU_GENERAL;
 			BootSysMenu = 0;
 		}
-
-
+		//check Mounted Devices
+		PollDevices();
+		
 		VIDEO_WaitVSync();
 	}
 
