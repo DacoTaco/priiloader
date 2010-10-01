@@ -185,14 +185,13 @@ void UnloadHBCStub( void )
 }
 bool PollDevices( void )
 {
-	//check mounted device's status and unmount or mount if needed
+	//check mounted device's status and unmount or mount if needed. once something is unmounted, lets see if we can mount something in its place
 	if( ( (Mounted & 2) && !__io_wiisd.isInserted() ) || ( (Mounted & 1) && !__io_usbstorage.isInserted() ) )
 	{
 		fatUnmount("fat:/");
 		if(Mounted & 1)
 		{
 			gprintf("USB removed. unmounting...\n");
-			__io_usbstorage.shutdown();
 		}
 		if(Mounted & 2)
 		{
@@ -202,13 +201,12 @@ bool PollDevices( void )
 		Mounted = 0;
 	}
 	//check if SD is mountable
-	else if( !(Mounted & 2) && __io_wiisd.startup() &&  __io_wiisd.isInserted() && !(Device_Not_Mountable & 2) )
+	if( !(Mounted & 2) && __io_wiisd.startup() &&  __io_wiisd.isInserted() && !(Device_Not_Mountable & 2) )
 	{
 		if(Mounted & 1)
 		{
 			//USB is mounted. lets kick it out and use SD instead :P
 			fatUnmount("fat:/");
-			__io_usbstorage.shutdown();
 			gprintf("USB unmounted for SD\n");
 			Mounted = 0;
 		}
@@ -223,8 +221,10 @@ bool PollDevices( void )
 			Device_Not_Mountable |= 2;
 		}
 	}
-	//check if USB is mountable
-	else if( (Mounted == 0) && __io_usbstorage.startup() && __io_usbstorage.isInserted() && !(Device_Not_Mountable & 1) )
+	//check if USB is mountable.deu to short circuit evaluation you need to be VERY CAREFUL when changing the next if or anything usbstorage related
+	//i know its stupid to init the USB device and yet not mount it, but thats the only way with c++ & the current usbstorage combo
+	//see http://en.wikipedia.org/wiki/Short-circuit_evaluation
+	else if( ( __io_usbstorage.startup() ) && ( __io_usbstorage.isInserted() ) && (Mounted == 0) && !(Device_Not_Mountable & 1) )
 	{
 		//if( fatMountSimple("fat", &__io_usbstorage) )
 		if( fatMount("fat", &__io_usbstorage,0, 8, 64) )
@@ -238,14 +238,12 @@ bool PollDevices( void )
 			Device_Not_Mountable |= 1;
 		}
 	}
-	else if ( Device_Not_Mountable > 0 )
+	if ( Device_Not_Mountable > 0 )
 	{
 		if ( ( Device_Not_Mountable & 1 ) && !__io_usbstorage.isInserted() )
 		{
 			gprintf("reseting not-mountable-USB flag\n");
 			Device_Not_Mountable -= 1;
-			//shutdown so the port gets reset :')
-			__io_usbstorage.shutdown();
 		}
 		if ( ( Device_Not_Mountable & 2 ) &&  !__io_wiisd.isInserted() )
 		{
@@ -2040,6 +2038,7 @@ void InstallLoadDOL( void )
 		sleep(5);
 		return;
 	}
+	s8 DevStat = Mounted;
 	dir = diropen ("fat:/");
 	if( dir == NULL )
 	{
@@ -2233,7 +2232,59 @@ void InstallLoadDOL( void )
 
 			redraw = false;
 		}
+		PollDevices();
+		if (DevStat != Mounted)
+		{
+			gprintf("DevStat = %d%d & Mounted = %d%d\n",(DevStat&2),(DevStat&1),(Mounted&2),(Mounted&1));
+			ClearScreen();
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Reloading Binaries..."))*13/2))>>1, 208, "Reloading Binaries...");
+			sleep(2);
+			for( u32 i=0; i<names.size(); ++i )
+				delete names[i];
+			names.clear();
+			if(Mounted == 0)
+			{
+				ClearScreen();
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("NO fat device found!"))*13/2))>>1, 208, "NO fat device found!");
+				sleep(5);
+				return;
+			}
+			dir = diropen ("fat:/");
+			if( dir == NULL )
+			{
+				ClearScreen();
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to open root of Device!"))*13/2))>>1, 208, "Failed to open root of Device!");
+				sleep(5);
+				return;
+			}
+			//get all files names
+			while( dirnext (dir, filename, &st) != -1 )
+			{
+				if( (strstr( filename, ".dol") != NULL) ||
+					(strstr( filename, ".DOL") != NULL) ||
+					(strstr( filename, ".elf") != NULL) ||
+					(strstr( filename, ".ELF") != NULL) )
+				{
+					names.resize( names.size() + 1 );
+					names[names.size()-1] = new char[strlen(filename)+1];
+					memcpy( names[names.size()-1], filename, strlen( filename ) + 1 );
+				}
+			}
 
+			dirclose( dir );
+
+			if( names.size() == 0 )
+			{
+				ClearScreen();
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Couldn't find any executable files"))*13/2))>>1, 208, "Couldn't find any executable files");
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("in the root of the FAT device!"))*13/2))>>1, 228, "in the root of the FAT device!");
+				sleep(5);
+				return;
+			}
+			ClearScreen();
+			redraw = 1;
+			DevStat = Mounted;
+		}
 		VIDEO_WaitVSync();
 	}
 
