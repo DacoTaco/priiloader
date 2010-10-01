@@ -118,11 +118,7 @@ u32 LoadHacks( bool Force_Load_Nand )
 	FILE* in = NULL;
 	if(!Force_Load_Nand)
 	{
-#ifndef libELM
 		in = fopen ("fat:/hacks.ini","rb");
-#else
-		in = fopen ("elm:/sd/hacks.ini","rb");
-#endif
 	}
 	if( !in )
 	{

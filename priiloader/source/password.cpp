@@ -35,7 +35,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 extern u8 error;
 extern void ClearScreen();
-extern bool RemountDevices();
+extern bool PollDevices();
 
 bool check_pass( char* pass )
 {
@@ -75,7 +75,7 @@ void InstallPassword( void )
 	char tfile[200];
 	int redraw = 1;
 	FILE* in = NULL;
-	if (!RemountDevices() )
+	if (!PollDevices() )
 	{
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to mount fat device!"))*13/2))>>1, 208, "Failed to mount fat device!");
 		sleep(5);
@@ -185,13 +185,8 @@ void InstallPassword( void )
 		{
 			ClearScreen();
 	//Install file
-#ifdef libELM
-			sprintf(filepath, "elm:/sd/password.txt");
-			FILE *passtxt = fopen(filepath, "rb" );
-#else
 			sprintf(filepath, "fat:/password.txt");
 			FILE *passtxt = fopen(filepath, "rb" );
-#endif
 			if( passtxt == NULL )
 			{
 				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Couldn't open \"password.txt\" for reading!"))*13/2))>>1, 208, "Couldn't open \"password.txt\" for reading!");
@@ -286,7 +281,7 @@ void Pad_unpressed( void )
 
 void password_check( void )
 {
-	RemountDevices();
+	PollDevices();
 	char *cpbuf = NULL;
 	char * ptr;
 	char* password = NULL;
@@ -587,7 +582,7 @@ void password_check( void )
 				if(words[i] != password[i])
 					passcheck = 1;
 			}
-			RemountDevices();
+			PollDevices();
 			f = fopen(path,"rb");
 			if(f != NULL)
 			{
