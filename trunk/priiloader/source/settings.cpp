@@ -127,9 +127,6 @@ u32 SGetSetting( u32 s )
 		case SETTING_IGNORESHUTDOWNMODE:
 			return settings->IgnoreShutDownMode;
 
-		case SETTING_BETAVERSION:
-			return settings->BetaVersion;
-
 		case SETTING_SYSTEMMENUIOS:
 			return settings->SystemMenuIOS;
 
@@ -146,6 +143,8 @@ u32 SGetSetting( u32 s )
 			return settings->PasscheckMenu;
 		case SETTING_SHOWBETAUPDATES:
 			return settings->ShowBetaUpdates;
+		case SETTING_CLASSIC_HACKS:
+			return settings->UseClassicHacks;
 		default:
 			return 0;
 		break;
