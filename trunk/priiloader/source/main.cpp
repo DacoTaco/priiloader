@@ -2341,18 +2341,18 @@ void BootMainSysMenu( u8 init )
 						//gprintf("y = %d\nsize of patch is %d\nwith as last u32 0x%08X\n",y,hacks_hash[i].patch[y].size(),hacks_hash[i].patch[y][hacks_hash[i].patch[y].size() -1]);
 						while( add + (u32)mem_block < max_address)
 						{
-							u32 temp_hash[hacks_hash[i].hash[y].size()];
-							u32 temp_patch[hacks_hash[i].patch[y].size()];
-							for(u32 z = 0;z < hacks_hash[i].hash[y].size(); z++)
+							u32 temp_hash[hacks_hash[i].patches[y].hash.size()];
+							u32 temp_patch[hacks_hash[i].patches[y].patch.size()];
+							for(u32 z = 0;z < hacks_hash[i].patches[y].hash.size(); z++)
 							{
-								temp_hash[z] = hacks_hash[i].hash[y][z];
+								temp_hash[z] = hacks_hash[i].patches[y].hash[z];
 							}
 							if ( !memcmp(mem_block+add, temp_hash ,sizeof(temp_hash)) )
 							{
 								gprintf("Found %s @ 0x%X, patching...\n",hacks_hash[i].desc.c_str(), add+(u32)mem_block);
-								for(u32 z = 0;z < hacks_hash[i].patch[y].size(); z++)
+								for(u32 z = 0;z < hacks_hash[i].patches[y].patch.size(); z++)
 								{
-									temp_patch[z] = hacks_hash[i].patch[y][z];
+									temp_patch[z] = hacks_hash[i].patches[y].patch[z];
 									//gprintf("patch[y][z] = 0x%08X\ntemp_patch=0x%08X\n",hacks_hash[i].patch[y][z],*temp_patch);
 								}
 								memcpy(mem_block+add,temp_patch,sizeof(temp_patch) );
