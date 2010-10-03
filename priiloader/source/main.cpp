@@ -83,7 +83,9 @@ typedef struct {
 extern Settings *settings;
 extern u8 error;
 extern std::vector<hack> hacks;
+extern std::vector<hack_hash> hacks_hash;
 extern u32 *states;
+extern u32 *states_hash;
 
 u8 Shutdown=0;
 u8 BootSysMenu = 0;
@@ -628,6 +630,298 @@ handle_hacks_s_fail:
 
 	return;
 }
+void SysHackHashSettings( void )
+{
+	if( !LoadHacks_Hash(false) )
+	{
+		if(Mounted == 0)
+		{
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to mount FAT device"))*13/2))>>1, 208+16, "Failed to mount FAT device");
+		}
+		else
+		{
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Can't find hacks_hash.ini on FAT Device"))*13/2))>>1, 208+16, "Can't find hacks_hash.ini on FAT Device");
+		}
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Can't find hacks_hash.ini on NAND"))*13/2))>>1, 208+16+16, "Can't find hacks_hash.ini on NAND");
+		sleep(5);
+		return;
+	}
+
+//Count hacks for current sys version
+	u32 HackCount=0;
+	u32 SysVersion=GetSysMenuVersion();
+	for( unsigned int i=0; i<hacks_hash.size(); ++i)
+	{
+		if( hacks_hash[i].max_version >= SysVersion && hacks_hash[i].min_version <= SysVersion)
+		{
+			HackCount++;
+		}
+	}
+
+	if( HackCount == 0 )
+	{
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Couldn't find any hacks for"))*13/2))>>1, 208, "Couldn't find any hacks for");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("System Menu version:vxxx"))*13/2))>>1, 228, "System Menu version:v%d", SysVersion );
+		sleep(5);
+		return;
+	}
+
+	u32 DispCount=HackCount;
+
+	if( DispCount > 25 )
+		DispCount = 25;
+
+	u16 cur_off=0;
+	s32 menu_off=0;
+	bool redraw=true;
+	while(1)
+	{
+		WPAD_ScanPads();
+		PAD_ScanPads();
+
+		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
+		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
+
+#ifdef DEBUG
+		if ( (WPAD_Pressed & WPAD_BUTTON_HOME) || (PAD_Pressed & PAD_BUTTON_START) )
+		{
+			exit(0);
+		}
+#endif
+		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
+		{
+			break;
+		}
+
+		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
+		{
+			if( cur_off == DispCount)
+			{
+				//first try to open the file on the SD card/USB, if we found it copy it, other wise skip
+				s16 fail = 0;
+				FILE *in = NULL;
+				if (Mounted != 0)
+				{
+					in = fopen ("fat:/hacks_hash.ini","rb");
+				}
+				else
+				{
+					gprintf("no FAT device found\n");
+				}
+				if ( ( (Mounted & 2) && !__io_wiisd.isInserted() ) || ( (Mounted & 1) && !__io_usbstorage.isInserted() ) )
+				{
+					PrintFormat( 0, 103, rmode->viHeight-48, "saving failed : SD/USB error");
+					continue;
+				}
+				if( in != NULL )
+				{
+					//Read in whole file & create it on nand
+					fseek( in, 0, SEEK_END );
+					u32 size = ftell(in);
+					fseek( in, 0, 0);
+
+					char *buf = (char*)memalign( 32, (size+31)&(~31) );
+					memset( buf, 0, (size+31)&(~31) );
+					fread( buf, sizeof( char ), size, in );
+
+					fclose(in);
+
+					s32 fd = ISFS_Open("/title/00000001/00000002/data/hackshas.ini", 1|2 );
+					if( fd >= 0 )
+					{
+						//File already exists, delete and recreate!
+						ISFS_Close( fd );
+						if(ISFS_Delete("/title/00000001/00000002/data/hackshas.ini") <0)
+						{
+							fail=1;
+							free_pointer(buf);
+							goto handle_hacks_fail;
+						}
+					}
+					if(ISFS_CreateFile("/title/00000001/00000002/data/hackshas.ini", 0, 3, 3, 3)<0)
+					{
+						fail=2;
+						free_pointer(buf);
+						goto handle_hacks_fail;
+					}
+					fd = ISFS_Open("/title/00000001/00000002/data/hackshas.ini", 1|2 );
+					if( fd < 0 )
+					{
+						fail=3;
+						ISFS_Close( fd );
+						free_pointer(buf);
+						goto handle_hacks_fail;
+					}
+
+					if(ISFS_Write( fd, buf, size )<0)
+					{
+						fail = 4;
+						ISFS_Close( fd );
+						free_pointer(buf);
+						goto handle_hacks_fail;
+					}
+					ISFS_Close( fd );
+					free_pointer(buf);
+				}
+handle_hacks_fail:
+				if(fail > 0)
+				{
+					gprintf("hacks_hash.ini save error %d\n",fail);
+				}
+				
+				s32 fd = ISFS_Open("/title/00000001/00000002/data/hacksh_s.ini", 1|2 );
+
+				if( fd >= 0 )
+				{
+					//File already exists, delete and recreate!
+					ISFS_Close( fd );
+					if(ISFS_Delete("/title/00000001/00000002/data/hacksh_s.ini")<0)
+					{
+						fail = 5;
+						goto handle_hacks_s_fail;
+					}
+				}
+
+				if(ISFS_CreateFile("/title/00000001/00000002/data/hacksh_s.ini", 0, 3, 3, 3)<0)
+				{
+					fail = 6;
+					goto handle_hacks_s_fail;
+				}
+				fd = ISFS_Open("/title/00000001/00000002/data/hacksh_s.ini", 1|2 );
+				if( fd < 0 )
+				{
+					fail=7;
+					goto handle_hacks_s_fail;
+				}
+				if(ISFS_Write( fd, states_hash, sizeof( u32 ) * hacks_hash.size() )<0)
+				{
+					fail = 8;
+					ISFS_Close(fd);
+					goto handle_hacks_s_fail;
+				}
+
+				ISFS_Close( fd );
+handle_hacks_s_fail:
+				if(fail > 0)
+				{
+					gprintf("hacksh_s.ini save error %d\n",fail);
+				}
+
+				if( fail )
+					PrintFormat( 0, 118, rmode->viHeight-48, "saving failed");
+				else
+					PrintFormat( 0, 118, rmode->viHeight-48, "settings saved");
+			} 
+			else 
+			{
+
+				s32 j = 0;
+				u32 i = 0;
+				for(i=0; i<hacks_hash.size(); ++i)
+				{
+					if( hacks_hash[i].max_version >= SysVersion && hacks_hash[i].min_version <= SysVersion)
+					{
+						if( cur_off+menu_off == j++)
+							break;
+					}
+				}
+
+				if(states_hash[i])
+					states_hash[i]=0;
+				else 
+					states_hash[i]=1;
+
+				redraw = true;
+			}
+		}
+
+		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
+		{
+			cur_off++;
+
+			if( cur_off > DispCount )
+			{
+				cur_off--;
+				menu_off++;
+			}
+
+			if( cur_off+menu_off > (s32)HackCount )
+			{
+				cur_off = 0;
+				menu_off= 0;
+			}
+			
+			redraw=true;
+		} else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
+		{
+			if( cur_off == 0 )
+			{
+				if( menu_off > 0 )
+				{
+					cur_off++;
+					menu_off--;
+
+				} else {
+
+					//if( DispCount < 20 )
+					//{
+						cur_off=DispCount;
+						menu_off=(HackCount-DispCount);
+
+					//} else {
+
+					//	cur_off=DispCount;
+					//	menu_off=(HackCount-DispCount)-1;
+
+					//}
+				}
+			}
+			else
+				cur_off--;
+	
+			redraw=true;
+		}
+		if( redraw )
+		{
+			//printf("\x1b[2;0HHackCount:%d DispCount:%d cur_off:%d menu_off:%d Hacks:%d   \n", HackCount, DispCount, cur_off, menu_off, hacks_hash.size() );
+			u32 j=0;
+			u32 skip=menu_off;
+			for( u32 i=0; i<hacks_hash.size(); ++i)
+			{
+				if( hacks_hash[i].max_version >= SysVersion && hacks_hash[i].min_version <= SysVersion)
+				{
+					if( skip > 0 )
+					{
+						skip--;
+					} else {
+						
+						PrintFormat( cur_off==j, 16, 48+j*16, "%s", hacks_hash[i].desc.c_str() );
+
+						if( states_hash[i] )
+						{
+							PrintFormat( cur_off==j, 256, 48+j*16, "enabled ");
+						}
+						else
+						{
+							PrintFormat( cur_off==j, 256, 48+j*16, "disabled");
+						}
+						j++;
+					}
+				}
+				if( j >= 25 ) 
+					break;
+			}
+			PrintFormat( cur_off==(signed)DispCount, 118, rmode->viHeight-64, "save settings");
+			PrintFormat( 0, 103, rmode->viHeight-48, "                            ");
+
+			redraw = false;
+		}
+
+		VIDEO_WaitVSync();
+	}
+
+	return;
+}
 
 void shellsort(u64 *a,int n)
 {
@@ -1010,8 +1304,32 @@ void SetSettings( void )
 						settings->ShowBetaUpdates = 1;
 					redraw=true;
 				}
-			break;				
-			case 11: //ignore ios reloading for system menu?
+			break;		
+			case 11: // Use Classic hacks file
+				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
+					 PAD_Pressed & PAD_BUTTON_LEFT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
+					 PAD_Pressed & PAD_BUTTON_RIGHT				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
+					 WPAD_Pressed & WPAD_BUTTON_A				||
+					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
+					 PAD_Pressed & PAD_BUTTON_A
+					)
+				{
+					if( settings->UseClassicHacks )
+					{
+						settings->UseClassicHacks = false;
+					}
+					else
+					{
+						settings->UseClassicHacks = true;
+					}
+					ClearScreen();
+					redraw=true;
+				}
+			break;
+			case 12: //ignore ios reloading for system menu?
 			{
 				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
 					 PAD_Pressed & PAD_BUTTON_LEFT				||
@@ -1047,7 +1365,7 @@ void SetSettings( void )
 				}
 			}
 			break;
-			case 12:		//	System Menu IOS
+			case 13:		//	System Menu IOS
 			{
 				if ( WPAD_Pressed & WPAD_BUTTON_LEFT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT || PAD_Pressed & PAD_BUTTON_LEFT )
 				{
@@ -1085,14 +1403,14 @@ void SetSettings( void )
 				}
 
 			} break;
-			case 13:
+			case 14:
 			{
 				if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 				{
 					if( SaveSettings() )
-						PrintFormat( 0, 114, 128+208+16, "settings saved");
+						PrintFormat( 0, 114, 128+224+16, "settings saved");
 					else
-						PrintFormat( 0, 118, 128+208+16, "saving failed");
+						PrintFormat( 0, 118, 128+224+16, "saving failed");
 				}
 			} break;
 
@@ -1104,19 +1422,19 @@ void SetSettings( void )
 		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
 		{
 			cur_off++;
-			if( (settings->UseSystemMenuIOS) && (cur_off == 12))
+			if( (settings->UseSystemMenuIOS) && (cur_off == 13))
 				cur_off++;
-			if( cur_off >= 14)
+			if( cur_off >= 15)
 				cur_off = 0;
 			
 			redraw=true;
 		} else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
 		{
 			cur_off--;
-			if( (settings->UseSystemMenuIOS) && (cur_off == 12))
+			if( (settings->UseSystemMenuIOS) && (cur_off == 13))
 				cur_off--;
 			if( cur_off < 0 )
-				cur_off = 13;
+				cur_off = 14;
 			
 			redraw=true;
 		}
@@ -1173,17 +1491,18 @@ void SetSettings( void )
 			PrintFormat( cur_off==8, 0, 128+112,"      Protect Autoboot:          %s", settings->PasscheckMenu?"on ":"off");
 			PrintFormat( cur_off==9, 0, 128+128,"   Display Gecko ouput:          %s", settings->ShowGeckoText?"on ":"off");
 			PrintFormat( cur_off==10,0, 128+144,"     Show Beta Updates:          %s", settings->ShowBetaUpdates?"on ":"off");
-			PrintFormat( cur_off==11,0, 128+160,"   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
+			PrintFormat( cur_off==11,0, 128+160," Use Classic Hacks.ini:          %s", settings->UseClassicHacks?"on ":"off");
+			PrintFormat( cur_off==12,0, 128+176,"   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
 			if(!settings->UseSystemMenuIOS)
 			{
-				PrintFormat( cur_off==12, 0, 128+176, "     IOS to use for SM:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
+				PrintFormat( cur_off==13, 0, 128+176, "     IOS to use for SM:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
 			}
 			else
 			{
-				PrintFormat( cur_off==12, 0, 128+176,	"                                        ");
+				PrintFormat( cur_off==13, 0, 128+192,	"                                        ");
 			}
-			PrintFormat( cur_off==13, 118, 128+208, "save settings");
-			PrintFormat( 0, 114, 128+208+16, "                 ");
+			PrintFormat( cur_off==14, 118, 128+224, "save settings");
+			PrintFormat( 0, 114, 128+224+16, "                 ");
 
 			redraw = false;
 		}
@@ -1553,7 +1872,7 @@ s8 BootDolFromDir( const char* Dir )
 		}
 		else
 		{
-			//// copy the file into the buffer:
+			// copy the file into the buffer:
 			s32 result = fread (buffer,1,lSize,dol);
 			if (result != lSize) 
 			{
@@ -1596,6 +1915,11 @@ void BootMainSysMenu( u8 init )
 	fstats *status = NULL;
 	dolhdr *boot_hdr = NULL;
 
+	//hacks : hashes
+	u8* mem_block = 0;
+	u32 max_address = 0;
+
+
 	//general:
 	s32 r = 0;
 	s32 fd = 0;
@@ -1603,7 +1927,7 @@ void BootMainSysMenu( u8 init )
 
 	if(init == 0)
 	{
-		//dont do jack shit. nothing that we need extra atm when autobooting (leaving code so its easy to change stuff
+		PollDevices();
 	}
 	//booting sys menu
 	ISFS_Deinitialize();
@@ -1806,7 +2130,14 @@ void BootMainSysMenu( u8 init )
 	entrypoint = (void (*)())(boot_hdr->entrypoint);
 	gprintf("entrypoint %08X\n", entrypoint );
 
-	LoadHacks(true);
+	if( !SGetSetting( SETTING_CLASSIC_HACKS ) )
+	{
+		LoadHacks_Hash(true);
+	}
+	else
+	{
+		LoadHacks(true);
+	}
 	for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {
 		WPAD_Flush(i);
 		WPAD_Disconnect(i);
@@ -1965,28 +2296,78 @@ void BootMainSysMenu( u8 init )
 	*(vu32*)0x800000F8 = 0x0E7BE2C0;				// Bus Clock Speed
 	*(vu32*)0x800000FC = 0x2B73A840;				// CPU Clock Speed
 
-	gprintf("Hacks:%d\n", hacks.size() );
-	//Apply patches
-	for( u32 i=0; i<hacks.size(); ++i)
+	if( SGetSetting( SETTING_CLASSIC_HACKS ) )
 	{
-#ifdef DEBUG
-		printf("i:%d state:%d version:%d\n", i, states[i], hacks[i].version);
-#endif
-		if( states[i] == 1 )
+		gprintf("Hacks:%d\n", hacks.size() );
+		//Apply patches
+		for( u32 i=0; i<hacks.size(); ++i)
 		{
-			if( hacks[i].version != rTMD->title_version )
-				continue;
-
-			for( u32 z=0; z < hacks[i].value.size(); ++z )
+	#ifdef DEBUG
+			printf("i:%d state:%d version:%d\n", i, states[i], hacks[i].version);
+	#endif
+			if( states[i] == 1 )
 			{
-#ifdef DEBUG
-				printf("%08X:%08X\n", hacks[i].offset[z], hacks[i].value[z] );
-#endif
-				*(vu32*)(hacks[i].offset[z]) = hacks[i].value[z];
-				DCFlushRange((void*)(hacks[i].offset[z]), 4);
+				if( hacks[i].version != rTMD->title_version )
+					continue;
+
+				for( u32 z=0; z < hacks[i].value.size(); ++z )
+				{
+	#ifdef DEBUG
+					printf("%08X:%08X\n", hacks[i].offset[z], hacks[i].value[z] );
+	#endif
+					*(vu32*)(hacks[i].offset[z]) = hacks[i].value[z];
+					DCFlushRange((void*)(hacks[i].offset[z]), 4);
+				}
 			}
 		}
 	}
+	else
+	{
+		//TODO : either load & apply both methods or add a way of adding multiple addresses to the hash method...
+		//add the offset/value method that defines extra writes to do after the hash?
+		gprintf("Hacks:%d\n",hacks_hash.size());
+		if(hacks_hash.size() != 0)
+		{
+			mem_block = (u8*)(*boot_hdr->addressData - *boot_hdr->offsetData);
+			max_address = (u32)(*boot_hdr->sizeData + *boot_hdr->addressData);
+			gprintf("mem_block range : 0x%08X - 0x%08X\n",mem_block,max_address);
+			for(u32 i = 0;i < hacks_hash.size();i++)
+			{
+				if(states_hash[i] == 1)
+				{
+					u32 add = 0;
+					for(u32 y = 0; y < hacks_hash[i].amount;y++)
+					{
+						//gprintf("y = %d\nsize of patch is %d\nwith as last u32 0x%08X\n",y,hacks_hash[i].patch[y].size(),hacks_hash[i].patch[y][hacks_hash[i].patch[y].size() -1]);
+						while( add + (u32)mem_block < max_address)
+						{
+							u32 temp_hash[hacks_hash[i].hash[y].size()];
+							u32 temp_patch[hacks_hash[i].patch[y].size()];
+							for(u32 z = 0;z < hacks_hash[i].hash[y].size(); z++)
+							{
+								temp_hash[z] = hacks_hash[i].hash[y][z];
+							}
+							if ( !memcmp(mem_block+add, temp_hash ,sizeof(temp_hash)) )
+							{
+								gprintf("Found %s @ 0x%X, patching...\n",hacks_hash[i].desc.c_str(), add+(u32)mem_block);
+								for(u32 z = 0;z < hacks_hash[i].patch[y].size(); z++)
+								{
+									temp_patch[z] = hacks_hash[i].patch[y][z];
+									//gprintf("patch[y][z] = 0x%08X\ntemp_patch=0x%08X\n",hacks_hash[i].patch[y][z],*temp_patch);
+								}
+								memcpy(mem_block+add,temp_patch,sizeof(temp_patch) );
+								DCFlushRange((u8 *)((add+(u32)mem_block) >> 5 << 5), (sizeof(temp_patch) >> 5 << 5) + 64);
+								//gprintf("patch : 0x%08X\npatched address : 0x%08X\n",temp_patch, *(vu32*)( add+ (u32)mem_block));
+								break;
+							}
+							add++;
+						}//end while loop
+					} //end for loop of all hashes of hack i
+				} //end if state = 1
+			} // end general hacks loop
+		} //end if hacks > 0
+	} // end if classic hack are nto enabled
+	//exit(0);
 #ifdef DEBUG
 	sleep(20);
 #endif
@@ -4176,7 +4557,10 @@ int main(int argc, char **argv)
 					InstallLoadDOL();
 					break;
 				case 6:
-					SysHackSettings();
+					if( SGetSetting( SETTING_CLASSIC_HACKS ) )
+						SysHackSettings();
+					else
+						SysHackHashSettings();
 					break;
 				case 7:
 					CheckForUpdate();
