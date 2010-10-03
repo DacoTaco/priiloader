@@ -28,6 +28,18 @@ struct hack {
 	std::vector<unsigned int> offset;
 	std::vector<unsigned int> value;
 };
+struct patch_struct {
+	std::vector<unsigned int> hash;
+	std::vector<unsigned int> patch;
+};
+struct hack_hash {
+	std::string desc;
+	unsigned int max_version;
+	unsigned int min_version;
+	unsigned int amount;
+	std::vector< patch_struct > patches;
+};
+/*
 struct hack_hash {
 	std::string desc;
 	unsigned int max_version;
@@ -36,6 +48,6 @@ struct hack_hash {
 	std::vector< std::vector<unsigned int> > hash;
 	std::vector< std::vector<unsigned int> > patch;
 };
-
+*/
 u32 LoadHacks( bool Force_Load_Nand );
 s8 LoadHacks_Hash( bool Force_Load_Nand );

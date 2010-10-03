@@ -542,8 +542,10 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 	char *str=buf;
 	char *lbuf=NULL;
 	unsigned int line = 1;
-	std::vector<unsigned int> temp;
-	temp.clear();
+	//std::vector<unsigned int> temp;
+	patch_struct temp;
+	temp.hash.clear();
+	temp.patch.clear();
 
 	lbuf = GetLine( str, size );
 	if( lbuf == NULL )
@@ -721,8 +723,25 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 			lbuf = GetLine( str, size );
 			if( lbuf == NULL )
 				break;
+			if(temp.hash.size() && temp.patch.size() )
+			{
+				gprintf("pushing back patch %s...\n",new_hacks_hash.desc.c_str());
+				new_hacks_hash.patches.push_back(temp);
+				temp.hash.clear();
+				temp.patch.clear();
+				if( new_hacks_hash.patches.size() == new_hacks_hash.amount ) //we have all the patches. lets move on
+					break;
+			}
+
 			if( memcmp( lbuf, "hash", 4 ) == 0 )
 			{
+				if ( temp.hash.size() )
+				{
+					PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing 'patch' before line   "))*13/2))>>1, 208, "Syntax error : missing 'patch' before line %d", line);
+					hacks_hash.clear();
+					sleep(5);
+					return 0;
+				}
 				if( strstr( lbuf, "=" ) ==  NULL )
 				{
 					PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing '=' before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : missing '=' before 'n' @ line %d", line);
@@ -740,15 +759,22 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 				}
 				
 				do{
-					temp.resize( temp.size() + 1 );
-					sscanf( s, "%x", &temp[temp.size()-1] );
+					temp.hash.resize( temp.hash.size() + 1 );
+					sscanf( s, "%x", &temp.hash[temp.hash.size()-1] );
 
 				}while( (s = strtok( NULL,",\n")) != NULL);
-				new_hacks_hash.hash.push_back(temp);
-				temp.clear();
+				/*new_hacks_hash.hash.push_back(temp);
+				temp.clear();*/
 
 			} else if ( memcmp( lbuf, "patch", 5 ) == 0 ) {
 
+				if (temp.patch.size() || temp.hash.size() == 0 )
+				{
+					PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing 'hash' before line   "))*13/2))>>1, 208, "Syntax error : missing 'hash' before line %d", line);
+					hacks_hash.clear();
+					sleep(5);
+					return 0;
+				}
 				if( strstr( lbuf, "=" ) ==  NULL )
 				{
 					PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing '=' before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : missing '=' before 'n' @ line %d", line);
@@ -765,20 +791,20 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 					return 0;
 				}
 				do{
-					temp.resize( temp.size() + 1 );
-					sscanf( s, "%x", &temp[temp.size()-1] );
+					temp.patch.resize( temp.patch.size() + 1 );
+					sscanf( s, "%x", &temp.patch[temp.patch.size()-1] );
 
 				}while( (s = strtok( NULL,",\n")) != NULL);
-				new_hacks_hash.patch.push_back(temp);
-				temp.clear();
+				 /*new_hacks_hash.patch.push_back(temp);
+				temp.clear();*/
 
-			} else if( new_hacks_hash.patch.size() == new_hacks_hash.amount && new_hacks_hash.hash.size() == new_hacks_hash.amount ) {
-				break;
+			/*} else if( new_hacks_hash.patch.size() == new_hacks_hash.amount && new_hacks_hash.hash.size() == new_hacks_hash.amount ) {
+				break;*/
 			} else {
-				if(new_hacks_hash.patch.size() > 0 || new_hacks_hash.hash.size() > 0)
-					PrintFormat( 1, ((640/2)-((strlen("Syntax Er: not enough 'hash' or 'patch' before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : expected 'hash' or 'patch' before 'n' @ line %d", line);
+				if(new_hacks_hash.patches.size() > 0 || temp.hash.size() > 0 || temp.patch.size() > 0)
+					PrintFormat( 1, ((640/2)-((strlen("Syntax Er: not enough 'hash' or 'patch' before line   "))*13/2))>>1, 208, "Syntax error : expected 'hash' or 'patch' before 'n' @ line %d", line);
 				else
-					PrintFormat( 1, ((640/2)-((strlen("Syntax Err : expected 'hash' or 'patch' before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : expected 'hash' or 'patch' before 'n' @ line %d", line);
+					PrintFormat( 1, ((640/2)-((strlen("Syntax Err : expected 'hash' or 'patch' before line   "))*13/2))>>1, 208, "Syntax error : expected 'hash' or 'patch' before 'n' @ line %d", line);
 				hacks_hash.clear();
 				sleep(5);
 				return 0;
