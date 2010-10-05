@@ -2323,14 +2323,11 @@ void BootMainSysMenu( u8 init )
 	}
 	else
 	{
-		//TODO : either load & apply both methods or add a way of adding multiple addresses to the hash method...
-		//add the offset/value method that defines extra writes to do after the hash?
 		gprintf("Hacks:%d\n",hacks_hash.size());
 		if(hacks_hash.size() != 0)
 		{
 			mem_block = (u8*)(*boot_hdr->addressData - *boot_hdr->offsetData);
 			max_address = (u32)(*boot_hdr->sizeData + *boot_hdr->addressData);
-			gprintf("mem_block range : 0x%08X - 0x%08X\n",mem_block,max_address);
 			for(u32 i = 0;i < hacks_hash.size();i++)
 			{
 				if(states_hash[i] == 1)
@@ -2338,26 +2335,23 @@ void BootMainSysMenu( u8 init )
 					u32 add = 0;
 					for(u32 y = 0; y < hacks_hash[i].amount;y++)
 					{
-						//gprintf("y = %d\nsize of patch is %d\nwith as last u32 0x%08X\n",y,hacks_hash[i].patch[y].size(),hacks_hash[i].patch[y][hacks_hash[i].patch[y].size() -1]);
 						while( add + (u32)mem_block < max_address)
 						{
-							u32 temp_hash[hacks_hash[i].patches[y].hash.size()];
-							u32 temp_patch[hacks_hash[i].patches[y].patch.size()];
+							u8 temp_hash[hacks_hash[i].patches[y].hash.size()];
+							u8 temp_patch[hacks_hash[i].patches[y].patch.size()];
 							for(u32 z = 0;z < hacks_hash[i].patches[y].hash.size(); z++)
 							{
 								temp_hash[z] = hacks_hash[i].patches[y].hash[z];
 							}
 							if ( !memcmp(mem_block+add, temp_hash ,sizeof(temp_hash)) )
 							{
-								gprintf("Found %s @ 0x%X, patching...\n",hacks_hash[i].desc.c_str(), add+(u32)mem_block);
+								gprintf("Found %s @ 0x%X, patching hash # %d...\n",hacks_hash[i].desc.c_str(), add+(u32)mem_block,y);
 								for(u32 z = 0;z < hacks_hash[i].patches[y].patch.size(); z++)
 								{
 									temp_patch[z] = hacks_hash[i].patches[y].patch[z];
-									//gprintf("patch[y][z] = 0x%08X\ntemp_patch=0x%08X\n",hacks_hash[i].patch[y][z],*temp_patch);
 								}
 								memcpy(mem_block+add,temp_patch,sizeof(temp_patch) );
 								DCFlushRange((u8 *)((add+(u32)mem_block) >> 5 << 5), (sizeof(temp_patch) >> 5 << 5) + 64);
-								//gprintf("patch : 0x%08X\npatched address : 0x%08X\n",temp_patch, *(vu32*)( add+ (u32)mem_block));
 								break;
 							}
 							add++;
@@ -2366,11 +2360,8 @@ void BootMainSysMenu( u8 init )
 				} //end if state = 1
 			} // end general hacks loop
 		} //end if hacks > 0
-	} // end if classic hack are nto enabled
+	} // end if classic hack are enabled
 	//exit(0);
-#ifdef DEBUG
-	sleep(20);
-#endif
 	ShutdownDevices();
 	USB_Deinitialize();
 	if(init == 1 || SGetSetting(SETTING_SHOWGECKOTEXT) != 0 )

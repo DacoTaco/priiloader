@@ -542,7 +542,6 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 	char *str=buf;
 	char *lbuf=NULL;
 	unsigned int line = 1;
-	//std::vector<unsigned int> temp;
 	patch_struct temp;
 	temp.hash.clear();
 	temp.patch.clear();
@@ -661,7 +660,6 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 			sleep(5);
 			return 0;
 		}
-		//printf("\"%s\"\n", s );
 
 		new_hacks_hash.min_version = atoi( s );
 
@@ -719,20 +717,19 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 		free_pointer(lbuf);
 		while(1)
 		{
-			line++,
+			line++;
 			lbuf = GetLine( str, size );
-			if( lbuf == NULL )
-				break;
-			if(temp.hash.size() && temp.patch.size() )
+			if(temp.hash.size() > 0 && temp.patch.size() > 0)
 			{
-				gprintf("pushing back patch %s...\n",new_hacks_hash.desc.c_str());
 				new_hacks_hash.patches.push_back(temp);
 				temp.hash.clear();
 				temp.patch.clear();
-				if( new_hacks_hash.patches.size() == new_hacks_hash.amount ) //we have all the patches. lets move on
-					break;
+			} 
+			if( lbuf == NULL || new_hacks_hash.patches.size() == new_hacks_hash.amount )
+			{
+				break;
 			}
-
+			
 			if( memcmp( lbuf, "hash", 4 ) == 0 )
 			{
 				if ( temp.hash.size() )
@@ -759,15 +756,37 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 				}
 				
 				do{
-					temp.hash.resize( temp.hash.size() + 1 );
-					sscanf( s, "%x", &temp.hash[temp.hash.size()-1] );
-
+					unsigned int hash;
+					uint8_t size = 0;
+					sscanf(s,"%x",&hash);
+					if((hash >> 24))
+						size = 4;
+					else if((hash << 8 >> 24))
+						size = 3;
+					else if(((hash >> 8 << 24) >> 24))
+						size = 2;
+					else if(((uint8_t)hash))
+						size = 1;
+					else
+						size = 0;
+					switch(size)
+					{
+						case 4: //full u32 like 0x90FFAADD
+							temp.hash.push_back(hash >> 24); //first byte of u32 0x90
+						case 3:
+							temp.hash.push_back(hash << 8 >> 24); //second byte of u32 0xFF
+						case 2:
+							temp.hash.push_back((hash >> 8 << 24) >> 24); //3th byte of u32 0xAA
+						case 1:
+							temp.hash.push_back((uint8_t)hash); // 4th byte of u32 0xDD
+						default:
+							break;
+					}
+				
 				}while( (s = strtok( NULL,",\n")) != NULL);
-				/*new_hacks_hash.hash.push_back(temp);
-				temp.clear();*/
-
-			} else if ( memcmp( lbuf, "patch", 5 ) == 0 ) {
-
+				
+			} else if ( memcmp( lbuf, "patch", 5 ) == 0 ) 
+			{
 				if (temp.patch.size() || temp.hash.size() == 0 )
 				{
 					PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing 'hash' before line   "))*13/2))>>1, 208, "Syntax error : missing 'hash' before line %d", line);
@@ -791,15 +810,36 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 					return 0;
 				}
 				do{
-					temp.patch.resize( temp.patch.size() + 1 );
-					sscanf( s, "%x", &temp.patch[temp.patch.size()-1] );
+					/*temp.patch.resize( temp.patch.size() + 1 );
+					sscanf( s, "%x", &temp.patch[temp.patch.size()-1] );*/
+					unsigned int patch;
+					uint8_t size = 0;
+					sscanf(s,"%x",&patch);
+					if((patch >> 24))
+						size = 4;
+					else if((patch << 8 >> 24))
+						size = 3;
+					else if(((patch >> 8 << 24) >> 24))
+						size = 2;
+					else if(((uint8_t)patch))
+						size = 1;
+					else
+						size = 0;
+					switch(size)
+					{
+						case 4: // full u32 -> 4 bytes
+							temp.patch.push_back(patch >> 24); //first byte of u32 -> 0x90
+						case 3: // 24 bit, 3 bytes
+							temp.patch.push_back(patch << 8 >> 24); //second byte of u32 -> 0xFF
+						case 2: // u16, 2 bytes
+							temp.patch.push_back((patch >> 8 << 24) >> 24); //3th byte of u32 -> 0xAA
+						case 1: // u8, 1 byte
+							temp.patch.push_back((uint8_t)patch); // 4th byte of u32 -> 0xDD
+						default:
+							break;
+					}
 
 				}while( (s = strtok( NULL,",\n")) != NULL);
-				 /*new_hacks_hash.patch.push_back(temp);
-				temp.clear();*/
-
-			/*} else if( new_hacks_hash.patch.size() == new_hacks_hash.amount && new_hacks_hash.hash.size() == new_hacks_hash.amount ) {
-				break;*/
 			} else {
 				if(new_hacks_hash.patches.size() > 0 || temp.hash.size() > 0 || temp.patch.size() > 0)
 					PrintFormat( 1, ((640/2)-((strlen("Syntax Er: not enough 'hash' or 'patch' before line   "))*13/2))>>1, 208, "Syntax error : expected 'hash' or 'patch' before 'n' @ line %d", line);
@@ -892,7 +932,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 	free_pointer(status);
 	ISFS_Close( fd );
 
-	//Set all hacks_hash from system menu's > max_version || sysver < min_version to 0
+	//Set all hacks_hash for system menu > max_version || sysver < min_version to 0
 	unsigned int sysver = GetSysMenuVersion();
 	for( u32 i=0; i < hacks_hash.size(); ++i)
 	{
