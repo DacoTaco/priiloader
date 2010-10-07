@@ -682,7 +682,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 			return 0;
 		}
 
-		if( strcmp( lbuf, "patches" ) != 0 )
+		if( strcmp( lbuf, "amount" ) != 0 )
 		{
 			if( strstr( lbuf, "=" ) ==  NULL )
 			{
@@ -700,7 +700,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 				return 0;
 			}
 		} else {
-			PrintFormat( 1, ((640/2)-((strlen("Syntax error : expected 'patches' before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : expected 'patches' before 'n' @ line %d", line);
+			PrintFormat( 1, ((640/2)-((strlen("Syntax error : expected 'amount' before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : expected 'patches' before 'n' @ line %d", line);
 			hacks_hash.clear();
 			sleep(5);
 			return 0;

@@ -1325,7 +1325,6 @@ void SetSettings( void )
 					{
 						settings->UseClassicHacks = true;
 					}
-					ClearScreen();
 					redraw=true;
 				}
 			break;
@@ -2374,26 +2373,18 @@ void BootMainSysMenu( u8 init )
 	ICSync();
 	_unstub_start();
 free_and_return:
+
 	if(rTMD)
-	{
 		free_pointer(rTMD);
-	}
 	if(TMD)
-	{
 		free_pointer(TMD);
-	}
 	if(tstatus)
-	{
 		free_pointer( tstatus );
-	}
 	if(buf)
-	{
 		free_pointer( buf );
-	}
 	if(boot_hdr)
-	{
 		free_pointer(boot_hdr);
-	}
+
 	return;
 }
 void InstallLoadDOL( void )
