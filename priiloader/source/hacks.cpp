@@ -727,6 +727,18 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 			} 
 			if( lbuf == NULL || new_hacks_hash.patches.size() == new_hacks_hash.amount )
 			{
+				if(new_hacks_hash.patches.size() != new_hacks_hash.amount)
+				{
+					if( lbuf == NULL )
+					{
+						PrintFormat( 1, ((640/2)-((strlen("Syntax error : unexpected EOF @ line   "))*13/2))>>1, 208, "Syntax error : unexpected EOF @ line %d", line);
+						temp.hash.clear();
+						temp.patch.clear();
+						hacks_hash.clear();
+						sleep(5);
+						return 0;
+					}
+				}
 				break;
 			}
 			
@@ -810,8 +822,6 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 					return 0;
 				}
 				do{
-					/*temp.patch.resize( temp.patch.size() + 1 );
-					sscanf( s, "%x", &temp.patch[temp.patch.size()-1] );*/
 					unsigned int patch;
 					uint8_t size = 0;
 					sscanf(s,"%x",&patch);
@@ -842,9 +852,9 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 				}while( (s = strtok( NULL,",\n")) != NULL);
 			} else {
 				if(new_hacks_hash.patches.size() > 0 || temp.hash.size() > 0 || temp.patch.size() > 0)
-					PrintFormat( 1, ((640/2)-((strlen("Syntax Er: not enough 'hash' or 'patch' before line   "))*13/2))>>1, 208, "Syntax error : expected 'hash' or 'patch' before 'n' @ line %d", line);
+					PrintFormat( 1, ((640/2)-((strlen("Syntax Er: not enough 'hash' or 'patch' before line   "))*13/2))>>1, 208, "Syntax Er: not enough 'hash' or 'patch' before line %d", line);
 				else
-					PrintFormat( 1, ((640/2)-((strlen("Syntax Err : expected 'hash' or 'patch' before line   "))*13/2))>>1, 208, "Syntax error : expected 'hash' or 'patch' before 'n' @ line %d", line);
+					PrintFormat( 1, ((640/2)-((strlen("Syntax Err : expected 'hash' or 'patch' before line   "))*13/2))>>1, 208, "Syntax Err : expected 'hash' or 'patch' before line %d", line);
 				hacks_hash.clear();
 				sleep(5);
 				return 0;
