@@ -20,6 +20,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 //defines
 //#define BETA 1
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,6 +28,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <malloc.h>
 #include <string.h>
 #include <unistd.h>
+#include <gccore.h>
 #include <wiiuse/wpad.h>
 
 #include <ogc/machine/processor.h>
@@ -34,7 +36,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <ogc/isfs.h>
 #include <ogc/ipc.h>
 #include <ogc/ios.h>
-#include <ogc/usb.h>
 #include <ogc/usbgecko.h>
 #include <ogc/es.h>
 
@@ -50,17 +51,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 // Priiloader Application
 #include "priiloader_app.h"
 
-static GXRModeObj *vmode = NULL;
 static void *xfb = NULL;
+static GXRModeObj *vmode = NULL;
 bool GeckoFound = false;
-char * original_app = NULL;
-char * copy_app = NULL;
+char original_app[128] ATTRIBUTE_ALIGN(32);
+char copy_app[128] ATTRIBUTE_ALIGN(32);
 
-//a must have in every app imo
-s32 __IOS_LoadStartupIOS()
-{
-	return 0;
-}
 void gprintf( const char *str, ... )
 {
 	if(!GeckoFound)
@@ -87,6 +83,17 @@ void CheckForGecko( void )
 	}
 	return;
 }
+void sleepx (int seconds)
+{
+	time_t start,end;
+	time(&start);
+	//i hate while loops. but its safer then sleep this way
+	while(difftime(end, start) < seconds)
+	{
+		time(&end);
+	}
+	return;
+}
 const char* abort(const char* msg, ...)
 {
 	va_list args;
@@ -98,8 +105,8 @@ const char* abort(const char* msg, ...)
 	printf("%s, aborting mission...\n", text);
 	gprintf("%s, aborting mission...\n", text);
 	ISFS_Deinitialize();
-	__ES_Close();
-	sleep(5);
+	//__ES_Close();
+	sleepx(5);
 	exit(0);
 }
 bool CompareChecksum(u8 *Data1,u32 Data1_Size,u8 *Data2,u32 Data2_Size)
@@ -143,17 +150,49 @@ bool CompareChecksum(u8 *Data1,u32 Data1_Size,u8 *Data2,u32 Data2_Size)
 	}
 	return false;
 }
-s32 nand_copy(const char *source, const char *destination)
+s32 nand_copy(const char *source, const char *destination,u8 patch_permissions)
 {
     u8 *buffer = NULL;
     s32 source_handler, ret, dest_handler;
 	ISFS_Delete(destination);
     source_handler = ISFS_Open(source,ISFS_OPEN_READ);
     if (source_handler < 0)
-            return source_handler;
+	{
+		gprintf("failed to open source : %s\n",source);
+		return source_handler;
+	}
    
-    ISFS_Delete(destination);
-    ret = ISFS_CreateFile(destination,0,ISFS_OPEN_RW,ISFS_OPEN_RW,ISFS_OPEN_RW);
+	if(patch_permissions == 0)
+	{
+		//its nice and all; but has some holes. for example : booting system menu from priiloader will (for some odd reason) result in access denied
+		//get attributes
+		u32 owner;
+		u16 group;
+		u8 attributes, ownerperm, groupperm, otherperm;
+		ret = ISFS_GetAttr(source, &owner, &group, &attributes, &ownerperm, &groupperm, &otherperm);
+		if(ret < 0 )
+		{
+			//attribute getting failed. returning to default
+			printf("\x1b[%u;%dm", 33, 1);
+			printf("\nWARNING : failed to get file's permissions. using defaults\n");
+			printf("\x1b[%u;%dm", 37, 1);
+			gprintf("permission failure on %s! error %d\n",destination,ret);
+			gprintf("writing %s with max permissions\n",destination);
+			ISFS_Delete(destination);
+			ret = ISFS_CreateFile(destination,0,ISFS_OPEN_RW,ISFS_OPEN_RW,ISFS_OPEN_RW);
+		}
+		else
+		{
+			gprintf("ret %d owner %d group %d attributes %X perm:%X-%X-%X\n", ret, owner, (s32)group, (s32)attributes, (s32)ownerperm, (s32)groupperm, (s32)otherperm);
+			ISFS_Delete(destination);
+			ret = ISFS_CreateFile(destination,attributes,ownerperm,groupperm,otherperm);
+		}
+	}
+	else
+	{
+		ISFS_Delete(destination);
+		ret = ISFS_CreateFile(destination,0,ISFS_OPEN_RW,ISFS_OPEN_RW,ISFS_OPEN_RW);
+	}
 	if (ret != ISFS_OK) 
 	{
 		printf("Failed to create file %s. ret = %d\n",destination,ret);
@@ -164,6 +203,7 @@ s32 nand_copy(const char *source, const char *destination)
     dest_handler = ISFS_Open(destination,ISFS_OPEN_RW);
     if (dest_handler < 0)
 	{
+		gprintf("failed to open destination : %s\n",destination);
 		ISFS_Delete(destination);
 		ISFS_Close(source_handler);
 		return dest_handler;
@@ -174,7 +214,7 @@ s32 nand_copy(const char *source, const char *destination)
     if (ret < 0)
     {
 		printf("\n\n  Failed to get information about %s!\n",source);
-		sleep(2);
+		sleepx(2);
         ISFS_Close(source_handler);
         ISFS_Close(dest_handler);
         ISFS_Delete(destination);
@@ -192,7 +232,7 @@ s32 nand_copy(const char *source, const char *destination)
 	if (buffer == NULL)
 	{
 		gprintf("buffer failed to align\n");
-		sleep(2);
+		sleepx(2);
         ISFS_Close(source_handler);
         ISFS_Close(dest_handler);
         ISFS_Delete(destination);
@@ -205,7 +245,7 @@ s32 nand_copy(const char *source, const char *destination)
     if (ret < 0)
     {
 		printf("\n\nFailed to Read Data from %s!\n",source);
-		sleep(2);
+		sleepx(2);
 		ISFS_Close(source_handler);
         ISFS_Close(dest_handler);
         ISFS_Delete(destination);
@@ -219,6 +259,7 @@ s32 nand_copy(const char *source, const char *destination)
     ret = ISFS_Write(dest_handler,buffer,status->file_length);
     if (ret < 0)
     {
+		gprintf("failed to write destination : %s\n",destination);
         ISFS_Close(source_handler);
         ISFS_Close(dest_handler);
         ISFS_Delete(destination);
@@ -361,18 +402,17 @@ u8 Delete_Priiloader_Files( u8 mode )
 	bool password = false;
 	bool main_bin = false;
 	bool ticket = false;
-	// 0 mode means install, 1 means update 2 means remove
 	switch(mode)
 	{
-		case 2:
+		case 2: //remove
 			hacks = true;
 			main_bin = true;
 			ticket = true;
-		case 1:
+		case 0: //install
+		case 1: //update
 			settings = true;
 			password = true;
 		default:
-		case 0:
 			break;
 	}
 	s32 ret = 0;
@@ -410,6 +450,17 @@ u8 Delete_Priiloader_Files( u8 mode )
 		gprintf("hacks.ini : %d\n",ret);
 		printf("Hacks.ini : ");
 		proccess_delete_ret(ret);
+
+		ret = ISFS_Delete("/title/00000001/00000002/data/hacksh_s.ini");
+		gprintf("hacksh_s.ini : %d\n",ret);
+		printf("Hacksh_s.ini : ");
+		proccess_delete_ret(ret);
+
+		ret = ISFS_Delete("/title/00000001/00000002/data/hackshas.ini");
+		gprintf("hacks_hash : %d\n",ret);
+		printf("Hacks_hash : ");
+		proccess_delete_ret(ret);
+
 	}
 	if(main_bin)
 	{
@@ -420,16 +471,309 @@ u8 Delete_Priiloader_Files( u8 mode )
 	}
 	return 1;
 }
-s8 CopyTicket ( void )
+s8 PatchTMD( u64 title_id , u8 delete_mode )
+{
+	if(delete_mode == 0)
+	{
+		gprintf("patching TMD...\n");
+		printf("Patching TMD...");
+	}
+	else
+	{
+		//return 1;
+		gprintf("restoring TMD...\n");
+		printf("Restoring System Menu TMD...\n");
+	}
+	char TMD_Path[265] ATTRIBUTE_ALIGN(32);
+	char TMD_Path2[265] ATTRIBUTE_ALIGN(32);
+	u8 *mTMD = 0;
+	u8 *TMD_ptr = 0;
+	u8 *TMD_chk = NULL;
+	s32 fd = 0;
+	s32 r = 0;
+	memset(TMD_Path,0,sizeof(TMD_Path));
+	memset(TMD_Path2,0,sizeof(TMD_Path));
+	sprintf(TMD_Path, "/title/%08x/%08x/content/title.tmd",(u32)(title_id >> 32),(u32)title_id);
+	sprintf(TMD_Path2, "/title/%08x/%08x/content/title_or.tmd",(u32)(title_id >> 32),(u32)title_id);
+#ifdef _DEBUG
+	gprintf("Path : %s\n",TMD_Path);
+#endif
+	fd = ISFS_Open(TMD_Path2,ISFS_OPEN_READ);
+	if(fd < 0)
+	{
+		ISFS_Close(fd);
+		if(delete_mode)
+		{
+			printf("TMD backup not found. leaving TMD alone...\n");
+			return 0;
+		}
+		else
+		{
+			//got to make tmd copy :)
+			gprintf("Making tmd backup...\n");
+			r = nand_copy(TMD_Path,TMD_Path2,0);
+			if ( r < 0)
+			{
+				gprintf("Failure making TMD backup.error %d\n",r);
+				//abort("TMD backup/Patching Failure : error %d",r);
+				printf("TMD backup/Patching Failure : error %d",r);
+				goto _return;
+			}
+		}
+	}
+	else
+	{
+		ISFS_Close(fd);
+		gprintf("TMD backup found\n");
+		//not so sure why we'd want to delete the tmd modification...
+		if(delete_mode)
+		{
+			//printf("restoring original TMD...\n");
+			if ( nand_copy(TMD_Path2,TMD_Path,0) < 0)
+			{
+				if(r == -80)
+				{
+					//checksum issues
+					printf("\x1b[%u;%dm", 33, 1);
+					printf("\nWARNING!!\nInstaller could not calculate the Checksum when restoring the TMD back!\n");
+					printf("the TMD however was copied...\n");
+					printf("Do you want to Continue ?\n");
+					printf("A = Yes       B = No       Home/Start = Exit\n  ");
+					printf("\x1b[%u;%dm", 37, 1);
+					if(!UserYesNoStop())
+					{
+						nand_copy(TMD_Path,TMD_Path2,0);
+						abort("TMD restoring failure.");
+					}		
+				}
+				else
+				{
+					printf("\x1b[%u;%dm", 33, 1);
+					printf("UNABLE TO RESTORE THE SYSTEM MENU TMD!!!\n\nTHIS COULD BRICK THE WII SO PLEASE REINSTALL SYSTEM MENU\nWHEN RETURNING TO THE HOMEBREW CHANNEL!!!\n\n");
+					printf("\x1b[%u;%dm", 37, 1);
+					printf("press A to return to the homebrew channel\n");
+					nand_copy(TMD_Path,TMD_Path2,0);
+					UserYesNoStop();
+					exit(0);
+				}
+			}
+			return 1;
+		}
+	}
+	u32 tmd_size_temp;
+	r=ES_GetStoredTMDSize(title_id, &tmd_size_temp);
+	if(r < 0)
+	{
+		gprintf("Patch_TMD: GetStoredTMDSize error %d\n",r);
+		goto _return;
+	}
+	mTMD = (u8* )memalign( 32, (tmd_size_temp+31)&(~31) );
+	if(mTMD == NULL)
+	{
+		gprintf("Patch_TMD: memalign TMD failure\n");
+		goto _return;
+	}
+	memset(mTMD, 0, tmd_size_temp);
+
+	r=ES_GetStoredTMD(title_id, (signed_blob*)mTMD, tmd_size_temp);
+	if(r < 0)
+	{
+		gprintf("Patch_TMD: GetStoredTMD error %d\n",r);
+		free(mTMD);
+		goto _return;
+	}
+	TMD_ptr = (u8*)mTMD+0x1db;
+	//gprintf("address is 0x%X & 0x%X\n",mTMD,TMD_ptr);
+	gprintf("detected access rights : 0x%X\n",*TMD_ptr);
+	if(*TMD_ptr == 0x03)
+	{
+		gprintf("no TMD modification needed\n");
+		printf("no Patches needed\n");
+		free(mTMD);
+		return 2;
+	}
+	else
+	{
+		*TMD_ptr = 0x03;
+		DCFlushRange(TMD_ptr,8);
+		if(*TMD_ptr != 0x03)
+		{
+			gprintf("rights change failure.\n");
+			free(mTMD);
+			goto _return;
+		}
+		//get attributes
+		u32 owner;
+		u16 group;
+		u8 attributes, ownerperm, groupperm, otherperm;
+		r = ISFS_GetAttr(TMD_Path, &owner, &group, &attributes, &ownerperm, &groupperm, &otherperm);
+		if(r < 0)
+		{
+			//attribute getting failed. returning to default
+			printf("\x1b[%u;%dm", 33, 1);
+			printf("\nWARNING : failed to get TMD permissions. using defaults\nthis *could* result in syscheck saying nand permissions are always patched");
+			printf("\x1b[%u;%dm", 37, 1);
+			ISFS_Delete(TMD_Path);
+			ISFS_CreateFile(TMD_Path,0,3,3,0);
+		}
+		else
+		{
+			gprintf("ret %d owner %d group %d attributes %X perm:%X-%X-%X\n", r, owner, (s32)group, (s32)attributes, (s32)ownerperm, (s32)groupperm, (s32)otherperm);
+			ISFS_Delete(TMD_Path);
+			ISFS_CreateFile(TMD_Path,attributes,ownerperm,groupperm,otherperm);
+		}
+		fd = ISFS_Open(TMD_Path,ISFS_OPEN_RW);
+		if(fd < 0)
+		{
+			gprintf("failed to open TMD(%s)\n",TMD_Path);
+			free(mTMD);
+			goto _return;
+		}
+		r = ISFS_Write(fd,mTMD,tmd_size_temp);
+		if(r < 0)
+		{
+			free(mTMD);
+			gprintf("write failure >_>\n");
+			goto _return;
+		}
+		ISFS_Close(fd);
+
+
+//lets reopen the TMD for checksum comparing to mTMD
+		fd = ISFS_Open(TMD_Path,ISFS_OPEN_READ);
+		if(fd < 0)
+		{
+			gprintf("failed to open TMD for checksum comparing!(%s)\n",TMD_Path);
+			goto _checkreturn;
+			//checksum issues
+		}
+		TMD_chk = (u8 *)memalign(32,(tmd_size_temp+31)&(~31));
+		if (TMD_chk == NULL)
+		{
+			goto _checkreturn;
+		}
+		r = ISFS_Read(fd,TMD_chk,tmd_size_temp);
+		if(r < 0)
+		{
+			goto _checkreturn;
+		}
+		if( !CompareChecksum(TMD_chk,tmd_size_temp,mTMD,tmd_size_temp))
+		{
+			goto _checkreturn;
+		}
+		else
+		{
+			gprintf("TMD checksum success!\n");
+		}
+
+		free(mTMD);
+		printf("Done\n");
+	}
+_return:
+	if(TMD_chk)
+	{
+		free(TMD_chk);
+		TMD_chk = NULL;
+	}
+	if(mTMD)
+	{
+		free(mTMD);
+		mTMD = NULL;
+	}
+	if (fd < r)
+	{
+		r = fd;
+	}
+	if(fd)
+	{
+		ISFS_Close(fd);
+	}
+	if (r < 0)
+	{
+		printf("\x1b[%u;%dm", 33, 1);
+		printf("\nWARNING!!\n  Installer couldn't Patch the system menu TMD.");
+		printf("Priiloader could still end up being installed but could end up working differently\n");
+		printf("Do you want the Continue ?\n");
+		printf("A = Yes       B = No       Home/Start = Exit\n  ");
+		printf("\x1b[%u;%dm", 37, 1);
+		if(!UserYesNoStop())
+		{
+			fd = ISFS_Open(TMD_Path2,ISFS_OPEN_RW);
+			if(fd >= 0)
+			{
+				//the backup is there. as safety lets copy it back.
+				ISFS_Close(fd);
+				nand_copy(TMD_Path2,TMD_Path,0);
+			}
+			abort("TMD failure\n");
+		}		
+		else
+		{
+			nand_copy(TMD_Path2,TMD_Path,0);
+			printf("\nDone!\n");
+		}
+		return r;
+	}
+	else
+		return 1;
+_checkreturn:
+	if(fd)
+	{
+		ISFS_Close(fd);
+	}
+	if(TMD_chk)
+	{
+		free(TMD_chk);
+		TMD_chk = NULL;
+	}
+	printf("\x1b[%u;%dm", 33, 1);
+	printf("\nWARNING!!\n  Installer could not calculate the Checksum for the TMD!");
+	printf("\nbut Patch write was successfull.\n");
+	printf("Do you want the Continue ?\n");
+	printf("A = Yes       B = No       Home/Start = Exit\n  ");
+	printf("\x1b[%u;%dm", 37, 1);
+	if(!UserYesNoStop())
+	{
+		printf("reverting changes...\n");
+		if(mTMD)
+		{
+			free(mTMD);
+			mTMD = NULL;
+		}
+		nand_copy(TMD_Path2,TMD_Path,0);
+		abort("TMD Patch failure\n");
+	}		
+	else
+	{
+		printf("\nDone!\n");
+	}
+	if(mTMD)
+	{
+		free(mTMD);
+		mTMD = NULL;
+	}
+	return -80;
+}
+s8 CopyTicket ( u64 title_id )
 {
 	s32 fd = 0;
+	char TIK_Path_dest[265] ATTRIBUTE_ALIGN(32);
+	char TIK_Path_org[265] ATTRIBUTE_ALIGN(32);
+	memset(TIK_Path_dest,0,sizeof(TIK_Path_dest));
+	memset(TIK_Path_org,0,sizeof(TIK_Path_org));
+	sprintf(TIK_Path_dest, "/title/%08x/%08x/content/ticket",(u32)(title_id >> 32),(u32)title_id);
+	sprintf(TIK_Path_org, "/ticket/%08x/%08x.tik",(u32)(title_id >> 32),(u32)title_id);
+
+
 	gprintf("Checking for copy ticket...\n");
-	fd = ISFS_Open("/title/00000001/00000002/content/ticket",ISFS_OPEN_READ);
+	//fd = ISFS_Open("/title/00000001/00000002/content/ticket",ISFS_OPEN_READ);
+	fd = ISFS_Open(TIK_Path_dest,ISFS_OPEN_READ);
 	if (fd <0)
 	{
 		printf("Priiloader system menu ticket not found.\n\tTrying to read original ticket...\n");
 		ISFS_Close(fd);
-		fd = ISFS_Open("/ticket/00000001/00000002.tik",ISFS_OPEN_READ);
+		//fd = ISFS_Open("/ticket/00000001/00000002.tik",ISFS_OPEN_READ);
+		fd = ISFS_Open(TIK_Path_org,ISFS_OPEN_READ);
 		//"/ticket/00000001/00000002.tik" -> original path which should be there on every wii.
 		//however needs nand permissions which trucha gives >_>
 		if (fd < 0)
@@ -458,11 +802,11 @@ s8 CopyTicket ( void )
 		{
 			ISFS_Close(fd);
 			printf("Copying system menu ticket...");
-			char original_tik[256];
+			/*char original_tik[256];
 			char copy_tik[256];
 			sprintf(original_tik, "/ticket/00000001/00000002.tik");
-			sprintf(copy_tik, "/title/00000001/00000002/content/ticket");
-			if (nand_copy(original_tik,copy_tik) < 0)
+			sprintf(copy_tik, "/title/00000001/00000002/content/ticket");*/
+			if (nand_copy(TIK_Path_org,TIK_Path_dest,1) < 0)
 			{
 				abort("Unable to copy the system menu ticket");
 			}
@@ -481,7 +825,7 @@ s8 Copy_SysMenu( void )
 	s32 ret = 0;
 	//system menu coping
 	printf("Moving System Menu app...");
-	ret = nand_copy(original_app,copy_app);
+	ret = nand_copy(original_app,copy_app,1);
 	if (ret < 0)
 	{
 		if (ret == -80)
@@ -526,18 +870,18 @@ s8 WritePriiloader( void )
 	fd = ISFS_Open(original_app,ISFS_OPEN_RW);
 	if (fd < 0)
 	{
-		nand_copy(copy_app,original_app);
+		nand_copy(copy_app,original_app,1);
 		ISFS_Delete(copy_app);
-		abort("\nFailed to open file for Priiloader writing.");
+		abort("\nFailed to open file for Priiloader writing");
 	}
 	ret = ISFS_Write(fd,priiloader_app,priiloader_app_size);
 	if (ret < 0 ) //check if the app was writen correctly				
 	{
 		ISFS_Close(fd);
-		nand_copy(copy_app,original_app);
+		nand_copy(copy_app,original_app,1);
 		ISFS_Delete(copy_app);
 		gprintf("Write failed. ret %d\n",ret);
-		abort("\nWrite of Priiloader app failed.");
+		abort("\nWrite of Priiloader app failed");
 	}
 	printf("Done!!\n");
 	gprintf("Wrote Priiloader App.Checking Installation\n");
@@ -548,14 +892,14 @@ s8 WritePriiloader( void )
 	fd = ISFS_Open(original_app,ISFS_OPEN_READ);
 	if (fd < 0)
 	{
-		nand_copy(copy_app,original_app);
+		nand_copy(copy_app,original_app,1);
 		ISFS_Delete(copy_app);
 		abort("\nFailed to open file for Priiloader checking");
 	}
 	if (ISFS_GetFileStats(fd,status) < 0)
 	{
 		ISFS_Close(fd);
-		nand_copy(copy_app,original_app);
+		nand_copy(copy_app,original_app,1);
 		abort("Failed to get stats of %s. System Menu Recovered",original_app);
 	}
 	else
@@ -563,7 +907,7 @@ s8 WritePriiloader( void )
 		if ( status->file_length != priiloader_app_size )
 		{
 			ISFS_Close(fd);
-			nand_copy(copy_app,original_app);
+			nand_copy(copy_app,original_app,1);
 			ISFS_Delete(copy_app);
 			abort("Written Priiloader app isn't the correct size.System Menu Recovered");
 		}
@@ -573,7 +917,6 @@ s8 WritePriiloader( void )
 			printf("Size Check Success!\n");
 		}
 	}
-	//fd = ISFS_Open(original_app,ISFS_OPEN_READ);
 	u8 *AppData = (u8 *)memalign(32,status->file_length);
 	if (AppData)
 		ret = ISFS_Read(fd,AppData,status->file_length);
@@ -585,7 +928,7 @@ s8 WritePriiloader( void )
 			free(status);
 			status = NULL;
 		}
-		nand_copy(copy_app,original_app);
+		nand_copy(copy_app,original_app,1);
 		ISFS_Delete(copy_app);
 		abort("Checksum comparison Failure! MemAlign Failure of AppData\n");
 	}
@@ -602,7 +945,7 @@ s8 WritePriiloader( void )
 			free(status);
 			status = NULL;
 		}
-		nand_copy(copy_app,original_app);
+		nand_copy(copy_app,original_app,1);
 		ISFS_Delete(copy_app);
 		abort("Checksum comparison Failure! read of priiloader app returned %u\n",ret);
 	}
@@ -620,7 +963,7 @@ s8 WritePriiloader( void )
 			free(status);
 			status = NULL;
 		}
-		nand_copy(copy_app,original_app);
+		nand_copy(copy_app,original_app,1);
 		ISFS_Delete(copy_app);
 		abort("Checksum comparison Failure!\n");
 	}
@@ -641,9 +984,9 @@ s8 WritePriiloader( void )
 s8 RemovePriiloader ( void )
 {
 	s32 fd = 0;
-	ISFS_Delete(original_app);
-	printf("Done!\nRestoring System menu app...");
-	s32 ret = nand_copy(copy_app,original_app);
+	//ISFS_Delete(original_app);
+	printf("Restoring System menu app...");
+	s32 ret = nand_copy(copy_app,original_app,1);
 	if (ret < 0)
 	{
 		if(ret == -80)
@@ -680,14 +1023,42 @@ s8 RemovePriiloader ( void )
 	printf("Done!\n");
 	return 1;
 }
+s8 HaveNandPermissions( void )
+{
+	gprintf("testing permissions...");
+	s8 temp = ISFS_Open("/title/00000001/00000002/content/title.tmd",ISFS_OPEN_RW);
+	if ( temp < 0 )
+	{
+		gprintf("no permissions.error %d\n",temp);
+		return false;
+	}
+	else
+	{
+		ISFS_Close(temp);
+		gprintf("and bingo was his name-O\n");
+		return true;
+	}
+}
 int main(int argc, char **argv)
 {
+	s8 ios_patched = 0;
+	s8 patches_applied = 0;
+	u8 Cios_Detected = 0;
+
+
 	VIDEO_Init();
-	vmode = VIDEO_GetPreferredMode(NULL);
+	if(vmode == NULL)
+		vmode = VIDEO_GetPreferredMode(NULL);
 	//adjust overscan a bit
-	GX_AdjustForOverscan(vmode, vmode, 16,0);
+	/*if( vmode->viTVMode == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
+	{
+		//the correct one would be * 0.035 to be sure to get on the Action safe of the screen.
+		//GX_AdjustForOverscan(vmode, vmode, 0, vmode->viWidth * 0.026 ); 
+		GX_AdjustForOverscan(vmode, vmode, vmode->viHeight * 0.016, 0 ); 
+	}*/
+	//GX_AdjustForOverscan(vmode, vmode, 16,16 ); 
 	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(vmode));
-	console_init(xfb,20,20,vmode->fbWidth,vmode->xfbHeight,vmode->fbWidth*VI_DISPLAY_PIX_SZ);
+	console_init(xfb,32,20,vmode->fbWidth,vmode->xfbHeight,vmode->fbWidth*VI_DISPLAY_PIX_SZ);
 	VIDEO_Configure(vmode);
 	VIDEO_SetNextFramebuffer(xfb);
 	VIDEO_SetBlack(FALSE);
@@ -695,26 +1066,55 @@ int main(int argc, char **argv)
 	VIDEO_WaitVSync();
 	if (vmode->viTVMode&VI_NON_INTERLACE)
 		VIDEO_WaitVSync();
-
-	WPAD_Init();
-	PAD_Init();
+	VIDEO_ClearFrameBuffer( vmode, xfb, COLOR_BLACK);
+	VIDEO_WaitVSync();
 	CheckForGecko();
-
 	gprintf("resolution is %dx%d\n",vmode->viWidth,vmode->viHeight);
+	printf("\x1b[2J");
+	fflush(stdout);
 
-	printf("\x1b[2;0H");
-	printf("IOS %d rev %d\n\n\t",IOS_GetVersion(),IOS_GetRevision());
-	printf("Priiloader rev %d (preloader v0.30 mod) Installation / Removal Tool\n\n\n\n\t",SVN_REV);
+	//reload ios so that IF the user started this with AHBPROT we lose everything from HBC. also, IOS36 is the most patched ios :')
+	IOS_ReloadIOS(36);
+	
+	printf("IOS %d rev %d\n\n",IOS_GetVersion(),IOS_GetRevision());
+	printf("\tPriiloader rev %d (preloader v0.30 mod) Installation / Removal Tool\n\n\n\n\t",SVN_REV);
 	printf("\t\t\t\t\tPLEASE READ THIS CAREFULLY\n\n\t");
 	printf("\t\tTHIS PROGRAM/TOOL COMES WITHOUT ANY WARRANTIES!\n\t");
 	printf("\t\tYOU ACCEPT THAT YOU INSTALL THIS AT YOUR OWN RISK\n\n\n\t");
 	printf("THE AUTHOR(S) CANNOT BE HELD LIABLE FOR ANY DAMAGE IT MIGHT CAUSE\n\n\t");
 	printf("\tIF YOU DO NOT AGREE WITH THESE TERMS TURN YOUR WII OFF\n\n\n\n\t");
-	printf("\r\t\t\tPress (+/A) to install or update Priiloader\n\t");
-	printf("\t Press (-/Y) to remove Priiloader and restore system menu\n\t");
-	printf("\tHold Down (B) with any above options to use IOS36\n\t");
+	printf("\t\t\t\t\tPlease wait while we init...");
+
+	if (ISFS_Initialize() < 0)
+	{
+		printf("\x1b[2J");
+		fflush(stdout);
+		abort("\n\n\n\nFailed to init ISFS");
+	}
+	gprintf("Got ROOT!\n");
+	if (HaveNandPermissions())
+	{
+		ios_patched++;
+	}
+	else
+	{
+		printf("\x1b[2J");
+		fflush(stdout);
+		printf("Failed to retrieve nand permissions from nand!IOS 36 isn't patched!\n");
+		sleepx(5);
+		exit(0);
+	}
+
+	WPAD_Init();
+	PAD_Init();
+	sleepx(6);
+
+	printf("\r\t\t\t    Press (+/A) to install or update Priiloader\n\t");
+	printf("\tPress (-/Y) to remove Priiloader and restore system menu\n\t");
+	if( (ios_patched < 1) && (IOS_GetVersion() != 36 ) )
+		printf("  Hold Down (B) with any above options to use IOS36(recommended)\n\t");
 	printf("\t Press (HOME/Start) to chicken out and quit the installer!\n\n\t");
-	printf("\t\t\t\tEnjoy! DacoTaco, _Dax_ & BadUncle\n");
+	printf("\t\t\t\t\tEnjoy! DacoTaco & BadUncle\n");
 
 	while(1)
 	{
@@ -728,11 +1128,21 @@ int main(int argc, char **argv)
 		{
 			if (pHeld & WPAD_BUTTON_B || GCpHeld & PAD_BUTTON_B )
 			{
-				if(IOS_GetVersion() != 36)
+				if((ios_patched < 1) && (IOS_GetVersion() != 36 ) )
 				{
 					WPAD_Shutdown();
     				IOS_ReloadIOS(36);
     				WPAD_Init();
+					if(HaveNandPermissions())
+						ios_patched++;
+					else
+					{
+						printf("\x1b[2J");
+						fflush(stdout);
+						printf("Failed to retrieve nand permissions from nand!ios 36 isn't patched!\n");
+						sleepx(5);
+						exit(0);
+					}
 				}
         	}
 			static u32 tmp_ikey ATTRIBUTE_ALIGN(32);
@@ -744,35 +1154,9 @@ int main(int argc, char **argv)
 			u32 id = 0;
 			s32 ret = 0;
 
-			printf("\x1b[2J\x1b[2;0H");
+			printf("\x1b[2J");
 			fflush(stdout);
 			printf("IOS %d rev %d\n\n\n",IOS_GetVersion(),IOS_GetRevision());
-			fd = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)su_tmd, su_tmd_size, (signed_blob *)su_tik, su_tik_size, &tmp_ikey);
-			if(fd < 0)
-			{
-				printf("\x1b[%u;%dm", 33, 1);
-				printf("ES_Identify failed,error %d(-%#X).ios%d not patched with ES_DIVerify?\n",fd,-fd,IOS_GetVersion());
-				printf("using IOS36 (holding b and then pressing + or - ) will probably solve this.\nNOTE: you need a patched IOS36\n");
-				printf("Do you wish to continue installing (or attempt to install)?\n");
-				printf("A = Yes       B = No       Home/Start = Exit\n");
-				printf("\x1b[%u;%dm", 37, 1);
-				if(!UserYesNoStop())
-				{
-					abort("ES_Identify failed");
-				}
-				else
-				{
-					printf("continuing...\n\n");
-				}
-			}
-			else
-				printf("Logged in as \"su\"!\n");
-
-			if (ISFS_Initialize() < 0)
-			{
-				abort("\n\nFailed to init ISFS");
-			}
-			printf("Got ROOT!\n");
 			//read TMD so we can get the main booting dol
 			fs = ES_GetStoredTMDSize(title_id,&tmd_size);
 			if (fs < 0)
@@ -780,22 +1164,15 @@ int main(int argc, char **argv)
 				abort("Unable to get stored tmd size");
 			}
 
-			signed_blob *TMD = (signed_blob *)memalign(32,(tmd_size+31)&(~31));
-			if (TMD == NULL)
-			{
-				abort("Unable to prepare tmd for memory");
-			}
-
-			memset(TMD,0,tmd_size);
+			static u8 tmd_buf[MAX_SIGNED_TMD_SIZE] ATTRIBUTE_ALIGN(32);
+			signed_blob *TMD = (signed_blob *)tmd_buf;
 			fs = ES_GetStoredTMD(title_id,TMD,tmd_size);
 			if (fs < 0)
 			{
-				free(TMD);
-				TMD = NULL;
 				abort("Unable to get stored tmd");
 			}
-	
-			tmd *rTMD = (tmd *)(TMD+(0x140/sizeof(tmd *)));
+
+			tmd *rTMD = (tmd*)SIGNATURE_PAYLOAD(TMD);
 			for(u32 i=0; i < rTMD->num_contents; ++i)
 			{
 				if (rTMD->contents[i].index == rTMD->boot_index)
@@ -807,33 +1184,14 @@ int main(int argc, char **argv)
 
 			if (id == 0)
 			{
-				free(TMD);
-				TMD = NULL;
-				abort("Unable to retrieve title id");
+				abort("Unable to retrieve title booting app");
 			}
 
-			original_app = (char*)memalign(32,256);
-			copy_app = (char*)memalign(32,256);
-			if (original_app == NULL || copy_app == NULL)
-			{
-				free(TMD);
-				TMD = NULL;
-				abort("Unable to prepare title for memory");
-			}
-
-			memset(original_app,0,256);
-			memset(copy_app,0,256);
-			//sprintf(original_app, "/title/00010001/47534654/content/%08x.app",id);
-			//sprintf(copy_app, "/title/00010001/47534654/content/%08x.app",id);
-			sprintf(original_app, "/title/00000001/00000002/content/%08x.app",id);
-			sprintf(copy_app, "/title/00000001/00000002/content/%08x.app",id);
+			//sprintf(original_app, "/title/00000001/00000002/content/%08x.app",id);
+			//sprintf(copy_app, "/title/00000001/00000002/content/%08x.app",id);
+			sprintf(original_app, "/title/%08x/%08x/content/%08x.app",(u32)(title_id >> 32),(u32)title_id,id);
+			sprintf(copy_app, "/title/%08x/%08x/content/%08x.app",(u32)(title_id >> 32),(u32)title_id,id);
 			copy_app[33] = '1';
-
-			if(TMD)
-			{
-				free(TMD);
-				TMD = NULL;
-			}
 			if (pDown & WPAD_BUTTON_PLUS || GCpDown & PAD_BUTTON_A)
 			{
 #ifdef BETA
@@ -841,7 +1199,7 @@ int main(int argc, char **argv)
 				printf("\nWARNING : ");
 				printf("\x1b[%u;%dm", 37, 1);
 				printf("this is a beta version. are you SURE you want to install this?\nA to confirm, Home/Start to abort\n");
-				sleep(1);
+				sleepx(1);
 				if(!UserYesNoStop())
 				{
 					abort("user command");
@@ -913,7 +1271,12 @@ int main(int argc, char **argv)
 					free(status);
 					status = NULL;
 				}
-				CopyTicket();
+				CopyTicket(title_id);
+				ret = PatchTMD(title_id,0);
+				if(ret < 0)
+				{
+					abort("\npatching TMD error %d!\n",ret);
+				}
 				if(_Copy_Sysmenu)
 					Copy_SysMenu();
 				WritePriiloader();
@@ -926,13 +1289,13 @@ int main(int argc, char **argv)
 				else if(_Copy_Sysmenu)
 				{
 					//currently mode 0 means no extra files to delete so why do the printf?
-					//printf("deleting extra priiloader files...\n");
+					printf("Attempting to delete leftover files...\n");
 					Delete_Priiloader_Files(0);
 					printf("Install done, exiting to loader... waiting 5s...\n");
 				}
 					
 				ISFS_Deinitialize();
-				sleep(5);
+				sleepx(5);
 				exit(0);
 			}
 
@@ -947,28 +1310,29 @@ int main(int argc, char **argv)
 				else
 				{
 					ISFS_Close(fd);
-					printf("Priiloader installation found.\n\nRemoving Priiloader app...");
+					printf("Priiloader installation found.\n\n");//Removing Priiloader app...");
 					RemovePriiloader();
+					PatchTMD(title_id,1);
 					printf("Deleting extra Priiloader files...\n");
 					Delete_Priiloader_Files(2);
 					printf("Done!\n\n");
 					printf("Removal done, exiting to loader... waiting 5s...\n");
 					ISFS_Deinitialize();
-					__ES_Close();
-					sleep(5);
+					sleepx(5);
 					exit(0);
 				}
 			}
 		}
 		else if (pDown & WPAD_BUTTON_HOME || GCpDown & PAD_BUTTON_START)
 		{
-			printf("\x1b[2J\x1b[2;0H");
+			printf("\x1b[2J");
 			fflush(stdout);
 			printf("Sorry, but our princess is in another castle... goodbye!");
 			gprintf("aboring the fun\n");
-			sleep(5);
+			sleepx(5);
 			exit(0);
 		}
+		VIDEO_WaitVSync();
 	}
 	return 0;
 }

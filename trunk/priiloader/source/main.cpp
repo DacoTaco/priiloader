@@ -3942,7 +3942,6 @@ void CheckForUpdate()
 			lines.push_back(ptr);
 			ptr = strtok (NULL, se);
 		}
-		free_pointer(Changelog);
 		if( max_line >= lines.size() )
 			max_line = lines.size()-1;
 
@@ -3966,10 +3965,12 @@ void CheckForUpdate()
 			PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
 			if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 			{
+				free_pointer(Changelog);
 				break;
 			}
 			if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 			{
+				free_pointer(Changelog);
 				free_pointer(UpdateFile);
 				if (Language > 0)
 				{
@@ -4282,7 +4283,7 @@ int main(int argc, char **argv)
 #endif
 	gprintf("priiloader\n");
 	gprintf("Built   : %s %s\n", __DATE__, __TIME__ );
-	gprintf("Version : %d.%dd (rev %s)\n", VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
+	gprintf("Version : %d.%d (rev %s)\n", VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
 	gprintf("Firmware: %d.%d.%d\n", *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143 );
 
 	*(vu32*)0x80000020 = 0x0D15EA5E;				// Magic word (how did the console boot?)
@@ -4603,7 +4604,7 @@ int main(int argc, char **argv)
 			{
 				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d(beta v%d)", VERSION>>8, VERSION&0xFF, BETAVERSION&0xFF );
 			} else {
-				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%dd (r%s)", VERSION>>8, VERSION&0xFF,SVN_REV_STR );
+				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d (r%s)", VERSION>>8, VERSION&0xFF,SVN_REV_STR );
 			}
 			PrintFormat( 0, 16, rmode->viHeight-64, "IOS v%d", (*(vu32*)0x80003140)>>16 );
 			PrintFormat( 0, 16, rmode->viHeight-48, "Systemmenu v%d", SysVersion );			
