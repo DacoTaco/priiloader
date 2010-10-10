@@ -99,39 +99,36 @@ int main(int argc, char **argv)
 	printf("detected file size : %d-0x%x\n",(int)DolSize,(int)DolSize);
 #endif
 	rewind (Dol);
-	char* DolFile = (char*) malloc (DolSize);//Allocate memory to contain the whole file
-	if (DolFile == NULL) 
-	{
-		printf("Memory error");
-		free(UpdateFile);
-		sleep(2);
-		exit(0);
-	}
-	memset(DolFile,0,DolSize);
-	//copy the file into the buffer:
-	int result = fread(DolFile,1,DolSize,Dol);
-	if (result != DolSize) 
-	{
-		printf("error reading Dol Data.Reading error: %d bytes of %d read\n",result,(int)DolSize); 
-		free(UpdateFile);
-		free(DolFile);
-		sleep(2);
-		exit(0);
-	}
-	fclose(Dol);
+	char DolFile;
 	UpdateFile->version = (int)version;
 	printf("calculating Hash of -STABLE- dol version %d...\n",UpdateFile->version);
-
-	SHA1* sha1 = new SHA1();
-	sha1->addBytes( DolFile, DolSize );
-	sha1->getDigest(UpdateFile->SHA1_Hash,NULL);
-	printf("Hash : \n");
-	sha1->hexPrinter_array(UpdateFile->SHA1_Hash);
-	delete sha1;
-
+	SHA1 sha; // SHA-1 class
+	sha.Reset();
+    DolFile = fgetc(Dol);
+	for(int i = 0; i < DolSize;i++)
+	{
+		sha.Input(DolFile);
+        DolFile = fgetc(Dol);
+	}
+    fclose(Dol);
+    if (!sha.Result(UpdateFile->SHA1_Hash))
+    {
+        printf("sha: could not compute Hash for stable release!\n");
+		free(UpdateFile);
+		sleep(2);
+		exit(0);
+    }
+    else
+    {
+		printf( "Hash : %08X %08X %08X %08X %08X\n",
+				UpdateFile->SHA1_Hash[0],
+				UpdateFile->SHA1_Hash[1],
+				UpdateFile->SHA1_Hash[2],
+				UpdateFile->SHA1_Hash[3],
+				UpdateFile->SHA1_Hash[4]);
+    }
 
 	//done with stable release. now to do the same for beta lol
-	free(DolFile);
 	DolSize = 0;
 	printf("opening dol...\n");
 	Dol = fopen(InputBetaFile,"rb");
@@ -146,35 +143,33 @@ int main(int argc, char **argv)
 	fseek (Dol , 0 , SEEK_END);
 	DolSize = ftell(Dol);
 	rewind (Dol);
-	DolFile = (char*) malloc (DolSize);//Allocate memory to contain the whole file
-	if (DolFile == NULL) 
-	{
-		printf("Memory error");
-		free(UpdateFile);
-		sleep(2);
-		exit(0);
-	}
-	memset(DolFile,0,DolSize);
-	//copy the file into the buffer:
-	result = fread(DolFile,1,DolSize,Dol);
-	if (result != DolSize) 
-	{
-		printf("error reading Dol Data.Reading error: %d bytes of %d read\n",result,(int)DolSize); 
-		free(UpdateFile);
-		free(DolFile);
-		sleep(2);
-		exit(0);
-	}
-	fclose(Dol);
 	UpdateFile->beta_version = (int)beta_version;
 	UpdateFile->beta_number = (int)beta_number;
 	printf("calculating Hash of -BETA- dol version %d beta %d...\n",UpdateFile->beta_version , UpdateFile->beta_number);
-
-	sha1 = new SHA1();
-	sha1->addBytes( DolFile, DolSize );
-	sha1->getDigest(UpdateFile->beta_SHA1_Hash,NULL);
-	printf("Hash : \n");
-	sha1->hexPrinter_array(UpdateFile->beta_SHA1_Hash);
+	sha.Reset();
+    DolFile = fgetc(Dol);
+	for(int i = 0; i < DolSize;i++)
+	{
+		sha.Input(DolFile);
+        DolFile = fgetc(Dol);
+	}
+    fclose(Dol);
+    if (!sha.Result(UpdateFile->beta_SHA1_Hash))
+    {
+        printf("sha: could not compute Hash for Official release!\n");
+		free(UpdateFile);
+		sleep(2);
+		exit(0);
+    }
+    else
+    {
+		printf( "Hash : %08X %08X %08X %08X %08X\n",
+				UpdateFile->beta_SHA1_Hash[0],
+				UpdateFile->beta_SHA1_Hash[1],
+				UpdateFile->beta_SHA1_Hash[2],
+				UpdateFile->beta_SHA1_Hash[3],
+				UpdateFile->beta_SHA1_Hash[4]);
+    }
 
 
 	//write the version file
@@ -185,8 +180,6 @@ int main(int argc, char **argv)
 		printf("failed to open/create file!\n");
 		sleep(2);
 		free(UpdateFile);
-		free(DolFile);
-		delete sha1;
 		exit(0);
 	}
 	if( Data_Need_Swapping() )
@@ -207,8 +200,6 @@ int main(int argc, char **argv)
 	printf("done!\n");
 	sleep(5);
 	free(UpdateFile);
-	free(DolFile);
-	delete sha1;
 	return 0;
 }
 

@@ -4144,34 +4144,62 @@ void CheckForUpdate()
 	}
 	else
 	{
-		SHA1* sha1 = new SHA1();
-		sha1->addBytes( (char*)Data, file_size );
-
+		SHA1 sha; // SHA-1 class
 		u32 FileHash[5];
-		gprintf("Downloaded update ");
-		sha1->getDigest(FileHash,NULL);
-		sha1->hexPrinter_array(FileHash);
-		gprintf("Online ");
-		if (!DownloadedBeta)
-			sha1->hexPrinter_array(UpdateFile->SHA1_Hash);
+		sha.Reset();
+		sha.Input(Data,file_size);
+		if (!sha.Result(FileHash))
+		{
+			gprintf("sha: could not compute Hash for Official release!\n");
+			gprintf("Hash : 00 00 00 00 00\n");
+		}
 		else
-			sha1->hexPrinter_array(UpdateFile->beta_SHA1_Hash);
-		delete sha1;
+		{
+			gprintf( "Downloaded Update : %08X %08X %08X %08X %08X\n",
+			FileHash[0],
+			FileHash[1],
+			FileHash[2],
+			FileHash[3],
+			FileHash[4]);
+		}
+		gprintf("Online : ");//%08X %08X %08X %08X %08X\n");
+		if (!DownloadedBeta)
+		{
+			gprintf("%08X %08X %08X %08X %08X\n"
+					,UpdateFile->SHA1_Hash[0]
+					,UpdateFile->SHA1_Hash[1]
+					,UpdateFile->SHA1_Hash[2]
+					,UpdateFile->SHA1_Hash[3]
+					,UpdateFile->SHA1_Hash[4]);
+		}
+		else
+		{
+			gprintf("%08X %08X %08X %08X %08X\n"
+					,UpdateFile->beta_SHA1_Hash[0]
+					,UpdateFile->beta_SHA1_Hash[1]
+					,UpdateFile->beta_SHA1_Hash[2]
+					,UpdateFile->beta_SHA1_Hash[3]
+					,UpdateFile->beta_SHA1_Hash[4]);
+		}
 
 		if (
 			( !DownloadedBeta && (
-			UpdateFile->SHA1_Hash[0] != FileHash[0] ||
-			UpdateFile->SHA1_Hash[1] != FileHash[1] ||
-			UpdateFile->SHA1_Hash[2] != FileHash[2] ||
-			UpdateFile->SHA1_Hash[3] != FileHash[3] ||
-			UpdateFile->SHA1_Hash[4] != FileHash[4] ) ) ||
+			UpdateFile->SHA1_Hash[0] == FileHash[0] &&
+			UpdateFile->SHA1_Hash[1] == FileHash[1] &&
+			UpdateFile->SHA1_Hash[2] == FileHash[2] &&
+			UpdateFile->SHA1_Hash[3] == FileHash[3] &&
+			UpdateFile->SHA1_Hash[4] == FileHash[4] ) ) ||
 
 			( DownloadedBeta && (
-			UpdateFile->beta_SHA1_Hash[0] != FileHash[0] ||
-			UpdateFile->beta_SHA1_Hash[1] != FileHash[1] ||
-			UpdateFile->beta_SHA1_Hash[2] != FileHash[2] ||
-			UpdateFile->beta_SHA1_Hash[3] != FileHash[3] ||
-			UpdateFile->beta_SHA1_Hash[4] != FileHash[4] ) ) )
+			UpdateFile->beta_SHA1_Hash[0] == FileHash[0] &&
+			UpdateFile->beta_SHA1_Hash[1] == FileHash[1] &&
+			UpdateFile->beta_SHA1_Hash[2] == FileHash[2] &&
+			UpdateFile->beta_SHA1_Hash[3] == FileHash[3] &&
+			UpdateFile->beta_SHA1_Hash[4] == FileHash[4] ) ) )
+		{
+			gprintf("Hash check complete. booting file...\n");
+		}
+		else
 		{
 			gprintf("File not the same : hash check failure!\n");
 			PrintFormat( 1, ((640/2)-((strlen("Error Downloading Update"))*13/2))>>1, 224, "Error Downloading Update");
@@ -4179,10 +4207,6 @@ void CheckForUpdate()
 			free_pointer(UpdateFile);
 			free_pointer(Data);
 			return;
-		}
-		else
-		{
-			gprintf("Hash check complete. booting file...\n");
 		}
 
 //Load the dol
