@@ -73,7 +73,6 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket
 
 				if( n <= 0 )
 				{
-					//gprintf("GetHTTPFile : net_recv(header) error %d\n",n);
 					return -6;
 				}
 
@@ -111,16 +110,9 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket
 		}
 		if(file_size == 0)
 		{
-			//gprintf("GetHTTPFile : file size unknown!\n");
 			if(!external_socket_to_use)
 				net_close(socket);
 			return -8;
-		}
-		else
-		{
-#ifdef DEBUG
-			gprintf("GetHTTPFile : file is %d bytes\n",file_size);
-#endif
 		}
 		Data = (u8*)memalign( 32, file_size );
 		if (Data == NULL)
@@ -141,7 +133,6 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket
 					net_close(socket);
 				free(Data);
 				Data = NULL;
-				//gprintf("\nGetHTTPFile : net_recv(buffer) error %d\n",bytes_read);
 				return -10;
 			}
 			memcpy( &Data[total], buffer, bytes_read );
@@ -159,7 +150,6 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket
 	}
 	else
 	{
-		//gprintf("GetHTTPFile : net_send(request packet) error %d",bytes_send);
 		net_close(socket);
 		free(Data);
 		Data = NULL;

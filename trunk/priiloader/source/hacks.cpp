@@ -54,13 +54,11 @@ char *GetLine( char *astr, unsigned int len)
 	{
 		if( strstr( astr+foff, "\0" ) == NULL )
 		{
-			gprintf("failed to find the newline&zero byte @ 0x%x\n",(vu32)(astr+foff));
 			return 0;
 		}
 		llen = strstr( astr+foff, "\0" ) - (astr+foff);
 		if( llen == 0 )
 		{
-			gprintf("failed to find the newline\\zero byte @ 0x%x\n",(vu32)(astr+foff));
 			return NULL;
 		}
 	}
@@ -69,7 +67,6 @@ char *GetLine( char *astr, unsigned int len)
 		llen = strstr( astr+foff , "\n" ) - (astr+foff);
 		if( llen == 0 )
 		{
-			gprintf("failed to find the newline @ 0x%x\n",(vu32)(astr+foff));
 			return NULL;
 		}
 	}
@@ -79,7 +76,6 @@ char *GetLine( char *astr, unsigned int len)
 	char *lbuf = (char*)malloc( llen );
 	if( lbuf == NULL )
 	{
-		gprintf("malloc failed for lbuf\n",llen);
 		error = ERROR_MALLOC;
 		return 0;
 	}
