@@ -79,6 +79,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\source\playlog.c"
+				>
+			</File>
+			<File
 				RelativePath=".\source\settings.cpp"
 				>
 			</File>
@@ -130,6 +134,10 @@
 			</File>
 			<File
 				RelativePath=".\include\password.h"
+				>
+			</File>
+			<File
+				RelativePath=".\include\playlog.h"
 				>
 			</File>
 			<File

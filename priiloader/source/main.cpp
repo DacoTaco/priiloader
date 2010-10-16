@@ -58,6 +58,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "password.h"
 #include "sha1.h"
 #include "HTTP_Parser.h"
+#include "playlog.h"
 
 
 //Bin includes
@@ -79,6 +80,16 @@ typedef struct {
 	unsigned int sizeBSS;
 	unsigned int entrypoint;
 } dolhdr;
+typedef struct {
+	u64 title_id;
+	std::string name_ascii;
+	u8 name_unicode[84];
+	u32 content_id;
+} title_info;
+typedef struct {
+	std::string app_name;
+	std::string app_path;
+} Binary_struct;
 
 extern Settings *settings;
 extern u8 error;
@@ -152,6 +163,7 @@ void LoadHBCStub ( void )
 	//the first part of the title is at 0x800024CA (first 2 bytes) and 0x800024D2 (last 2 bytes)
 	//HBC < 1.0.5 = HAXX or 4841 5858
 	//HBC >= 1.0.5 = JODI or 4A4F 4449
+	//HBC >= 1.0.7 = .... or AF1B F516
 	if ( *(vu32*)0x80001804 == 0x53545542 && *(vu32*)0x80001808 == 0x48415858 )
 	{
 		return;
@@ -160,20 +172,22 @@ void LoadHBCStub ( void )
 	memcpy((void*)0x80001800, stub_bin, stub_bin_size);
 	DCFlushRange((void*)0x80001800,stub_bin_size);
 	
-	//see if changes are needed to change it to HAXX
+	//see if changes are needed to change it to the right ID
     switch(DetectHBC())
 	{
 		case 3:
-			gprintf("changing stub to load HBC...\n");
 			*(vu16*)0x800024CA = 0xAF1B;
 			*(vu16*)0x800024D2 = 0xF516;
+			DCFlushRange((void*)0x80001800,stub_bin_size);
 			break;
 		case 1: //HAXX
-			gprintf("changing stub to load HAXX...\n");
 			*(vu16*)0x800024CA = 0x4841;//"HA";
 			*(vu16*)0x800024D2 = 0x5858;//"XX";
+			DCFlushRange((void*)0x80001800,stub_bin_size);
 		case 2: //JODI, no changes are needed
+			break;
 		default: //not good, no HBC was detected >_> lets keep the stub anyway
+			gprintf("HBC stub : No HBC Detected! JODI stub loaded by default\n");
 			break;
 	}
 	gprintf("HBC stub : Loaded\n");
@@ -193,11 +207,11 @@ bool PollDevices( void )
 		fatUnmount("fat:/");
 		if(Mounted & 1)
 		{
-			gprintf("USB removed. unmounting...\n");
+			gprintf("USB removed.unmounting...\n");
 		}
 		if(Mounted & 2)
 		{
-			gprintf("SD removed. unmounting...\n");
+			gprintf("SD removed.unmounting...\n");
 			__io_wiisd.shutdown();
 		}			
 		Mounted = 0;
@@ -209,17 +223,17 @@ bool PollDevices( void )
 		{
 			//USB is mounted. lets kick it out and use SD instead :P
 			fatUnmount("fat:/");
-			gprintf("USB unmounted for SD\n");
+			gprintf("USB: Unmounted for SD\n");
 			Mounted = 0;
 		}
 		if(fatMountSimple("fat",&__io_wiisd))
 		{
 			Mounted |= 2;
-			gprintf("SD inserted and mounted\n");
+			gprintf("SD: Mounted\n");
 		}
 		else
 		{
-			gprintf("inserted SD failed to mount : not fat?\n");
+			gprintf("SD: Failed to mount!not fat?\n");
 			Device_Not_Mountable |= 2;
 		}
 	}
@@ -231,12 +245,12 @@ bool PollDevices( void )
 		//if( fatMountSimple("fat", &__io_usbstorage) )
 		if( fatMount("fat", &__io_usbstorage,0, 8, 64) )
 		{
-			gprintf("USB inserted and mounted\n");
+			gprintf("USB: Mounted\n");
 			Mounted |= 1;
 		}
 		else
 		{
-			gprintf("inserted USB device failed to mount : not fat?\n");
+			gprintf("USB: Failed to mount!not fat?\n");
 			Device_Not_Mountable |= 1;
 		}
 	}
@@ -244,13 +258,13 @@ bool PollDevices( void )
 	{
 		if ( ( Device_Not_Mountable & 1 ) && !__io_usbstorage.isInserted() )
 		{
-			gprintf("reseting not-mountable-USB flag\n");
+			gprintf("USB: NM Flag Reset\n");
 			Device_Not_Mountable -= 1;
 		}
 		if ( ( Device_Not_Mountable & 2 ) &&  !__io_wiisd.isInserted() )
 		{
 			//not needed for SD yet but just to be on the safe side
-			gprintf("reseting not-mountable-SD flag\n");
+			gprintf("SD: NM Flag Reset\n");
 			Device_Not_Mountable -= 2;
 			__io_wiisd.shutdown();
 		}
@@ -296,18 +310,18 @@ bool isIOSstub(u8 ios_number)
 	if (!tmd_size)
 	{
 		//getting size failed. invalid or fake tmd for sure!
-		gprintf("isIOSstub : ES_GetTMDViewSize fail ios %d\n",ios_number);
+		gprintf("isIOSstub : ES_GetTMDViewSize fail,ios %d\n",ios_number);
 		return true;
 	}
 	ios_tmd = (tmd_view *)memalign( 32, (tmd_size+31)&(~31) );
 	if(!ios_tmd)
 	{
-		gprintf("isIOSstub : TMD align failure\n");
+		gprintf("isIOSstub : TMD alloc failure\n");
 		return true;
 	}
 	memset(ios_tmd , 0, tmd_size);
 	ES_GetTMDView(0x0000000100000000ULL | ios_number, (u8*)ios_tmd , tmd_size);
-	gprintf("isIOSstub : IOS %d is rev %d(0x%x) with tmd size of %u and %u contents\n",ios_number,ios_tmd->title_version,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
+	//gprintf("isIOSstub : IOS %d is rev %d(0x%x) with tmd size of %u and %u contents\n",ios_number,ios_tmd->title_version,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
 	/*Stubs have a few things in common:
 	- title version : it is mostly 65280 , or even better : in hex the last 2 digits are 0. 
 		example : IOS 60 rev 6400 = 0x1900 = 00 = stub
@@ -707,6 +721,7 @@ void SysHackHashSettings( void )
 				else
 				{
 					gprintf("no FAT device found\n");
+					fail=5;
 				}
 				if ( ( (Mounted & 2) && !__io_wiisd.isInserted() ) || ( (Mounted & 1) && !__io_usbstorage.isInserted() ) )
 				{
@@ -1528,7 +1543,7 @@ void LoadHBC( void )
 			TitleID = 0x000100014A4F4449LL;
 			break;
 		case 3: //0.7
-			gprintf("LoadHBC : 0.7 HBC detected\n");
+			gprintf("LoadHBC : >=0.7 detected\n");
 			TitleID = 0x00010001AF1BF516LL;
 			break;
 		default: //LOL nothing?
@@ -1539,10 +1554,7 @@ void LoadHBC( void )
 	ES_GetNumTicketViews(TitleID, &cnt);
 	tikview *views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
 	ES_GetTicketViews(TitleID, views, cnt);
-	if( ClearState() < 0 )
-	{
-		gprintf("ClearState failure\n");
-	}
+	ClearState();
 	ES_LaunchTitle(TitleID, &views[0]);
 	//well that went wrong
 	error = ERROR_BOOT_HBC;
@@ -1602,13 +1614,10 @@ void LoadBootMii( void )
 	}
 	WPAD_Shutdown();
 	//clear the bootstate before going on
-	if( ClearState() < 0 )
-	{
-		gprintf("ClearState failure\n");
-	}
+	gprintf("ClearState failure\n");
 	IOS_ReloadIOS(254);
 	//launching bootmii failed. lets wait a bit for the launch(it could be delayed) and then load the other ios back
-	sleep(5);
+	sleep(3);
 	IOS_ReloadIOS(currentIOS);
 	ReloadedIOS = 1;
 	WPAD_Init();
@@ -1856,7 +1865,7 @@ s8 BootDolFromDir( const char* Dir )
 	s32 lSize;
 	u8* buffer;
 	dol = fopen(Dir,"rb");
-	gprintf("BootDolFromDir : loading %s\n",Dir);
+	//gprintf("BootDolFromDir : loading %s\n",Dir);
 	if (dol)
 	{
 		// obtain file size:
@@ -1864,7 +1873,7 @@ s8 BootDolFromDir( const char* Dir )
 		lSize = ftell (dol);
 		rewind (dol);
 		// allocate memory to contain the whole file:
-		buffer = (u8*) memalign (32,(sizeof(u8)*lSize+31)&(~31));
+		buffer = (u8*) malloc((sizeof(u8)*lSize+31)&(~31));
 		if (buffer == NULL) 
 		{
 			return -3;
@@ -1992,10 +2001,6 @@ void BootMainSysMenu( u8 init )
 	file[33] = '1'; // installing preloader renamed system menu so we change the app file to have the right name
 
 	fd = ISFS_Open( file, 1 );
-#ifdef DEBUG
-	gprintf("ISFS_Open(%s, %d):%d\n", file, 1, fd );
-	sleep(1);
-#endif
 	if( fd < 0 )
 	{
 		gprintf("error opening %08x.app! error %d\n",fileID,fd);
@@ -2031,7 +2036,6 @@ void BootMainSysMenu( u8 init )
 	boot_hdr = (dolhdr *)memalign(32, (sizeof( dolhdr )+31)&(~31) );
 	if(boot_hdr == NULL)
 	{
-		gprintf("memalign failure(dolhdr)\n");
 		error = ERROR_MALLOC;
 		ISFS_Close(fd);
 		goto free_and_return;
@@ -2149,7 +2153,6 @@ void BootMainSysMenu( u8 init )
 		s32 ToLoadIOS = SGetSetting(SETTING_SYSTEMMENUIOS);
 		if ( ToLoadIOS != (u8)IOS_GetVersion() )
 		{
-			gprintf("BootMainSysMenu : IsIOSStub(%d)...\n",ToLoadIOS);
 			if ( !isIOSstub(ToLoadIOS) )
 			{
 				__ES_Close();
@@ -2158,7 +2161,7 @@ void BootMainSysMenu( u8 init )
 				__IOS_LaunchNewIOS ( ToLoadIOS );
 				//why the hell the es needs 2 init's is beyond me... it just happens (see IOS_ReloadIOS in libogc's ios.c)
 				__ES_Init();
-				gprintf("BootMainSysMenu : ios %d launched\n",IOS_GetVersion());
+				//gprintf("BootMainSysMenu : ios %d launched\n",IOS_GetVersion());
 				//__IOS_LaunchNewIOS ( (u8)rTMD->sys_version );
 				//__IOS_LaunchNewIOS ( 249 );
 				ReloadedIOS = 1;
@@ -2282,6 +2285,7 @@ void BootMainSysMenu( u8 init )
 			goto free_and_return;
 		}
 	}
+
 	ES_SetUID(TitleID);
 	if(tstatus)
 	{
@@ -2390,54 +2394,156 @@ free_and_return:
 void InstallLoadDOL( void )
 {
 	char filename[MAXPATHLEN],filepath[MAXPATHLEN];
-	std::vector<char*> names;
-	
+	std::vector<Binary_struct> app_list;
 	struct stat st;
 	DIR_ITER* dir;
-
-	if(Mounted == 0)
-	{
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("NO fat device found!"))*13/2))>>1, 208, "NO fat device found!");
-		sleep(5);
-		return;
-	}
+	s8 reload = 1;
+	s8 redraw = 1;
 	s8 DevStat = Mounted;
-	dir = diropen ("fat:/");
-	if( dir == NULL )
-	{
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to open root of Device!"))*13/2))>>1, 208, "Failed to open root of Device!");
-		sleep(5);
-		return;
-	}
-	//get all files names
-	while( dirnext (dir, filename, &st) != -1 )
-	{
-		if( (strstr( filename, ".dol") != NULL) ||
-			(strstr( filename, ".DOL") != NULL) ||
-			(strstr( filename, ".elf") != NULL) ||
-			(strstr( filename, ".ELF") != NULL) )
-		{
-			names.resize( names.size() + 1 );
-			names[names.size()-1] = new char[strlen(filename)+1];
-			memcpy( names[names.size()-1], filename, strlen( filename ) + 1 );
-		}
-	}
-
-	dirclose( dir );
-
-	if( names.size() == 0 )
-	{
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Couldn't find any executable files"))*13/2))>>1, 208, "Couldn't find any executable files");
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("in the root of the FAT device!"))*13/2))>>1, 228, "in the root of the FAT device!");
-		sleep(5);
-		return;
-	}
-
-	u32 redraw = 1;
-	u32 cur_off= 0;
-
+	s16 cur_off = 0;
+	s16 max_pos = 0;
+	s16 min_pos = 0;
 	while(1)
 	{
+		PollDevices();
+		if (DevStat != Mounted)
+		{
+			ClearScreen();
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Reloading Binaries..."))*13/2))>>1, 208, "Reloading Binaries...");
+			sleep(2);
+			app_list.clear();
+			if(Mounted == 0)
+			{
+				ClearScreen();
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("NO fat device found!"))*13/2))>>1, 208, "NO fat device found!");
+				sleep(5);
+				return;
+			}
+			reload = 1;
+			redraw=1;
+		}
+		if(reload)
+		{
+			DevStat = Mounted;
+			reload = 0;
+			dir = diropen ("fat:/apps/");
+			if( dir != NULL )
+			{
+				//get all files names
+				s8 flag = 0;
+				while( dirnext (dir, filename, &st) != -1 )
+				{
+					if(flag < 2)
+					{
+						flag++;
+						continue;
+					}
+					DIR_ITER* apps;
+					char path[32];
+					char tempname[MAXPATHLEN];
+					sprintf(path,"fat:/apps/%s/",filename);
+					apps = diropen(path);
+					if(apps != NULL )
+					{
+						flag = 0;
+						while( dirnext (apps, tempname, &st) != -1 )
+						{
+							if(flag < 2)
+							{
+								flag++;
+								continue;
+							}
+							if( (strstr( tempname, ".dol") != NULL) ||
+								(strstr( tempname, ".DOL") != NULL) ||
+								(strstr( tempname, ".elf") != NULL) ||
+								(strstr( tempname, ".ELF") != NULL) )
+							{
+								Binary_struct temp;
+								temp.app_name = filename;
+								sprintf(filepath,"%s%s",path,tempname);
+								temp.app_path.assign(filepath);
+								app_list.push_back(temp);
+								break;
+							}
+						}
+						dirclose( apps );
+					}
+					else
+					{
+						gprintf("WARNING: failed to open %s\n",path);
+					}
+				}
+				dirclose( dir );
+			}
+			else
+			{
+				gprintf("WARNING: could not open fat:/apps/ for binaries\n");
+			}
+			dir = diropen ("fat:/");
+			if(dir == NULL)
+			{
+				gprintf("WARNING: could not open fat:/ for binaries\n");
+			}
+			else
+			{
+				while( dirnext (dir, filename, &st) != -1 )
+				{
+					if( (strstr( filename, ".dol") != NULL) ||
+						(strstr( filename, ".DOL") != NULL) ||
+						(strstr( filename, ".elf") != NULL) ||
+						(strstr( filename, ".ELF") != NULL) )
+					{
+						Binary_struct temp;
+						temp.app_name = filename;
+						sprintf(filepath,"fat:/%s",filename);
+						temp.app_path.assign(filepath);
+						app_list.push_back(temp);
+					}
+				}
+				dirclose( dir );
+			}
+			if( app_list.size() == 0 )
+			{
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Couldn't find any executable files"))*13/2))>>1, 208, "Couldn't find any executable files");
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("in the fat:/apps/ on the device!"))*13/2))>>1, 228, "in the fat:/apps/ on the device!");
+				sleep(5);
+				return;
+			}
+			if( rmode->viTVMode == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
+			{
+				//ye, those tv's want a special treatment again >_>
+				max_pos = 14;
+			}
+			else
+			{
+				max_pos = 19;
+			}
+			if ((s32)app_list.size() < max_pos)
+				max_pos = app_list.size() -1;
+			ClearScreen();
+			redraw=1;
+		}
+		if( redraw )
+		{
+			s16 i= min_pos;
+			if((s32)app_list.size() > max_pos && (min_pos != (s32)app_list.size() - max_pos - 1))
+			{
+				PrintFormat( 0,((rmode->viWidth /2)-((strlen("-----More-----"))*13/2))>>1,64+(max_pos+2)*16,"-----More-----");
+			}
+			if(min_pos > 0)
+			{
+				PrintFormat( 0,((rmode->viWidth /2)-((strlen("-----Less-----"))*13/2))>>1,64,"-----Less-----");
+			}
+			for(; i<=(min_pos + max_pos); i++ )
+			{
+				PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "%s", app_list[i].app_name.c_str());
+			}
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Install File"))*13/2))>>1, rmode->viHeight-64, "A(A) Install FIle");
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("1(Z) Load File   "))*13/2))>>1, rmode->viHeight-48, "1(Y) Load File");
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("2(X) Delete installed File"))*13/2))>>1, rmode->viHeight-32, "2(X) Delete installed File");
+
+			redraw = false;
+		}
 		WPAD_ScanPads();
 		PAD_ScanPads();
 
@@ -2456,23 +2562,14 @@ void InstallLoadDOL( void )
 		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 		{
 			ClearScreen();
-			if ( ( (Mounted & 2) && !__io_wiisd.isInserted() ) || ( (Mounted & 1) && !__io_usbstorage.isInserted() ) )
-			{
-				gprintf("SD/USB not in same state\n");
-				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("FAT device removed before loading!"))*13/2))>>1, 208, "FAT device removed before loading!");
-				sleep(5);
-				break;
-			}
-			//Install file
-			sprintf(filepath, "fat:/%s",names[cur_off]);
-			FILE *dol = fopen(filepath, "rb" );
+			FILE *dol = fopen(app_list[cur_off].app_path.c_str(),"rb");
 			if( dol == NULL )
 			{
-				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not open:\"%s\" for reading")+strlen(names[cur_off]))*13/2))>>1, 208, "Could not open:\"%s\" for reading", names[cur_off]);
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not open:\"%s\" for reading")+strlen(app_list[cur_off].app_name.c_str()))*13/2))>>1, 208, "Could not open:\"%s\" for reading", app_list[cur_off].app_name.c_str());
 				sleep(5);
 				break;
 			}
-			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("Installing \"%s\"...")+strlen(names[cur_off]))*13/2))>>1, 208, "Installing \"%s\"...", names[cur_off]);
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("Installing \"%s\"...")+strlen(app_list[cur_off].app_name.c_str()))*13/2))>>1, 208, "Installing \"%s\"...", app_list[cur_off].app_name.c_str());
 
 			//get size
 			fseek( dol, 0, SEEK_END );
@@ -2502,7 +2599,7 @@ void InstallLoadDOL( void )
 			{
 				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Writing file failed!"))*13/2))>>1, 240, "Writing file failed!");
 			} else {
-				PrintFormat( 0, ((rmode->viWidth /2)-((strlen("\"%s\" installed")+strlen(names[cur_off]))*13/2))>>1, 240, "\"%s\" installed", names[cur_off]);
+				PrintFormat( 0, ((rmode->viWidth /2)-((strlen("\"%s\" installed")+strlen(app_list[cur_off].app_name.c_str()))*13/2))>>1, 240, "\"%s\" installed", app_list[cur_off].app_name.c_str());
 			}
 
 			sleep(5);
@@ -2548,113 +2645,66 @@ void InstallLoadDOL( void )
 		if ( WPAD_Pressed & WPAD_BUTTON_1 || WPAD_Pressed & WPAD_CLASSIC_BUTTON_Y || PAD_Pressed & PAD_BUTTON_Y )
 		{
 			ClearScreen();
-			if ( ( (Mounted & 2) && !__io_wiisd.isInserted() ) || ( (Mounted & 1) && !__io_usbstorage.isInserted() ) )
-			{
-				gprintf("SD/USB not in same state\n");
-				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("FAT device removed before loading!"))*13/2))>>1, 208, "FAT device removed before loading!");
-				sleep(5);
-				break;
-			}
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Loading binary..."))*13/2))>>1, 208, "Loading binary...");
-			//Load binary
-			sprintf(filepath, "fat:/%s", names[cur_off]);
-			BootDolFromDir(filepath);
+			gprintf("loading %s\n",app_list[cur_off].app_path.c_str());
+			BootDolFromDir(app_list[cur_off].app_path.c_str());
 			sleep(1);
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to load binary"))*13/2))>>1, 224, "failed to load binary");
 			sleep(3);
 			ClearScreen();
 			redraw=true;
 		}
-
+		if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
+		{
+			cur_off--;
+			if (cur_off < min_pos)
+			{
+				min_pos = cur_off;
+				if(app_list.size() > 19)
+				{
+					for(s8 i = min_pos; i<=(min_pos + max_pos); i++ )
+					{
+						PrintFormat( 0, 16, 64+(i-min_pos+1)*16, "                                        ");
+						PrintFormat( 0,((rmode->viWidth /2)-((strlen("               "))*13/2))>>1,64+(max_pos+2)*16,"               ");
+						PrintFormat( 0,((rmode->viWidth /2)-((strlen("               "))*13/2))>>1,64,"               ");
+					}
+				}
+			}
+			if (cur_off < 0)
+			{
+				cur_off = app_list.size() - 1;
+				min_pos = app_list.size() - max_pos - 1;
+			}
+			redraw = true;
+		}
 		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
 		{
 			cur_off++;
-
-			if( cur_off >= names.size())
-				cur_off = 0;
-			
-			redraw=true;
-		} else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
-		{
-			if ( cur_off != 0)
-				cur_off--;
-			else if ( cur_off == 0)
-				cur_off=names.size()-1;
-			
-			redraw=true;
-		}
-
-		if( redraw )
-		{
-			for( u32 i=0; i<names.size(); ++i )
-				PrintFormat( cur_off==i, 16, 64+i*16, "%s", names[i]);
-
-			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Install File"))*13/2))>>1, rmode->viHeight-64, "A(A) Install FIle");
-			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("1(Z) Load File   "))*13/2))>>1, rmode->viHeight-48, "1(Y) Load File");
-			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("2(X) Delete installed File"))*13/2))>>1, rmode->viHeight-32, "2(X) Delete installed File");
-
-			redraw = false;
-		}
-		PollDevices();
-		if (DevStat != Mounted)
-		{
-			gprintf("DevStat = %d%d & Mounted = %d%d\n",(DevStat&2),(DevStat&1),(Mounted&2),(Mounted&1));
-			ClearScreen();
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Reloading Binaries..."))*13/2))>>1, 208, "Reloading Binaries...");
-			sleep(2);
-			for( u32 i=0; i<names.size(); ++i )
-				delete names[i];
-			names.clear();
-			if(Mounted == 0)
+			if (cur_off > (max_pos + min_pos))
 			{
-				ClearScreen();
-				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("NO fat device found!"))*13/2))>>1, 208, "NO fat device found!");
-				sleep(5);
-				return;
-			}
-			dir = diropen ("fat:/");
-			if( dir == NULL )
-			{
-				ClearScreen();
-				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to open root of Device!"))*13/2))>>1, 208, "Failed to open root of Device!");
-				sleep(5);
-				return;
-			}
-			//get all files names
-			while( dirnext (dir, filename, &st) != -1 )
-			{
-				if( (strstr( filename, ".dol") != NULL) ||
-					(strstr( filename, ".DOL") != NULL) ||
-					(strstr( filename, ".elf") != NULL) ||
-					(strstr( filename, ".ELF") != NULL) )
+				min_pos = cur_off - max_pos;
+				if(app_list.size() > 19)
 				{
-					names.resize( names.size() + 1 );
-					names[names.size()-1] = new char[strlen(filename)+1];
-					memcpy( names[names.size()-1], filename, strlen( filename ) + 1 );
+					for(s8 i = min_pos; i<=(min_pos + max_pos); i++ )
+					{
+						PrintFormat( 0, 16, 64+(i-min_pos+1)*16, "                                        ");
+						PrintFormat( 0,((rmode->viWidth /2)-((strlen("               "))*13/2))>>1,64+(max_pos+2)*16,"               ");
+						PrintFormat( 0,((rmode->viWidth /2)-((strlen("               "))*13/2))>>1,64,"               ");
+					}
 				}
 			}
-
-			dirclose( dir );
-
-			if( names.size() == 0 )
+			if (cur_off >= (s32)app_list.size())
 			{
-				ClearScreen();
-				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Couldn't find any executable files"))*13/2))>>1, 208, "Couldn't find any executable files");
-				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("in the root of the FAT device!"))*13/2))>>1, 228, "in the root of the FAT device!");
-				sleep(5);
-				return;
+				cur_off = 0;
+				min_pos = 0;
 			}
-			ClearScreen();
-			redraw = 1;
-			DevStat = Mounted;
+			redraw = true;
 		}
 		VIDEO_WaitVSync();
 	}
 
 	//free memory
-	for( u32 i=0; i<names.size(); ++i )
-		delete names[i];
-	names.clear();
+	app_list.clear();
 
 	return;
 }
@@ -2936,10 +2986,7 @@ void AutoBootDol( void )
 		WPAD_Disconnect(i);
 	}
 	WPAD_Shutdown();
-	if( ClearState() < 0 )
-	{
-		gprintf("ClearState failure\n");
-	}
+	ClearState();
 	ISFS_Deinitialize();
 	ShutdownDevices();
 	USB_Deinitialize();
@@ -3008,9 +3055,6 @@ s8 CheckTitleOnSD(u64 id)
 	char file[256] ATTRIBUTE_ALIGN(32);
 	memset(file,0,256);
 	sprintf(file, "fat:/private/wii/title/%s/content.bin", title_ID);
-#ifdef DEBUG
-	gprintf ("CheckTitleOnSD : %s\n",file);
-#endif
 	FILE* SDHandler = fopen(file,"rb");
 	if (SDHandler)
 	{
@@ -3026,7 +3070,7 @@ s8 CheckTitleOnSD(u64 id)
 		return 0;
 	}
 }
-s8 GetTitleName(u64 id, u32 app, char* name) {
+s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 	s32 r;
     int lang = 1; //CONF_GetLanguage();
     /*
@@ -3045,6 +3089,15 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 	};
 	cause we dont support unicode stuff in font.cpp we will force to use english then(1)
     */
+	u8 return_unicode_name = 0;
+	if(_dst_uncode_name == NULL)
+	{
+		return_unicode_name = 0;
+	}
+	else
+	{
+		return_unicode_name = 1;
+	}
     char file[256] ATTRIBUTE_ALIGN(32);
 	memset(file,0,256);
     sprintf(file, "/title/%08x/%08x/content/%08x.app", (u32)(id >> 32), (u32)id, app);
@@ -3087,7 +3140,7 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 	s32 fh = ES_OpenTitleContent(id, views, 0);
 	if (fh == -106)
 	{
-		gprintf("GetTitleName : app not found\n",fh);
+		//gprintf("GetTitleName : app not found\n",fh);
 		CheckTitleOnSD(id);
 		free_pointer(data);
 		free_pointer(views);
@@ -3096,7 +3149,7 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 	else if(fh < 0)
 	{
 		//ES method failed. remove tikviews from memory and fall back on ISFS method
-		gprintf("GetTitleName : ES_OpenTitleContent error %d\nGetTitleName : ISFS : ",fh);
+		gprintf("GetTitleName : ES_OpenTitleContent error %d\n",fh);
 		free_pointer(views);
 		fh = ISFS_Open(file, ISFS_OPEN_READ);
 		// fuck failed. lets check SD & GTFO
@@ -3119,7 +3172,6 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 			free_pointer(data);
 			return -6;
 		}
-		gprintf("success\n");
 		ISFS_Close(fh);
 	}
 	else
@@ -3147,21 +3199,28 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 		free_pointer(views);
 	}
 	char str[10][84];
+	char str_unprocessed[10][84];
 	//clear any memory that is in the place of the array cause we dont want any confusion here
 	memset(str,0,10*84);
+	if(return_unicode_name)
+		memset(str_unprocessed,0,10*84);
 	for(u8 y =0;y <= 9;y++)
 	{
-		u8 j;
-		u8 r = 0;
-		for(j=0;j<83;j++)
+		u8 p = 0;
+		u8 up = 0;
+		for(u8 j=0;j<83;j++)
 		{
 			if(data->names[y][j] < 0x20)
-				continue;
+				if(return_unicode_name && data->names[y][j] == 0x00)
+					str_unprocessed[y][up++] = data->names[y][j];
+				else
+					continue;
 			else if(data->names[y][j] > 0x7E)
 				continue;
 			else
 			{
-				str[y][r++] = data->names[y][j];
+				str[y][p++] = data->names[y][j];
+				str_unprocessed[y][up++] = data->names[y][j];
 			}
 		}
 		str[y][83] = '\0';
@@ -3174,10 +3233,18 @@ s8 GetTitleName(u64 id, u32 app, char* name) {
 		gprintf("GetTitleName : title %s\n",str[lang]);
 #endif
 		sprintf(name, "%s", str[lang]);
+		if (return_unicode_name && str_unprocessed[lang][1] != '\0')
+		{
+			memcpy(_dst_uncode_name,&str_unprocessed[lang][0],84);
+			//gprintf("0x%08X\n",(u32)_dst_uncode_name);
+		}
+		else if(return_unicode_name)
+			gprintf("WARNING : empty unprocessed string\n");
 	}
 	else
 		gprintf("GetTitleName: no name found\n");
 	memset(str,0,10*84);
+	memset(str_unprocessed,0,10*84);
 	return 1;
 }
 s32 LoadListTitles( void )
@@ -3192,7 +3259,7 @@ s32 LoadListTitles( void )
 		sleep(3);
 		return ret;
 	}
-	gprintf("%u titles\n",count);
+	//gprintf("%u titles\n",count);
 	static u64 title_list[256] ATTRIBUTE_ALIGN(32);
 	ret = ES_GetTitles(title_list, count);
 	if (ret < 0) {
@@ -3208,13 +3275,11 @@ s32 LoadListTitles( void )
 		sleep(3);
 		return ret;
 	}
-	std::vector<u64> list;
-	std::vector<std::string> titles_ascii;
+	std::vector<title_info> titles;
+	titles.clear();
 	tmd_view *rTMD;
 	char temp_name[256];
 	char title_ID[5];
-	list.clear();
-	titles_ascii.clear();
 	for(u32 i = 0;i < count;i++)
 	{	
 		//u32 titletype = title_list[i] >> 32;
@@ -3261,21 +3326,28 @@ s32 LoadListTitles( void )
 					continue;
 				}
 				sprintf(temp_name,"????????");
-				ret = GetTitleName(rTMD->title_id,rTMD->contents[0].cid,temp_name);
+				title_info temp;
+				/*typedef struct {
+					u64 title_id;
+					std::string name_ascii;
+					u8 name_unicode[84];
+					u32 content_id;
+				} title_info;*/
+				temp.title_id = 0;
+				temp.name_ascii.clear();
+				memset(temp.name_unicode,0,84);
+				temp.content_id = 0;
+				ret = GetTitleName(rTMD->title_id,rTMD->contents[0].cid,temp_name,&temp.name_unicode[0]);
 				if ( ret != -3 && ret != -4 )
 				{
 #ifdef DEBUG
 					gprintf("LoadListTitles : added %s\n",temp_name);
 #endif
-					list.push_back(title_list[i]);
-					titles_ascii.push_back(temp_name);
-				}
-				if ( ret < 0 )
-				{
-#ifdef _DEBUG
-					gprintf("title %x-%x is either on SD/deleted or IOS trouble came up\n",title_list[i],(u32)title_list[i]);
-#endif
-					gprintf("LoadListTitles : GetTitleName error %d\n",ret);
+					temp.title_id = rTMD->title_id;
+					temp.name_ascii = temp_name;
+					temp.content_id = rTMD->contents[0].cid;
+					//gprintf("0x%02X%02X%02X%02X\n",temp.name_unicode[0],temp.name_unicode[1],temp.name_unicode[2],temp.name_unicode[3]);
+					titles.push_back(temp);
 				}
 				if(rTMD)
 				{
@@ -3285,7 +3357,7 @@ s32 LoadListTitles( void )
 		}
 	}
 	//done detecting titles. lets list them
-	if(list.size() <= 0)
+	if(titles.size() <= 0)
 	{
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("ERROR : No VC/Wiiware channels found"))*13/2))>>1, 208+16, "ERROR : No VC/Wiiware channels found");
 		sleep(3);
@@ -3306,8 +3378,8 @@ s32 LoadListTitles( void )
 		max_pos = 23;
 	}
 	s16 min_pos = 0;
-	if ((s32)list.size() < max_pos)
-		max_pos = list.size() -1;
+	if ((s32)titles.size() < max_pos)
+		max_pos = titles.size() -1;
 	while(1)
 	{
 		WPAD_ScanPads();
@@ -3317,10 +3389,8 @@ s32 LoadListTitles( void )
 		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
 		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 		{
-			if(titles_ascii.size())
-				titles_ascii.clear();
-			if(list.size())
-				list.clear();
+			if(titles.size())
+				titles.clear();
 			break;
 		}
 		if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
@@ -3329,13 +3399,20 @@ s32 LoadListTitles( void )
 			if (cur_off < min_pos)
 			{
 				min_pos = cur_off;
-				if(list.size() > 23)
-					ClearScreen();
+				if(titles.size() > 23)
+				{
+					for(s8 i = min_pos; i<=(min_pos + max_pos); i++ )
+					{
+						PrintFormat( 0, 16, 64+(i-min_pos+1)*16, "                                        ");
+						PrintFormat( 0,((rmode->viWidth /2)-((strlen("               "))*13/2))>>1,64+(max_pos+2)*16,"               ");
+						PrintFormat( 0,((rmode->viWidth /2)-((strlen("               "))*13/2))>>1,64,"               ");
+					}
+				}
 			}
 			if (cur_off < 0)
 			{
-				cur_off = list.size() - 1;
-				min_pos = list.size() - max_pos - 1;
+				cur_off = titles.size() - 1;
+				min_pos = titles.size() - max_pos - 1;
 			}
 			redraw = true;
 		}
@@ -3345,12 +3422,17 @@ s32 LoadListTitles( void )
 			if (cur_off > (max_pos + min_pos))
 			{
 				min_pos = cur_off - max_pos;
-				if(list.size() > 23)
+				if(titles.size() > 23)
 				{
-					ClearScreen();
+					for(s8 i = min_pos; i<=(min_pos + max_pos); i++ )
+					{
+						PrintFormat( 0, 16, 64+(i-min_pos+1)*16, "                                        ");
+						PrintFormat( 0,((rmode->viWidth /2)-((strlen("               "))*13/2))>>1,64+(max_pos+2)*16,"               ");
+						PrintFormat( 0,((rmode->viWidth /2)-((strlen("               "))*13/2))>>1,64,"               ");
+					}
 				}
 			}
-			if (cur_off >= (s32)list.size())
+			if (cur_off >= (s32)titles.size())
 			{
 				cur_off = 0;
 				min_pos = 0;
@@ -3366,7 +3448,7 @@ s32 LoadListTitles( void )
 			//lets start this bitch
 			u32 cnt ATTRIBUTE_ALIGN(32) = 0;
 			tikview *views = 0;
-			if (ES_GetNumTicketViews(list[cur_off], &cnt) < 0)
+			if (ES_GetNumTicketViews(titles[cur_off].title_id, &cnt) < 0)
 			{
 				gprintf("GetNumTicketViews failure\n");
 				break;
@@ -3378,18 +3460,30 @@ s32 LoadListTitles( void )
 				break;
 			}
 			memset(views,0,sizeof(tikview));
-			if (ES_GetTicketViews(list[cur_off], views, cnt) < 0 )
+			if (ES_GetTicketViews(titles[cur_off].title_id, views, cnt) < 0 )
 			{
 				gprintf("ES_GetTicketViews failure!\n");
 				break;
 			}
-			if( ClearState() < 0 )
+			if(wcslen((wchar_t*)titles[cur_off].name_unicode))
 			{
-				gprintf("ClearState failure\n");
+				//kill play_rec.dat if its already there...
+				ret = ISFS_Delete(PLAYRECPATH);
+				gprintf("delete ret = %d\n",ret);
+				//and create it with the new info :)
+				std::string id;
+				id.push_back(titles[cur_off].title_id & 0xFFFFFFFF);
+				ret = Playlog_Update(id.c_str(), titles[cur_off].name_unicode);
+				gprintf("play_rec ret = %d\n",ret);
 			}
+			else
+			{
+				gprintf("no title name to use in play_rec\n");
+			}
+			ClearState();
 			VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
 			VIDEO_WaitVSync();
-			ES_LaunchTitle(list[cur_off], &views[0]);
+			ES_LaunchTitle(titles[cur_off].title_id, &views[0]);
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to Load Title!"))*13/2))>>1, 224, "Failed to Load Title!");
 			sleep(3);
 			free_pointer(views);
@@ -3398,7 +3492,7 @@ s32 LoadListTitles( void )
 		if(redraw)
 		{
 			s8 i= min_pos;
-			if((s32)list.size() > max_pos && (min_pos != (s32)list.size() - max_pos - 1))
+			if((s32)titles.size() > max_pos && (min_pos != (s32)titles.size() - max_pos - 1))
 			{
 				PrintFormat( 0,((rmode->viWidth /2)-((strlen("-----More-----"))*13/2))>>1,64+(max_pos+2)*16,"-----More-----");
 			}
@@ -3409,7 +3503,7 @@ s32 LoadListTitles( void )
 			for(; i<=(min_pos + max_pos); i++ )
 			{
 				memset(title_ID,0,5);
-				u32 title_l = list[i] & 0xFFFFFFFF;
+				u32 title_l = titles[i].title_id & 0xFFFFFFFF;
 				memcpy(title_ID, &title_l, 4);
 				for (s8 f=0; f<4; f++)
 				{
@@ -3419,7 +3513,7 @@ s32 LoadListTitles( void )
 						title_ID[f] = '.';
 				}
 				title_ID[4]='\0';
-				PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "(%d)%s(%s)                   ",i+1,titles_ascii[i].c_str(), title_ID);
+				PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "(%d)%s(%s)                   ",i+1,titles[i].name_ascii.c_str(), title_ID);
 				PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Load Title       "))*13/2))>>1, rmode->viHeight-32, "A(A) Load Title");
 			}
 			redraw = false;
@@ -3742,45 +3836,15 @@ void CheckForUpdate()
 							PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
 							if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 							{
-								//repeative code i know. sorry. the whole language part needs fucking clean up
 								switch(cur_off)
 								{
 								case 0: //german mod - update
-									if(LangUpdate & 1)
-									{
-										Language = cur_off +1;
-									}
-									break;
 								case 1: //german mod - beta
-									if(LangBetaUpdate & 1)
-									{
-										Language = cur_off +1;
-									}
-									break;
 								case 2: // french mod - update
-									if(LangUpdate & 2)
-									{
-										Language = cur_off +1;
-									}
-									break;
 								case 3: // french mod - beta
-									if(LangBetaUpdate & 2)
-									{
-										Language = cur_off +1;
-									}
-									break;
 								case 4: // french mod - update
-									if(LangUpdate & 4)
-									{
-										Language = cur_off +1;
-									}
-									break;
 								case 5: // french mod - beta
-									if(LangBetaUpdate & 4)
-									{
-										Language = cur_off +1;
-									}
-									break;
+									Language = cur_off+1;
 								default:
 									break;
 								}
@@ -3827,6 +3891,7 @@ void CheckForUpdate()
 					{
 						PrintFormat( 1, ((rmode->viWidth /2)-((strlen("no updates found"))*13/2))>>1, 224, "no updates found");
 						sleep(2);
+						ClearScreen();
 						if(UpdateGer)
 							free_pointer(UpdateGer);
 						if(UpdateFr)
@@ -4095,7 +4160,7 @@ void CheckForUpdate()
 	}
 	else
 	{
-		gprintf("downloading language mod...\n");
+		gprintf("downloading language mod %s...\n",DownloadedBeta?"beta":"update");
 		PrintFormat( 1, ((640/2)-((strlen("Downloading Language mod update..."))*13/2))>>1, 208, "Downloading Language mod update...");
 		switch(Language)
 		{
@@ -4150,8 +4215,7 @@ void CheckForUpdate()
 		sha.Input(Data,file_size);
 		if (!sha.Result(FileHash))
 		{
-			gprintf("sha: could not compute Hash for Official release!\n");
-			gprintf("Hash : 00 00 00 00 00\n");
+			gprintf("sha: could not compute Hash of Update!\nHash : 00 00 00 00 00\n");
 		}
 		else
 		{
@@ -4162,7 +4226,7 @@ void CheckForUpdate()
 			FileHash[3],
 			FileHash[4]);
 		}
-		gprintf("Online : ");//%08X %08X %08X %08X %08X\n");
+		gprintf("Online : ");
 		if (!DownloadedBeta)
 		{
 			gprintf("%08X %08X %08X %08X %08X\n"
@@ -4369,10 +4433,7 @@ int main(int argc, char **argv)
 				}
 				break;
 			case TYPE_SHUTDOWNSYSTEM: // 5 - shutdown
-				if( ClearState() < 0 )
-				{
-					gprintf("ClearState failure\n");
-				}
+				ClearState();
 				//check for valid nandboot shitzle. if its found we need to change bootstate to 4.
 				//yellow8 claims system menu reset everything then, but it didn't on my wii (joy). this is why its not activated code.
 				//its not fully confirmed system menu does it(or ios while being standby) and if system menu does indeed clear it.
@@ -4692,10 +4753,8 @@ int main(int argc, char **argv)
 		//boot system menu
 		if(BootSysMenu)
 		{
-			gprintf("booting main system menu...\n");
 			if ( !SGetSetting(SETTING_USESYSTEMMENUIOS) )
 			{
-				gprintf("Changed Settings to use System Menu IOS...\n");
 				settings->UseSystemMenuIOS = true;
 			}
 			BootMainSysMenu(1);
