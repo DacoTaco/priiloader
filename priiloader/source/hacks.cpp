@@ -237,7 +237,7 @@ u32 LoadHacks( bool Force_Load_Nand )
 			return 0;
 		}
 
-		if( strcmp( lbuf, "version" ) != 0 )
+		if( strncmp(lbuf,"version",7) == 0 )
 		{
 			if( strstr( lbuf, "=" ) ==  NULL )
 			{
@@ -588,7 +588,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 			return 0;
 		}
 
-		if( strcmp( lbuf, "maxversion" ) != 0 )
+		if( strncmp( lbuf, "maxversion",10 ) == 0 )
 		{
 			if( strstr( lbuf, "=" ) ==  NULL )
 			{
@@ -633,7 +633,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 			return 0;
 		}
 
-		if( strcmp( lbuf, "minversion" ) != 0 )
+		if( strncmp( lbuf, "minversion",10 ) == 0 )
 		{
 			if( strstr( lbuf, "=" ) ==  NULL )
 			{
@@ -678,7 +678,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 			return 0;
 		}
 
-		if( strcmp( lbuf, "amount" ) != 0 )
+		if( strncmp( lbuf, "amount",6 ) == 0 )
 		{
 			if( strstr( lbuf, "=" ) ==  NULL )
 			{
