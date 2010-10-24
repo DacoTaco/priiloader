@@ -20,6 +20,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 */
 //#define DEBUG
+#ifdef DEBUG
+#define gdprintf gprintf
+#else
+#define gdprintf(...)
+#endif
+
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1361,12 +1367,14 @@ void SetSettings( void )
 						settings->UseSystemMenuIOS = false;
 						if(settings->SystemMenuIOS == 0)
 						{
-							while( (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) < 3  || (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) > 256 )
+							u16 counter = 0;
+							while( ((u32)(TitleIDs[IOS_off]&0xFFFFFFFF) < 3  || (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) > 256) && counter < 256 )
 							{
 								if( (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) > 256 )
 									IOS_off--;
 								else
 									IOS_off++;
+								counter++;
 							}
 							settings->SystemMenuIOS = (u32)(TitleIDs[IOS_off]&0xFFFFFFFF);
 						}
@@ -1509,7 +1517,7 @@ void SetSettings( void )
 			PrintFormat( cur_off==12,0, 128+176,"   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
 			if(!settings->UseSystemMenuIOS)
 			{
-				PrintFormat( cur_off==13, 0, 128+176, "     IOS to use for SM:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
+				PrintFormat( cur_off==13, 0, 128+192, "     IOS to use for SM:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
 			}
 			else
 			{
@@ -1670,29 +1678,25 @@ s8 BootDolFromMem( u8 *dolstart )
 		ElfHdr.e_ident[EI_MAG2] == 'L' ||
 		ElfHdr.e_ident[EI_MAG3] == 'F' )
 	{
-#ifdef DEBUG
-		gprintf("BootDolFromMem : ELF Found\n");
-		gprintf("Type:      \t%04X\n", ElfHdr.e_type );
-		gprintf("Machine:   \t%04X\n", ElfHdr.e_machine );
-		gprintf("Version:  %08X\n", ElfHdr.e_version );
-		gprintf("Entry:    %08X\n", ElfHdr.e_entry );
-		gprintf("Flags:    %08X\n", ElfHdr.e_flags );
-		gprintf("EHsize:    \t%04X\n\n", ElfHdr.e_ehsize );
+		gdprintf("BootDolFromMem : ELF Found\n");
+		gdprintf("Type:      \t%04X\n", ElfHdr.e_type );
+		gdprintf("Machine:   \t%04X\n", ElfHdr.e_machine );
+		gdprintf("Version:  %08X\n", ElfHdr.e_version );
+		gdprintf("Entry:    %08X\n", ElfHdr.e_entry );
+		gdprintf("Flags:    %08X\n", ElfHdr.e_flags );
+		gdprintf("EHsize:    \t%04X\n\n", ElfHdr.e_ehsize );
 
-		gprintf("PHoff:    %08X\n",	ElfHdr.e_phoff );
-		gprintf("PHentsize: \t%04X\n",	ElfHdr.e_phentsize );
-		gprintf("PHnum:     \t%04X\n\n",ElfHdr.e_phnum );
+		gdprintf("PHoff:    %08X\n",	ElfHdr.e_phoff );
+		gdprintf("PHentsize: \t%04X\n",	ElfHdr.e_phentsize );
+		gdprintf("PHnum:     \t%04X\n\n",ElfHdr.e_phnum );
 
-		gprintf("SHoff:    %08X\n",	ElfHdr.e_shoff );
-		gprintf("SHentsize: \t%04X\n",	ElfHdr.e_shentsize );
-		gprintf("SHnum:     \t%04X\n",	ElfHdr.e_shnum );
-		gprintf("SHstrndx:  \t%04X\n\n",ElfHdr.e_shstrndx );
-#endif
+		gdprintf("SHoff:    %08X\n",	ElfHdr.e_shoff );
+		gdprintf("SHentsize: \t%04X\n",	ElfHdr.e_shentsize );
+		gdprintf("SHnum:     \t%04X\n",	ElfHdr.e_shnum );
+		gdprintf("SHstrndx:  \t%04X\n\n",ElfHdr.e_shstrndx );
 		if( ElfHdr.e_phnum == 0 )
 		{
-#ifdef DEBUG
-			gprintf("BootDolFromMem : Warning program header entries are zero!\n");
-#endif
+			gdprintf("BootDolFromMem : Warning program header entries are zero!\n");
 		} 
 		else 
 		{
@@ -1701,9 +1705,7 @@ s8 BootDolFromMem( u8 *dolstart )
 				Elf32_Phdr phdr;
 				ICInvalidateRange (&phdr ,sizeof( phdr ) );
 				memmove(&phdr,dolstart + (ElfHdr.e_phoff + sizeof( Elf32_Phdr ) * i) ,sizeof( phdr ) );
-#ifdef DEBUG
-				gprintf("Type:%08X Offset:%08X VAdr:%08X PAdr:%08X FileSz:%08X\n", phdr.p_type, phdr.p_offset, phdr.p_vaddr, phdr.p_paddr, phdr.p_filesz );
-#endif
+				gdprintf("Type:%08X Offset:%08X VAdr:%08X PAdr:%08X FileSz:%08X\n", phdr.p_type, phdr.p_offset, phdr.p_vaddr, phdr.p_paddr, phdr.p_filesz );
 				ICInvalidateRange ((void*)(phdr.p_vaddr | 0x80000000),phdr.p_filesz);
 				if(phdr.p_type == PT_LOAD )
 					memmove((void*)(phdr.p_vaddr | 0x80000000), dolstart + phdr.p_offset , phdr.p_filesz);
@@ -1714,9 +1716,7 @@ s8 BootDolFromMem( u8 *dolstart )
 		//however, checking for the type does the trick to make them work :)
 		if( ElfHdr.e_shnum == 0 )
 		{
-#ifdef DEBUG
-			gprintf("BootDolFromMem : Warning section header entries are zero!\n");
-#endif
+			gdprintf("BootDolFromMem : Warning section header entries are zero!\n");
 		} 
 		else 
 		{
@@ -1731,15 +1731,13 @@ s8 BootDolFromMem( u8 *dolstart )
 				if( shdr.sh_type == SHT_NULL )
 					continue;
 
-#ifdef DEBUG
 				if( shdr.sh_type > SHT_GROUP )
-					gprintf("Warning the type: %08X could be invalid!\n", shdr.sh_type );
+					gdprintf("Warning the type: %08X could be invalid!\n", shdr.sh_type );
 
 				if( shdr.sh_flags & ~0xF0000007 )
-					gprintf("Warning the flag: %08X is invalid!\n", shdr.sh_flags );
+					gdprintf("Warning the flag: %08X is invalid!\n", shdr.sh_flags );
 
-				gprintf("Type:%08X Offset:%08X Name:%08X Off:%08X Size:%08X\n", shdr.sh_type, shdr.sh_offset, shdr.sh_name, shdr.sh_addr, shdr.sh_size );
-#endif
+				gdprintf("Type:%08X Offset:%08X Name:%08X Off:%08X Size:%08X\n", shdr.sh_type, shdr.sh_offset, shdr.sh_name, shdr.sh_addr, shdr.sh_size );
 				if (shdr.sh_type == SHT_NOBITS)
 				{
 					memmove((void*)(shdr.sh_addr | 0x80000000), dolstart + shdr.sh_offset,shdr.sh_size);
@@ -1751,9 +1749,7 @@ s8 BootDolFromMem( u8 *dolstart )
 	}
 	else
 	{
-#ifdef DEBUG
-		gprintf("BootDolFromMem : DOL detected\n");
-#endif
+		gdprintf("BootDolFromMem : DOL detected\n");
 		dolhdr *dolfile;
 		dolfile = (dolhdr *) dolstart;
 		for (i = 0; i < 7; i++) {
@@ -1761,16 +1757,12 @@ s8 BootDolFromMem( u8 *dolstart )
 			ICInvalidateRange ((void *) dolfile->addressText[i],dolfile->sizeText[i]);
 			memmove ((void *) dolfile->addressText[i],dolstart+dolfile->offsetText[i],dolfile->sizeText[i]);
 		}
-#ifdef DEBUG
-		gprintf("Data Sections :\n");
-#endif
+		gdprintf("Data Sections :\n");
 		for (i = 0; i < 11; i++) {
 			if ((!dolfile->sizeData[i]) || (dolfile->offsetData[i] < 0x100)) continue;
 			memmove ((void *) dolfile->addressData[i],dolstart+dolfile->offsetData[i],dolfile->sizeData[i]);
 			DCFlushRangeNoSync ((void *) dolfile->offsetData[i],dolfile->sizeData[i]);
-#ifdef DEBUG
-			gprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (dolfile->offsetData[i]), dolfile->addressData[i], dolfile->sizeData[i]);
-#endif
+			gdprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (dolfile->offsetData[i]), dolfile->addressData[i], dolfile->sizeData[i]);
 		}
 
 		memset ((void *) dolfile->addressBSS, 0, dolfile->sizeBSS);
@@ -1971,18 +1963,14 @@ void BootMainSysMenu( u8 init )
 		error = ERROR_SYSMENU_GETTMDFAILED;
 		goto free_and_return;
 	}
-#ifdef DEBUG
-	gprintf("ios version: %u\n",(u8)rTMD->sys_version);
-#endif
+	gdprintf("ios version: %u\n",(u8)rTMD->sys_version);
 
 	//get main.dol filename
 	/*for(u32 z=0; z < rTMD->num_contents; ++z)
 	{
 		if( rTMD->contents[z].index == rTMD->num_contents )//rTMD->boot_index )
 		{
-#ifdef DEBUG
-			gprintf("content[%i] id=%08X type=%u\n", z, content->cid, content->type | 0x8001 );
-#endif
+			gdprintf("content[%i] id=%08X type=%u\n", z, content->cid, content->type | 0x8001 );
 			fileID = rTMD->contents[z].cid;
 			break;
 		}
@@ -2018,10 +2006,6 @@ void BootMainSysMenu( u8 init )
 	}
 	memset(status,0, (sizeof( fstats )+31)&(~31) );
 	r = ISFS_GetFileStats( fd, status);
-#ifdef DEBUG
-	printf("ISFS_GetFileStats(%d, %08X):%d\n", fd, status, r );
-	sleep(1);
-#endif
 	if( r < 0 || status->file_length == 0)
 	{
 		ISFS_Close( fd );
@@ -2029,9 +2013,7 @@ void BootMainSysMenu( u8 init )
 		free_pointer(status);
 		goto free_and_return;
 	}
-#ifdef DEBUG
-	printf("size:%d\n", status->file_length);
-#endif
+
 	free_pointer(status);
 	boot_hdr = (dolhdr *)memalign(32, (sizeof( dolhdr )+31)&(~31) );
 	if(boot_hdr == NULL)
@@ -2050,10 +2032,6 @@ void BootMainSysMenu( u8 init )
 		goto free_and_return;
 	}
 	r = ISFS_Read( fd, boot_hdr, sizeof(dolhdr) );
-#ifdef DEBUG
-	printf("ISFS_Read(%d, %08X, %d):%d\n", fd, hdr, sizeof(dolhdr), r );
-	sleep(1);
-#endif
 
 	if( r < 0 || r != sizeof(dolhdr) )
 	{
@@ -2074,9 +2052,7 @@ void BootMainSysMenu( u8 init )
 		if( boot_hdr->sizeText[i] && boot_hdr->addressText[i] && boot_hdr->offsetText[i] )
 		{
 			ICInvalidateRange((void*)(boot_hdr->addressText[i]), boot_hdr->sizeText[i]);
-#ifdef DEBUG
-			gprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (boot_hdr->offsetText[i]), boot_hdr->addressText[i], boot_hdr->sizeText[i]);
-#endif
+			gdprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (boot_hdr->offsetText[i]), boot_hdr->addressText[i], boot_hdr->sizeText[i]);
 			if( (((boot_hdr->addressText[i])&0xF0000000) != 0x80000000) || (boot_hdr->sizeText[i]>(10*1024*1024)) )
 			{
 				gprintf("bogus Text offset\n");
@@ -2102,9 +2078,7 @@ void BootMainSysMenu( u8 init )
 		if( boot_hdr->sizeData[i] && boot_hdr->addressData[i] && boot_hdr->offsetData[i] )
 		{
 			ICInvalidateRange((void*)(boot_hdr->addressData[i]), boot_hdr->sizeData[i]);
-#ifdef DEBUG
-			gprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr->offsetData[i]), hdr->addressData[i], hdr->sizeData[i]);
-#endif
+			gdprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (boot_hdr->offsetData[i]), boot_hdr->addressData[i], boot_hdr->sizeData[i]);
 			if( (((boot_hdr->addressData[i])&0xF0000000) != 0x80000000) || (boot_hdr->sizeData[i]>(10*1024*1024)) )
 			{
 				gprintf("bogus Data offsets\n");
@@ -2115,14 +2089,14 @@ void BootMainSysMenu( u8 init )
 			r = ISFS_Seek( fd, boot_hdr->offsetData[i], SEEK_SET );
 			if ( r < 0)
 			{
-				gprintf("ISFS_Seek error %d(offsetData)\n");
+				gdprintf("ISFS_Seek error %d(offsetData)\n");
 				ISFS_Close(fd);
 				goto free_and_return;
 			}
 			r = ISFS_Read( fd, (void*)boot_hdr->addressData[i], boot_hdr->sizeData[i] );
 			if (r < 0)
 			{
-				gprintf("ISFS_Read error %d(addressdata)\n",r);
+				gdprintf("ISFS_Read error %d(addressdata)\n",r);
 				ISFS_Close(fd);
 				goto free_and_return;
 			}
@@ -2286,7 +2260,7 @@ void BootMainSysMenu( u8 init )
 		}
 	}
 
-	ES_SetUID(TitleID);
+	//ES_SetUID(TitleID);
 	if(tstatus)
 	{
 		free_pointer( tstatus );
@@ -2305,9 +2279,7 @@ void BootMainSysMenu( u8 init )
 		//Apply patches
 		for( u32 i=0; i<hacks.size(); ++i)
 		{
-	#ifdef DEBUG
-			printf("i:%d state:%d version:%d\n", i, states[i], hacks[i].version);
-	#endif
+			gdprintf("i:%d state:%d version:%d\n", i, states[i], hacks[i].version);
 			if( states[i] == 1 )
 			{
 				if( hacks[i].version != rTMD->title_version )
@@ -2315,9 +2287,7 @@ void BootMainSysMenu( u8 init )
 
 				for( u32 z=0; z < hacks[i].value.size(); ++z )
 				{
-	#ifdef DEBUG
-					printf("%08X:%08X\n", hacks[i].offset[z], hacks[i].value[z] );
-	#endif
+					gdprintf("%08X:%08X\n", hacks[i].offset[z], hacks[i].value[z] );
 					*(vu32*)(hacks[i].offset[z]) = hacks[i].value[z];
 					DCFlushRange((void*)(hacks[i].offset[z]), 4);
 				}
@@ -2453,17 +2423,90 @@ void InstallLoadDOL( void )
 								flag++;
 								continue;
 							}
-							if( (strstr( tempname, ".dol") != NULL) ||
-								(strstr( tempname, ".DOL") != NULL) ||
-								(strstr( tempname, ".elf") != NULL) ||
-								(strstr( tempname, ".ELF") != NULL) )
+							if( (strstr( tempname, "boot.dol") != NULL) ||
+								(strstr( tempname, "BOOT.DOL") != NULL) ||
+								(strstr( tempname, "boot.elf") != NULL) ||
+								(strstr( tempname, "BOOT.ELF") != NULL) )
 							{
 								Binary_struct temp;
 								temp.app_name = filename;
+#ifdef DEBUG
+								temp.app_name.push_back('(');
+								temp.app_name.push_back('d');
+								temp.app_name.push_back('o');
+								temp.app_name.push_back('l');
+								temp.app_name.push_back(')');
+#endif
 								sprintf(filepath,"%s%s",path,tempname);
 								temp.app_path.assign(filepath);
 								app_list.push_back(temp);
-								break;
+							}
+							else if( (strstr( tempname, "META.XML") != NULL) ||
+								(strstr( tempname, "Meta.xml") != NULL) ||
+								(strstr( tempname, "Meta.XML") != NULL) ||
+								(strstr( tempname, "meta.xml") != NULL) )
+							{
+								long size;
+								FILE* meta_fd;
+								char* buf;
+								std::string temp_name;
+								sprintf(filepath,"%s%s",path,tempname);
+								meta_fd = fopen(filepath,"rb");
+								if(meta_fd == NULL)
+								{
+									gdprintf("failed to open meta.xml\n");
+									continue;
+								}
+								fseek (meta_fd , 0 , SEEK_END);
+								size = ftell(meta_fd);
+								rewind (meta_fd);
+								buf = (char*)malloc(size);
+								if(!buf)
+								{
+									gdprintf("buf == NULL\n");
+									fclose(meta_fd);
+									continue;
+								}
+								memset(buf,0,size);
+								u32 temp = fread(buf,1,size,meta_fd) ;
+								if(temp != (u32)size)
+								{
+									free_pointer(buf);
+									fclose(meta_fd);
+									gdprintf("failed to read data error %d\n",temp);
+								}
+								else
+								{
+									u8 _start = 0;
+									for(u8 mem_addr = 0;mem_addr < size;mem_addr++)
+									{
+										if( _start == 0 && ( !memcmp(buf+mem_addr,"<name>",6)) )
+										{
+											mem_addr += 6;
+											_start = mem_addr;
+										}
+										else if( _start != 0 && (!memcmp(buf+mem_addr,"</name>",7) ) )
+										{
+											char _temp[mem_addr - _start];
+											strncpy(_temp,buf+_start,mem_addr - _start);
+											for(u8 i = 0;i < mem_addr - _start;i++)
+												temp_name.push_back(_temp[i]);
+											break;
+										}
+									}
+									free_pointer(buf);
+									fclose(meta_fd);
+								}
+								if(temp_name.size())
+								{
+									app_list[app_list.size() -1].app_name.clear();
+									app_list[app_list.size() -1].app_name = temp_name;
+									break;
+								}
+								else
+								{
+									gdprintf("no name found in xml D:<\n");
+								}
 							}
 						}
 						dirclose( apps );
@@ -2738,32 +2781,27 @@ void AutoBootDol( void )
 		ElfHdr->e_ident[EI_MAG2] == 'L' ||
 		ElfHdr->e_ident[EI_MAG3] == 'F' )
 	{
-#ifdef DEBUG
-		gprintf("ELF Found\n");
-		gprintf("Type:      \t%04X\n", ElfHdr->e_type );
-		gprintf("Machine:   \t%04X\n", ElfHdr->e_machine );
-		gprintf("Version:  %08X\n", ElfHdr->e_version );
-		gprintf("Entry:    %08X\n", ElfHdr->e_entry );
-		gprintf("Flags:    %08X\n", ElfHdr->e_flags );
-		gprintf("EHsize:    \t%04X\n\n", ElfHdr->e_ehsize );
+		gdprintf("ELF Found\n");
+		gdprintf("Type:      \t%04X\n", ElfHdr->e_type );
+		gdprintf("Machine:   \t%04X\n", ElfHdr->e_machine );
+		gdprintf("Version:  %08X\n", ElfHdr->e_version );
+		gdprintf("Entry:    %08X\n", ElfHdr->e_entry );
+		gdprintf("Flags:    %08X\n", ElfHdr->e_flags );
+		gdprintf("EHsize:    \t%04X\n\n", ElfHdr->e_ehsize );
 
-		gprintf("PHoff:    %08X\n",	ElfHdr->e_phoff );
-		gprintf("PHentsize: \t%04X\n",	ElfHdr->e_phentsize );
-		gprintf("PHnum:     \t%04X\n\n",ElfHdr->e_phnum );
+		gdprintf("PHoff:    %08X\n",	ElfHdr->e_phoff );
+		gdprintf("PHentsize: \t%04X\n",	ElfHdr->e_phentsize );
+		gdprintf("PHnum:     \t%04X\n\n",ElfHdr->e_phnum );
 
-		gprintf("SHoff:    %08X\n",	ElfHdr->e_shoff );
-		gprintf("SHentsize: \t%04X\n",	ElfHdr->e_shentsize );
-		gprintf("SHnum:     \t%04X\n",	ElfHdr->e_shnum );
-		gprintf("SHstrndx:  \t%04X\n\n",ElfHdr->e_shstrndx );
-#endif
+		gdprintf("SHoff:    %08X\n",	ElfHdr->e_shoff );
+		gdprintf("SHentsize: \t%04X\n",	ElfHdr->e_shentsize );
+		gdprintf("SHnum:     \t%04X\n",	ElfHdr->e_shnum );
+		gdprintf("SHstrndx:  \t%04X\n\n",ElfHdr->e_shstrndx );
 
 		if( ElfHdr->e_phnum == 0 )
+			gdprintf("Warning program header entries are zero!\n");
+		else 
 		{
-#ifdef DEBUG
-			printf("Warning program header entries are zero!\n");
-#endif
-		} else {
-
 			for( int i=0; i < ElfHdr->e_phnum; ++i )
 			{
 				r = ISFS_Seek( fd, ElfHdr->e_phoff + sizeof( Elf32_Phdr ) * i, SEEK_SET );
@@ -2790,9 +2828,7 @@ void AutoBootDol( void )
 					free_pointer(ElfHdr);
 					return;
 				}
-#ifdef DEBUG
-				gprintf("Type:%08X Offset:%08X VAdr:%08X PAdr:%08X FileSz:%08X\n", phdr->p_type, phdr->p_offset, phdr->p_vaddr, phdr->p_paddr, phdr->p_filesz );
-#endif
+				gdprintf("Type:%08X Offset:%08X VAdr:%08X PAdr:%08X FileSz:%08X\n", phdr->p_type, phdr->p_offset, phdr->p_vaddr, phdr->p_paddr, phdr->p_filesz );
 				r = ISFS_Seek( fd, phdr->p_offset, 0 );
 				if( r < 0 )
 				{
@@ -2818,12 +2854,9 @@ void AutoBootDol( void )
 			}
 		}
 		if( ElfHdr->e_shnum == 0 )
+			gdprintf("Warning section header entries are zero!\n");
+		else 
 		{
-#ifdef DEBUG
-			printf("Warning section header entries are zero!\n");
-#endif
-		} else {
-
 			Elf32_Shdr *shdr = (Elf32_Shdr *)memalign( 32, (sizeof( Elf32_Shdr )+31)&(~31) );
 			if( shdr == NULL )
 			{
@@ -2857,12 +2890,12 @@ void AutoBootDol( void )
 
 #ifdef DEBUG
 				if( shdr->sh_type > 17 )
-					printf("Warning the type: %08X could be invalid!\n", shdr->sh_type );
+					gdprintf("Warning the type: %08X could be invalid!\n", shdr->sh_type );
 
 				if( shdr->sh_flags & ~0xF0000007 )
-					printf("Warning the flag: %08X is invalid!\n", shdr->sh_flags );
+					gdprintf("Warning the flag: %08X is invalid!\n", shdr->sh_flags );
 
-				printf("Type:%08X Offset:%08X Name:%08X Off:%08X Size:%08X\n", shdr->sh_type, shdr->sh_offset, shdr->sh_name, shdr->sh_addr, shdr->sh_size );
+				gdprintf("Type:%08X Offset:%08X Name:%08X Off:%08X Size:%08X\n", shdr->sh_type, shdr->sh_offset, shdr->sh_name, shdr->sh_addr, shdr->sh_size );
 #endif
 				r = ISFS_Seek( fd, shdr->sh_offset, 0 );
 				if( r < 0 )
@@ -2921,10 +2954,7 @@ void AutoBootDol( void )
 			error = ERROR_BOOT_DOL_READ;
 			return;
 		}
-#ifdef DEBUG
-		gprintf("\nText Sections:\n");
-#endif
-
+		gdprintf("\nText Sections:\n");
 		int i=0;
 		for (i = 0; i < 6; i++)
 		{
@@ -2941,14 +2971,10 @@ void AutoBootDol( void )
 					return;
 				}
 				DCInvalidateRange( (void*)(hdr->addressText[i]), hdr->sizeText[i] );
-#ifdef DEBUG
-				gprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr->offsetText[i]), hdr->addressText[i], hdr->sizeText[i]);
-#endif
+				gdprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr->offsetText[i]), hdr->addressText[i], hdr->sizeText[i]);
 			}
 		}
-#ifdef DEBUG
-		gprintf("\nData Sections:\n");
-#endif
+		gdprintf("\nData Sections:\n");
 		// data sections
 		for (i = 0; i <= 10; i++)
 		{
@@ -2966,9 +2992,7 @@ void AutoBootDol( void )
 				}
 
 				DCInvalidateRange( (void*)(hdr->addressData[i]), hdr->sizeData[i] );
-#ifdef DEBUG
-				gprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr->offsetData[i]), hdr->addressData[i], hdr->sizeData[i]);
-#endif
+				gdprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr->offsetData[i]), hdr->addressData[i], hdr->sizeData[i]);
 			}
 		}
 
@@ -3101,9 +3125,7 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
     char file[256] ATTRIBUTE_ALIGN(32);
 	memset(file,0,256);
     sprintf(file, "/title/%08x/%08x/content/%08x.app", (u32)(id >> 32), (u32)id, app);
-#ifdef DEBUG
-	gprintf("GetTitleName : %s\n",file);
-#endif
+	gdprintf("GetTitleName : %s\n",file);
 	u32 cnt ATTRIBUTE_ALIGN(32);
 	cnt = 0;
 	IMET *data = (IMET *)memalign(32, (sizeof(IMET)+31)&(~31));
@@ -3229,9 +3251,7 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 	free_pointer(data);
 	if(str[lang][0] != '\0')
 	{
-#ifdef DEBUG
-		gprintf("GetTitleName : title %s\n",str[lang]);
-#endif
+		gdprintf("GetTitleName : title %s\n",str[lang]);
 		sprintf(name, "%s", str[lang]);
 		if (return_unicode_name && str_unprocessed[lang][1] != '\0')
 		{
@@ -3340,9 +3360,7 @@ s32 LoadListTitles( void )
 				ret = GetTitleName(rTMD->title_id,rTMD->contents[0].cid,temp_name,&temp.name_unicode[0]);
 				if ( ret != -3 && ret != -4 )
 				{
-#ifdef DEBUG
-					gprintf("LoadListTitles : added %s\n",temp_name);
-#endif
+					gdprintf("LoadListTitles : added %s\n",temp_name);
 					temp.title_id = rTMD->title_id;
 					temp.name_ascii = temp_name;
 					temp.content_id = rTMD->contents[0].cid;
@@ -4572,6 +4590,7 @@ int main(int argc, char **argv)
 		DVDStopDisc(false);
 	}
 	time(&startloop);
+	gdprintf("priiloader v%d.%d DEBUG (Sys:%d)(IOS:%d)(%s %s)\n", VERSION>>8, VERSION&0xFF, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
 
 	while(1)
 	{
@@ -4586,7 +4605,7 @@ int main(int argc, char **argv)
 		{
 			
 			
-			LoadHacks();
+			LoadHacks(true);
 			//u64 TitleID = 0x0001000030303032LL;
 
 			//u32 cnt ATTRIBUTE_ALIGN(32);
@@ -4682,9 +4701,6 @@ int main(int argc, char **argv)
 
 		if( redraw )
 		{
-#ifdef DEBUG
-			printf("\x1b[2;0Hpreloader v%d.%d DEBUG (Sys:%d)(IOS:%d)(%s %s)\n", VERSION>>8, VERSION&0xFF, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
-#else
 			if( BETAVERSION > 0 )
 			{
 				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d(beta v%d)", VERSION>>8, VERSION&0xFF, BETAVERSION&0xFF );
@@ -4694,7 +4710,6 @@ int main(int argc, char **argv)
 			PrintFormat( 0, 16, rmode->viHeight-64, "IOS v%d", (*(vu32*)0x80003140)>>16 );
 			PrintFormat( 0, 16, rmode->viHeight-48, "Systemmenu v%d", SysVersion );			
 			PrintFormat( 0, 16, rmode->viHeight-20, "Priiloader is a mod of Preloader 0.30");
-#endif
 
 			PrintFormat( cur_off==0, ((rmode->viWidth /2)-((strlen("System Menu"))*13/2))>>1, 64, "System Menu");
 			PrintFormat( cur_off==1, ((rmode->viWidth /2)-((strlen("Homebrew Channel"))*13/2))>>1, 80, "Homebrew Channel");
