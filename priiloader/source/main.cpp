@@ -2373,6 +2373,7 @@ void InstallLoadDOL( void )
 	s16 cur_off = 0;
 	s16 max_pos = 0;
 	s16 min_pos = 0;
+	u32 ret = 0;
 	while(1)
 	{
 		PollDevices();
@@ -2408,112 +2409,83 @@ void InstallLoadDOL( void )
 						flag++;
 						continue;
 					}
-					DIR_ITER* apps;
-					char path[32];
-					char tempname[MAXPATHLEN];
-					sprintf(path,"fat:/apps/%s/",filename);
-					apps = diropen(path);
-					if(apps != NULL )
+					sprintf(filepath,"fat:/apps/%s/boot.dol",filename);
+					FILE* app_bin;
+					app_bin = fopen(filepath,"rb");
+					if(!app_bin)
 					{
-						flag = 0;
-						while( dirnext (apps, tempname, &st) != -1 )
-						{
-							if(flag < 2)
-							{
-								flag++;
-								continue;
-							}
-							if( (strstr( tempname, "boot.dol") != NULL) ||
-								(strstr( tempname, "BOOT.DOL") != NULL) ||
-								(strstr( tempname, "boot.elf") != NULL) ||
-								(strstr( tempname, "BOOT.ELF") != NULL) )
-							{
-								Binary_struct temp;
-								temp.app_name = filename;
-#ifdef DEBUG
-								temp.app_name.push_back('(');
-								temp.app_name.push_back('d');
-								temp.app_name.push_back('o');
-								temp.app_name.push_back('l');
-								temp.app_name.push_back(')');
-#endif
-								sprintf(filepath,"%s%s",path,tempname);
-								temp.app_path.assign(filepath);
-								app_list.push_back(temp);
-							}
-							else if( (strstr( tempname, "META.XML") != NULL) ||
-								(strstr( tempname, "Meta.xml") != NULL) ||
-								(strstr( tempname, "Meta.XML") != NULL) ||
-								(strstr( tempname, "meta.xml") != NULL) )
-							{
-								long size;
-								FILE* meta_fd;
-								char* buf;
-								std::string temp_name;
-								sprintf(filepath,"%s%s",path,tempname);
-								meta_fd = fopen(filepath,"rb");
-								if(meta_fd == NULL)
-								{
-									gdprintf("failed to open meta.xml\n");
-									continue;
-								}
-								fseek (meta_fd , 0 , SEEK_END);
-								size = ftell(meta_fd);
-								rewind (meta_fd);
-								buf = (char*)malloc(size);
-								if(!buf)
-								{
-									gdprintf("buf == NULL\n");
-									fclose(meta_fd);
-									continue;
-								}
-								memset(buf,0,size);
-								u32 temp = fread(buf,1,size,meta_fd) ;
-								if(temp != (u32)size)
-								{
-									free_pointer(buf);
-									fclose(meta_fd);
-									gdprintf("failed to read data error %d\n",temp);
-								}
-								else
-								{
-									u8 _start = 0;
-									for(u8 mem_addr = 0;mem_addr < size;mem_addr++)
-									{
-										if( _start == 0 && ( !memcmp(buf+mem_addr,"<name>",6)) )
-										{
-											mem_addr += 6;
-											_start = mem_addr;
-										}
-										else if( _start != 0 && (!memcmp(buf+mem_addr,"</name>",7) ) )
-										{
-											char _temp[mem_addr - _start];
-											strncpy(_temp,buf+_start,mem_addr - _start);
-											for(u8 i = 0;i < mem_addr - _start;i++)
-												temp_name.push_back(_temp[i]);
-											break;
-										}
-									}
-									free_pointer(buf);
-									fclose(meta_fd);
-								}
-								if(temp_name.size())
-								{
-									app_list[app_list.size() -1].app_name.clear();
-									app_list[app_list.size() -1].app_name = temp_name;
-									break;
-								}
-								else
-								{
-									gdprintf("no name found in xml D:<\n");
-								}
-							}
-						}
-						dirclose( apps );
+						continue;
+					}
+					fclose(app_bin);
+					Binary_struct temp;
+					temp.app_path = filepath;
+					sprintf(filepath,"fat:/apps/%s/meta.xml",filename);
+					app_bin = fopen(filepath,"rb");
+					if(!app_bin)
+					{
+						gdprintf("failed to open meta.xml of %s\n",filename);
+						temp.app_name = filename;
+						app_list.push_back(temp);
+						continue;
+					}
+					long size;
+					char* buf;
+
+					fseek (app_bin , 0 , SEEK_END);
+					size = ftell(app_bin);
+					rewind (app_bin);
+					buf = (char*)malloc(size);
+					if(!buf)
+					{
+						gdprintf("buf == NULL\n");
+						fclose(app_bin);
+						temp.app_name = filename;
+						app_list.push_back(temp);
+						continue;
+					}
+					memset(buf,0,size);
+					ret = fread(buf,1,size,app_bin) ;
+					if(ret != (u32)size)
+					{
+						free_pointer(buf);
+						fclose(app_bin);
+						temp.app_name = filename;
+						app_list.push_back(temp);
+						gdprintf("failed to read data error %d\n",temp);
 					}
 					else
 					{
-						gprintf("WARNING: failed to open %s\n",path);
+						fclose(app_bin);
+						u8 _start = 0;
+						for(u8 mem_addr = 0;mem_addr < size;mem_addr++)
+						{
+							if( _start == 0 && ( !memcmp(buf+mem_addr,"<name>",6)) )
+							{
+								mem_addr += 6;
+								_start = mem_addr;
+							}
+							else if( _start != 0 && (!memcmp(buf+mem_addr,"</name>",7) ) )
+							{
+								char _temp[mem_addr - _start];
+								strncpy(_temp,buf+_start,mem_addr - _start);
+								for(u8 i = 0;i < mem_addr - _start;i++)
+									temp.app_name.push_back(_temp[i]);//temp_name.push_back(_temp[i]);
+								break;
+							}
+						}
+						free_pointer(buf);
+					}
+					if(temp.app_name.size())
+					{
+						app_list.push_back(temp);
+						continue;
+					}
+					else
+					{
+						temp.app_name = filename;
+						app_list.push_back(temp);
+						gdprintf("no name found in xml D:<\n");
+						continue;
 					}
 				}
 				dirclose( dir );
