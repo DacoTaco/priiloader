@@ -95,6 +95,7 @@ typedef struct {
 typedef struct {
 	std::string app_name;
 	std::string app_path;
+	u8 HW_AHBPROT_ENABLED;
 } Binary_struct;
 
 extern Settings *settings;
@@ -309,7 +310,7 @@ void ClearScreen()
 }
 bool isIOSstub(u8 ios_number)
 {
-	u32 tmd_size = NULL;
+	u32 tmd_size = 0;
 	tmd_view *ios_tmd;
 
 	ES_GetTMDViewSize(0x0000000100000000ULL | ios_number, &tmd_size);
@@ -1661,7 +1662,7 @@ void DVDStopDisc( bool do_async )
 	else
 		gprintf("DVDStopDisc : IOS_Open error %d\n",di_fd);
 }
-s8 BootDolFromMem( u8 *dolstart ) 
+s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED ) 
 {
 	if(dolstart == NULL)
 		return -1;
@@ -1788,7 +1789,7 @@ s8 BootDolFromMem( u8 *dolstart )
 	ShutdownDevices();
 	DVDStopDisc(false);
 
-	if(ReloadedIOS)
+	if(!HW_AHBPROT_ENABLED || read32(0x0d800064) != 0xFFFFFFFF )
 	{
 		if( isIOSstub(58) )
 		{
@@ -1847,7 +1848,7 @@ s8 BootDolFromMem( u8 *dolstart )
 	return -1;
 }
 
-s8 BootDolFromDir( const char* Dir )
+s8 BootDolFromDir( const char* Dir , u8 HW_AHBPROT_ENABLED )
 {
 	if (Mounted == 0)
 	{
@@ -1882,7 +1883,7 @@ s8 BootDolFromDir( const char* Dir )
 			}
 			else
 			{
-				BootDolFromMem(buffer);
+				BootDolFromMem(buffer,HW_AHBPROT_ENABLED);
 				free_pointer(buffer);
 				return -5;
 			}
@@ -2252,7 +2253,6 @@ void BootMainSysMenu( u8 init )
 		if( r < 0 )
 		{	
 			error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
-			//__IOS_LaunchNewIOS ( (u8)rTMD->sys_version );
 			gprintf("ES_Identify error %d\n",r);
 			__IOS_InitializeSubsystems();
 			WPAD_Init();
@@ -2318,7 +2318,7 @@ void BootMainSysMenu( u8 init )
 							}
 							if ( !memcmp(mem_block+add, temp_hash ,sizeof(temp_hash)) )
 							{
-								gprintf("Found %s @ 0x%X, patching hash # %d...\n",hacks_hash[i].desc.c_str(), add+(u32)mem_block,y);
+								gprintf("Found %s @ 0x%X, patching hash # %d...\n",hacks_hash[i].desc.c_str(), add+(u32)mem_block,y+1);
 								for(u32 z = 0;z < hacks_hash[i].patches[y].patch.size(); z++)
 								{
 									temp_patch[z] = hacks_hash[i].patches[y].patch[z];
@@ -2334,7 +2334,6 @@ void BootMainSysMenu( u8 init )
 			} // end general hacks loop
 		} //end if hacks > 0
 	} // end if classic hack are enabled
-	//exit(0);
 	ShutdownDevices();
 	USB_Deinitialize();
 	if(init == 1 || SGetSetting(SETTING_SHOWGECKOTEXT) != 0 )
@@ -2418,6 +2417,7 @@ void InstallLoadDOL( void )
 					}
 					fclose(app_bin);
 					Binary_struct temp;
+					temp.HW_AHBPROT_ENABLED = 0;
 					temp.app_path = filepath;
 					sprintf(filepath,"fat:/apps/%s/meta.xml",filename);
 					app_bin = fopen(filepath,"rb");
@@ -2451,26 +2451,29 @@ void InstallLoadDOL( void )
 						fclose(app_bin);
 						temp.app_name = filename;
 						app_list.push_back(temp);
-						gdprintf("failed to read data error %d\n",temp);
+						gdprintf("failed to read data error %d\n",ret);
 					}
 					else
 					{
 						fclose(app_bin);
 						u8 _start = 0;
-						for(u8 mem_addr = 0;mem_addr < size;mem_addr++)
+						for(u16 mem_addr = 0;mem_addr < size;mem_addr++)
 						{
 							if( _start == 0 && ( !memcmp(buf+mem_addr,"<name>",6)) )
 							{
 								mem_addr += 6;
 								_start = mem_addr;
 							}
-							else if( _start != 0 && (!memcmp(buf+mem_addr,"</name>",7) ) )
+							else if( temp.app_name.size() == 0 && (!memcmp(buf+mem_addr,"</name>",7) ) )
 							{
 								char _temp[mem_addr - _start];
 								strncpy(_temp,buf+_start,mem_addr - _start);
 								for(u8 i = 0;i < mem_addr - _start;i++)
-									temp.app_name.push_back(_temp[i]);//temp_name.push_back(_temp[i]);
-								break;
+									temp.app_name.push_back(_temp[i]);
+							}
+							else if(!memcmp(buf+mem_addr,"<no_ios_reload/>",16) )
+							{
+								temp.HW_AHBPROT_ENABLED = 1;
 							}
 						}
 						free_pointer(buf);
@@ -2509,6 +2512,7 @@ void InstallLoadDOL( void )
 						(strstr( filename, ".ELF") != NULL) )
 					{
 						Binary_struct temp;
+						temp.HW_AHBPROT_ENABLED = 0;
 						temp.app_name = filename;
 						sprintf(filepath,"fat:/%s",filename);
 						temp.app_path.assign(filepath);
@@ -2551,7 +2555,7 @@ void InstallLoadDOL( void )
 			}
 			for(; i<=(min_pos + max_pos); i++ )
 			{
-				PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "%s", app_list[i].app_name.c_str());
+				PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "%s%s", app_list[i].app_name.c_str(),(read32(0x0d800064) == 0xFFFFFFFF && app_list[i].HW_AHBPROT_ENABLED != 0)?"(AHBPROT Available)":" ");
 			}
 			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Install File"))*13/2))>>1, rmode->viHeight-64, "A(A) Install FIle");
 			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("1(Z) Load File   "))*13/2))>>1, rmode->viHeight-48, "1(Y) Load File");
@@ -2662,7 +2666,7 @@ void InstallLoadDOL( void )
 			ClearScreen();
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Loading binary..."))*13/2))>>1, 208, "Loading binary...");
 			gprintf("loading %s\n",app_list[cur_off].app_path.c_str());
-			BootDolFromDir(app_list[cur_off].app_path.c_str());
+			BootDolFromDir(app_list[cur_off].app_path.c_str(),app_list[cur_off].HW_AHBPROT_ENABLED);
 			sleep(1);
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to load binary"))*13/2))>>1, 224, "failed to load binary");
 			sleep(3);
@@ -3241,28 +3245,31 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 }
 s32 LoadListTitles( void )
 {
+	IOS_ReloadIOS(36);
+	ReloadedIOS = 1;
 	s32 ret;
 	u32 count = 0;
 	ret = ES_GetNumTitles(&count);
 	if (ret < 0)
 	{
-		gprintf("GetNumTitles error %d\n",ret);
+		gprintf("GetNumTitles error %x\n",ret);
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the amount of installed titles!"))*13/2))>>1, 208+16, "Failed to get the amount of installed titles!");
-		sleep(3);
-		return ret;
-	}
-	//gprintf("%u titles\n",count);
-	static u64 title_list[256] ATTRIBUTE_ALIGN(32);
-	ret = ES_GetTitles(title_list, count);
-	if (ret < 0) {
-		gprintf("ES_GetTitles error %d\n",ret);
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+16, "Failed to get the titles list!");
 		sleep(3);
 		return ret;
 	}
 	if(count == 0)
 	{
-		gprintf("count == 0\n",ret);
+		gprintf("count == 0\n");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+16, "Failed to get the titles list!");
+		sleep(3);
+		return ret;
+	}
+	gdprintf("%u titles\n",count);
+	static u64 title_list[256] ATTRIBUTE_ALIGN(32);
+	memset(title_list,0,sizeof(title_list));
+	ret = ES_GetTitles(title_list, count);
+	if (ret < 0) {
+		gprintf("ES_GetTitles error %x\n",-ret);
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+16, "Failed to get the titles list!");
 		sleep(3);
 		return ret;
@@ -3290,8 +3297,8 @@ s32 LoadListTitles( void )
 				ret = ES_GetTMDViewSize(title_list[i], &tmd_size);
 				if(ret<0)
 				{
-					gprintf("WARNING : GetTMDViewSize error %d on title %x-%x\n",ret,title_list[i],(u32)title_list[i]);
-					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMDSize error on 00000000-00000000!"))*13/2))>>1, 208+16, "WARNING : TMDSize error on %08X-%08X",title_list[i],(u32)title_list[i]);
+					gprintf("WARNING : GetTMDViewSize error %d on title %x-%x\n",ret,(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
+					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMDSize error on 00000000-00000000!"))*13/2))>>1, 208+16, "WARNING : TMDSize error on %08X-%08X",(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
 					sleep(3);
 					ClearScreen();
 					continue;
@@ -3307,8 +3314,8 @@ s32 LoadListTitles( void )
 				ret = ES_GetTMDView(title_list[i], (u8*)rTMD, tmd_size);
 				if(ret<0)
 				{
-					gprintf("WARNING : GetTMDView error %d on title %x-%x\n",ret,title_list[i],(u32)title_list[i]);
-					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMD error on 00000000-00000000!"))*13/2))>>1, 208+16, "WARNING : TMD error on %08X-%08X!",title_list[i],(u32)title_list[i]);
+					gprintf("WARNING : GetTMDView error %d on title %x-%x\n",ret,(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
+					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMD error on 00000000-00000000!"))*13/2))>>1, 208+16, "WARNING : TMD error on %08X-%08X!",(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
 					sleep(3);
 					if(rTMD)
 					{
@@ -3317,22 +3324,17 @@ s32 LoadListTitles( void )
 					ClearScreen();
 					continue;
 				}
+				memset(temp_name,0,sizeof(temp_name));
 				sprintf(temp_name,"????????");
 				title_info temp;
-				/*typedef struct {
-					u64 title_id;
-					std::string name_ascii;
-					u8 name_unicode[84];
-					u32 content_id;
-				} title_info;*/
 				temp.title_id = 0;
 				temp.name_ascii.clear();
 				memset(temp.name_unicode,0,84);
 				temp.content_id = 0;
-				ret = GetTitleName(rTMD->title_id,rTMD->contents[0].cid,temp_name,&temp.name_unicode[0]);
+				ret = GetTitleName(rTMD->title_id,rTMD->contents[0].cid,temp_name,temp.name_unicode);
 				if ( ret != -3 && ret != -4 )
 				{
-					gdprintf("LoadListTitles : added %s\n",temp_name);
+					gprintf("LoadListTitles : added %s - %x %x\n",temp_name,temp.name_unicode[0],temp.name_unicode[1]);
 					temp.title_id = rTMD->title_id;
 					temp.name_ascii = temp_name;
 					temp.content_id = rTMD->contents[0].cid;
@@ -4291,7 +4293,7 @@ void CheckForUpdate()
 		free_pointer(UpdateFile);
 		sleep(1);
 		//load the fresh installer
-		BootDolFromMem(Data);
+		BootDolFromMem(Data,1);
 		free_pointer(Data);
 		PrintFormat( 1, ((640/2)-((strlen("Error Booting Update dol"))*13/2))>>1, 224, "Error Booting Update dol");
 		sleep(5);
