@@ -769,11 +769,11 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 					sscanf(s,"%x",&hash);
 					if((hash >> 24))
 						size = 4;
-					else if((hash << 8 >> 24))
+					else if((hash & 0xFF0000) >> 16)
 						size = 3;
-					else if(((hash >> 8 << 24) >> 24))
+					else if((hash & 0xFF00) >> 8)
 						size = 2;
-					else if(((uint8_t)hash))
+					else if(hash & 0xFF)
 						size = 1;
 					else
 						size = 0;
@@ -782,11 +782,11 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 						case 4: //full u32 like 0x90FFAADD
 							temp.hash.push_back(hash >> 24); //first byte of u32 0x90
 						case 3:
-							temp.hash.push_back(hash << 8 >> 24); //second byte of u32 0xFF
+							temp.hash.push_back((hash & 0xFF0000) >> 16); //second byte of u32 0xFF
 						case 2:
-							temp.hash.push_back((hash >> 8 << 24) >> 24); //3th byte of u32 0xAA
+							temp.hash.push_back((hash & 0xFF00) >> 8); //3th byte of u32 0xAA
 						case 1:
-							temp.hash.push_back((uint8_t)hash); // 4th byte of u32 0xDD
+							temp.hash.push_back(hash & 0xFF); // 4th byte of u32 0xDD
 						default:
 							break;
 					}
@@ -823,11 +823,11 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 					sscanf(s,"%x",&patch);
 					if((patch >> 24))
 						size = 4;
-					else if((patch << 8 >> 24))
+					else if((patch & 0xFF0000) >> 16)
 						size = 3;
-					else if(((patch >> 8 << 24) >> 24))
+					else if((patch & 0xFF00) >> 8)
 						size = 2;
-					else if(((uint8_t)patch))
+					else if(patch & 0xFF)
 						size = 1;
 					else
 						size = 0;
@@ -836,11 +836,11 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 						case 4: // full u32 -> 4 bytes
 							temp.patch.push_back(patch >> 24); //first byte of u32 -> 0x90
 						case 3: // 24 bit, 3 bytes
-							temp.patch.push_back(patch << 8 >> 24); //second byte of u32 -> 0xFF
+							temp.patch.push_back((patch & 0xFF0000) >> 16); //second byte of u32 -> 0xFF
 						case 2: // u16, 2 bytes
-							temp.patch.push_back((patch >> 8 << 24) >> 24); //3th byte of u32 -> 0xAA
+							temp.patch.push_back((patch & 0xFF00) >> 8); //3th byte of u32 -> 0xAA
 						case 1: // u8, 1 byte
-							temp.patch.push_back((uint8_t)patch); // 4th byte of u32 -> 0xDD
+							temp.patch.push_back(patch & 0xFF); // 4th byte of u32 -> 0xDD
 						default:
 							break;
 					}
