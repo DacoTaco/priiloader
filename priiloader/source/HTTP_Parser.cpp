@@ -114,7 +114,7 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket
 				net_close(socket);
 			return -8;
 		}
-		Data = (u8*)memalign( 32, file_size );
+		Data = (u8*)malloc( file_size );
 		if (Data == NULL)
 		{
 			return -9;

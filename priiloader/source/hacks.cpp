@@ -49,14 +49,18 @@ char *GetLine( char *astr, unsigned int len)
 	}
 
 	unsigned int llen = 0;
-
 	if( strstr(	astr+foff, "\n" ) == NULL )
 	{
 		if( strstr( astr+foff, "\0" ) == NULL )
 		{
 			return 0;
 		}
-		llen = strstr( astr+foff, "\0" ) - (astr+foff);
+		if(strstr( astr+foff, "\0" ) == (astr+foff))
+		{
+			llen = len - foff;
+		}
+		else
+			llen = strstr( astr+foff, "\0" ) - (astr+foff);
 		if( llen == 0 )
 		{
 			return NULL;
@@ -464,7 +468,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 			free_pointer(states_hash);
 		}
 	}
-	if(foff > 0)
+	if(foff != 0)
 		foff=0;
 	bool mode = true;
 	s32 fd=0;
@@ -541,6 +545,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 	patch_struct temp;
 	temp.hash.clear();
 	temp.patch.clear();
+	hack_hash new_hacks_hash;
 
 	lbuf = GetLine( str, size );
 	if( lbuf == NULL )
@@ -574,7 +579,6 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 			return 0;
 		}
 
-		hack_hash new_hacks_hash;
 		new_hacks_hash.desc = s;
 		free_pointer(lbuf);
 
@@ -723,7 +727,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 			} 
 			if( lbuf == NULL || new_hacks_hash.patches.size() == new_hacks_hash.amount )
 			{
-				if(new_hacks_hash.patches.size() != new_hacks_hash.amount)
+				if(	new_hacks_hash.patches.size() != new_hacks_hash.amount)
 				{
 					if( lbuf == NULL )
 					{
@@ -858,6 +862,11 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 			free_pointer(lbuf);
 		}
 		hacks_hash.push_back(new_hacks_hash);
+		new_hacks_hash.patches.clear();
+		new_hacks_hash.desc.clear();
+		new_hacks_hash.amount = 0;
+		new_hacks_hash.max_version = 0;
+		new_hacks_hash.min_version = 0;
 	}
 	free_pointer(buf);
 

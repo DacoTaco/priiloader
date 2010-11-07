@@ -2382,15 +2382,15 @@ void InstallLoadDOL( void )
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Reloading Binaries..."))*13/2))>>1, 208, "Reloading Binaries...");
 			sleep(2);
 			app_list.clear();
-			if(Mounted == 0)
-			{
-				ClearScreen();
-				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("NO fat device found!"))*13/2))>>1, 208, "NO fat device found!");
-				sleep(5);
-				return;
-			}
 			reload = 1;
 			redraw=1;
+		}
+		if(Mounted == 0)
+		{
+			ClearScreen();
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("NO fat device found!"))*13/2))>>1, 208, "NO fat device found!");
+			sleep(5);
+			return;
 		}
 		if(reload)
 		{
@@ -3245,8 +3245,6 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 }
 s32 LoadListTitles( void )
 {
-	IOS_ReloadIOS(36);
-	ReloadedIOS = 1;
 	s32 ret;
 	u32 count = 0;
 	ret = ES_GetNumTitles(&count);
@@ -3524,15 +3522,16 @@ void CheckForUpdate()
 		sleep(5);
 		return;
 	}
-	UpdateStruct *UpdateFile = NULL;
-	s32 file_size = GetHTTPFile("www.dacotaco.com","/priiloader/version.dat",(u8*&)UpdateFile,0);
+	UpdateStruct UpdateFile;
+	u8* buffer = 0;
+	s32 file_size = GetHTTPFile("www.dacotaco.com","/priiloader/version.dat",buffer,0);
 	if ( file_size <= 0 || file_size != (s32)sizeof(UpdateStruct))
 	{
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("error getting versions from server"))*13/2))>>1, 224, "error getting versions from server");
 		if (file_size < -9)
 		{
 			//free pointer
-			free_pointer(UpdateFile);
+			free_pointer(buffer);
 		}
 		if (file_size < 0 && file_size > -4)
 		{
@@ -3552,10 +3551,12 @@ void CheckForUpdate()
 			gprintf("CheckForUpdate : file_size != UpdateStruct\n");
 		}
 		sleep(5);
-		free_pointer(UpdateFile);
+		free_pointer(buffer);
 		net_deinit();
 		return;
 	}
+	memcpy(&UpdateFile,buffer,sizeof(UpdateStruct));
+	free_pointer(buffer);
 
 
 //generate update list if any
@@ -3569,12 +3570,12 @@ void CheckForUpdate()
 	u8 redraw = 1;
 	s8 cur_off = 0;
 	s8 Language = 0;
-	UpdateStruct* UpdateGer = NULL;
-	UpdateStruct* UpdateFr = NULL;
-	UpdateStruct* UpdateSp = NULL;
+	UpdateStruct UpdateGer;
+	UpdateStruct UpdateFr;
+	UpdateStruct UpdateSp;
 	ClearScreen();
 	//make a nice list of the updates
-	if ( (VERSION < UpdateFile->version) || (VERSION == UpdateFile->version && EN_BETAVERSION > 0) )
+	if ( (VERSION < UpdateFile.version) || (VERSION == UpdateFile.version && EN_BETAVERSION > 0) )
 		VersionUpdates = 1;
 	else
 	//to make the if short :
@@ -3583,8 +3584,8 @@ void CheckForUpdate()
 	// - the current version +1 should == the beta OR the version == the beta IF a beta is installed
 	if ( 
 		SGetSetting(SETTING_SHOWBETAUPDATES) && 
-		(EN_BETAVERSION < UpdateFile->beta_number) && 
-		( ( (VERSION) +1 == UpdateFile->beta_version && EN_BETAVERSION == 0 ) || ( VERSION == UpdateFile->beta_version && EN_BETAVERSION > 0 ) ) 
+		(EN_BETAVERSION < UpdateFile.beta_number) && 
+		( ( (VERSION) +1 == UpdateFile.beta_version && EN_BETAVERSION == 0 ) || ( VERSION == UpdateFile.beta_version && EN_BETAVERSION > 0 ) ) 
 		)
 	{
 		BetaUpdates = 1;
@@ -3596,7 +3597,7 @@ void CheckForUpdate()
 		{
 			if ( VersionUpdates )
 			{
-				PrintFormat( cur_off == 0, 16, 64+(16*1), "Update to %d.%d",UpdateFile->version >> 8,UpdateFile->version&0xFF);
+				PrintFormat( cur_off == 0, 16, 64+(16*1), "Update to %d.%d",UpdateFile.version >> 8,UpdateFile.version&0xFF);
 			}
 			else
 			{
@@ -3607,7 +3608,7 @@ void CheckForUpdate()
 				
 				if ( BetaUpdates )
 				{
-					PrintFormat( cur_off==1, 16, 64+(16*2), "Update to %d.%d beta %d",UpdateFile->beta_version >> 8,UpdateFile->beta_version&0xFF, UpdateFile->beta_number);
+					PrintFormat( cur_off==1, 16, 64+(16*2), "Update to %d.%d beta %d",UpdateFile.beta_version >> 8,UpdateFile.beta_version&0xFF, UpdateFile.beta_number);
 				}
 				else
 				{
@@ -3636,7 +3637,6 @@ void CheckForUpdate()
 
 		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 		{
-			free_pointer(UpdateFile);
 			return;
 		}
 		else if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
@@ -3696,11 +3696,15 @@ void CheckForUpdate()
 					//info : http://catcode.com/teachmod/numeric.html
 					//since we dont have them yet ill set them as autofailure :)
 					failure = 6;
-					s32 file_size = GetHTTPFile("priiloader.baduncles.de","/update/version.dat",(u8*&)UpdateGer,0);
+					s32 file_size = GetHTTPFile("priiloader.baduncles.de","/update/version.dat",buffer,0);
 					if(file_size < 0)
 					{
 						failure += 1;	
 					}
+					else
+						memcpy(&UpdateGer,buffer,sizeof(UpdateStruct));
+					free_pointer(buffer);
+
 					//add download other languages' version.dat here
 					
 
@@ -3713,12 +3717,12 @@ void CheckForUpdate()
 					else
 					{
 						//it downloaded, lets check for updates.
-						if ( (VERSION < UpdateGer->version) || (VERSION == UpdateGer->version && GER_BETAVERSION > 0) )
+						if ( (VERSION < UpdateGer.version) || (VERSION == UpdateGer.version && GER_BETAVERSION > 0) )
 							LangUpdate += 1;
 						else if ( 
 							SGetSetting(SETTING_SHOWBETAUPDATES) && 
-							(GER_BETAVERSION < UpdateGer->beta_number) && 
-							( ( (VERSION) +1 == UpdateGer->beta_version && GER_BETAVERSION == 0 ) || ( VERSION == UpdateGer->beta_version && GER_BETAVERSION > 0 ) || (VERSION == UpdateGer->beta_version && BETAVERSION > 0 ) )
+							(GER_BETAVERSION < UpdateGer.beta_number) && 
+							( ( (VERSION) +1 == UpdateGer.beta_version && GER_BETAVERSION == 0 ) || ( VERSION == UpdateGer.beta_version && GER_BETAVERSION > 0 ) || (VERSION == UpdateGer.beta_version && BETAVERSION > 0 ) )
 							)
 						{
 							LangBetaUpdate+= 1;
@@ -3731,12 +3735,12 @@ void CheckForUpdate()
 					else
 					{
 						//it downloaded, lets check for updates.
-						if ( (VERSION < UpdateFr->version) || (VERSION == UpdateFr->version && FR_BETAVERSION > 0) )
+						if ( (VERSION < UpdateFr.version) || (VERSION == UpdateFr.version && FR_BETAVERSION > 0) )
 							LangUpdate += 2;
 						else if ( 
 							SGetSetting(SETTING_SHOWBETAUPDATES) && 
-							(FR_BETAVERSION < UpdateFr->beta_number) && 
-							( ( (VERSION) +1 == UpdateFr->beta_version && FR_BETAVERSION == 0 ) || ( VERSION == UpdateFr->beta_version && FR_BETAVERSION > 0 ) || (VERSION == UpdateFr->beta_version && BETAVERSION > 0 ) )
+							(FR_BETAVERSION < UpdateFr.beta_number) && 
+							( ( (VERSION) +1 == UpdateFr.beta_version && FR_BETAVERSION == 0 ) || ( VERSION == UpdateFr.beta_version && FR_BETAVERSION > 0 ) || (VERSION == UpdateFr.beta_version && BETAVERSION > 0 ) )
 							)
 						{
 							LangBetaUpdate+= 2;
@@ -3748,12 +3752,12 @@ void CheckForUpdate()
 					}
 					else
 					{
-						if ( (VERSION < UpdateSp->version) || (VERSION == UpdateSp->version && SP_BETAVERSION > 0) )
+						if ( (VERSION < UpdateSp.version) || (VERSION == UpdateSp.version && SP_BETAVERSION > 0) )
 							LangUpdate += 4;
 						else if ( 
 							SGetSetting(SETTING_SHOWBETAUPDATES) && 
-							(SP_BETAVERSION < UpdateSp->beta_number) && 
-							( ( (VERSION) +1 == UpdateSp->beta_version && SP_BETAVERSION == 0 ) || ( VERSION == UpdateSp->beta_version && SP_BETAVERSION > 0 ) || (VERSION == UpdateSp->beta_version && BETAVERSION > 0 ) )
+							(SP_BETAVERSION < UpdateSp.beta_number) && 
+							( ( (VERSION) +1 == UpdateSp.beta_version && SP_BETAVERSION == 0 ) || ( VERSION == UpdateSp.beta_version && SP_BETAVERSION > 0 ) || (VERSION == UpdateSp.beta_version && BETAVERSION > 0 ) )
 							)
 						{
 							LangBetaUpdate+= 4;
@@ -3771,7 +3775,7 @@ void CheckForUpdate()
 								//german
 								if(LangUpdate & 1)
 								{
-									PrintFormat( cur_off == 0, 16, 64+(16*1), "Update to %d.%d(german)",UpdateGer->version >> 8,UpdateGer->version&0xFF);
+									PrintFormat( cur_off == 0, 16, 64+(16*1), "Update to %d.%d(german)",UpdateGer.version >> 8,UpdateGer.version&0xFF);
 								}
 								else
 								{
@@ -3779,7 +3783,7 @@ void CheckForUpdate()
 								}
 								if(LangBetaUpdate & 1)
 								{
-									PrintFormat( cur_off == 1, 16, 64+(16*2), "Update to %d.%d(german beta %d)",UpdateGer->beta_version >> 8,UpdateGer->beta_version&0xFF,UpdateGer->beta_number);
+									PrintFormat( cur_off == 1, 16, 64+(16*2), "Update to %d.%d(german beta %d)",UpdateGer.beta_version >> 8,UpdateGer.beta_version&0xFF,UpdateGer.beta_number);
 								}
 								else
 								{
@@ -3788,7 +3792,7 @@ void CheckForUpdate()
 								//french
 								if(LangUpdate & 2)
 								{
-									PrintFormat( cur_off == 2, 16, 64+(16*4), "Update to %d.%d(french)",UpdateFr->version >> 8,UpdateFr->version&0xFF);
+									PrintFormat( cur_off == 2, 16, 64+(16*4), "Update to %d.%d(french)",UpdateFr.version >> 8,UpdateFr.version&0xFF);
 								}
 								else
 								{
@@ -3796,7 +3800,7 @@ void CheckForUpdate()
 								}
 								if(LangBetaUpdate & 2)
 								{
-									PrintFormat( cur_off == 3, 16, 64+(16*5), "Update to %d.%d(french beta %d)",UpdateFr->version >> 8,UpdateFr->version&0xFF,UpdateFr->beta_number);
+									PrintFormat( cur_off == 3, 16, 64+(16*5), "Update to %d.%d(french beta %d)",UpdateFr.version >> 8,UpdateFr.version&0xFF,UpdateFr.beta_number);
 								}
 								else
 								{
@@ -3805,7 +3809,7 @@ void CheckForUpdate()
 								//spanish (if it will even get done some day lol)
 								if(LangUpdate & 4)
 								{
-									PrintFormat( cur_off == 5, 16, 64+(16*7), "Update to %d.%d(spanish)",UpdateSp->version >> 8,UpdateSp->version&0xFF);
+									PrintFormat( cur_off == 5, 16, 64+(16*7), "Update to %d.%d(spanish)",UpdateSp.version >> 8,UpdateSp.version&0xFF);
 								}
 								else
 								{
@@ -3813,7 +3817,7 @@ void CheckForUpdate()
 								}
 								if(LangBetaUpdate & 4)
 								{
-									PrintFormat( cur_off == 6, 16, 64+(16*8), "Update to %d.%d(spanish beta %d)",UpdateSp->version >> 8,UpdateSp->version&0xFF,UpdateSp->beta_number);
+									PrintFormat( cur_off == 6, 16, 64+(16*8), "Update to %d.%d(spanish beta %d)",UpdateSp.version >> 8,UpdateSp.version&0xFF,UpdateSp.beta_number);
 								}
 								else
 								{
@@ -3870,12 +3874,6 @@ void CheckForUpdate()
 						else
 						{
 							//reset everything from language stuff. we are going back to the main menu :')
-							if(UpdateGer)
-								free_pointer(UpdateGer);
-							if(UpdateFr)
-								free_pointer(UpdateFr);
-							if(UpdateSp)
-								free_pointer(UpdateSp);
 							cur_off = 0;
 						}
 					}
@@ -3884,14 +3882,7 @@ void CheckForUpdate()
 						PrintFormat( 1, ((rmode->viWidth /2)-((strlen("no updates found"))*13/2))>>1, 224, "no updates found");
 						sleep(2);
 						ClearScreen();
-						if(UpdateGer)
-							free_pointer(UpdateGer);
-						if(UpdateFr)
-							free_pointer(UpdateFr);
-						if(UpdateSp)
-							free_pointer(UpdateSp);
 						//no updates o.o;
-
 					}
 					redraw = 1;
 				} //exit if of if they agreed or not
@@ -4028,16 +4019,6 @@ void CheckForUpdate()
 			if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 			{
 				free_pointer(Changelog);
-				free_pointer(UpdateFile);
-				if (Language > 0)
-				{
-					if(UpdateGer)
-						free_pointer(UpdateGer);
-					if(UpdateFr)
-						free_pointer(UpdateFr);
-					if(UpdateSp)
-						free_pointer(UpdateSp);
-				}
 				ClearScreen();
 				return;
 			}
@@ -4111,24 +4092,22 @@ void CheckForUpdate()
 //if a language was downloaded we shall place all the data of the selected lang into UpdateFile. and if a beta was chosen update DownloadedBeta with the info
 	if(Language != 0)
 	{
-		if(UpdateFile)
-			free_pointer(UpdateFile);
 		switch(Language)
 		{
 		case 2:
 			DownloadedBeta = 1;
 		case 1:
-			UpdateFile = UpdateGer;
+			memcpy(&UpdateFile,&UpdateGer,sizeof(UpdateStruct));//UpdateFile = UpdateGer;
 			break;
 		case 4:
 			DownloadedBeta = 1;
 		case 3:
-			UpdateFile = UpdateFr;
+			memcpy(&UpdateFile,&UpdateFr,sizeof(UpdateStruct));//UpdateFile = UpdateFr;
 			break;
 		case 6:
 			DownloadedBeta = 1;
 		case 5:
-			UpdateFile = UpdateSp;
+			memcpy(&UpdateFile,&UpdateSp,sizeof(UpdateStruct));//UpdateFile = UpdateSp;
 			break;
 		}
 	}
@@ -4139,13 +4118,13 @@ void CheckForUpdate()
 		gprintf("downloading %s\n",DownloadedBeta?"beta":"update");
 		if(DownloadedBeta)
 		{
-			PrintFormat( 1, ((640/2)-((strlen("downloading   .   beta   ..."))*13/2))>>1, 208, "downloading %d.%d beta %d...",UpdateFile->beta_version >> 8,UpdateFile->beta_version&0xFF, UpdateFile->beta_number);
+			PrintFormat( 1, ((640/2)-((strlen("downloading   .   beta   ..."))*13/2))>>1, 208, "downloading %d.%d beta %d...",UpdateFile.beta_version >> 8,UpdateFile.beta_version&0xFF, UpdateFile.beta_number);
 			file_size = GetHTTPFile("www.dacotaco.com","/priiloader/Priiloader_Beta.dol",Data,0);
 			//download beta
 		}
 		else
 		{
-			PrintFormat( 1, ((640/2)-((strlen("downloading   .  ..."))*13/2))>>1, 208, "downloading %d.%d ...",UpdateFile->version >> 8,UpdateFile->version&0xFF);
+			PrintFormat( 1, ((640/2)-((strlen("downloading   .  ..."))*13/2))>>1, 208, "downloading %d.%d ...",UpdateFile.version >> 8,UpdateFile.version&0xFF);
 			file_size = GetHTTPFile("www.dacotaco.com","/priiloader/Priiloader_Update.dol",Data,0);
 			//download Update
 		}
@@ -4196,7 +4175,6 @@ void CheckForUpdate()
 		}
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("error getting file from server"))*13/2))>>1, 224, "error getting file from server");
 		sleep(2);
-		free_pointer(UpdateFile);
 		return;
 	}
 	else
@@ -4222,36 +4200,36 @@ void CheckForUpdate()
 		if (!DownloadedBeta)
 		{
 			gprintf("%08X %08X %08X %08X %08X\n"
-					,UpdateFile->SHA1_Hash[0]
-					,UpdateFile->SHA1_Hash[1]
-					,UpdateFile->SHA1_Hash[2]
-					,UpdateFile->SHA1_Hash[3]
-					,UpdateFile->SHA1_Hash[4]);
+					,UpdateFile.SHA1_Hash[0]
+					,UpdateFile.SHA1_Hash[1]
+					,UpdateFile.SHA1_Hash[2]
+					,UpdateFile.SHA1_Hash[3]
+					,UpdateFile.SHA1_Hash[4]);
 		}
 		else
 		{
 			gprintf("%08X %08X %08X %08X %08X\n"
-					,UpdateFile->beta_SHA1_Hash[0]
-					,UpdateFile->beta_SHA1_Hash[1]
-					,UpdateFile->beta_SHA1_Hash[2]
-					,UpdateFile->beta_SHA1_Hash[3]
-					,UpdateFile->beta_SHA1_Hash[4]);
+					,UpdateFile.beta_SHA1_Hash[0]
+					,UpdateFile.beta_SHA1_Hash[1]
+					,UpdateFile.beta_SHA1_Hash[2]
+					,UpdateFile.beta_SHA1_Hash[3]
+					,UpdateFile.beta_SHA1_Hash[4]);
 		}
 
 		if (
 			( !DownloadedBeta && (
-			UpdateFile->SHA1_Hash[0] == FileHash[0] &&
-			UpdateFile->SHA1_Hash[1] == FileHash[1] &&
-			UpdateFile->SHA1_Hash[2] == FileHash[2] &&
-			UpdateFile->SHA1_Hash[3] == FileHash[3] &&
-			UpdateFile->SHA1_Hash[4] == FileHash[4] ) ) ||
+			UpdateFile.SHA1_Hash[0] == FileHash[0] &&
+			UpdateFile.SHA1_Hash[1] == FileHash[1] &&
+			UpdateFile.SHA1_Hash[2] == FileHash[2] &&
+			UpdateFile.SHA1_Hash[3] == FileHash[3] &&
+			UpdateFile.SHA1_Hash[4] == FileHash[4] ) ) ||
 
 			( DownloadedBeta && (
-			UpdateFile->beta_SHA1_Hash[0] == FileHash[0] &&
-			UpdateFile->beta_SHA1_Hash[1] == FileHash[1] &&
-			UpdateFile->beta_SHA1_Hash[2] == FileHash[2] &&
-			UpdateFile->beta_SHA1_Hash[3] == FileHash[3] &&
-			UpdateFile->beta_SHA1_Hash[4] == FileHash[4] ) ) )
+			UpdateFile.beta_SHA1_Hash[0] == FileHash[0] &&
+			UpdateFile.beta_SHA1_Hash[1] == FileHash[1] &&
+			UpdateFile.beta_SHA1_Hash[2] == FileHash[2] &&
+			UpdateFile.beta_SHA1_Hash[3] == FileHash[3] &&
+			UpdateFile.beta_SHA1_Hash[4] == FileHash[4] ) ) )
 		{
 			gprintf("Hash check complete. booting file...\n");
 		}
@@ -4260,7 +4238,6 @@ void CheckForUpdate()
 			gprintf("File not the same : hash check failure!\n");
 			PrintFormat( 1, ((640/2)-((strlen("Error Downloading Update"))*13/2))>>1, 224, "Error Downloading Update");
 			sleep(5);
-			free_pointer(UpdateFile);
 			free_pointer(Data);
 			return;
 		}
@@ -4272,27 +4249,27 @@ void CheckForUpdate()
 		{
 			if(DownloadedBeta)
 			{
-				PrintFormat( 1, ((640/2)-((strlen("loading   .   beta   ..."))*13/2))>>1, 208, "loading %d.%d beta %d...",UpdateFile->beta_version >> 8,UpdateFile->beta_version&0xFF, UpdateFile->beta_number);
+				PrintFormat( 1, ((640/2)-((strlen("loading   .   beta   ..."))*13/2))>>1, 208, "loading %d.%d beta %d...",UpdateFile.beta_version >> 8,UpdateFile.beta_version&0xFF, UpdateFile.beta_number);
 			}
 			else
 			{
-				PrintFormat( 1, ((640/2)-((strlen("loading   .  ..."))*13/2))>>1, 208, "loading %d.%d ...",UpdateFile->version >> 8,UpdateFile->version&0xFF);
+				PrintFormat( 1, ((640/2)-((strlen("loading   .  ..."))*13/2))>>1, 208, "loading %d.%d ...",UpdateFile.version >> 8,UpdateFile.version&0xFF);
 			}
 		}
 		else
 		{
 			if(DownloadedBeta)
 			{
-				PrintFormat( 1, ((640/2)-((strlen("loading lang mod   .   beta   ..."))*13/2))>>1, 208, "loading lang mod %d.%d beta %d...",UpdateFile->beta_version >> 8,UpdateFile->beta_version&0xFF, UpdateFile->beta_number);
+				PrintFormat( 1, ((640/2)-((strlen("loading lang mod   .   beta   ..."))*13/2))>>1, 208, "loading lang mod %d.%d beta %d...",UpdateFile.beta_version >> 8,UpdateFile.beta_version&0xFF, UpdateFile.beta_number);
 			}
 			else
 			{
-				PrintFormat( 1, ((640/2)-((strlen("loading lang mod  .  ..."))*13/2))>>1, 208, "loading lang mod %d.%d ...",UpdateFile->version >> 8,UpdateFile->version&0xFF);
+				PrintFormat( 1, ((640/2)-((strlen("loading lang mod  .  ..."))*13/2))>>1, 208, "loading lang mod %d.%d ...",UpdateFile.version >> 8,UpdateFile.version&0xFF);
 			}
 		}
-		free_pointer(UpdateFile);
 		sleep(1);
 		//load the fresh installer
+		net_deinit();
 		BootDolFromMem(Data,1);
 		free_pointer(Data);
 		PrintFormat( 1, ((640/2)-((strlen("Error Booting Update dol"))*13/2))>>1, 224, "Error Booting Update dol");
@@ -4625,6 +4602,7 @@ int main(int argc, char **argv)
 					break;
 				case 7:
 					CheckForUpdate();
+					net_deinit();
 					break;
 				case 8:
 					InstallPassword();
