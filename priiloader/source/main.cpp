@@ -1650,7 +1650,10 @@ void DVDStopDisc( bool do_async )
 		DCFlushRange(inbuf, 0x20);
 		//why crediar used an async is beyond me but i looks wrong -for a shutdown-... :/
 		if(!do_async)
+		{
 			IOS_Ioctl( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20);
+			IOS_Close(di_fd);
+		}
 		else
 		{
 			IOS_IoctlAsync( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20, NULL, NULL);
@@ -1661,6 +1664,7 @@ void DVDStopDisc( bool do_async )
 	}
 	else
 		gprintf("DVDStopDisc : IOS_Open error %d\n",di_fd);
+	return;
 }
 s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED ) 
 {
@@ -1928,19 +1932,9 @@ void BootMainSysMenu( u8 init )
 
 	if(init == 0)
 	{
-		PollDevices();
+		//PollDevices();
 	}
 	//booting sys menu
-	ISFS_Deinitialize();
-	if( ISFS_Initialize() < 0 )
-	{
-		if (rmode != NULL)
-		{
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("ISFS_Initialize() failed!"))*13/2))>>1, 208, "ISFS_Initialize() failed!" );
-			sleep( 5 );
-		}
-		return;
-	}
 	
 	//expermintal code for getting the needed tmd info. no boot index is in the views but lunatik and i think last file = boot file
 	r = ES_GetTMDViewSize(TitleID, &tmd_size);
@@ -1986,7 +1980,6 @@ void BootMainSysMenu( u8 init )
 	}
 
 	sprintf( file, "/title/00000001/00000002/content/%08x.app", fileID );
-	//small fix that Phpgeek didn't forget but i did
 	file[33] = '1'; // installing preloader renamed system menu so we change the app file to have the right name
 
 	fd = ISFS_Open( file, 1 );
@@ -2212,6 +2205,7 @@ void BootMainSysMenu( u8 init )
 		r = ISFS_Read( fd, buf, tstatus->file_length );
 		if( r < 0 )
 		{
+			gprintf("error %d\n",r);
 			ISFS_Close( fd );
 			error = ERROR_SYSMENU_TIKREADFAILED;
 			goto free_and_return;
@@ -2226,7 +2220,6 @@ void BootMainSysMenu( u8 init )
 			error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
 			gprintf("ES_Identify: GetStoredTMDSize error %d\n",r);
 			__IOS_InitializeSubsystems();
-			WPAD_Init();
 			goto free_and_return;
 		}
 		TMD = (signed_blob *)memalign( 32, (tmd_size_temp+31)&(~31) );
@@ -2235,7 +2228,6 @@ void BootMainSysMenu( u8 init )
 			gprintf("ES_Identify: memalign TMD failure\n");
 			error = ERROR_MALLOC;
 			__IOS_InitializeSubsystems();
-			WPAD_Init();
 			goto free_and_return;
 		}
 		memset(TMD, 0, tmd_size_temp);
@@ -2246,7 +2238,6 @@ void BootMainSysMenu( u8 init )
 			error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
 			gprintf("ES_Identify: GetStoredTMD error %d\n",r);
 			__IOS_InitializeSubsystems();
-			WPAD_Init();
 			goto free_and_return;
 		}
 		r = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size_temp, (signed_blob *)buf, tstatus->file_length, 0);
@@ -2255,7 +2246,6 @@ void BootMainSysMenu( u8 init )
 			error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
 			gprintf("ES_Identify error %d\n",r);
 			__IOS_InitializeSubsystems();
-			WPAD_Init();
 			goto free_and_return;
 		}
 	}
@@ -2338,8 +2328,8 @@ void BootMainSysMenu( u8 init )
 	USB_Deinitialize();
 	if(init == 1 || SGetSetting(SETTING_SHOWGECKOTEXT) != 0 )
 		Control_VI_Regs(2);
-	__STM_Close();
 	ISFS_Deinitialize();
+	__STM_Close();
 	__IOS_ShutdownSubsystems();
 	mtmsr(mfmsr() & ~0x8000);
 	mtmsr(mfmsr() | 0x2002);
@@ -2357,6 +2347,8 @@ free_and_return:
 		free_pointer( buf );
 	if(boot_hdr)
 		free_pointer(boot_hdr);
+
+	WPAD_Init();
 
 	return;
 }
@@ -2383,6 +2375,7 @@ void InstallLoadDOL( void )
 			sleep(2);
 			app_list.clear();
 			reload = 1;
+			cur_off = 0;
 			redraw=1;
 		}
 		if(Mounted == 0)
@@ -3066,7 +3059,7 @@ s8 CheckTitleOnSD(u64 id)
 	else
 	{
 		//title isn't on SD either. ow well...
-		gprintf("CheckTitleOnSD : content not found on NAND or SD\n");
+		gprintf("CheckTitleOnSD : content not found on NAND or SD for %08X\\%08X\n",(u32)(id >> 32),title_l);
 		return 0;
 	}
 }
@@ -3332,7 +3325,6 @@ s32 LoadListTitles( void )
 				ret = GetTitleName(rTMD->title_id,rTMD->contents[0].cid,temp_name,temp.name_unicode);
 				if ( ret != -3 && ret != -4 )
 				{
-					gprintf("LoadListTitles : added %s - %x %x\n",temp_name,temp.name_unicode[0],temp.name_unicode[1]);
 					temp.title_id = rTMD->title_id;
 					temp.name_ascii = temp_name;
 					temp.content_id = rTMD->contents[0].cid;
@@ -4496,11 +4488,11 @@ int main(int argc, char **argv)
 		DCFlushRange((void*)0x8132FFFB,4);
 		BootMainSysMenu(0);
 	}
-	else if( 
+	else if( (
 			( SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED && ( Bootstate < 2 || Bootstate == 4 ) ) 
 		 || ( SGetSetting(SETTING_RETURNTO) != RETURNTO_PRELOADER && Bootstate > 1 && Bootstate != 4 ) 
-		 || ( SGetSetting(SETTING_SHUTDOWNTOPRELOADER) == 0 && Bootstate == 5 ) 
-		)
+		 || ( SGetSetting(SETTING_SHUTDOWNTOPRELOADER) == 0 && Bootstate == 5 ) ) 
+		 && error == 0 )
 	{
 		gprintf("Reset Button is held down\n");
 	}
@@ -4684,9 +4676,6 @@ int main(int argc, char **argv)
 		if( Shutdown )
 		{
 			*(vu32*)0xCD8000C0 &= ~0x20;
-			//when we are in preloader itself we should make the video black or de-init it before the user thinks its not shutting down...
-			//TODO : fade to black if possible without a gfx lib?
-			//STM_SetVIForceDimming ?
 			ClearState();
 			VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
 			Control_VI_Regs(0);
