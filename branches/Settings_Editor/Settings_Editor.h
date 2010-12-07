@@ -26,7 +26,26 @@ typedef struct {
 	u8 SystemMenuIOS;
 	u8 UseSystemMenuIOS;
 	u8 BlackBackground;
-	u8 ShowGeckoOutput;
+	u8 ShowGeckoText;
+	u8 PasscheckPriiloader;
+	u8 PasscheckMenu;
+	u32 ShowBetaUpdates;
+	u8 UseClassicHacks;
+} Settings_6;
+
+typedef struct {
+	u32 autoboot;
+	u32 version;
+	u32 ReturnTo;
+	u8 ShutdownToPreloader;
+	u8 StopDisc;
+	u8 LidSlotOnError;
+	u8 IgnoreShutDownMode;
+	u32 BetaVersion;
+	u8 SystemMenuIOS;
+	u8 UseSystemMenuIOS;
+	u8 BlackBackground;
+	u8 ShowGeckoText;
 	u8 PasscheckPriiloader;
 	u8 PasscheckMenu;
 } Settings_4;
@@ -43,7 +62,7 @@ typedef struct {
 	u8 SystemMenuIOS;
 	u8 UseSystemMenuIOS;
 	u8 BlackBackground;
-	u8 ShowGeckoOutput;
+	u8 ShowGeckoText;
 	u8 PasscheckPriiloader;
 	u8 PasscheckMenu;
 	u32 ShowBetaUpdates;
@@ -61,7 +80,7 @@ typedef struct {
 	u8 SystemMenuIOS;
 	u8 UseSystemMenuIOS;
 	u8 BlackBackground;
-	u8 ShowGeckoOutput;
+	u8 ShowGeckoText;
 } Settings_3;
 
 enum {
@@ -76,7 +95,7 @@ enum {
 		SETTING_SYSTEMMENUIOS,
 		SETTING_USESYSTEMMENUIOS,
 		SETTING_BLACKBACKGROUND,
-		SETTING_SHOWGECKOOUTPUT
+		SETTING_SETTING_SHOWGECKOTEXT
 };
 
 enum {
@@ -92,5 +111,8 @@ enum {
 		RETURNTO_PRELOADER,
 		RETURNTO_AUTOBOOT,
 };
+
+bool Data_Need_Swapping( void );
+inline void endian_swap(unsigned int& x);
 
 #endif

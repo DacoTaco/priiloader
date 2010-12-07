@@ -5,7 +5,7 @@
 #include <conio.h>
 #include "Settings_Editor.h"
 #define VERSION 0
-#define SUBVERSION 2
+#define SUBVERSION 3
 #ifdef WIN32
 #include <windows.h>
 #define sleep(x) Sleep(x*1000)
@@ -72,6 +72,10 @@ int _tmain(int argc, _TCHAR* argv[])
 			printf("Settings file from 0.5 ( rev 89 or above ) detected\n");
 			file_version = 5;
 			break;
+		case sizeof(Settings_6):
+			printf("Settings file from 0.6 detected\n");
+			file_version = 6;
+			break;
 		default:
 			printf("unknown Settings File! exiting...\n");
 			sleep(2);
@@ -94,10 +98,19 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	printf("reading Settings...\n");
 	sleep(2);
-	Settings_5 *Settings = (Settings_5*) malloc(sizeof(Settings_5));
-	memset(Settings,0,sizeof(Settings_5));
+	Settings_6 *Settings = (Settings_6*) malloc(sizeof(Settings_6));
+	memset(Settings,0,sizeof(Settings_6));
 	fread(Settings,1,SettingsSize,Settings_fd);
 	fclose(Settings_fd);
+
+	//check for endian swapping
+	if(Data_Need_Swapping())
+	{
+		endian_swap(Settings->autoboot);
+		endian_swap(Settings->ReturnTo);
+		endian_swap(Settings->BetaVersion);
+		endian_swap(Settings->ShowBetaUpdates);
+	}
 	//start of main loop
 	bool redraw = 1;
 	while(1)
@@ -153,7 +166,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			printf("\t5 : Light on error    :\t\t%s\n", Settings->LidSlotOnError?"on ":"off");
 			printf("\t6 : Ignore Standby    :\t\t%s\n", Settings->IgnoreShutDownMode?"on ":"off");
 			printf("\t7 : Background Color  :\t\t%s\n", Settings->BlackBackground?"Black":"White");
-			printf("\t8 : Show Debug Info   :\t\t%s\n", Settings->ShowGeckoOutput?"on ":"off");
+			printf("\t8 : Show Debug Info   :\t\t%s\n", Settings->ShowGeckoText?"on ":"off");
 			//added options from versions > 3
 			if (file_version >= 4)
 			{
@@ -163,6 +176,10 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (file_version >= 5)
 			{
 				printf("\tE : Show Beta Updates :\t\t%s\n",Settings->ShowBetaUpdates?"on ":"off       ");
+			}
+			if(file_version == 6)
+			{
+				printf("\tR : Classic Hacks :\t\t%s\n",Settings->UseClassicHacks?"on ":"off       ");
 			}
 			printf("\t9 : Use SysMenu IOS   :\t\t%s\n", Settings->UseSystemMenuIOS?"on ":"off");
 			if(!Settings->UseSystemMenuIOS)
@@ -204,6 +221,13 @@ int _tmain(int argc, _TCHAR* argv[])
 									sleep(2);
 									break;
 								}
+								if(Data_Need_Swapping())
+								{
+									endian_swap(Settings->autoboot);
+									endian_swap(Settings->ReturnTo);
+									endian_swap(Settings->BetaVersion);
+									endian_swap(Settings->ShowBetaUpdates);
+								}
 								switch(file_version)
 								{
 									case 3:
@@ -214,6 +238,9 @@ int _tmain(int argc, _TCHAR* argv[])
 										break;	
 									case 5:
 										fwrite(Settings,1,sizeof(Settings_5),Settings_fd);
+										break;
+									case 6:
+										fwrite(Settings,1,sizeof(Settings_6),Settings_fd);
 										break;
 									default:
 										printf("unknown version detected. refusing to save");
@@ -282,10 +309,10 @@ int _tmain(int argc, _TCHAR* argv[])
 					redraw=1;
 					break;
 				case 56:// 8 , Show Gecko Output
-					if( Settings->ShowGeckoOutput )
-						Settings->ShowGeckoOutput = 0;
+					if( Settings->ShowGeckoText )
+						Settings->ShowGeckoText = 0;
 					else 
-						Settings->ShowGeckoOutput = 1;
+						Settings->ShowGeckoText = 1;
 					redraw=1;
 					break;
 				case 57: // 9 , Use System menu IOS
@@ -335,18 +362,32 @@ int _tmain(int argc, _TCHAR* argv[])
 					break;
 				case 69:
 				case 101: // E/e , ShowBetaUpdates
-				if (file_version < 5)
+					if (file_version < 5)
+						break;
+					if( Settings->ShowBetaUpdates )
+					{
+						Settings->ShowBetaUpdates = false;
+					}
+					else
+					{
+						Settings->ShowBetaUpdates = true;
+					}
+					redraw = 1;
 					break;
-				if( Settings->ShowBetaUpdates )
-				{
-					Settings->ShowBetaUpdates = false;
-				}
-				else
-				{
-					Settings->ShowBetaUpdates = true;
-				}
-				redraw = 1;
-				break;
+				case 114:
+				case 82: //r or R : classic hacks
+					if(file_version != 6)
+						break;
+					if( Settings->UseClassicHacks )
+					{
+						Settings->UseClassicHacks = false;
+					}
+					else
+					{
+						Settings->UseClassicHacks = true;
+					}
+					redraw = 1;
+					break;
 				default:
 #ifdef _DEBUG
 					printf("key %c (int value %i) is pressed\n",test,test);
@@ -356,4 +397,20 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 	}
 	return 0;
+}
+bool Data_Need_Swapping( void )
+{
+    int test_var = 1;
+    char *cptr = (char*)&test_var;
+
+	//true means little ending
+	//false means big endian
+    return (cptr != NULL);
+}
+inline void endian_swap(unsigned int& x)
+{
+    x = (x>>24) | 
+        ((x<<8) & 0x00FF0000) |
+        ((x>>8) & 0x0000FF00) |
+        (x<<24);
 }
