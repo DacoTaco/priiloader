@@ -50,28 +50,24 @@
 				RelativePath=".\source\main.cpp"
 				>
 			</File>
+			<File
+				RelativePath=".\source\sha1.cpp"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
+			<File
+				RelativePath=".\include\sha1.h"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="data"
 			>
-			<File
-				RelativePath=".\data\certs.bin"
-				>
-			</File>
-			<File
-				RelativePath=".\data\su.tik"
-				>
-			</File>
-			<File
-				RelativePath=".\data\su.tmd"
-				>
-			</File>
 		</Filter>
 		<File
 			RelativePath=".\Makefile"
