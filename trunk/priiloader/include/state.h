@@ -19,6 +19,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 */
+#ifndef _STATE_H_
+#define _STATE_H_
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -62,3 +64,4 @@ s32 ClearState( void );
 StateFlags GetStateFlags( void );
 s32 SetBootState( u8 type , u8 flags , u8 returnto , u8 discstate );
 s8 VerifyNandBootInfo ( void );
+#endif

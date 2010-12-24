@@ -30,8 +30,15 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #ifdef PATCHED_ES
 #define ES_OpenTitleContent(x,y,z) ES_OpenTitleContent_patched(x,y,z)
 #endif
+
 #define _SHIFTL(v, s, w)	\
     ((u32) (((u32)(v) & ((0x01 << (w)) - 1)) << (s)))
+
+#ifdef DEBUG
+	#define gdprintf gprintf
+#else
+	#define gdprintf(...)
+#endif
 
 //INCLUDES
 //---------------
@@ -48,22 +55,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <unistd.h>
 #include <errno.h>
 #include <network.h>
+#include <sdcard/wiisd_io.h>
+#include <fat.h>
 #include "gecko.h"
 
 //STRUCTS
 //--------------
-//copy pasta from wiibrew
-typedef struct {
-    u8 zeroes[128]; // padding
-    u32 imet; // "IMET"
-    u8 unk[8];  // 0x0000060000000003 fixed, unknown purpose
-    u32 sizes[3]; // icon.bin, banner.bin, sound.bin
-    u32 flag1; // unknown
-    u8 names[10][84]; // Japanese, English, German, French, Spanish, Italian, Dutch, unknown, unknown, Korean
-    u8 zeroes_2[588]; // padding
-    u8 crypto[16]; // MD5 of 0x40 to 0x640 in header. crypto should be all 0's when calculating final MD5
-} IMET;
-
 
 #ifdef PATCHED_ES
 //patch to libogc was submitted for the following struct and is included starting libogc 1.8.3
@@ -98,6 +95,8 @@ typedef struct _tmd_view_t
 //--------------
 extern GXRModeObj *rmode;
 extern void *xfb;
+extern s8 Mounted;
+extern s8 Device_Not_Mountable;
 
 //FUNCTIONS
 //---------------
@@ -135,5 +134,8 @@ s8 free_pointer(pointer*& ptr)
 s8 free_null_pointer(void*& ptr);
 void Control_VI_Regs ( u8 mode );
 s8 InitNetwork();
+bool PollDevices( void );
+void ShutdownDevices();
+bool RemountDevices( void );
 
 #endif

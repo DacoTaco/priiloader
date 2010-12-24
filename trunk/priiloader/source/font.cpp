@@ -26,7 +26,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <unistd.h>
 #include <string.h>
 #include <stdarg.h>
-#include <malloc.h>
 #include <vector>
 #include <stdarg.h>
 #include <ctype.h>
@@ -34,6 +33,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include "settings.h"
 #include "font.h"
+#include "mem2_manager.h"
 
 unsigned long trans_font(unsigned long int value, int add_color[5])
 {
@@ -144,7 +144,7 @@ void PrintString( int col, int x, int y, char *str )
 }
 void PrintFormat(int col, int x, int y, const char *str, ... )
 {
-	char *astr = (char*)malloc( 2048 );
+	char *astr = (char*)mem_malloc( 2048 );
 	memset( astr, 0, 2048 );
 
 	va_list ap;
@@ -156,5 +156,5 @@ void PrintFormat(int col, int x, int y, const char *str, ... )
 
 	PrintString( col, x, y, astr );
 
-	free_pointer(astr);
+	mem_free(astr);
 }

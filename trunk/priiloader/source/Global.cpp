@@ -23,6 +23,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "Global.h"
 GXRModeObj *rmode = NULL;
 void *xfb = NULL;
+s8 Mounted = 0;
+s8 Device_Not_Mountable = 0;
 
 static const struct _timing {
 	u8 equ;
@@ -339,4 +341,96 @@ s8 InitNetwork()
 		gprintf("InitNetwork : DHCP timeout or no known access point availble\n");
 		return -2;
     }
+}
+bool PollDevices( void )
+{
+	//check mounted device's status and unmount or mount if needed. once something is unmounted, lets see if we can mount something in its place
+	if( ( (Mounted & 2) && !__io_wiisd.isInserted() ) || ( (Mounted & 1) && !__io_usbstorage.isInserted() ) )
+	{
+		fatUnmount("fat:/");
+		if(Mounted & 1)
+		{
+			gprintf("USB removed.unmounting...\n");
+		}
+		if(Mounted & 2)
+		{
+			gprintf("SD removed.unmounting...\n");
+			__io_wiisd.shutdown();
+		}			
+		Mounted = 0;
+	}
+	//check if SD is mountable
+	if( !(Mounted & 2) && __io_wiisd.startup() &&  __io_wiisd.isInserted() && !(Device_Not_Mountable & 2) )
+	{
+		if(Mounted & 1)
+		{
+			//USB is mounted. lets kick it out and use SD instead :P
+			fatUnmount("fat:/");
+			gprintf("USB: Unmounted for SD\n");
+			Mounted = 0;
+		}
+		if(fatMountSimple("fat",&__io_wiisd))
+		{
+			Mounted |= 2;
+			gprintf("SD: Mounted\n");
+		}
+		else
+		{
+			gprintf("SD: Failed to mount!not fat?\n");
+			Device_Not_Mountable |= 2;
+		}
+	}
+	//check if USB is mountable.deu to short circuit evaluation you need to be VERY CAREFUL when changing the next if or anything usbstorage related
+	//i know its stupid to init the USB device and yet not mount it, but thats the only way with c++ & the current usbstorage combo
+	//see http://en.wikipedia.org/wiki/Short-circuit_evaluation
+	else if( ( __io_usbstorage.startup() ) && ( __io_usbstorage.isInserted() ) && (Mounted == 0) && !(Device_Not_Mountable & 1) )
+	{
+		//if( fatMountSimple("fat", &__io_usbstorage) )
+		if( fatMount("fat", &__io_usbstorage,0, 8, 64) )
+		{
+			gprintf("USB: Mounted\n");
+			Mounted |= 1;
+		}
+		else
+		{
+			gprintf("USB: Failed to mount!not fat?\n");
+			Device_Not_Mountable |= 1;
+		}
+	}
+	if ( Device_Not_Mountable > 0 )
+	{
+		if ( ( Device_Not_Mountable & 1 ) && !__io_usbstorage.isInserted() )
+		{
+			gprintf("USB: NM Flag Reset\n");
+			Device_Not_Mountable -= 1;
+		}
+		if ( ( Device_Not_Mountable & 2 ) &&  !__io_wiisd.isInserted() )
+		{
+			//not needed for SD yet but just to be on the safe side
+			gprintf("SD: NM Flag Reset\n");
+			Device_Not_Mountable -= 2;
+			__io_wiisd.shutdown();
+		}
+	}
+	if ( Mounted > 0)
+		return true;
+	else
+		return false;
+}
+void ShutdownDevices()
+{
+	//unmount device
+	if(Mounted != 0)
+	{
+		fatUnmount("fat:/");
+		Mounted = 0;
+	}
+	__io_usbstorage.shutdown();
+	__io_wiisd.shutdown();	
+	return;
+}
+bool RemountDevices( void )
+{
+	ShutdownDevices();
+	return PollDevices();
 }

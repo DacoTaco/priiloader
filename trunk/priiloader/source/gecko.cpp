@@ -60,12 +60,14 @@ void gprintf( const char *str, ... )
 			time(&end);
 		}
 	}
+	return;
 }
 void SetShowDebug( u8 value )
 {
 	if (value != 1 && value != 0)
 		return;
 	ShowDebug = value;
+	return;
 }
 void InitGDBDebug( void )
 {
