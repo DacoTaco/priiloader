@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <conio.h>
+#include <string.h>
 #include "Settings_Editor.h"
 #define VERSION 0
 #define SUBVERSION 3

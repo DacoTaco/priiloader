@@ -240,7 +240,7 @@ int main(int argc, char **argv)
 	if ( padding != NULL )
 	{
 		printf("adding padding...\n");
-		fwrite(0,1,padding,Dol);
+		fwrite(0,1,padding,output);
 	}
 	fwrite(&nboot,1,nbootSize,output);
 	fclose(output);
