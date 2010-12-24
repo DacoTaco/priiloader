@@ -24,7 +24,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <stdlib.h>
 #include <gccore.h>
 #include <string.h>
-#include <malloc.h>
 #include <vector>
 #include <unistd.h>
 
@@ -33,6 +32,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "settings.h"
 #include "error.h"
 #include "font.h"
+#include "mem2_manager.h"
 
 std::vector<hack> hacks;
 std::vector<hack_hash> hacks_hash;
@@ -77,7 +77,7 @@ char *GetLine( char *astr, unsigned int len)
 
 	//printf("%d\n", llen );
 
-	char *lbuf = (char*)malloc( llen );
+	char *lbuf = (char*)mem_malloc( llen );
 	if( lbuf == NULL )
 	{
 		error = ERROR_MALLOC;
@@ -107,7 +107,7 @@ u32 LoadHacks( bool Force_Load_Nand )
 		hacks.clear();
 		if(states)
 		{
-			free_pointer(states);
+			mem_free(states);
 		}
 	}
 	if(foff > 0)
@@ -146,7 +146,7 @@ u32 LoadHacks( bool Force_Load_Nand )
 			return 0;
 		}
 
-		buf = (char*)memalign( 32, (size+31)&(~31));
+		buf = (char*)mem_align( 32, (size+31)&(~31));
 		if( buf == NULL )
 		{
 			error = ERROR_MALLOC;
@@ -155,7 +155,7 @@ u32 LoadHacks( bool Force_Load_Nand )
 		memset( buf, 0, (size+31)&(~31) );
 		if(fread( buf, sizeof( char ), size, in ) != size )
 		{
-			free_pointer(buf);
+			mem_free(buf);
 			PrintFormat( 1, ((640/2)-((strlen("Error reading \"hacks.ini\""))*13/2))>>1, 208, "Error reading \"hacks.ini\"");
 			sleep(5);
 			return 0;
@@ -164,11 +164,11 @@ u32 LoadHacks( bool Force_Load_Nand )
 
 	} else {	//read file from NAND
 
-		status = (fstats *)memalign( 32, (sizeof( fstats )+31)&(~31) );
+		status = (fstats *)mem_align( 32, (sizeof( fstats )+31)&(~31) );
 		ISFS_GetFileStats( fd, status);
 		size = status->file_length;
-		free_pointer(status);
-		buf = (char*)memalign( 32, (size+31)&(~31) );
+		mem_free(status);
+		buf = (char*)mem_align( 32, (size+31)&(~31) );
 		if( buf == NULL )
 		{
 			error = ERROR_MALLOC;
@@ -191,7 +191,7 @@ u32 LoadHacks( bool Force_Load_Nand )
 	{
 		//printf("Error 1: syntax error : expected EOF @ line %d\n", line );
 		PrintFormat( 1, ((640/2)-((strlen("Syntax error : unexpected EOF @ line   "))*13/2))>>1, 208, "Syntax error : unexpected EOF @ line %d", line);
-		free_pointer(buf);
+		mem_free(buf);
 		hacks.clear();
 		sleep(5);
 		return 0;
@@ -229,7 +229,7 @@ u32 LoadHacks( bool Force_Load_Nand )
 		hacks[hacks.size()-1].desc = new char[strlen(s)+1];
 		memcpy( hacks[hacks.size()-1].desc, s, strlen(s)+1 );
 		hacks[hacks.size()-1].desc[strlen(s)] = 0;
-		free_pointer(lbuf);
+		mem_free(lbuf);
 		line++;
 		lbuf = GetLine( str, size );
 		if( lbuf == NULL )
@@ -280,7 +280,7 @@ u32 LoadHacks( bool Force_Load_Nand )
 			sleep(5);
 			return 0;
 		}
-		free_pointer(lbuf);
+		mem_free(lbuf);
 
 		while(1)
 		{
@@ -371,10 +371,10 @@ u32 LoadHacks( bool Force_Load_Nand )
 				sleep(5);
 				return 0;
 			}
-			free_pointer(lbuf);
+			mem_free(lbuf);
 		}
 	}
-	free_pointer(buf);
+	mem_free(buf);
 
 	if(hacks.size()==0)
 		return 0;
@@ -382,7 +382,7 @@ u32 LoadHacks( bool Force_Load_Nand )
 	//load hack states (on/off)
 	if ( states == NULL )
 	{
-		states = (u32*)memalign( 32, ((sizeof( u32 ) * hacks.size())+31)&(~31) );
+		states = (u32*)mem_align( 32, ((sizeof( u32 ) * hacks.size())+31)&(~31) );
 		if( states == NULL )
 		{
 			error = ERROR_MALLOC;
@@ -408,7 +408,7 @@ u32 LoadHacks( bool Force_Load_Nand )
 		ISFS_Seek( fd, 0, 0 );
 	}
 
-	status = (fstats *)memalign( 32, (sizeof(fstats)+31)&(~31) );
+	status = (fstats *)mem_align( 32, (sizeof(fstats)+31)&(~31) );
 	if( status == NULL )
 	{
 		error = ERROR_MALLOC;
@@ -418,14 +418,14 @@ u32 LoadHacks( bool Force_Load_Nand )
 
 	if(ISFS_GetFileStats( fd, status)<0)
 	{
-		free_pointer(status);
+		mem_free(status);
 		return 0;
 	}
 
-	u8 *fbuf = (u8 *)memalign( 32, (status->file_length+31)&(~31) );
+	u8 *fbuf = (u8 *)mem_align( 32, (status->file_length+31)&(~31) );
 	if( fbuf == NULL )
 	{
-		free_pointer(status);
+		mem_free(status);
 		error = ERROR_MALLOC;
 		return 0;
 	}
@@ -433,8 +433,8 @@ u32 LoadHacks( bool Force_Load_Nand )
 
 	if(ISFS_Read( fd, fbuf, status->file_length )<0)
 	{
-		free_pointer(status);
-		free_pointer(fbuf);
+		mem_free(status);
+		mem_free(fbuf);
 		return 0;
 	}
 
@@ -443,8 +443,8 @@ u32 LoadHacks( bool Force_Load_Nand )
 	else
 		memcpy( states, fbuf, status->file_length );
 
-	free_pointer(fbuf);
-	free_pointer(status);
+	mem_free(fbuf);
+	mem_free(status);
 	ISFS_Close( fd );
 
 	//Set all hacks from other regions to 0
@@ -465,7 +465,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 		hacks_hash.clear();
 		if(states_hash)
 		{
-			free_pointer(states_hash);
+			mem_free(states_hash);
 		}
 	}
 	if(foff != 0)
@@ -504,7 +504,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 			return 0;
 		}
 
-		buf = (char*)memalign( 32, (size+31)&(~31));
+		buf = (char*)mem_align( 32, (size+31)&(~31));
 		if( buf == NULL )
 		{
 			error = ERROR_MALLOC;
@@ -513,7 +513,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 		memset( buf, 0, (size+31)&(~31) );
 		if(fread( buf, sizeof( char ), size, in ) != size )
 		{
-			free_pointer(buf);
+			mem_free(buf);
 			PrintFormat( 1, ((640/2)-((strlen("Error reading \"hacks_hash.ini\""))*13/2))>>1, 208, "Error reading \"hacks_hash.ini\"");
 			sleep(5);
 			return 0;
@@ -522,11 +522,11 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 
 	} else {	//read file from NAND
 
-		status = (fstats *)memalign( 32, (sizeof( fstats )+31)&(~31) );
+		status = (fstats *)mem_align( 32, (sizeof( fstats )+31)&(~31) );
 		ISFS_GetFileStats( fd, status);
 		size = status->file_length;
-		free_pointer(status);
-		buf = (char*)memalign( 32, (size+31)&(~31) );
+		mem_free(status);
+		buf = (char*)mem_align( 32, (size+31)&(~31) );
 		if( buf == NULL )
 		{
 			error = ERROR_MALLOC;
@@ -551,7 +551,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 	if( lbuf == NULL )
 	{
 		PrintFormat( 1, ((640/2)-((strlen("Syntax error : unexpected EOF @ line   "))*13/2))>>1, 208, "Syntax error : unexpected EOF @ line %d", line);
-		free_pointer(buf);
+		mem_free(buf);
 		hacks_hash.clear();
 		sleep(5);
 		return 0;
@@ -580,7 +580,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 		}
 
 		new_hacks_hash.desc = s;
-		free_pointer(lbuf);
+		mem_free(lbuf);
 
 		line++;
 		lbuf = GetLine( str, size );
@@ -626,7 +626,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 			return 0;
 		}
 
-		free_pointer(lbuf);
+		mem_free(lbuf);
 		line++;
 		lbuf = GetLine( str, size );
 		if( lbuf == NULL )
@@ -671,7 +671,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 			return 0;
 		}
 
-		free_pointer(lbuf);
+		mem_free(lbuf);
 		line++;
 		lbuf = GetLine( str, size );
 		if( lbuf == NULL )
@@ -714,7 +714,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 			sleep(5);
 			return 0;
 		}
-		free_pointer(lbuf);
+		mem_free(lbuf);
 		while(1)
 		{
 			line++;
@@ -859,7 +859,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 				sleep(5);
 				return 0;
 			}
-			free_pointer(lbuf);
+			mem_free(lbuf);
 		}
 		hacks_hash.push_back(new_hacks_hash);
 		new_hacks_hash.patches.clear();
@@ -868,7 +868,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 		new_hacks_hash.max_version = 0;
 		new_hacks_hash.min_version = 0;
 	}
-	free_pointer(buf);
+	mem_free(buf);
 
 	if(hacks_hash.size()==0)
 		return 0;
@@ -876,7 +876,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 	//load hack states_hash (on/off)
 	if ( states_hash == NULL )
 	{
-		states_hash = (u32*)memalign( 32, ((sizeof( u32 ) * hacks_hash.size())+31)&(~31) );
+		states_hash = (u32*)mem_align( 32, ((sizeof( u32 ) * hacks_hash.size())+31)&(~31) );
 		if( states_hash == NULL )
 		{
 			error = ERROR_MALLOC;
@@ -906,7 +906,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 		ISFS_Seek( fd, 0, 0 );
 	}
 
-	status = (fstats *)memalign( 32, (sizeof(fstats)+31)&(~31) );
+	status = (fstats *)mem_align( 32, (sizeof(fstats)+31)&(~31) );
 	if( status == NULL )
 	{
 		error = ERROR_MALLOC;
@@ -917,14 +917,14 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 
 	if(ISFS_GetFileStats( fd, status)<0)
 	{
-		free_pointer(status);
+		mem_free(status);
 		return 0;
 	}
 
-	u8 *fbuf = (u8 *)memalign( 32, (status->file_length+31)&(~31) );
+	u8 *fbuf = (u8 *)mem_align( 32, (status->file_length+31)&(~31) );
 	if( fbuf == NULL )
 	{
-		free_pointer(status);
+		mem_free(status);
 		error = ERROR_MALLOC;
 		return 0;
 	}
@@ -933,8 +933,8 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 
 	if(ISFS_Read( fd, fbuf, status->file_length )<0)
 	{
-		free_pointer(status);
-		free_pointer(fbuf);
+		mem_free(status);
+		mem_free(fbuf);
 		return 0;
 	}
 
@@ -943,8 +943,8 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 	else
 		memcpy( states_hash, fbuf, status->file_length );
 
-	free_pointer(fbuf);
-	free_pointer(status);
+	mem_free(fbuf);
+	mem_free(status);
 	ISFS_Close( fd );
 
 	//Set all hacks_hash for system menu > max_version || sysver < min_version to 0

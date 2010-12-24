@@ -26,12 +26,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <unistd.h>
 #include <string.h>
 #include <wiiuse/wpad.h>
-#include <malloc.h>
 
 #include "font.h"
 #include "gecko.h"
 #include "error.h"
 #include "settings.h"
+#include "mem2_manager.h"
 
 extern u8 error;
 extern void ClearScreen();
@@ -103,12 +103,12 @@ void InstallPassword( void )
 			}
 			else
 			{
-				fstats *pstatus = (fstats *)memalign( 32, sizeof( fstats ) );
+				fstats *pstatus = (fstats *)mem_align( 32, sizeof( fstats ) );
 				ISFS_GetFileStats( pfd, pstatus);
 				psize = pstatus->file_length;
-				free_pointer( pstatus );
-				free_pointer( pbuf );
-				pbuf = (char*)memalign( 32, (psize+32+1)&(~31) );
+				mem_free( pstatus );
+				mem_free( pbuf );
+				pbuf = (char*)mem_align( 32, (psize+32+1)&(~31) );
 				if( pbuf == NULL )
 				{
 					error = ERROR_MALLOC;
@@ -177,7 +177,8 @@ void InstallPassword( void )
 #endif
 		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 		{
-			free_pointer(pbuf);
+			if(pbuf)
+				mem_free(pbuf);
 			break;
 		}
 
@@ -200,7 +201,7 @@ void InstallPassword( void )
 			unsigned int size = ftell( passtxt );
 			fseek( passtxt, 0, 0 );
 
-			char *buf = (char*)memalign( 32, sizeof( char ) * size );
+			char *buf = (char*)mem_align( 32, sizeof( char ) * size );
 			memset( buf, 0, sizeof( char ) * size );
 
 			fread( buf, sizeof( char ), size, passtxt );
@@ -229,7 +230,7 @@ void InstallPassword( void )
 			sleep(5);
 			ClearScreen();
 			ISFS_Close( fd );
-			free_pointer( pbuf );
+			mem_free( pbuf );
 			redraw = 1;
 		}
 
@@ -295,18 +296,14 @@ void password_check( void )
 		gprintf("password_check: ISFS_Open(password.txt) failure. error %d\n",cpfd);
 		return;
 	}
-	fstats *cpstatus = (fstats *)memalign( 32, sizeof( fstats ) );
+	fstats *cpstatus = (fstats *)mem_align( 32, sizeof( fstats ) );
 	ISFS_GetFileStats( cpfd, cpstatus);
 	cpsize = cpstatus->file_length;
 	if( cpstatus )
 	{
-		free_pointer( cpstatus );
+		mem_free( cpstatus );
 	}
-	if( cpbuf )	
-	{
-		free_pointer( cpbuf );
-	}
-	cpbuf = (char*)memalign( 32, (cpsize+32+1)&(~31) );
+	cpbuf = (char*)mem_align( 32, (cpsize+32+1)&(~31) );
 	if( cpbuf == NULL )
 	{
 		error = ERROR_MALLOC;
@@ -619,7 +616,7 @@ void password_check( void )
 	WPAD_Shutdown();
 	if( cpbuf )
 	{
-		free_pointer(cpbuf);
+		mem_free(cpbuf);
 	}
 	return;
 }

@@ -75,6 +75,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\source\mem2_manager.c"
+				>
+			</File>
+			<File
 				RelativePath=".\source\password.cpp"
 				>
 			</File>
@@ -92,6 +96,10 @@
 			</File>
 			<File
 				RelativePath=".\source\state.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\source\titles.cpp"
 				>
 			</File>
 			<File
@@ -133,6 +141,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\include\mem2_manager.h"
+				>
+			</File>
+			<File
 				RelativePath=".\include\password.h"
 				>
 			</File>
@@ -150,6 +162,10 @@
 			</File>
 			<File
 				RelativePath=".\include\state.h"
+				>
+			</File>
+			<File
+				RelativePath=".\include\titles.h"
 				>
 			</File>
 			<File

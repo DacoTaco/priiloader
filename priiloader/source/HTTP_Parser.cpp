@@ -27,7 +27,7 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket
 	//URL_REQUEST
 	if(Data)
 	{
-		free_pointer(Data);
+		mem_free(Data);
 	}
 	if(host == NULL || file == NULL)
 	{
@@ -67,7 +67,7 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket
 			memset( buffer, '\0', 1024 );
 
 			int i, n;
-			for( i = 0;;)
+			for( i = 0;i < 265;)
 			{
 				n = net_recv(socket,(char*)&buffer[i],1, 0);
 
@@ -114,7 +114,7 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket
 				net_close(socket);
 			return -8;
 		}
-		Data = (u8*)malloc( file_size );
+		Data = (u8*)mem_malloc( file_size );
 		if (Data == NULL)
 		{
 			return -9;

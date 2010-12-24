@@ -20,12 +20,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 */
 //#define DEBUG
-#ifdef DEBUG
-#define gdprintf gprintf
-#else
-#define gdprintf(...)
-#endif
-
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,16 +30,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include <gccore.h>
 #include <wiiuse/wpad.h>
-#include <sdcard/wiisd_io.h>
-#include <fat.h>
 #include <ogc/usb.h>
 #include <ogc/machine/processor.h>
 #include <ogc/machine/asm.h>
 #include "usbstorage.h"
 
 #include <sys/dir.h>
-#include <malloc.h>
 #include <vector>
+#include <algorithm>
 #include <time.h>
 
 #include <mp3player.h>
@@ -64,7 +56,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "password.h"
 #include "sha1.h"
 #include "HTTP_Parser.h"
-#include "playlog.h"
+#include "titles.h"
+#include "mem2_manager.h"
 
 
 //Bin includes
@@ -87,12 +80,6 @@ typedef struct {
 	unsigned int entrypoint;
 } dolhdr;
 typedef struct {
-	u64 title_id;
-	std::string name_ascii;
-	u8 name_unicode[84];
-	u32 content_id;
-} title_info;
-typedef struct {
 	std::string app_name;
 	std::string app_path;
 	u8 HW_AHBPROT_ENABLED;
@@ -104,12 +91,11 @@ extern std::vector<hack> hacks;
 extern std::vector<hack_hash> hacks_hash;
 extern u32 *states;
 extern u32 *states_hash;
+extern s8 Mounted;
 
 u8 Shutdown=0;
 u8 BootSysMenu = 0;
 u8 ReloadedIOS = 0;
-s8 Mounted = 0;
-s8 Device_Not_Mountable = 0;
 time_t startloop;
 
 s32 __IOS_LoadStartupIOS()
@@ -129,12 +115,12 @@ u8 DetectHBC( void )
 		return 0;
 	}
 
-    list = (u64*)memalign(32, titlecount * sizeof(u64) + 32);
+    list = (u64*)mem_align(32, ((titlecount * sizeof(u64)) + 31)&(~31));
 
     ret = ES_GetTitles(list, titlecount);
     if(ret < 0) {
-		gprintf("DetectHBC :ES_GetTitles failure\n");
-		free_pointer(list);
+		gprintf("DetectHBC :ES_GetTitles failure. error %d\n",ret);
+		mem_free(list);
 		return 0;
     }
 	ret = 0;
@@ -157,7 +143,7 @@ u8 DetectHBC( void )
 				ret = 1;
         }
     }
-	free_pointer(list);
+	mem_free(list);
     if(ret < 1)
 	{
 		gprintf("HBC not found\n");
@@ -205,98 +191,7 @@ void UnloadHBCStub( void )
 	//some apps apparently dislike it if the stub stays in memory but for some reason isn't active :/
 	memset((void*)0x80001800, 0, stub_bin_size);
 	DCFlushRange((void*)0x80001800,stub_bin_size);	
-}
-bool PollDevices( void )
-{
-	//check mounted device's status and unmount or mount if needed. once something is unmounted, lets see if we can mount something in its place
-	if( ( (Mounted & 2) && !__io_wiisd.isInserted() ) || ( (Mounted & 1) && !__io_usbstorage.isInserted() ) )
-	{
-		fatUnmount("fat:/");
-		if(Mounted & 1)
-		{
-			gprintf("USB removed.unmounting...\n");
-		}
-		if(Mounted & 2)
-		{
-			gprintf("SD removed.unmounting...\n");
-			__io_wiisd.shutdown();
-		}			
-		Mounted = 0;
-	}
-	//check if SD is mountable
-	if( !(Mounted & 2) && __io_wiisd.startup() &&  __io_wiisd.isInserted() && !(Device_Not_Mountable & 2) )
-	{
-		if(Mounted & 1)
-		{
-			//USB is mounted. lets kick it out and use SD instead :P
-			fatUnmount("fat:/");
-			gprintf("USB: Unmounted for SD\n");
-			Mounted = 0;
-		}
-		if(fatMountSimple("fat",&__io_wiisd))
-		{
-			Mounted |= 2;
-			gprintf("SD: Mounted\n");
-		}
-		else
-		{
-			gprintf("SD: Failed to mount!not fat?\n");
-			Device_Not_Mountable |= 2;
-		}
-	}
-	//check if USB is mountable.deu to short circuit evaluation you need to be VERY CAREFUL when changing the next if or anything usbstorage related
-	//i know its stupid to init the USB device and yet not mount it, but thats the only way with c++ & the current usbstorage combo
-	//see http://en.wikipedia.org/wiki/Short-circuit_evaluation
-	else if( ( __io_usbstorage.startup() ) && ( __io_usbstorage.isInserted() ) && (Mounted == 0) && !(Device_Not_Mountable & 1) )
-	{
-		//if( fatMountSimple("fat", &__io_usbstorage) )
-		if( fatMount("fat", &__io_usbstorage,0, 8, 64) )
-		{
-			gprintf("USB: Mounted\n");
-			Mounted |= 1;
-		}
-		else
-		{
-			gprintf("USB: Failed to mount!not fat?\n");
-			Device_Not_Mountable |= 1;
-		}
-	}
-	if ( Device_Not_Mountable > 0 )
-	{
-		if ( ( Device_Not_Mountable & 1 ) && !__io_usbstorage.isInserted() )
-		{
-			gprintf("USB: NM Flag Reset\n");
-			Device_Not_Mountable -= 1;
-		}
-		if ( ( Device_Not_Mountable & 2 ) &&  !__io_wiisd.isInserted() )
-		{
-			//not needed for SD yet but just to be on the safe side
-			gprintf("SD: NM Flag Reset\n");
-			Device_Not_Mountable -= 2;
-			__io_wiisd.shutdown();
-		}
-	}
-	if ( Mounted > 0)
-		return true;
-	else
-		return false;
-}
-void ShutdownDevices()
-{
-	//unmount device
-	if(Mounted != 0)
-	{
-		fatUnmount("fat:/");
-		Mounted = 0;
-	}
-	__io_usbstorage.shutdown();
-	__io_wiisd.shutdown();	
 	return;
-}
-bool RemountDevices( void )
-{
-	ShutdownDevices();
-	return PollDevices();
 }
 void ClearScreen()
 {
@@ -304,9 +199,10 @@ void ClearScreen()
 		VIDEO_ClearFrameBuffer( rmode, xfb, 0xFF80FF80);
 	else
 		VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
-
 	VIDEO_WaitVSync();
-	printf("\n");
+	printf("\x1b[5;0H");
+	fflush(stdout);
+	return;
 }
 bool isIOSstub(u8 ios_number)
 {
@@ -320,7 +216,7 @@ bool isIOSstub(u8 ios_number)
 		gprintf("isIOSstub : ES_GetTMDViewSize fail,ios %d\n",ios_number);
 		return true;
 	}
-	ios_tmd = (tmd_view *)memalign( 32, (tmd_size+31)&(~31) );
+	ios_tmd = (tmd_view *)mem_align( 32, (tmd_size+31)&(~31) );
 	if(!ios_tmd)
 	{
 		gprintf("isIOSstub : TMD alloc failure\n");
@@ -343,18 +239,18 @@ bool isIOSstub(u8 ios_number)
 		if ( ( ios_tmd->num_contents == 3) && (ios_tmd->contents[0].type == 1 && ios_tmd->contents[1].type == 0x8001 && ios_tmd->contents[2].type == 0x8001) )
 		{
 			gprintf("isIOSstub : %d is stub",ios_number);
-			free_pointer(ios_tmd);
+			mem_free(ios_tmd);
 			return true;
 		}
 		else
 		{
 			gprintf("isIOSstub : %d is active\n",ios_number);
-			free_pointer(ios_tmd);
+			mem_free(ios_tmd);
 			return false;
 		}
 	}
 	gprintf("isIOSstub : %d is active\n",ios_number);
-	free_pointer(ios_tmd);
+	mem_free(ios_tmd);
 	return false;
 }
 
@@ -449,7 +345,7 @@ void SysHackSettings( void )
 					u32 size = ftell(in);
 					fseek( in, 0, 0);
 
-					char *buf = (char*)memalign( 32, (size+31)&(~31) );
+					char *buf = (char*)mem_align( 32, (size+31)&(~31) );
 					memset( buf, 0, (size+31)&(~31) );
 					fread( buf, sizeof( char ), size, in );
 
@@ -463,14 +359,14 @@ void SysHackSettings( void )
 						if(ISFS_Delete("/title/00000001/00000002/data/hacks.ini") <0)
 						{
 							fail=1;
-							free_pointer(buf);
+							mem_free(buf);
 							goto handle_hacks_fail;
 						}
 					}
 					if(ISFS_CreateFile("/title/00000001/00000002/data/hacks.ini", 0, 3, 3, 3)<0)
 					{
 						fail=2;
-						free_pointer(buf);
+						mem_free(buf);
 						goto handle_hacks_fail;
 					}
 					fd = ISFS_Open("/title/00000001/00000002/data/hacks.ini", 1|2 );
@@ -478,7 +374,7 @@ void SysHackSettings( void )
 					{
 						fail=3;
 						ISFS_Close( fd );
-						free_pointer(buf);
+						mem_free(buf);
 						goto handle_hacks_fail;
 					}
 
@@ -486,11 +382,11 @@ void SysHackSettings( void )
 					{
 						fail = 4;
 						ISFS_Close( fd );
-						free_pointer(buf);
+						mem_free(buf);
 						goto handle_hacks_fail;
 					}
 					ISFS_Close( fd );
-					free_pointer(buf);
+					mem_free(buf);
 				}
 handle_hacks_fail:
 				if(fail > 0)
@@ -728,7 +624,6 @@ void SysHackHashSettings( void )
 				else
 				{
 					gprintf("no FAT device found\n");
-					fail=5;
 				}
 				if ( ( (Mounted & 2) && !__io_wiisd.isInserted() ) || ( (Mounted & 1) && !__io_usbstorage.isInserted() ) )
 				{
@@ -742,7 +637,7 @@ void SysHackHashSettings( void )
 					u32 size = ftell(in);
 					fseek( in, 0, 0);
 
-					char *buf = (char*)memalign( 32, (size+31)&(~31) );
+					char *buf = (char*)mem_align( 32, (size+31)&(~31) );
 					memset( buf, 0, (size+31)&(~31) );
 					fread( buf, sizeof( char ), size, in );
 
@@ -756,14 +651,14 @@ void SysHackHashSettings( void )
 						if(ISFS_Delete("/title/00000001/00000002/data/hackshas.ini") <0)
 						{
 							fail=1;
-							free_pointer(buf);
+							mem_free(buf);
 							goto handle_hacks_fail;
 						}
 					}
 					if(ISFS_CreateFile("/title/00000001/00000002/data/hackshas.ini", 0, 3, 3, 3)<0)
 					{
 						fail=2;
-						free_pointer(buf);
+						mem_free(buf);
 						goto handle_hacks_fail;
 					}
 					fd = ISFS_Open("/title/00000001/00000002/data/hackshas.ini", 1|2 );
@@ -771,7 +666,7 @@ void SysHackHashSettings( void )
 					{
 						fail=3;
 						ISFS_Close( fd );
-						free_pointer(buf);
+						mem_free(buf);
 						goto handle_hacks_fail;
 					}
 
@@ -779,11 +674,11 @@ void SysHackHashSettings( void )
 					{
 						fail = 4;
 						ISFS_Close( fd );
-						free_pointer(buf);
+						mem_free(buf);
 						goto handle_hacks_fail;
 					}
 					ISFS_Close( fd );
-					free_pointer(buf);
+					mem_free(buf);
 				}
 handle_hacks_fail:
 				if(fail > 0)
@@ -829,7 +724,7 @@ handle_hacks_s_fail:
 					gprintf("hacksh_s.ini save error %d\n",fail);
 				}
 
-				if( fail )
+				if( fail > 0 )
 					PrintFormat( 0, 118, rmode->viHeight-48, "saving failed");
 				else
 					PrintFormat( 0, 118, rmode->viHeight-48, "settings saved");
@@ -975,7 +870,7 @@ void SetSettings( void )
 	//get a list of all installed IOSs
 	u32 TitleCount = 0;
 	ES_GetNumTitles(&TitleCount);
-	u64 *TitleIDs=(u64*)memalign(32, TitleCount * sizeof(u64) );
+	u64 *TitleIDs=(u64*)mem_align(32, TitleCount * sizeof(u64) );
 	ES_GetTitles(TitleIDs, TitleCount);
 	shellsort(TitleIDs, TitleCount);
 
@@ -1532,7 +1427,7 @@ void SetSettings( void )
 
 		VIDEO_WaitVSync();
 	}
-	free_pointer(TitleIDs);
+	mem_free(TitleIDs);
 	return;
 }
 void LoadHBC( void )
@@ -1561,13 +1456,13 @@ void LoadHBC( void )
 	}
 	u32 cnt ATTRIBUTE_ALIGN(32);
 	ES_GetNumTicketViews(TitleID, &cnt);
-	tikview *views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
+	tikview *views = (tikview *)mem_align( 32, sizeof(tikview)*cnt );
 	ES_GetTicketViews(TitleID, views, cnt);
 	ClearState();
 	ES_LaunchTitle(TitleID, &views[0]);
 	//well that went wrong
 	error = ERROR_BOOT_HBC;
-	free_pointer(views);
+	mem_free(views);
 	return;
 }
 void LoadBootMii( void )
@@ -1637,8 +1532,8 @@ void DVDStopDisc( bool do_async )
 	s32 di_fd = IOS_Open("/dev/di",0);
 	if(di_fd)
 	{
-		u8 *inbuf = (u8*)memalign( 32, 0x20 );
-		u8 *outbuf = (u8*)memalign( 32, 0x20 );
+		u8 *inbuf = (u8*)mem_align( 32, 0x20 );
+		u8 *outbuf = (u8*)mem_align( 32, 0x20 );
 
 		memset(inbuf, 0, 0x20 );
 		memset(outbuf, 0, 0x20 );
@@ -1648,7 +1543,7 @@ void DVDStopDisc( bool do_async )
 		((u32*)inbuf)[0x02] = 0;
 
 		DCFlushRange(inbuf, 0x20);
-		//why crediar used an async is beyond me but i looks wrong -for a shutdown-... :/
+		//why crediar used an async is beyond me but it looks wrong... :/
 		if(!do_async)
 		{
 			IOS_Ioctl( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20);
@@ -1659,8 +1554,8 @@ void DVDStopDisc( bool do_async )
 			IOS_IoctlAsync( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20, NULL, NULL);
 		}
 
-		free_pointer( outbuf );
-		free_pointer( inbuf );
+		mem_free( outbuf );
+		mem_free( inbuf );
 	}
 	else
 		gprintf("DVDStopDisc : IOS_Open error %d\n",di_fd);
@@ -1870,7 +1765,7 @@ s8 BootDolFromDir( const char* Dir , u8 HW_AHBPROT_ENABLED )
 		lSize = ftell (dol);
 		rewind (dol);
 		// allocate memory to contain the whole file:
-		buffer = (u8*) malloc((sizeof(u8)*lSize+31)&(~31));
+		buffer = (u8*) mem_malloc((sizeof(u8)*lSize+31)&(~31));
 		if (buffer == NULL) 
 		{
 			return -3;
@@ -1882,13 +1777,13 @@ s8 BootDolFromDir( const char* Dir , u8 HW_AHBPROT_ENABLED )
 			if (result != lSize) 
 			{
 				gprintf("BootDolFromDir : fread failure\n");
-				free_pointer(buffer);
+				mem_free(buffer);
 				return -4;
 			}
 			else
 			{
 				BootDolFromMem(buffer,HW_AHBPROT_ENABLED);
-				free_pointer(buffer);
+				mem_free(buffer);
 				return -5;
 			}
 		}
@@ -1909,6 +1804,7 @@ void BootMainSysMenu( u8 init )
 	//TMDview stuff:
 	u64 TitleID=0x0000000100000002LL;
 	u32 tmd_size;
+	static u8 tmd_buf[(sizeof(tmd_view) + MAX_NUM_TMD_CONTENTS*sizeof(tmd_view_content))] ATTRIBUTE_ALIGN(32);
 	tmd_view *rTMD = NULL;
 
 	//TMD:
@@ -1944,20 +1840,14 @@ void BootMainSysMenu( u8 init )
 		error = ERROR_SYSMENU_GETTMDSIZEFAILED;
 		goto free_and_return;
 	}
-	rTMD = (tmd_view*)memalign( 32, (tmd_size+31)&(~31) );
-	if( rTMD == NULL )
-	{
-		error = ERROR_MALLOC;
-		goto free_and_return;
-	}
-	memset(rTMD,0, (tmd_size+31)&(~31) );
-	r = ES_GetTMDView(TitleID, (u8*)rTMD, tmd_size);
+	r = ES_GetTMDView(TitleID, tmd_buf, tmd_size);
 	if(r<0)
 	{
 		gprintf("GetTMDView error %d\n",r);
 		error = ERROR_SYSMENU_GETTMDFAILED;
 		goto free_and_return;
 	}
+	rTMD = (tmd_view *)tmd_buf;
 	gdprintf("ios version: %u\n",(u8)rTMD->sys_version);
 
 	//get main.dol filename
@@ -1991,7 +1881,7 @@ void BootMainSysMenu( u8 init )
 		goto free_and_return;
 	}
 
-	status = (fstats *)memalign(32, (sizeof( fstats )+31)&(~31) );
+	status = (fstats *)mem_align(32, (sizeof( fstats )+31)&(~31) );
 	if( status == NULL )
 	{
 		ISFS_Close( fd );
@@ -2004,12 +1894,12 @@ void BootMainSysMenu( u8 init )
 	{
 		ISFS_Close( fd );
 		error = ERROR_SYSMENU_BOOTGETSTATS;
-		free_pointer(status);
+		mem_free(status);
 		goto free_and_return;
 	}
 
-	free_pointer(status);
-	boot_hdr = (dolhdr *)memalign(32, (sizeof( dolhdr )+31)&(~31) );
+	mem_free(status);
+	boot_hdr = (dolhdr *)mem_align(32, (sizeof( dolhdr )+31)&(~31) );
 	if(boot_hdr == NULL)
 	{
 		error = ERROR_MALLOC;
@@ -2109,10 +1999,10 @@ void BootMainSysMenu( u8 init )
 	{
 		LoadHacks(true);
 	}
-	for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {
+	/*for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {
 		WPAD_Flush(i);
 		WPAD_Disconnect(i);
-	}
+	}*/
 	WPAD_Shutdown();
 
 	//Step 1 of IOS handling : Reloading IOS if needed;
@@ -2176,7 +2066,7 @@ void BootMainSysMenu( u8 init )
 		}
 
 		//get size
-		tstatus = (fstats*)memalign( 32, sizeof( fstats ) );
+		tstatus = (fstats*)mem_align( 32, sizeof( fstats ) );
 		if(tstatus == NULL)
 		{
 			ISFS_Close( fd );
@@ -2192,7 +2082,7 @@ void BootMainSysMenu( u8 init )
 		}
 
 		//create buffer
-		buf = (char*)memalign( 32, (tstatus->file_length+31)&(~31) );
+		buf = (char*)mem_align( 32, (tstatus->file_length+31)&(~31) );
 		if( buf == NULL )
 		{
 			ISFS_Close( fd );
@@ -2222,7 +2112,7 @@ void BootMainSysMenu( u8 init )
 			__IOS_InitializeSubsystems();
 			goto free_and_return;
 		}
-		TMD = (signed_blob *)memalign( 32, (tmd_size_temp+31)&(~31) );
+		TMD = (signed_blob *)mem_align( 32, (tmd_size_temp+31)&(~31) );
 		if(TMD == NULL)
 		{
 			gprintf("ES_Identify: memalign TMD failure\n");
@@ -2248,20 +2138,20 @@ void BootMainSysMenu( u8 init )
 			__IOS_InitializeSubsystems();
 			goto free_and_return;
 		}
+		if(TMD)
+			mem_free(TMD);
 	}
 
 	//ES_SetUID(TitleID);
 	if(tstatus)
-	{
-		free_pointer( tstatus );
-	}
+		mem_free( tstatus );
 	if(buf)
-	{
-		free_pointer( buf );
-	}
+		mem_free( buf );
 
 	*(vu32*)0x800000F8 = 0x0E7BE2C0;				// Bus Clock Speed
 	*(vu32*)0x800000FC = 0x2B73A840;				// CPU Clock Speed
+	*(vu32*)0x8000315C = 0x80800113;				// DI Legacy mode ?
+	DCFlushRange((void*)0x80000000,0x3400);
 
 	if( SGetSetting( SETTING_CLASSIC_HACKS ) )
 	{
@@ -2336,17 +2226,14 @@ void BootMainSysMenu( u8 init )
 	ICSync();
 	_unstub_start();
 free_and_return:
-
-	if(rTMD)
-		free_pointer(rTMD);
 	if(TMD)
-		free_pointer(TMD);
+		mem_free(TMD);
 	if(tstatus)
-		free_pointer( tstatus );
+		mem_free( tstatus );
 	if(buf)
-		free_pointer( buf );
+		mem_free( buf );
 	if(boot_hdr)
-		free_pointer(boot_hdr);
+		mem_free(boot_hdr);
 
 	WPAD_Init();
 
@@ -2427,7 +2314,7 @@ void InstallLoadDOL( void )
 					fseek (app_bin , 0 , SEEK_END);
 					size = ftell(app_bin);
 					rewind (app_bin);
-					buf = (char*)malloc(size);
+					buf = (char*)mem_malloc(size);
 					if(!buf)
 					{
 						gdprintf("buf == NULL\n");
@@ -2440,7 +2327,7 @@ void InstallLoadDOL( void )
 					ret = fread(buf,1,size,app_bin) ;
 					if(ret != (u32)size)
 					{
-						free_pointer(buf);
+						mem_free(buf);
 						fclose(app_bin);
 						temp.app_name = filename;
 						app_list.push_back(temp);
@@ -2469,7 +2356,7 @@ void InstallLoadDOL( void )
 								temp.HW_AHBPROT_ENABLED = 1;
 							}
 						}
-						free_pointer(buf);
+						mem_free(buf);
 					}
 					if(temp.app_name.size())
 					{
@@ -2532,8 +2419,34 @@ void InstallLoadDOL( void )
 			}
 			if ((s32)app_list.size() < max_pos)
 				max_pos = app_list.size() -1;
+			//sort app lists
+			s8 swap = 0;
+			while(swap == 0)
+			{
+				swap = 0;
+				for (int count = 0; count < (s32)app_list.size(); count++)
+				{
+					if(strncmp(app_list[count].app_path.c_str(),"fat:/apps/",strlen("fat:/apps/")) == 0)
+					{
+						for(int swap_index = 0;swap_index < (s32)app_list.size();swap_index++)
+						{
+							std::string temp_name_cnt = app_list[count].app_name;
+							std::transform(temp_name_cnt.begin(),temp_name_cnt.end(),temp_name_cnt.begin(),tolower);
+							std::string temp_name_swap = app_list[swap_index].app_name;
+							std::transform(temp_name_swap.begin(),temp_name_swap.end(),temp_name_swap.begin(),tolower);
+							if ( temp_name_cnt < temp_name_swap )
+							{
+								swap = 1;
+								std::swap(app_list[count],app_list[swap_index]);
+							}
+							temp_name_cnt.clear();
+							temp_name_swap.clear();
+						}
+					}
+				}
+			}
 			ClearScreen();
-			redraw=1;
+			redraw=true;
 		}
 		if( redraw )
 		{
@@ -2588,7 +2501,7 @@ void InstallLoadDOL( void )
 			unsigned int size = ftell( dol );
 			fseek( dol, 0, 0 );
 
-			char *buf = (char*)memalign( 32, sizeof( char ) * size );
+			char *buf = (char*)mem_align( 32, sizeof( char ) * size );
 			memset( buf, 0, sizeof( char ) * size );
 
 			fread( buf, sizeof( char ), size, dol );
@@ -2618,7 +2531,7 @@ void InstallLoadDOL( void )
 			ClearScreen();
 			redraw=true;
 			ISFS_Close( fd );
-			free_pointer( buf );
+			mem_free( buf );
 
 		}
 
@@ -2731,7 +2644,7 @@ void AutoBootDol( void )
 
 	void	(*entrypoint)();
 
-	Elf32_Ehdr *ElfHdr = (Elf32_Ehdr *)memalign( 32, (sizeof( Elf32_Ehdr )+31)&(~31) );
+	Elf32_Ehdr *ElfHdr = (Elf32_Ehdr *)mem_align( 32, (sizeof( Elf32_Ehdr )+31)&(~31) );
 	if( ElfHdr == NULL )
 	{
 		error = ERROR_MALLOC;
@@ -2777,15 +2690,15 @@ void AutoBootDol( void )
 				if( r < 0 )
 				{
 					error = ERROR_BOOT_DOL_SEEK;
-					free_pointer(ElfHdr);
+					mem_free(ElfHdr);
 					return;
 				}
 
-				Elf32_Phdr *phdr = (Elf32_Phdr *)memalign( 32, (sizeof( Elf32_Phdr )+31)&(~31) );
+				Elf32_Phdr *phdr = (Elf32_Phdr *)mem_align( 32, (sizeof( Elf32_Phdr )+31)&(~31) );
 				if( phdr == NULL )
 				{
 					error = ERROR_MALLOC;
-					free_pointer(ElfHdr);
+					mem_free(ElfHdr);
 					return;
 				}
 				memset(phdr,0,sizeof(Elf32_Phdr));
@@ -2793,8 +2706,8 @@ void AutoBootDol( void )
 				if( r < 0 )
 				{
 					error = ERROR_BOOT_DOL_READ;
-					free_pointer( phdr );
-					free_pointer(ElfHdr);
+					mem_free( phdr );
+					mem_free(ElfHdr);
 					return;
 				}
 				gdprintf("Type:%08X Offset:%08X VAdr:%08X PAdr:%08X FileSz:%08X\n", phdr->p_type, phdr->p_offset, phdr->p_vaddr, phdr->p_paddr, phdr->p_filesz );
@@ -2802,8 +2715,8 @@ void AutoBootDol( void )
 				if( r < 0 )
 				{
 					error = ERROR_BOOT_DOL_SEEK;
-					free_pointer( phdr );
-					free_pointer(ElfHdr);
+					mem_free( phdr );
+					mem_free(ElfHdr);
 					return;
 				}
 
@@ -2814,23 +2727,23 @@ void AutoBootDol( void )
 					{
 						gprintf("AutoBootDol : ISFS_Read(%d)read failed of the program section addr\n",r);
 						error = ERROR_BOOT_DOL_READ;
-						free_pointer( phdr );
-						free_pointer(ElfHdr);
+						mem_free( phdr );
+						mem_free(ElfHdr);
 						return;
 					}
 				}
-				free_pointer( phdr );
+				mem_free( phdr );
 			}
 		}
 		if( ElfHdr->e_shnum == 0 )
 			gdprintf("Warning section header entries are zero!\n");
 		else 
 		{
-			Elf32_Shdr *shdr = (Elf32_Shdr *)memalign( 32, (sizeof( Elf32_Shdr )+31)&(~31) );
+			Elf32_Shdr *shdr = (Elf32_Shdr *)mem_align( 32, (sizeof( Elf32_Shdr )+31)&(~31) );
 			if( shdr == NULL )
 			{
 				error = ERROR_MALLOC;
-				free_pointer(ElfHdr);
+				mem_free(ElfHdr);
 				return;
 			}
 			memset(shdr,0,sizeof(Elf32_Shdr));
@@ -2840,8 +2753,8 @@ void AutoBootDol( void )
 				if( r < 0 )
 				{
 					error = ERROR_BOOT_DOL_SEEK;
-					free_pointer( shdr );
-					free_pointer(ElfHdr);
+					mem_free( shdr );
+					mem_free(ElfHdr);
 					return;
 				}
 
@@ -2849,8 +2762,8 @@ void AutoBootDol( void )
 				if( r < 0 )
 				{
 					error = ERROR_BOOT_DOL_READ;
-					free_pointer( shdr );
-					free_pointer(ElfHdr);
+					mem_free( shdr );
+					mem_free(ElfHdr);
 					return;
 				}
 
@@ -2870,8 +2783,8 @@ void AutoBootDol( void )
 				if( r < 0 )
 				{
 					error = ERROR_BOOT_DOL_SEEK;
-					free_pointer( shdr );
-					free_pointer(ElfHdr);
+					mem_free( shdr );
+					mem_free(ElfHdr);
 					return;
 				}
 
@@ -2883,24 +2796,24 @@ void AutoBootDol( void )
 					{
 						gprintf("AutoBootDol : ISFS_Read(%d) data header\n",r);
 						error = ERROR_BOOT_DOL_READ;
-						free_pointer( shdr );
-						free_pointer(ElfHdr);
+						mem_free( shdr );
+						mem_free(ElfHdr);
 						return;
 					}
 				}
 
 			}
-			free_pointer( shdr );
+			mem_free( shdr );
 		}
 
 		ISFS_Close( fd );
 		entrypoint = (void (*)())(ElfHdr->e_entry | 0x80000000);
-		free_pointer(ElfHdr);
+		mem_free(ElfHdr);
 
 	} else {
 		//Dol
 		//read the header
-		dolhdr *hdr = (dolhdr *)memalign(32, (sizeof( dolhdr )+31)&(~31) );
+		dolhdr *hdr = (dolhdr *)mem_align(32, (sizeof( dolhdr )+31)&(~31) );
 		if( hdr == NULL )
 		{
 			error = ERROR_MALLOC;
@@ -2973,7 +2886,6 @@ void AutoBootDol( void )
 		error = ERROR_BOOT_DOL_ENTRYPOINT;
 		return;
 	}
-	DVDStopDisc(false);
 	for(int i=0;i<WPAD_MAX_WIIMOTES;i++) {
 		WPAD_Flush(i);
 		WPAD_Disconnect(i);
@@ -2985,7 +2897,7 @@ void AutoBootDol( void )
 	USB_Deinitialize();
 	gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
 
-	if(ReloadedIOS)
+	if(read32(0x0d800064) != 0xFFFFFFFF)
 	{
 		if( isIOSstub(58) )
 		{
@@ -3006,7 +2918,7 @@ void AutoBootDol( void )
 			ReloadedIOS = 1;
 		}
 	}
-
+	DVDStopDisc(false);
 	__IOS_ShutdownSubsystems();
 	//slightly modified loading code from USBLOADER GX...
 	u32 level;
@@ -3026,484 +2938,6 @@ void HandleWiiMoteEvent(s32 chan)
 {
 	Shutdown=1;
 }
-s8 CheckTitleOnSD(u64 id)
-{
-	//check Mounted Devices so that IF the SD is inserted it also gets mounted
-	PollDevices();
-	if (!__io_wiisd.isInserted()) //no SD inserted, lets bail out
-		return -1;
-	char title_ID[5];
-	//Check app on SD. it might be there. not that it matters cause we can't boot from SD
-	memset(title_ID,0,5);
-	u32 title_l = id & 0xFFFFFFFF;
-	memcpy(title_ID, &title_l, 4);
-	for (s8 f=0; f<4; f++)
-	{
-		if(title_ID[f] < 0x20)
-			title_ID[f] = '.';
-		if(title_ID[f] > 0x7E)
-			title_ID[f] = '.';
-	}
-	title_ID[4]='\0';
-	char file[256] ATTRIBUTE_ALIGN(32);
-	memset(file,0,256);
-	sprintf(file, "fat:/private/wii/title/%s/content.bin", title_ID);
-	FILE* SDHandler = fopen(file,"rb");
-	if (SDHandler)
-	{
-		//content.bin is there meaning its on SD
-		fclose(SDHandler);
-		gprintf("CheckTitleOnSD : title is saved on SD\n");
-		return 1;
-	}
-	else
-	{
-		//title isn't on SD either. ow well...
-		gprintf("CheckTitleOnSD : content not found on NAND or SD for %08X\\%08X\n",(u32)(id >> 32),title_l);
-		return 0;
-	}
-}
-s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
-	s32 r;
-    int lang = 1; //CONF_GetLanguage();
-    /*
-    languages:
-    enum {
-	CONF_LANG_JAPANESE = 0,
-	CONF_LANG_ENGLISH,
-	CONF_LANG_GERMAN,
-	CONF_LANG_FRENCH,
-	CONF_LANG_SPANISH,
-	CONF_LANG_ITALIAN,
-	CONF_LANG_DUTCH,
-	CONF_LANG_SIMP_CHINESE,
-	CONF_LANG_TRAD_CHINESE,
-	CONF_LANG_KOREAN
-	};
-	cause we dont support unicode stuff in font.cpp we will force to use english then(1)
-    */
-	u8 return_unicode_name = 0;
-	if(_dst_uncode_name == NULL)
-	{
-		return_unicode_name = 0;
-	}
-	else
-	{
-		return_unicode_name = 1;
-	}
-    char file[256] ATTRIBUTE_ALIGN(32);
-	memset(file,0,256);
-    sprintf(file, "/title/%08x/%08x/content/%08x.app", (u32)(id >> 32), (u32)id, app);
-	gdprintf("GetTitleName : %s\n",file);
-	u32 cnt ATTRIBUTE_ALIGN(32);
-	cnt = 0;
-	IMET *data = (IMET *)memalign(32, (sizeof(IMET)+31)&(~31));
-	if(data == NULL)
-	{
-		gprintf("GetTitleName : IMET header align failure\n");
-		return -1;
-	}
-	memset(data,0,(sizeof(IMET)+31)&(~31));
-	r = ES_GetNumTicketViews(id, &cnt);
-	if(r < 0)
-	{
-		gprintf("GetTitleName : GetNumTicketViews error %d!\n",r);
-		free_pointer(data);
-		return -1;
-	}
-	tikview *views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
-	if(views == NULL)
-	{
-		free_pointer(data);
-		return -2;
-	}
-	r = ES_GetTicketViews(id, views, cnt);
-	if (r < 0)
-	{
-		gprintf("GetTitleName : GetTicketViews error %d \n",r);
-		free_pointer(data);
-		free_pointer(views);
-		return -2;
-	}
-
-	//lets get this party started with the right way to call ES_OpenTitleContent. and not like how libogc < 1.8.3 does it. patch was passed on , and is done correctly in 1.8.3
-	//the right way is ES_OpenTitleContent(u64 TitleID,tikview* views,u16 Index); note the views >_>
-	s32 fh = ES_OpenTitleContent(id, views, 0);
-	if (fh == -106)
-	{
-		//gprintf("GetTitleName : app not found\n",fh);
-		CheckTitleOnSD(id);
-		free_pointer(data);
-		free_pointer(views);
-		return -3;
-	}
-	else if(fh < 0)
-	{
-		//ES method failed. remove tikviews from memory and fall back on ISFS method
-		gprintf("GetTitleName : ES_OpenTitleContent error %d\n",fh);
-		free_pointer(views);
-		fh = ISFS_Open(file, ISFS_OPEN_READ);
-		// fuck failed. lets check SD & GTFO
-		if (fh == -106)
-		{
-			CheckTitleOnSD(id);
-			return -4;
-		}
-		else if (fh < 0)
-		{
-			free_pointer(data);
-			gprintf("open %s error %d\n",file,fh);
-			return -5;
-		}
-		// read the completed IMET header
-		r = ISFS_Read(fh, data, sizeof(IMET));
-		if (r < 0) {
-			gprintf("IMET read error %d\n",r);
-			ISFS_Close(fh);
-			free_pointer(data);
-			return -6;
-		}
-		ISFS_Close(fh);
-	}
-	else
-	{
-		//ES method
-		u8* IMET_data = (u8*)memalign(32, (sizeof(IMET)+31)&(~31));
-		if(IMET_data == NULL)
-		{
-			gprintf("GetTitleName : IMET header align failure\n");
-			return -7;
-		}
-		r = ES_ReadContent(fh,IMET_data,sizeof(IMET));
-		if (r < 0) {
-			gprintf("GetTitleName : ES_ReadContent error %d\n",r);
-			ES_CloseContent(fh);
-			free_pointer(IMET_data);
-			free_pointer(data);
-			free_pointer(views);
-			return -8;
-		}
-		//free data and let it point to IMET_data so everything else can work just fine
-		free_pointer(data);
-		data = (IMET*)IMET_data;
-		ES_CloseContent(fh);
-		free_pointer(views);
-	}
-	char str[10][84];
-	char str_unprocessed[10][84];
-	//clear any memory that is in the place of the array cause we dont want any confusion here
-	memset(str,0,10*84);
-	if(return_unicode_name)
-		memset(str_unprocessed,0,10*84);
-	for(u8 y =0;y <= 9;y++)
-	{
-		u8 p = 0;
-		u8 up = 0;
-		for(u8 j=0;j<83;j++)
-		{
-			if(data->names[y][j] < 0x20)
-				if(return_unicode_name && data->names[y][j] == 0x00)
-					str_unprocessed[y][up++] = data->names[y][j];
-				else
-					continue;
-			else if(data->names[y][j] > 0x7E)
-				continue;
-			else
-			{
-				str[y][p++] = data->names[y][j];
-				str_unprocessed[y][up++] = data->names[y][j];
-			}
-		}
-		str[y][83] = '\0';
-
-	}
-	free_pointer(data);
-	if(str[lang][0] != '\0')
-	{
-		gdprintf("GetTitleName : title %s\n",str[lang]);
-		sprintf(name, "%s", str[lang]);
-		if (return_unicode_name && str_unprocessed[lang][1] != '\0')
-		{
-			memcpy(_dst_uncode_name,&str_unprocessed[lang][0],84);
-			//gprintf("0x%08X\n",(u32)_dst_uncode_name);
-		}
-		else if(return_unicode_name)
-			gprintf("WARNING : empty unprocessed string\n");
-	}
-	else
-		gprintf("GetTitleName: no name found\n");
-	memset(str,0,10*84);
-	memset(str_unprocessed,0,10*84);
-	return 1;
-}
-s32 LoadListTitles( void )
-{
-	s32 ret;
-	u32 count = 0;
-	ret = ES_GetNumTitles(&count);
-	if (ret < 0)
-	{
-		gprintf("GetNumTitles error %x\n",ret);
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the amount of installed titles!"))*13/2))>>1, 208+16, "Failed to get the amount of installed titles!");
-		sleep(3);
-		return ret;
-	}
-	if(count == 0)
-	{
-		gprintf("count == 0\n");
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+16, "Failed to get the titles list!");
-		sleep(3);
-		return ret;
-	}
-	gdprintf("%u titles\n",count);
-	static u64 title_list[256] ATTRIBUTE_ALIGN(32);
-	memset(title_list,0,sizeof(title_list));
-	ret = ES_GetTitles(title_list, count);
-	if (ret < 0) {
-		gprintf("ES_GetTitles error %x\n",-ret);
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+16, "Failed to get the titles list!");
-		sleep(3);
-		return ret;
-	}
-	std::vector<title_info> titles;
-	titles.clear();
-	tmd_view *rTMD;
-	char temp_name[256];
-	char title_ID[5];
-	for(u32 i = 0;i < count;i++)
-	{	
-		//u32 titletype = title_list[i] >> 32;
-		switch (title_list[i] >> 32)
-		{
-			case 1: // IOS, MIOS, BC, System Menu
-			case 0x10000: // TMD installed by running a disc
-			case 0x10004: // "Hidden channels by discs" -- WiiFit channel
-			case 0x10008: // "Hidden channels" -- EULA, rgnsel
-			case 0x10005: // Downloadable Content for Wiiware
-			default:
-				break;
-			case 0x10001: // Normal channels / VC
-			case 0x10002: // "System channels" -- News, Weather, etc.
-				u32 tmd_size;
-				ret = ES_GetTMDViewSize(title_list[i], &tmd_size);
-				if(ret<0)
-				{
-					gprintf("WARNING : GetTMDViewSize error %d on title %x-%x\n",ret,(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
-					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMDSize error on 00000000-00000000!"))*13/2))>>1, 208+16, "WARNING : TMDSize error on %08X-%08X",(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
-					sleep(3);
-					ClearScreen();
-					continue;
-				}
-				rTMD = (tmd_view*)memalign( 32, (tmd_size+31)&(~31) );
-				if( rTMD == NULL )
-				{
-					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to MemAlign TMD!"))*13/2))>>1, 208+16, "Failed to MemAlign TMD!");
-					sleep(3);
-					return 0;
-				}
-				memset(rTMD,0, (tmd_size+31)&(~31) );
-				ret = ES_GetTMDView(title_list[i], (u8*)rTMD, tmd_size);
-				if(ret<0)
-				{
-					gprintf("WARNING : GetTMDView error %d on title %x-%x\n",ret,(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
-					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMD error on 00000000-00000000!"))*13/2))>>1, 208+16, "WARNING : TMD error on %08X-%08X!",(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
-					sleep(3);
-					if(rTMD)
-					{
-						free_pointer(rTMD);
-					}
-					ClearScreen();
-					continue;
-				}
-				memset(temp_name,0,sizeof(temp_name));
-				sprintf(temp_name,"????????");
-				title_info temp;
-				temp.title_id = 0;
-				temp.name_ascii.clear();
-				memset(temp.name_unicode,0,84);
-				temp.content_id = 0;
-				ret = GetTitleName(rTMD->title_id,rTMD->contents[0].cid,temp_name,temp.name_unicode);
-				if ( ret != -3 && ret != -4 )
-				{
-					temp.title_id = rTMD->title_id;
-					temp.name_ascii = temp_name;
-					temp.content_id = rTMD->contents[0].cid;
-					//gprintf("0x%02X%02X%02X%02X\n",temp.name_unicode[0],temp.name_unicode[1],temp.name_unicode[2],temp.name_unicode[3]);
-					titles.push_back(temp);
-				}
-				if(rTMD)
-				{
-					free_pointer(rTMD);
-				}
-				break;
-		}
-	}
-	//done detecting titles. lets list them
-	if(titles.size() <= 0)
-	{
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("ERROR : No VC/Wiiware channels found"))*13/2))>>1, 208+16, "ERROR : No VC/Wiiware channels found");
-		sleep(3);
-		return 0;
-	}
-	s8 redraw = true;
-	s16 cur_off = 0;
-	//eventho normally a tv would be able to show 23 titles; some TV's do 60hz in a horrible mannor 
-	//making title 23 out of the screen just like the main menu
-	s16 max_pos;
-	if( rmode->viTVMode == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
-	{
-		//ye, those tv's want a special treatment again >_>
-		max_pos = 18;
-	}
-	else
-	{
-		max_pos = 23;
-	}
-	s16 min_pos = 0;
-	if ((s32)titles.size() < max_pos)
-		max_pos = titles.size() -1;
-	while(1)
-	{
-		WPAD_ScanPads();
-		PAD_ScanPads();
-
-		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
-		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
-		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
-		{
-			if(titles.size())
-				titles.clear();
-			break;
-		}
-		if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
-		{
-			cur_off--;
-			if (cur_off < min_pos)
-			{
-				min_pos = cur_off;
-				if(titles.size() > 23)
-				{
-					for(s8 i = min_pos; i<=(min_pos + max_pos); i++ )
-					{
-						PrintFormat( 0, 16, 64+(i-min_pos+1)*16, "                                        ");
-						PrintFormat( 0,((rmode->viWidth /2)-((strlen("               "))*13/2))>>1,64+(max_pos+2)*16,"               ");
-						PrintFormat( 0,((rmode->viWidth /2)-((strlen("               "))*13/2))>>1,64,"               ");
-					}
-				}
-			}
-			if (cur_off < 0)
-			{
-				cur_off = titles.size() - 1;
-				min_pos = titles.size() - max_pos - 1;
-			}
-			redraw = true;
-		}
-		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
-		{
-			cur_off++;
-			if (cur_off > (max_pos + min_pos))
-			{
-				min_pos = cur_off - max_pos;
-				if(titles.size() > 23)
-				{
-					for(s8 i = min_pos; i<=(min_pos + max_pos); i++ )
-					{
-						PrintFormat( 0, 16, 64+(i-min_pos+1)*16, "                                        ");
-						PrintFormat( 0,((rmode->viWidth /2)-((strlen("               "))*13/2))>>1,64+(max_pos+2)*16,"               ");
-						PrintFormat( 0,((rmode->viWidth /2)-((strlen("               "))*13/2))>>1,64,"               ");
-					}
-				}
-			}
-			if (cur_off >= (s32)titles.size())
-			{
-				cur_off = 0;
-				min_pos = 0;
-			}
-			redraw = true;
-		}
-		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
-		{
-			DVDStopDisc(true);
-			ClearScreen();
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Loading title..."))*13/2))>>1, 208, "Loading title...");
-
-			//lets start this bitch
-			u32 cnt ATTRIBUTE_ALIGN(32) = 0;
-			tikview *views = 0;
-			if (ES_GetNumTicketViews(titles[cur_off].title_id, &cnt) < 0)
-			{
-				gprintf("GetNumTicketViews failure\n");
-				break;
-			}
-			views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
-			if(views == NULL)
-			{
-				gprintf("memalign views failure\n");
-				break;
-			}
-			memset(views,0,sizeof(tikview));
-			if (ES_GetTicketViews(titles[cur_off].title_id, views, cnt) < 0 )
-			{
-				gprintf("ES_GetTicketViews failure!\n");
-				break;
-			}
-			if(wcslen((wchar_t*)titles[cur_off].name_unicode))
-			{
-				//kill play_rec.dat if its already there...
-				ret = ISFS_Delete(PLAYRECPATH);
-				gprintf("delete ret = %d\n",ret);
-				//and create it with the new info :)
-				std::string id;
-				id.push_back(titles[cur_off].title_id & 0xFFFFFFFF);
-				ret = Playlog_Update(id.c_str(), titles[cur_off].name_unicode);
-				gprintf("play_rec ret = %d\n",ret);
-			}
-			else
-			{
-				gprintf("no title name to use in play_rec\n");
-			}
-			ClearState();
-			VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
-			VIDEO_WaitVSync();
-			ES_LaunchTitle(titles[cur_off].title_id, &views[0]);
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to Load Title!"))*13/2))>>1, 224, "Failed to Load Title!");
-			sleep(3);
-			free_pointer(views);
-			redraw = true;
-		}			
-		if(redraw)
-		{
-			s8 i= min_pos;
-			if((s32)titles.size() > max_pos && (min_pos != (s32)titles.size() - max_pos - 1))
-			{
-				PrintFormat( 0,((rmode->viWidth /2)-((strlen("-----More-----"))*13/2))>>1,64+(max_pos+2)*16,"-----More-----");
-			}
-			if(min_pos > 0)
-			{
-				PrintFormat( 0,((rmode->viWidth /2)-((strlen("-----Less-----"))*13/2))>>1,64,"-----Less-----");
-			}
-			for(; i<=(min_pos + max_pos); i++ )
-			{
-				memset(title_ID,0,5);
-				u32 title_l = titles[i].title_id & 0xFFFFFFFF;
-				memcpy(title_ID, &title_l, 4);
-				for (s8 f=0; f<4; f++)
-				{
-					if(title_ID[f] < 0x20)
-						title_ID[f] = '.';
-					if(title_ID[f] > 0x7E)
-						title_ID[f] = '.';
-				}
-				title_ID[4]='\0';
-				PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "(%d)%s(%s)                   ",i+1,titles[i].name_ascii.c_str(), title_ID);
-				PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Load Title       "))*13/2))>>1, rmode->viHeight-32, "A(A) Load Title");
-			}
-			redraw = false;
-		}
-		VIDEO_WaitVSync();
-	}
-	return 0;
-}
 void CheckForUpdate()
 {
 	ClearScreen();
@@ -3514,16 +2948,43 @@ void CheckForUpdate()
 		sleep(5);
 		return;
 	}
+//Check Pad for lulz or not
+//-----------------------------
+	s32 file_size = 0;
+	u8 *Easter_egg = NULL;
+	PAD_ScanPads();
+	u32 PAD_Pressed  = PAD_ButtonsHeld(0) | PAD_ButtonsHeld(1) | PAD_ButtonsHeld(2) | PAD_ButtonsHeld(3);// | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3); //PAD_ButtonsHeld
+	if (PAD_Pressed & PAD_TRIGGER_Z)
+	{
+		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/Easter.mp33",Easter_egg,0);
+		if(file_size > 0)
+		{
+			ASND_Init();
+			ASND_Pause(0);
+			MP3Player_Init();
+			MP3Player_Volume(125);
+			MP3Player_PlayBuffer(Easter_egg,file_size,NULL);
+			ClearScreen();
+			PrintFormat( 1, ((640/2)-((strlen("MOOT MOOT ;D"))*13/2))>>1, 208, "MOOT MOOT ;D");
+			while(MP3Player_IsPlaying())
+				sleep(1);
+			ASND_End();
+		}
+		mem_free(Easter_egg);
+	}
+	file_size = 0;
+//start update
+//---------------
 	UpdateStruct UpdateFile;
 	u8* buffer = 0;
-	s32 file_size = GetHTTPFile("www.dacotaco.com","/priiloader/version.dat",buffer,0);
+	file_size = GetHTTPFile("www.dacotaco.com","/priiloader/version.dat",buffer,0);
 	if ( file_size <= 0 || file_size != (s32)sizeof(UpdateStruct))
 	{
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("error getting versions from server"))*13/2))>>1, 224, "error getting versions from server");
 		if (file_size < -9)
 		{
 			//free pointer
-			free_pointer(buffer);
+			mem_free(buffer);
 		}
 		if (file_size < 0 && file_size > -4)
 		{
@@ -3543,12 +3004,12 @@ void CheckForUpdate()
 			gprintf("CheckForUpdate : file_size != UpdateStruct\n");
 		}
 		sleep(5);
-		free_pointer(buffer);
+		mem_free(buffer);
 		net_deinit();
 		return;
 	}
 	memcpy(&UpdateFile,buffer,sizeof(UpdateStruct));
-	free_pointer(buffer);
+	mem_free(buffer);
 
 
 //generate update list if any
@@ -3565,6 +3026,9 @@ void CheckForUpdate()
 	UpdateStruct UpdateGer;
 	UpdateStruct UpdateFr;
 	UpdateStruct UpdateSp;
+	memset(&UpdateGer,0,sizeof(UpdateStruct));
+	memset(&UpdateFr,0,sizeof(UpdateStruct));
+	memset(&UpdateSp,0,sizeof(UpdateStruct));
 	ClearScreen();
 	//make a nice list of the updates
 	if ( (VERSION < UpdateFile.version) || (VERSION == UpdateFile.version && EN_BETAVERSION > 0) )
@@ -3695,7 +3159,7 @@ void CheckForUpdate()
 					}
 					else
 						memcpy(&UpdateGer,buffer,sizeof(UpdateStruct));
-					free_pointer(buffer);
+					mem_free(buffer);
 
 					//add download other languages' version.dat here
 					
@@ -4005,12 +3469,12 @@ void CheckForUpdate()
 			PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
 			if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 			{
-				free_pointer(Changelog);
+				mem_free(Changelog);
 				break;
 			}
 			if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 			{
-				free_pointer(Changelog);
+				mem_free(Changelog);
 				ClearScreen();
 				return;
 			}
@@ -4050,34 +3514,9 @@ void CheckForUpdate()
 	else if(file_size < 0)
 	{
 		if(file_size < -9)
-			free_pointer(Changelog);
+			mem_free(Changelog);
 		gprintf("CheckForUpdate : failed to get changelog.error %d, HTTP reply %s\n",file_size,Get_Last_reply());
 	}
-//Check Pad for lulz or not
-//-----------------------------
-	file_size = 0;
-	u8 *Easter_egg = NULL;
-	PAD_ScanPads();
-	WPAD_ScanPads();
-	u32 PAD_Pressed  = PAD_ButtonsHeld(0) | PAD_ButtonsHeld(1) | PAD_ButtonsHeld(2) | PAD_ButtonsHeld(3);// | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3); //PAD_ButtonsHeld
-	if (PAD_Pressed & PAD_TRIGGER_Z)
-	{
-		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/Easter.mp3",Easter_egg,0);
-		if(file_size)
-		{
-			ASND_Init();
-			ASND_Pause(0);
-			MP3Player_Init();
-			MP3Player_Volume(125);
-			MP3Player_PlayBuffer(Easter_egg,file_size,NULL);
-			ClearScreen();
-			PrintFormat( 1, ((640/2)-((strlen("MOOT MOOT ;D"))*13/2))>>1, 208, "MOOT MOOT ;D");
-			while(MP3Player_IsPlaying())
-				sleep(1);
-			ASND_End();
-		}
-	}
-	free_pointer(Easter_egg);
 //The choice is made. lets download what the user wanted :)
 //--------------------------------------------------------------
 
@@ -4162,7 +3601,7 @@ void CheckForUpdate()
 		else
 		{
 			if(file_size < -9)
-				free_pointer(Data);
+				mem_free(Data);
 			gprintf("getting update error %d\n",file_size);
 		}
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("error getting file from server"))*13/2))>>1, 224, "error getting file from server");
@@ -4230,7 +3669,7 @@ void CheckForUpdate()
 			gprintf("File not the same : hash check failure!\n");
 			PrintFormat( 1, ((640/2)-((strlen("Error Downloading Update"))*13/2))>>1, 224, "Error Downloading Update");
 			sleep(5);
-			free_pointer(Data);
+			mem_free(Data);
 			return;
 		}
 
@@ -4263,7 +3702,7 @@ void CheckForUpdate()
 		//load the fresh installer
 		net_deinit();
 		BootDolFromMem(Data,1);
-		free_pointer(Data);
+		mem_free(Data);
 		PrintFormat( 1, ((640/2)-((strlen("Error Booting Update dol"))*13/2))>>1, 224, "Error Booting Update dol");
 		sleep(5);
 	}
@@ -4358,6 +3797,7 @@ int main(int argc, char **argv)
 		error=ERROR_ISFS_INIT;
 	}
 
+	AddMem2Area (9*1024*1024, OTHER_AREA);
 	LoadHBCStub();
 	gprintf("\"Magic Priiloader word\": %x\n",*(vu32*)0x8132FFFB);
 	LoadSettings();
@@ -4366,7 +3806,6 @@ int main(int argc, char **argv)
 	{
 		InitVideo();
 	}
-
 	s16 Bootstate = CheckBootState();
 	gprintf("BootState:%d\n", Bootstate );
 	//Check reset button state
@@ -4409,12 +3848,11 @@ int main(int argc, char **argv)
 				if(!SGetSetting(SETTING_SHUTDOWNTOPRELOADER))
 				{
 					gprintf("Shutting down...\n");
+					ShutdownDevices();
+					USB_Deinitialize();
 					*(vu32*)0xCD8000C0 &= ~0x20;
 					Control_VI_Regs(0);
 					DVDStopDisc(false);
-        			WPAD_Shutdown();
-					ShutdownDevices();
-					USB_Deinitialize();
 					if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
 					{
 						STM_ShutdownToStandby();
@@ -4496,7 +3934,6 @@ int main(int argc, char **argv)
 	{
 		gprintf("Reset Button is held down\n");
 	}
-	
 	if ( SGetSetting(SETTING_SHOWGECKOTEXT) == 0 )
 	{
 		//init video first so we can see crashes :)
@@ -4553,7 +3990,7 @@ int main(int argc, char **argv)
 
 			//u32 cnt ATTRIBUTE_ALIGN(32);
 			//ES_GetNumTicketViews(TitleID, &cnt);
-			//tikview *views = (tikview *)memalign( 32, sizeof(tikview)*cnt );
+			//tikview *views = (tikview *)mem_align( 32, sizeof(tikview)*cnt );
 			//ES_GetTicketViews(TitleID, views, cnt);
 			//ES_LaunchTitle(TitleID, &views[0]);	
 		}
@@ -4680,6 +4117,10 @@ int main(int argc, char **argv)
 			VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
 			Control_VI_Regs(0);
 			DVDStopDisc(false);
+			for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {
+				WPAD_Flush(i);
+				WPAD_Disconnect(i);
+			}
 			WPAD_Shutdown();
 			ShutdownDevices();
 			USB_Deinitialize();

@@ -3,6 +3,8 @@
  * Width : 16
  * Height: 1520
 */
+#ifndef _WII_FONT_H_
+#define _WII_FONT_H_
 #define WII_FONT_WIDTH   (16)
 #define WII_FONT_HEIGHT   (1520)
 #define WII_FONT_SIZE   (24320)
@@ -1530,4 +1532,4 @@ const unsigned long wii_font_Bitmap[1520*16]={
 0xFF80FF80, 0xFF80FF80, 0xFF80FF80, 0xFF80FF80, 0xFF80FF80, 0xFF80FF80, 0xFF80FF80, 0xFF80FF80, 
 };
 /* END OF FILE */
-
+#endif

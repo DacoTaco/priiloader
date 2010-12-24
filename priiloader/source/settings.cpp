@@ -25,11 +25,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <unistd.h>
 #include <gccore.h>
 #include <string.h>
-#include <malloc.h>
 
 #include "settings.h"
 #include "error.h"
 #include "gecko.h"
+#include "mem2_manager.h"
 
 Settings *settings=NULL;
 extern u8 error;
@@ -45,7 +45,7 @@ u32 GetSysMenuVersion( void )
 		return 0;
 	}
 
-	tmd_view *rTMD = (tmd_view*)memalign( 32, (tmd_size+31)&(~31) );
+	tmd_view *rTMD = (tmd_view*)mem_align( 32, (tmd_size+31)&(~31) );
 	if( rTMD == NULL )
 	{
 		gprintf("SysMenuVersion : memalign failure\n");
@@ -56,13 +56,13 @@ u32 GetSysMenuVersion( void )
 	if(r<0)
 	{
 		gprintf("SysMenuVersion : GetTMDView error %d\n",r);
-		free_pointer( rTMD );
+		mem_free( rTMD );
 		return 0;
 	}	
 	u32 version = rTMD->title_version;
 	if(rTMD)
 	{
-		free_pointer(rTMD);
+		mem_free(rTMD);
 	}
 	return version;
 }
@@ -80,7 +80,7 @@ u32 GetSysMenuIOS( void )
 		return 0;
 	}
 
-	tmd_view *rTMD = (tmd_view*)memalign( 32, (tmd_size+31)&(~31) );
+	tmd_view *rTMD = (tmd_view*)mem_align( 32, (tmd_size+31)&(~31) );
 	if( rTMD == NULL )
 	{
 		gprintf("GetSysMenuIOS : memalign failure\n");
@@ -91,13 +91,13 @@ u32 GetSysMenuIOS( void )
 	if(r<0)
 	{
 		gprintf("GetSysMenuIOS : GetTMDView error %d\n",r);
-		free_pointer( rTMD );
+		mem_free( rTMD );
 		return 0;
 	}
 	u8 IOS = rTMD->title_version;
 	if(rTMD)
 	{
-		free_pointer(rTMD);
+		mem_free(rTMD);
 	}
 	return IOS;
 }
@@ -155,7 +155,7 @@ void LoadSettings( void )
 	if(settings == NULL)
 	{
 		//the settings still need to be aligned/allocated. so lets do that
-		settings = (Settings*)memalign( 32, (sizeof( Settings )+31)&(~31));
+		settings = (Settings*)mem_align( 32, (sizeof( Settings )+31)&(~31));
 	}
 	memset( settings, 0, sizeof( Settings ) );
 	
@@ -183,7 +183,7 @@ void LoadSettings( void )
 		}
 		ISFS_Seek( fd, 0, 0 );
 	}
-	fstats *status = (fstats*)memalign(32,(sizeof(fstats)+31)&(~31));
+	fstats *status = (fstats*)mem_align(32,(sizeof(fstats)+31)&(~31));
 	memset(status,0,sizeof(fstats));
 	ISFS_GetFileStats(fd,status);
 	if ( status->file_length != sizeof(Settings) )
@@ -203,7 +203,7 @@ void LoadSettings( void )
 			error = ERROR_SETTING_OPEN;
 			if(status)
 			{
-				free_pointer(status);				
+				mem_free(status);				
 			}
 			return;
 		}
@@ -212,7 +212,7 @@ void LoadSettings( void )
 			ISFS_Close( fd );
 			if(status)
 			{
-				free_pointer(status);
+				mem_free(status);
 			}
 			error = ERROR_SETTING_WRITE;
 			return;
@@ -221,7 +221,7 @@ void LoadSettings( void )
 	}
 	if(status)
 	{
-		free_pointer(status);
+		mem_free(status);
 	}
 	if(ISFS_Read( fd, settings, sizeof( Settings ) )<0)
 	{
@@ -229,6 +229,7 @@ void LoadSettings( void )
 		error = ERROR_SETTING_READ;
 		return;
 	}
+	ISFS_Close( fd );
 	if( settings->version == 0 || settings->version != VERSION || settings->BetaVersion == 0 || settings->BetaVersion != BETAVERSION )
 	{
 		settings->version = VERSION;
@@ -236,7 +237,6 @@ void LoadSettings( void )
 		ISFS_Seek( fd, 0, 0 );
 		ISFS_Write( fd, settings, sizeof( Settings ) );
 	}
-	ISFS_Close( fd );
 	return;
 }
 int SaveSettings( void )

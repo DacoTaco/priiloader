@@ -102,6 +102,7 @@ error_1:
 
 error_2:
 	gprintf("error_2\n");
+	IOS_Close(playrec_fd);
 	return -1;
 }
 
