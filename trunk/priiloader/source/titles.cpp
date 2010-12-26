@@ -30,7 +30,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "titles.h"
 #include "mem2_manager.h"
 
-//#define USE_DVD_ASYNC
+#define USE_DVD_ASYNC
 #ifdef USE_DVD_ASYNC
 s8 DriveClosed = 0;
 s8 DriveError = 0;
@@ -525,6 +525,8 @@ s32 LoadListTitles( void )
 				gprintf("no title name to use in play_rec\n");
 			}
 			net_wc24cleanup();
+			ClearState();
+			SetNandBootInfo();
 			WPAD_Shutdown();
 			ShutdownDevices();
 

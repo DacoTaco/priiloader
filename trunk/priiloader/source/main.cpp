@@ -2421,7 +2421,7 @@ void InstallLoadDOL( void )
 				max_pos = app_list.size() -1;
 			//sort app lists
 			s8 swap = 0;
-			while(swap == 0)
+			for(s32 max = 0;max < (s32)app_list.size() * (s32)app_list.size();max++)
 			{
 				swap = 0;
 				for (int count = 0; count < (s32)app_list.size(); count++)
@@ -2444,6 +2444,8 @@ void InstallLoadDOL( void )
 						}
 					}
 				}
+				if(swap != 0)
+					break;
 			}
 			ClearScreen();
 			redraw=true;
@@ -3771,7 +3773,7 @@ int main(int argc, char **argv)
 #endif
 	gprintf("priiloader\n");
 	gprintf("Built   : %s %s\n", __DATE__, __TIME__ );
-	gprintf("Version : %d.%d (rev %s)\n", VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
+	gprintf("Version : %d.%db (rev %s)\n", VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
 	gprintf("Firmware: %d.%d.%d\n", *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143 );
 
 	*(vu32*)0x80000020 = 0x0D15EA5E;				// Magic word (how did the console boot?)
@@ -3814,6 +3816,8 @@ int main(int argc, char **argv)
 	{
 		//Check autoboot settings
 		StateFlags temp;
+		/*temp = GetStateFlags();
+		gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u & checksum %u\n",temp.type,temp.discstate,temp.returnto,temp.flags,temp.checksum);*/
 		switch( Bootstate )
 		{
 			case TYPE_UNKNOWN: //255 or -1, only seen when shutting down from MIOS or booting dol from HBC. it is actually an invalid value
@@ -3971,7 +3975,6 @@ int main(int argc, char **argv)
 	}
 	time(&startloop);
 	gdprintf("priiloader v%d.%d DEBUG (Sys:%d)(IOS:%d)(%s %s)\n", VERSION>>8, VERSION&0xFF, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
-
 	while(1)
 	{
 		WPAD_ScanPads();
@@ -4084,9 +4087,9 @@ int main(int argc, char **argv)
 		{
 			if( BETAVERSION > 0 )
 			{
-				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d(beta v%d)", VERSION>>8, VERSION&0xFF, BETAVERSION&0xFF );
+				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%db(beta v%d)", VERSION>>8, VERSION&0xFF, BETAVERSION&0xFF );
 			} else {
-				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d (r%s)", VERSION>>8, VERSION&0xFF,SVN_REV_STR );
+				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%db (r%s)", VERSION>>8, VERSION&0xFF,SVN_REV_STR );
 			}
 			PrintFormat( 0, 16, rmode->viHeight-64, "IOS v%d", (*(vu32*)0x80003140)>>16 );
 			PrintFormat( 0, 16, rmode->viHeight-48, "Systemmenu v%d", SysVersion );			

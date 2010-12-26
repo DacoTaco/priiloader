@@ -72,14 +72,15 @@ StateFlags GetStateFlags( void )
 	mem_free( sf );
 	return State;
 }
-u32 CalcStateChk(u32 *buf, u32 size)
+static u32 __CalcChecksum(u32 *buf, int len)
 {
-	u32 chksum = 0;
+	u32 sum = 0;
+	int i;
+	len = (len/4);
 
-	for( u32 i=1; i<size>>2; ++i )
-		chksum += buf[i];
-
-	return chksum;
+	for(i=1; i<len; i++)
+		sum += buf[i];
+	return sum;
 }
 s32 ClearState( void )
 {
@@ -112,7 +113,7 @@ s32 SetBootState( u8 type , u8 flags , u8 returnto , u8 discstate )
 	sf->returnto = returnto;
 	sf->flags = flags;
 	sf->discstate = discstate;
-	sf->checksum= CalcStateChk( (u32*)sf, sizeof(StateFlags) );
+	sf->checksum= __CalcChecksum((u32*)sf, sizeof(StateFlags));
 
 	if(ISFS_Seek( fd, 0, 0 )<0)
 	{
@@ -166,4 +167,28 @@ s8 VerifyNandBootInfo ( void )
 	}
 	else
 		return 0;
+}
+s32 SetNandBootInfo(void)
+{
+	static NANDBootInfo BootInfo ATTRIBUTE_ALIGN(32);
+	memset(&BootInfo,0,sizeof(NANDBootInfo));
+	BootInfo.apptype = 0x80;
+	BootInfo.titletype = 2;
+	if(ES_GetTitleID(&BootInfo.launcher) < 0)
+		BootInfo.launcher = 0x0000000100000002LL;
+	BootInfo.checksum = __CalcChecksum((u32*)&BootInfo,sizeof(NANDBootInfo));
+	s32 fd = ISFS_Open("/shared2/sys/NANDBOOTINFO", ISFS_OPEN_RW );
+	if(fd < 0)
+	{
+		return fd;
+	}
+	s32 ret = ISFS_Write(fd, &BootInfo, sizeof(NANDBootInfo));
+	if(ret < 0)
+	{
+		ISFS_Close(fd);
+		gprintf("SetNandBootInfo : ISFS_Write returned %d\n",ret);
+		return -2;
+	}
+	ISFS_Close(fd);
+	return 1;
 }
