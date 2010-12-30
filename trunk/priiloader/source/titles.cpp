@@ -115,7 +115,7 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 	}
     char file[256] ATTRIBUTE_ALIGN(32);
 	memset(file,0,256);
-    sprintf(file, "/title/%08x/%08x/content/%08x.app", (u32)(id >> 32), (u32)id, app);
+    sprintf(file, "/title/%08x/%08x/content/%08x.app", (u32)(id >> 32), (u32)(id & 0xFFFFFFFF), app);
 	gdprintf("GetTitleName : %s\n",file);
 	u32 cnt ATTRIBUTE_ALIGN(32);
 	cnt = 0;
@@ -145,7 +145,7 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 		gprintf("GetTitleName : GetTicketViews error %d \n",r);
 		mem_free(data);
 		mem_free(views);
-		return -2;
+		return -3;
 	}
 
 	//lets get this party started with the right way to call ES_OpenTitleContent. and not like how libogc < 1.8.3 does it. patch was passed on , and is done correctly in 1.8.3
@@ -157,7 +157,7 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 		CheckTitleOnSD(id);
 		mem_free(data);
 		mem_free(views);
-		return -3;
+		return -106;
 	}
 	else if(fh < 0)
 	{
@@ -169,7 +169,7 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 		if (fh == -106)
 		{
 			CheckTitleOnSD(id);
-			return -4;
+			return -106;
 		}
 		else if (fh < 0)
 		{
@@ -190,24 +190,15 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 	else
 	{
 		//ES method
-		u8* IMET_data = (u8*)mem_align(32, (sizeof(IMET)+31)&(~31));
-		if(IMET_data == NULL)
-		{
-			gprintf("GetTitleName : IMET header align failure\n");
-			return -7;
-		}
-		r = ES_ReadContent(fh,IMET_data,sizeof(IMET));
+		r = ES_ReadContent(fh,(u8*)data,sizeof(IMET));
 		if (r < 0) {
 			gprintf("GetTitleName : ES_ReadContent error %d\n",r);
 			ES_CloseContent(fh);
-			mem_free(IMET_data);
 			mem_free(data);
 			mem_free(views);
 			return -8;
 		}
 		//free data and let it point to IMET_data so everything else can work just fine
-		mem_free(data);
-		data = (IMET*)IMET_data;
 		ES_CloseContent(fh);
 		mem_free(views);
 	}
@@ -217,29 +208,37 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 	memset(str,0,10*84);
 	if(return_unicode_name)
 		memset(str_unprocessed,0,10*84);
-	for(u8 y =0;y <= 9;y++)
+	if(data->imet == 0x494d4554) // check if its a valid imet header
 	{
-		u8 p = 0;
-		u8 up = 0;
-		for(u8 j=0;j<83;j++)
+		for(u8 y =0;y <= 9;y++)
 		{
-			if(data->names[y][j] < 0x20)
-				if(return_unicode_name && data->names[y][j] == 0x00)
-					str_unprocessed[y][up++] = data->names[y][j];
-				else
-					continue;
-			else if(data->names[y][j] > 0x7E)
-				continue;
-			else
+			u8 p = 0;
+			u8 up = 0;
+			for(u8 j=0;j<83;j++)
 			{
-				str[y][p++] = data->names[y][j];
-				str_unprocessed[y][up++] = data->names[y][j];
+				if(data->names[y][j] < 0x20)
+					if(return_unicode_name && data->names[y][j] == 0x00)
+						str_unprocessed[y][up++] = data->names[y][j];
+					else
+						continue;
+				else if(data->names[y][j] > 0x7E)
+					continue;
+				else
+				{
+					str[y][p++] = data->names[y][j];
+					str_unprocessed[y][up++] = data->names[y][j];
+				}
 			}
-		}
-		str[y][83] = '\0';
+			str[y][83] = '\0';
 
+		}
+		mem_free(data);
 	}
-	mem_free(data);
+	else
+	{
+		gprintf("invalid IMET header for 0x%08x/0x%08x\n", (u32)(id >> 32), (u32)(id & 0xFFFFFFFF));
+		return -9;
+	}
 	if(str[lang][0] != '\0')
 	{
 		gdprintf("GetTitleName : title %s\n",str[lang]);
@@ -357,7 +356,7 @@ s32 LoadListTitles( void )
 				memset(temp.name_unicode,0,84);
 				temp.content_id = 0;
 				ret = GetTitleName(rTMD->title_id,rTMD->contents[0].cid,temp_name,temp.name_unicode);
-				if ( ret != -3 && ret != -4 )
+				if ( ret != -106 )
 				{
 					temp.title_id = rTMD->title_id;
 					temp.name_ascii = temp_name;

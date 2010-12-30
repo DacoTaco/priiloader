@@ -1459,6 +1459,7 @@ void LoadHBC( void )
 	tikview *views = (tikview *)mem_align( 32, sizeof(tikview)*cnt );
 	ES_GetTicketViews(TitleID, views, cnt);
 	ClearState();
+	WPAD_Shutdown();
 	ES_LaunchTitle(TitleID, &views[0]);
 	//well that went wrong
 	error = ERROR_BOOT_HBC;
@@ -1468,6 +1469,7 @@ void LoadHBC( void )
 void LoadBootMii( void )
 {
 	//when this was coded on 6th of Oct 2009 Bootmii ios was in IOS slot 254
+	PollDevices();
 	if(isIOSstub(254))
 	{
 		if(rmode != NULL)
@@ -2214,6 +2216,15 @@ void BootMainSysMenu( u8 init )
 			} // end general hacks loop
 		} //end if hacks > 0
 	} // end if classic hack are enabled
+	if(TMD)
+		mem_free(TMD);
+	if(tstatus)
+		mem_free( tstatus );
+	if(buf)
+		mem_free( buf );
+	if(boot_hdr)
+		mem_free(boot_hdr);
+
 	ShutdownDevices();
 	USB_Deinitialize();
 	if(init == 1 || SGetSetting(SETTING_SHOWGECKOTEXT) != 0 )
