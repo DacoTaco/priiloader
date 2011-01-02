@@ -1515,6 +1515,8 @@ void LoadBootMii( void )
 	fclose(BootmiiFile);
 	u8 currentIOS = IOS_GetVersion();
 	for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {
+		if(WPAD_Probe(i,0) < 0)
+			continue;
 		WPAD_Flush(i);
 		WPAD_Disconnect(i);
 	}
@@ -1681,6 +1683,8 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 	{
 		if(WPAD_Probe(i,0) > 0)
 		{
+			if(WPAD_Probe(i,0) < 0)
+				continue;
 			WPAD_Flush(i);
 			WPAD_Disconnect(i);
 		}
@@ -1990,6 +1994,7 @@ void BootMainSysMenu( u8 init )
 		}
 
 	}
+	ISFS_Close(fd);
 	entrypoint = (void (*)())(boot_hdr->entrypoint);
 	gprintf("entrypoint %08X\n", entrypoint );
 
@@ -2001,10 +2006,12 @@ void BootMainSysMenu( u8 init )
 	{
 		LoadHacks(true);
 	}
-	/*for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {
+	for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {
+		if(WPAD_Probe(i,0) < 0)
+			continue;
 		WPAD_Flush(i);
 		WPAD_Disconnect(i);
-	}*/
+	}
 	WPAD_Shutdown();
 
 	//Step 1 of IOS handling : Reloading IOS if needed;
@@ -2900,6 +2907,8 @@ void AutoBootDol( void )
 		return;
 	}
 	for(int i=0;i<WPAD_MAX_WIIMOTES;i++) {
+		if(WPAD_Probe(i,0) < 0)
+			continue;
 		WPAD_Flush(i);
 		WPAD_Disconnect(i);
 	}
@@ -4132,6 +4141,8 @@ int main(int argc, char **argv)
 			Control_VI_Regs(0);
 			DVDStopDisc(false);
 			for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {
+				if(WPAD_Probe(i,0) < 0)
+					continue;
 				WPAD_Flush(i);
 				WPAD_Disconnect(i);
 			}
