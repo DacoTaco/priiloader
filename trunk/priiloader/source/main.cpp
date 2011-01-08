@@ -93,9 +93,13 @@ extern u32 *states;
 extern u32 *states_hash;
 extern s8 Mounted;
 
-u8 Shutdown=0;
-u8 BootSysMenu = 0;
-u8 ReloadedIOS = 0;
+typedef struct wii_state {
+	s8 Shutdown:2;
+	s8 BootSysMenu:2;
+	s8 ReloadedIOS:2;
+	s8 InMainMenu:2;
+} wii_state;
+wii_state system_state;
 time_t startloop;
 
 s32 __IOS_LoadStartupIOS()
@@ -1527,7 +1531,7 @@ void LoadBootMii( void )
 	//launching bootmii failed. lets wait a bit for the launch(it could be delayed) and then load the other ios back
 	sleep(3);
 	IOS_ReloadIOS(currentIOS);
-	ReloadedIOS = 1;
+	system_state.ReloadedIOS = 1;
 	WPAD_Init();
 	return;
 }
@@ -1576,7 +1580,7 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 	Elf32_Ehdr ElfHdr;
 
 	memcpy(&ElfHdr,dolstart,sizeof(Elf32_Ehdr));
-
+	
 	if( ElfHdr.e_ident[EI_MAG0] == 0x7F ||
 		ElfHdr.e_ident[EI_MAG1] == 'E' ||
 		ElfHdr.e_ident[EI_MAG2] == 'L' ||
@@ -1598,6 +1602,11 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 		gdprintf("SHentsize: \t%04X\n",	ElfHdr.e_shentsize );
 		gdprintf("SHnum:     \t%04X\n",	ElfHdr.e_shnum );
 		gdprintf("SHstrndx:  \t%04X\n\n",ElfHdr.e_shstrndx );
+		if( ( (ElfHdr.e_entry | 0x80000000) >= 0x80E00000 ) && ( (ElfHdr.e_entry | 0x80000000) <= 0x81330000) )
+		{
+			gprintf("BootDolFromMem : ELF entrypoint will overwrite program: abort!\n");
+			return -1;
+		}
 		if( ElfHdr.e_phnum == 0 )
 		{
 			gdprintf("BootDolFromMem : Warning program header entries are zero!\n");
@@ -1656,6 +1665,13 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 		gdprintf("BootDolFromMem : DOL detected\n");
 		dolhdr *dolfile;
 		dolfile = (dolhdr *) dolstart;
+		if( 
+			( dolfile->entrypoint >= 0x80E00000 && dolfile->entrypoint <= 0x81330000 ) ||
+			( dolfile->addressBSS >= 0x80E00000 && dolfile->addressBSS <= 0x81330000 ) )
+		{
+			gprintf("BootDolFromMem : entrypoint/BSS will overwrite program: abort!\n");
+			return -1;
+		}
 		for (i = 0; i < 7; i++) {
 			if ((!dolfile->sizeText[i]) || (dolfile->addressText[i] < 0x100)) continue;
 			ICInvalidateRange ((void *) dolfile->addressText[i],dolfile->sizeText[i]);
@@ -1706,17 +1722,17 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 			else
 			{
 				IOS_ReloadIOS(IOS_GetPreferredVersion());
-				ReloadedIOS = 1;
+				system_state.ReloadedIOS = 1;
 			}
 		}
 		else
 		{
 			IOS_ReloadIOS(58);
-			ReloadedIOS = 1;
+			system_state.ReloadedIOS = 1;
 		}
 	}
 	
-	gprintf("BootDolFromMem : Entrypoint: %08X\n", (u32)(entrypoint) );
+	gprintf("BootDolFromMem : Entrypoint: 0x%08X\n", (u32)(entrypoint) );
 
 	__STM_Close();
 	ISFS_Deinitialize();
@@ -2031,7 +2047,7 @@ void BootMainSysMenu( u8 init )
 				//gprintf("BootMainSysMenu : ios %d launched\n",IOS_GetVersion());
 				//__IOS_LaunchNewIOS ( (u8)rTMD->sys_version );
 				//__IOS_LaunchNewIOS ( 249 );
-				ReloadedIOS = 1;
+				system_state.ReloadedIOS = 1;
 			}
 			else
 			{
@@ -2057,12 +2073,12 @@ void BootMainSysMenu( u8 init )
 		__IOS_InitializeSubsystems();
 
 		gprintf("launched ios %d for system menu\n",IOS_GetVersion());
-		ReloadedIOS = 1;
+		system_state.ReloadedIOS = 1;
 	}*/
 	//Step 2 of IOS handling : ES_Identify if we are on a different ios or if we reloaded ios once already. note that the ES_Identify is only supported by ios > 20
-	if (((u8)IOS_GetVersion() != (u8)rTMD->sys_version) || (ReloadedIOS) )
+	if (((u8)IOS_GetVersion() != (u8)rTMD->sys_version) || (system_state.ReloadedIOS) )
 	{
-		if (ReloadedIOS)
+		if (system_state.ReloadedIOS)
 			gprintf("Forced into ES_Identify\n");
 		else
 			gprintf("IOS(%d) != SM IOS(%d). forcing ES_Identify\n",IOS_GetVersion(),(u8)rTMD->sys_version);
@@ -2931,13 +2947,13 @@ void AutoBootDol( void )
 			else
 			{
 				IOS_ReloadIOS(IOS_GetPreferredVersion());
-				ReloadedIOS = 1;
+				system_state.ReloadedIOS = 1;
 			}
 		}
 		else
 		{
 			IOS_ReloadIOS(58);
-			ReloadedIOS = 1;
+			system_state.ReloadedIOS = 1;
 		}
 	}
 	DVDStopDisc(false);
@@ -2958,7 +2974,10 @@ void AutoBootDol( void )
 }
 void HandleWiiMoteEvent(s32 chan)
 {
-	Shutdown=1;
+	if(system_state.InMainMenu == 0)//see HandleSTMevent()
+		return;
+	system_state.Shutdown=1;
+	return;
 }
 void CheckForUpdate()
 {
@@ -3732,26 +3751,29 @@ void CheckForUpdate()
 }
 void HandleSTMEvent(u32 event)
 {
+	if (system_state.InMainMenu == 0) //we have no buisness with the reset/power when we aren't in main menu
+		return;
 	f64 ontime;
 	switch(event)
 	{
 		case STM_EVENT_POWER:
-			Shutdown=1;
-			BootSysMenu = 0;
+			system_state.Shutdown=1;
+			system_state.BootSysMenu = 0;
 			break;
 		case STM_EVENT_RESET:
-			if (BootSysMenu == 0 && WPAD_Probe(0,0) < 0)
+			if (system_state.BootSysMenu == 0 && WPAD_Probe(0,0) < 0)
 			{
 				time_t inloop;
 				time(&inloop);
 				ontime = difftime(inloop, startloop);
 				gprintf("ontime = %4.2fs\n",ontime);
 				if (ontime >= 15)
-					BootSysMenu = 1;
+					system_state.BootSysMenu = 1;
 			}
 		default:
 			break;
 	}
+	return;
 }
 void Autoboot_System( void )
 {
@@ -3830,6 +3852,7 @@ int main(int argc, char **argv)
 	}
 	s16 Bootstate = CheckBootState();
 	gprintf("BootState:%d\n", Bootstate );
+	memset(&system_state,0,sizeof(wii_state));
 	//Check reset button state
 	//TODO : move magic word handling to some place else (its own function?)
 	if( ((*(vu32*)0xCC003000)>>16)&1 && *(vu32*)0x8132FFFB != 0x4461636f && *(vu32*)0x8132FFFB != 0x50756e65) //0x4461636f = "Daco" in hex, 0x50756e65 = "Pune"
@@ -3985,8 +4008,8 @@ int main(int argc, char **argv)
 
 	ClearScreen();
 
-	s32 cur_off=0;
-	u32 redraw=true;
+	s8 cur_off=0;
+	s8 redraw=true;
 	u32 SysVersion=GetSysMenuVersion();
 
 	if( SGetSetting(SETTING_STOPDISC) )
@@ -3995,6 +4018,7 @@ int main(int argc, char **argv)
 	}
 	time(&startloop);
 	gdprintf("priiloader v%d.%d DEBUG (Sys:%d)(IOS:%d)(%s %s)\n", VERSION>>8, VERSION&0xFF, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
+	system_state.InMainMenu = 1;
 	while(1)
 	{
 		WPAD_ScanPads();
@@ -4022,6 +4046,7 @@ int main(int argc, char **argv)
 		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 		{
 			ClearScreen();
+			system_state.InMainMenu = 0;
 			switch(cur_off)
 			{
 				case 0:
@@ -4066,7 +4091,7 @@ int main(int argc, char **argv)
 					break;
 
 			}
-
+			system_state.InMainMenu = 1;
 			ClearScreen();
 			redraw=true;
 		}
@@ -4133,7 +4158,7 @@ int main(int argc, char **argv)
 			}
 			redraw = false;
 		}
-		if( Shutdown )
+		if( system_state.Shutdown )
 		{
 			*(vu32*)0xCD8000C0 &= ~0x20;
 			ClearState();
@@ -4173,16 +4198,18 @@ int main(int argc, char **argv)
 
 		}
 		//boot system menu
-		if(BootSysMenu)
+		if(system_state.BootSysMenu)
 		{
 			if ( !SGetSetting(SETTING_USESYSTEMMENUIOS) )
 			{
 				settings->UseSystemMenuIOS = true;
 			}
+			ClearScreen();
 			BootMainSysMenu(1);
 			if(!error)
 				error=ERROR_SYSMENU_GENERAL;
-			BootSysMenu = 0;
+			system_state.BootSysMenu = 0;
+			redraw=true;
 		}
 		//check Mounted Devices
 		PollDevices();

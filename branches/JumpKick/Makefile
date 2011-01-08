@@ -33,18 +33,18 @@ STYLEFIX	= 2>&1 | sed -e 's/\([a-zA-Z\.]\+\):\([0-9]\+\):\([0-9]\+:\)\?\(.\+\)/\
 CFLAGS	= -g -O2 -Wall $(MACHDEP) $(INCLUDE)
 CXXFLAGS	=	$(CFLAGS)
 
-LDFLAGS	=	-g $(MACHDEP) -Wl,-Map,$(notdir $@).map,--section-start,.init=0x80003F00
+LDFLAGS	=	-g $(MACHDEP) -Wl,-Map,$(notdir $@).map
 
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project
 #---------------------------------------------------------------------------------
-LIBS	:=	-ldb -lwiiuse -lbte -logc -lfat
+LIBS	:=	-lwiiuse -lbte -logc -lm
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
 # include and lib
 #---------------------------------------------------------------------------------
-LIBDIRS	:=  $(CURDIR)/libs
+LIBDIRS	:=	$(CURDIR)/libs
 
 #---------------------------------------------------------------------------------
 # no real need to edit anything past this point unless you need to add additional
@@ -89,7 +89,6 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES), -iquote $(CURDIR)/$(dir)) \
 					$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
 					-I$(CURDIR)/$(BUILD) \
 					-I$(LIBOGC_INC)
-					
 
 #---------------------------------------------------------------------------------
 # build a list of library paths
@@ -104,7 +103,6 @@ export OUTPUT	:=	$(CURDIR)/$(TARGET)
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
-	wiiload $(OUTPUT).dol
 
 #---------------------------------------------------------------------------------
 clean:
@@ -114,6 +112,7 @@ clean:
 #---------------------------------------------------------------------------------
 run:
 	wiiload $(TARGET).dol
+
 
 #---------------------------------------------------------------------------------
 else
@@ -127,29 +126,20 @@ $(OUTPUT).dol: $(OUTPUT).elf
 $(OUTPUT).elf: $(OFILES)
 
 #---------------------------------------------------------------------------------
-# This rule links in binary data with the .bin,tik,tmd & app extension
+# This rule links in binary data with the .jpg extension
 #---------------------------------------------------------------------------------
-%.bin.o	:	%.bin
-#---------------------------------------------------------------------------------
-	@echo $(notdir $<)
-	$(bin2o)
-	
--include $(DEPENDS)
-
-%.tik.o	:	%.tik
+%.jpg.o	:	%.jpg
 #---------------------------------------------------------------------------------
 	@echo $(notdir $<)
 	$(bin2o)
 
 -include $(DEPENDS)
 
-%.tmd.o	:	%.tmd
 #---------------------------------------------------------------------------------
-	@echo $(notdir $<)
-	$(bin2o)
-
--include $(DEPENDS)
-%.app.o	:	%.app
+#---------------------------------------------------------------------------------
+# This rule links in binary data with the .dol extension
+#---------------------------------------------------------------------------------
+%.dol.o	:	%.dol
 #---------------------------------------------------------------------------------
 	@echo $(notdir $<)
 	$(bin2o)
