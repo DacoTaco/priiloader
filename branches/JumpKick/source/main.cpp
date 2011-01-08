@@ -88,6 +88,11 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 		gdprintf("SHentsize: \t%04X\n",	ElfHdr.e_shentsize );
 		gdprintf("SHnum:     \t%04X\n",	ElfHdr.e_shnum );
 		gdprintf("SHstrndx:  \t%04X\n\n",ElfHdr.e_shstrndx );
+		if( ( (ElfHdr.e_entry | 0x80000000) >= 0x80004000 ) && ( (ElfHdr.e_entry | 0x80000000) <= 0x800E0000) )
+		{
+			gprintf("BootDolFromMem : ELF entrypoint will overwrite program: abort!\n");
+			return -1;
+		}
 		if( ElfHdr.e_phnum == 0 )
 		{
 			gdprintf("BootDolFromMem : Warning program header entries are zero!\n");
@@ -146,6 +151,13 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 		gdprintf("BootDolFromMem : DOL detected\n");
 		dolhdr *dolfile;
 		dolfile = (dolhdr *) dolstart;
+		if( 
+			( dolfile->entrypoint >= 0x80004000 && dolfile->entrypoint <= 0x800E0000 ) ||
+			( dolfile->addressBSS >= 0x80004000 && dolfile->addressBSS <= 0x800E0000 ) )
+		{
+			gprintf("BootDolFromMem : entrypoint/BSS will overwrite program: abort!\n");
+			return -1;
+		}
 		for (i = 0; i < 7; i++) {
 			if ((!dolfile->sizeText[i]) || (dolfile->addressText[i] < 0x100)) continue;
 			ICInvalidateRange ((void *) dolfile->addressText[i],dolfile->sizeText[i]);
