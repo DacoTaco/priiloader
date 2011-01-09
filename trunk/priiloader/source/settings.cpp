@@ -48,7 +48,7 @@ u32 GetSysMenuVersion( void )
 	tmd_view *rTMD = (tmd_view*)mem_align( 32, (tmd_size+31)&(~31) );
 	if( rTMD == NULL )
 	{
-		gprintf("SysMenuVersion : memalign failure\n");
+		gdprintf("SysMenuVersion : memalign failure\n");
 		return 0;
 	}
 	memset(rTMD,0, (tmd_size+31)&(~31) );
@@ -83,7 +83,7 @@ u32 GetSysMenuIOS( void )
 	tmd_view *rTMD = (tmd_view*)mem_align( 32, (tmd_size+31)&(~31) );
 	if( rTMD == NULL )
 	{
-		gprintf("GetSysMenuIOS : memalign failure\n");
+		gdprintf("GetSysMenuIOS : memalign failure\n");
 		return 0;
 	}
 	memset(rTMD,0, (tmd_size+31)&(~31) );

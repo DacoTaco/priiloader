@@ -265,7 +265,7 @@ void InitVideo ( void )
 	VIDEO_WaitVSync();
 	if(rmode->viTVMode&VI_NON_INTERLACE)
 		VIDEO_WaitVSync();
-	gprintf("resolution is %dx%d\n",rmode->viWidth,rmode->viHeight);
+	gdprintf("resolution is %dx%d\n",rmode->viWidth,rmode->viHeight);
 }
 //the following doesn't work cause almost no compilers supports export ;_;
 /*export template <class pointer>
@@ -330,10 +330,10 @@ s8 InitNetwork()
         char myIP[16];
 		if (if_config(myIP, NULL, NULL, true) < 0) 
 		{
-			gprintf("InitNetwork : Error reading IP address\n");
+			gdprintf("InitNetwork : Error reading IP address\n");
 			return -1;
 		}
-		gprintf("InitNetwork : IP Address -> %s\n",myIP);
+		gdprintf("InitNetwork : IP Address -> %s\n",myIP);
 		return 1;
     } 
 	else 
@@ -350,11 +350,11 @@ bool PollDevices( void )
 		fatUnmount("fat:/");
 		if(Mounted & 1)
 		{
-			gprintf("USB removed.unmounting...\n");
+			gprintf("USB removed\n");
 		}
 		if(Mounted & 2)
 		{
-			gprintf("SD removed.unmounting...\n");
+			gprintf("SD removed\n");
 			__io_wiisd.shutdown();
 		}			
 		Mounted = 0;
@@ -366,7 +366,7 @@ bool PollDevices( void )
 		{
 			//USB is mounted. lets kick it out and use SD instead :P
 			fatUnmount("fat:/");
-			gprintf("USB: Unmounted for SD\n");
+			gprintf("USB: Unmounted\n");
 			Mounted = 0;
 		}
 		if(fatMountSimple("fat",&__io_wiisd))
@@ -376,7 +376,7 @@ bool PollDevices( void )
 		}
 		else
 		{
-			gprintf("SD: Failed to mount!not fat?\n");
+			gprintf("SD: Failed to mount\n");
 			Device_Not_Mountable |= 2;
 		}
 	}
@@ -393,7 +393,7 @@ bool PollDevices( void )
 		}
 		else
 		{
-			gprintf("USB: Failed to mount!not fat?\n");
+			gprintf("USB: Failed to mount\n");
 			Device_Not_Mountable |= 1;
 		}
 	}
@@ -401,13 +401,13 @@ bool PollDevices( void )
 	{
 		if ( ( Device_Not_Mountable & 1 ) && !__io_usbstorage.isInserted() )
 		{
-			gprintf("USB: NM Flag Reset\n");
+			gdprintf("USB: NM Flag Reset\n");
 			Device_Not_Mountable -= 1;
 		}
 		if ( ( Device_Not_Mountable & 2 ) &&  !__io_wiisd.isInserted() )
 		{
 			//not needed for SD yet but just to be on the safe side
-			gprintf("SD: NM Flag Reset\n");
+			gdprintf("SD: NM Flag Reset\n");
 			Device_Not_Mountable -= 2;
 			__io_wiisd.shutdown();
 		}

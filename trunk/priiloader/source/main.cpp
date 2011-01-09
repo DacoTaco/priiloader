@@ -56,6 +56,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "password.h"
 #include "sha1.h"
 #include "HTTP_Parser.h"
+#include "dvd.h"
 #include "titles.h"
 #include "mem2_manager.h"
 
@@ -85,6 +86,7 @@ typedef struct {
 	u8 HW_AHBPROT_ENABLED;
 } Binary_struct;
 
+extern DVD_status DVD_state;
 extern Settings *settings;
 extern u8 error;
 extern std::vector<hack> hacks;
@@ -172,6 +174,8 @@ void LoadHBCStub ( void )
 	//see if changes are needed to change it to the right ID
     switch(DetectHBC())
 	{
+		default: //not good, no HBC was detected >_> lets keep the stub anyway
+			gprintf("HBC stub : No HBC Detected!1.0.8 stub loaded by default\n");
 		case 3:
 			*(vu16*)0x800024CA = 0xAF1B;
 			*(vu16*)0x800024D2 = 0xF516;
@@ -182,9 +186,6 @@ void LoadHBCStub ( void )
 			*(vu16*)0x800024D2 = 0x5858;//"XX";
 			DCFlushRange((void*)0x80001800,stub_bin_size);
 		case 2: //JODI, no changes are needed
-			break;
-		default: //not good, no HBC was detected >_> lets keep the stub anyway
-			gprintf("HBC stub : No HBC Detected! JODI stub loaded by default\n");
 			break;
 	}
 	gprintf("HBC stub : Loaded\n");
@@ -217,18 +218,18 @@ bool isIOSstub(u8 ios_number)
 	if (!tmd_size)
 	{
 		//getting size failed. invalid or fake tmd for sure!
-		gprintf("isIOSstub : ES_GetTMDViewSize fail,ios %d\n",ios_number);
+		gdprintf("isIOSstub : ES_GetTMDViewSize fail,ios %d\n",ios_number);
 		return true;
 	}
 	ios_tmd = (tmd_view *)mem_align( 32, (tmd_size+31)&(~31) );
 	if(!ios_tmd)
 	{
-		gprintf("isIOSstub : TMD alloc failure\n");
+		gdprintf("isIOSstub : TMD alloc failure\n");
 		return true;
 	}
 	memset(ios_tmd , 0, tmd_size);
 	ES_GetTMDView(0x0000000100000000ULL | ios_number, (u8*)ios_tmd , tmd_size);
-	//gprintf("isIOSstub : IOS %d is rev %d(0x%x) with tmd size of %u and %u contents\n",ios_number,ios_tmd->title_version,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
+	gdprintf("isIOSstub : IOS %d is rev %d(0x%x) with tmd size of %u and %u contents\n",ios_number,ios_tmd->title_version,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
 	/*Stubs have a few things in common:
 	- title version : it is mostly 65280 , or even better : in hex the last 2 digits are 0. 
 		example : IOS 60 rev 6400 = 0x1900 = 00 = stub
@@ -242,18 +243,18 @@ bool isIOSstub(u8 ios_number)
 	{
 		if ( ( ios_tmd->num_contents == 3) && (ios_tmd->contents[0].type == 1 && ios_tmd->contents[1].type == 0x8001 && ios_tmd->contents[2].type == 0x8001) )
 		{
-			gprintf("isIOSstub : %d is stub",ios_number);
+			gdprintf("isIOSstub : %d == stub",ios_number);
 			mem_free(ios_tmd);
 			return true;
 		}
 		else
 		{
-			gprintf("isIOSstub : %d is active\n",ios_number);
+			gdprintf("isIOSstub : %d != stub\n",ios_number);
 			mem_free(ios_tmd);
 			return false;
 		}
 	}
-	gprintf("isIOSstub : %d is active\n",ios_number);
+	gdprintf("isIOSstub : %d != stub\n",ios_number);
 	mem_free(ios_tmd);
 	return false;
 }
@@ -1392,14 +1393,16 @@ void SetSettings( void )
 				case RETURNTO_SYSMENU:
 					PrintFormat( cur_off==1, 0, 128,    "             Return to:          System Menu");
 				break;
-				case RETURNTO_PRELOADER:
+				case RETURNTO_PRIILOADER:
 					PrintFormat( cur_off==1, 0, 128,    "             Return to:          Priiloader  ");
 				break;
 				case RETURNTO_AUTOBOOT:
 					PrintFormat( cur_off==1, 0, 128,    "             Return to:          Autoboot   ");
 				break;
 				default:
-					gprintf("SetSettings : unknown return to value %d\n",settings->ReturnTo);
+					gdprintf("SetSettings : unknown return to value %d\n",settings->ReturnTo);
+					settings->ReturnTo = RETURNTO_PRIILOADER;
+					break;
 			}
 			
 			//PrintFormat( 0, 16, 64, "Pos:%d", ((rmode->viWidth /2)-(strlen("settings saved")*13/2))>>1);
@@ -1525,48 +1528,12 @@ void LoadBootMii( void )
 		WPAD_Disconnect(i);
 	}
 	WPAD_Shutdown();
-	//clear the bootstate before going on
-	gprintf("ClearState failure\n");
 	IOS_ReloadIOS(254);
 	//launching bootmii failed. lets wait a bit for the launch(it could be delayed) and then load the other ios back
 	sleep(3);
 	IOS_ReloadIOS(currentIOS);
 	system_state.ReloadedIOS = 1;
 	WPAD_Init();
-	return;
-}
-void DVDStopDisc( bool do_async )
-{
-	s32 di_fd = IOS_Open("/dev/di",0);
-	if(di_fd)
-	{
-		u8 *inbuf = (u8*)mem_align( 32, 0x20 );
-		u8 *outbuf = (u8*)mem_align( 32, 0x20 );
-
-		memset(inbuf, 0, 0x20 );
-		memset(outbuf, 0, 0x20 );
-
-		((u32*)inbuf)[0x00] = 0xE3000000;
-		((u32*)inbuf)[0x01] = 0;
-		((u32*)inbuf)[0x02] = 0;
-
-		DCFlushRange(inbuf, 0x20);
-		//why crediar used an async is beyond me but it looks wrong... :/
-		if(!do_async)
-		{
-			IOS_Ioctl( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20);
-			IOS_Close(di_fd);
-		}
-		else
-		{
-			IOS_IoctlAsync( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20, NULL, NULL);
-		}
-
-		mem_free( outbuf );
-		mem_free( inbuf );
-	}
-	else
-		gprintf("DVDStopDisc : IOS_Open error %d\n",di_fd);
 	return;
 }
 s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED ) 
@@ -1586,6 +1553,9 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 		ElfHdr.e_ident[EI_MAG2] == 'L' ||
 		ElfHdr.e_ident[EI_MAG3] == 'F' )
 	{
+		//its an elf; lets start killing DVD :')
+		DVDStopDisc(true);
+
 		gdprintf("BootDolFromMem : ELF Found\n");
 		gdprintf("Type:      \t%04X\n", ElfHdr.e_type );
 		gdprintf("Machine:   \t%04X\n", ElfHdr.e_machine );
@@ -1604,7 +1574,7 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 		gdprintf("SHstrndx:  \t%04X\n\n",ElfHdr.e_shstrndx );
 		if( ( (ElfHdr.e_entry | 0x80000000) >= 0x80E00000 ) && ( (ElfHdr.e_entry | 0x80000000) <= 0x81330000) )
 		{
-			gprintf("BootDolFromMem : ELF entrypoint will overwrite program: abort!\n");
+			gprintf("BootDolFromMem : ELF entrypoint error: abort!\n");
 			return -1;
 		}
 		if( ElfHdr.e_phnum == 0 )
@@ -1663,13 +1633,15 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 	else
 	{
 		gdprintf("BootDolFromMem : DOL detected\n");
+		DVDStopDisc(true);
+
 		dolhdr *dolfile;
 		dolfile = (dolhdr *) dolstart;
 		if( 
 			( dolfile->entrypoint >= 0x80E00000 && dolfile->entrypoint <= 0x81330000 ) ||
 			( dolfile->addressBSS >= 0x80E00000 && dolfile->addressBSS <= 0x81330000 ) )
 		{
-			gprintf("BootDolFromMem : entrypoint/BSS will overwrite program: abort!\n");
+			gprintf("BootDolFromMem : entrypoint/BSS error: abort!\n");
 			return -1;
 		}
 		for (i = 0; i < 7; i++) {
@@ -1691,7 +1663,7 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 	}
 	if(entrypoint == 0x00000000 )
 	{
-		gprintf("BootDolFromMem : bogus entrypoint of %08X detected\n",(u32)(entrypoint));
+		gprintf("BootDolFromMem : bogus entrypoint detected\n");
 		return -2;
 	}
 	gprintf("BootDolFromMem : starting binary...\n");
@@ -1708,7 +1680,9 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 	ClearState();
 	WPAD_Shutdown();
 	ShutdownDevices();
-	DVDStopDisc(false);
+	gdprintf("waiting for drive to stop...\n");
+	while(DvdKilled() < 1);
+	//DVDStopDisc(false);
 
 	if(!HW_AHBPROT_ENABLED || read32(0x0d800064) != 0xFFFFFFFF )
 	{
@@ -1765,7 +1739,6 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 	ISFS_Initialize();
 	WPAD_Init();
 	PAD_Init();
-	gprintf("BootDolFromMem : booting failure\n");
 	return -1;
 }
 
@@ -1779,7 +1752,6 @@ s8 BootDolFromDir( const char* Dir , u8 HW_AHBPROT_ENABLED )
 	s32 lSize;
 	u8* buffer;
 	dol = fopen(Dir,"rb");
-	//gprintf("BootDolFromDir : loading %s\n",Dir);
 	if (dol)
 	{
 		// obtain file size:
@@ -1798,7 +1770,6 @@ s8 BootDolFromDir( const char* Dir , u8 HW_AHBPROT_ENABLED )
 			s32 result = fread (buffer,1,lSize,dol);
 			if (result != lSize) 
 			{
-				gprintf("BootDolFromDir : fread failure\n");
 				mem_free(buffer);
 				return -4;
 			}
@@ -1812,7 +1783,6 @@ s8 BootDolFromDir( const char* Dir , u8 HW_AHBPROT_ENABLED )
 	}
 	else
 	{
-		gprintf("BootDolFromDir : fopen(%s) fail\n",Dir);
 		return -2;
 	}
 }
@@ -2012,7 +1982,7 @@ void BootMainSysMenu( u8 init )
 	}
 	ISFS_Close(fd);
 	entrypoint = (void (*)())(boot_hdr->entrypoint);
-	gprintf("entrypoint %08X\n", entrypoint );
+	gdprintf("entrypoint %08X\n", entrypoint );
 
 	if( !SGetSetting( SETTING_CLASSIC_HACKS ) )
 	{
@@ -2056,10 +2026,6 @@ void BootMainSysMenu( u8 init )
 				goto free_and_return;
 			}
 		}
-		else
-		{
-			gprintf("skipping IOS reload\n");
-		}
 	}
 	/*
 	//technically its needed... but i fail to see why...
@@ -2081,7 +2047,7 @@ void BootMainSysMenu( u8 init )
 		if (system_state.ReloadedIOS)
 			gprintf("Forced into ES_Identify\n");
 		else
-			gprintf("IOS(%d) != SM IOS(%d). forcing ES_Identify\n",IOS_GetVersion(),(u8)rTMD->sys_version);
+			gprintf("Forcing ES_Identify\n",IOS_GetVersion(),(u8)rTMD->sys_version);
 		//read ticket from FS
 		fd = ISFS_Open("/title/00000001/00000002/content/ticket", 1 );
 		if( fd < 0 )
@@ -2120,7 +2086,7 @@ void BootMainSysMenu( u8 init )
 		r = ISFS_Read( fd, buf, tstatus->file_length );
 		if( r < 0 )
 		{
-			gprintf("error %d\n",r);
+			gprintf("ES_Identify: R-err %d\n",r);
 			ISFS_Close( fd );
 			error = ERROR_SYSMENU_TIKREADFAILED;
 			goto free_and_return;
@@ -2254,6 +2220,7 @@ void BootMainSysMenu( u8 init )
 		Control_VI_Regs(2);
 	ISFS_Deinitialize();
 	__STM_Close();
+	__IPC_Reinitialize();
 	__IOS_ShutdownSubsystems();
 	mtmsr(mfmsr() & ~0x8000);
 	mtmsr(mfmsr() | 0x2002);
@@ -2607,8 +2574,8 @@ void InstallLoadDOL( void )
 		{
 			ClearScreen();
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Loading binary..."))*13/2))>>1, 208, "Loading binary...");
-			gprintf("loading %s\n",app_list[cur_off].app_path.c_str());
-			BootDolFromDir(app_list[cur_off].app_path.c_str(),app_list[cur_off].HW_AHBPROT_ENABLED);
+			ret = BootDolFromDir(app_list[cur_off].app_path.c_str(),app_list[cur_off].HW_AHBPROT_ENABLED);
+			gprintf("loading %s ret %d\n",app_list[cur_off].app_path.c_str(),ret);
 			sleep(1);
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to load binary"))*13/2))>>1, 224, "failed to load binary");
 			sleep(3);
@@ -3227,7 +3194,7 @@ void CheckForUpdate()
 					}
 					if(failure & 2)
 					{
-						gprintf("French mod version.dat failed to download\n");
+						gdprintf("French mod version.dat failed to download\n");
 					}
 					else
 					{
@@ -3245,7 +3212,7 @@ void CheckForUpdate()
 					}
 					if (failure & 4)
 					{
-						gprintf("Spanish mod version.dat failed to download\n");
+						gdprintf("Spanish mod version.dat failed to download\n");
 					}
 					else
 					{
@@ -3895,11 +3862,13 @@ int main(int argc, char **argv)
 				if(!SGetSetting(SETTING_SHUTDOWNTOPRELOADER))
 				{
 					gprintf("Shutting down...\n");
+					DVDStopDisc(true);
 					ShutdownDevices();
 					USB_Deinitialize();
 					*(vu32*)0xCD8000C0 &= ~0x20;
 					Control_VI_Regs(0);
-					DVDStopDisc(false);
+					//DVDStopDisc(false);
+					while(DvdKilled() < 1);
 					if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
 					{
 						STM_ShutdownToStandby();
@@ -3975,7 +3944,7 @@ int main(int argc, char **argv)
 	}
 	else if( (
 			( SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED && ( Bootstate < 2 || Bootstate == 4 ) ) 
-		 || ( SGetSetting(SETTING_RETURNTO) != RETURNTO_PRELOADER && Bootstate > 1 && Bootstate != 4 ) 
+		 || ( SGetSetting(SETTING_RETURNTO) != RETURNTO_PRIILOADER && Bootstate > 1 && Bootstate != 4 ) 
 		 || ( SGetSetting(SETTING_SHUTDOWNTOPRELOADER) == 0 && Bootstate == 5 ) ) 
 		 && error == 0 )
 	{

@@ -12,7 +12,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <ogcsys.h>
-#include "gecko.h"
 #include "playlog.h"
 
 #define SECONDS_TO_2000 946684800LL
@@ -58,17 +57,16 @@ int Playlog_Update(const char ID[6], const u8 title[84])
 	playrec_fd = IOS_Open(PLAYRECPATH, IPC_OPEN_RW);
 	if(playrec_fd == -106)
 		{
-		gprintf("IOS_Open error ret: %i\n",playrec_fd);
-		IOS_Close(playrec_fd);
-		
-		//In case the play_rec.dat wasn´t found create one and try again
-		int ret = ISFS_CreateFile(PLAYRECPATH,0,3,3,3);
-		if( ret < 0 )
-			goto error_1;
+			IOS_Close(playrec_fd);
 			
-		playrec_fd = IOS_Open(PLAYRECPATH, IPC_OPEN_RW);
-		if(playrec_fd < 0)
-			goto error_1;
+			//In case the play_rec.dat wasn´t found create one and try again
+			int ret = ISFS_CreateFile(PLAYRECPATH,0,3,3,3);
+			if( ret < 0 )
+				goto error_1;
+				
+			playrec_fd = IOS_Open(PLAYRECPATH, IPC_OPEN_RW);
+			if(playrec_fd < 0)
+				goto error_1;
 		}
 	else if(playrec_fd < 0)
 		goto error_1;
@@ -97,13 +95,12 @@ int Playlog_Update(const char ID[6], const u8 title[84])
 	return 0;
 
 error_1:
-	gprintf("error_1\n");
-	IOS_Close(playrec_fd);
-
-error_2:
-	gprintf("error_2\n");
 	IOS_Close(playrec_fd);
 	return -1;
+
+error_2:
+	IOS_Close(playrec_fd);
+	return -2;
 }
 
 int Playlog_Delete(void)
