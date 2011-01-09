@@ -29,25 +29,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <ogc/machine/processor.h>
 #include "titles.h"
 #include "mem2_manager.h"
+#include "dvd.h"
 
 #define USE_DVD_ASYNC
-#ifdef USE_DVD_ASYNC
-s8 DriveClosed = 0;
-s8 DriveError = 0;
-
-static s32 SetDriveState (s32 result,void *usrdata)
-{
-	if (result != 0)
-	{
-		DriveError = 1;
-	}
-	else
-	{
-		DriveClosed = 1;
-	}
-	return 1;
-}
-#endif
+extern DVD_status DVD_state;
 s8 CheckTitleOnSD(u64 id)
 {
 	//check Mounted Devices so that IF the SD is inserted it also gets mounted
@@ -153,7 +138,6 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 	s32 fh = ES_OpenTitleContent(id, views, 0);
 	if (fh == -106)
 	{
-		//gprintf("GetTitleName : app not found\n",fh);
 		CheckTitleOnSD(id);
 		mem_free(data);
 		mem_free(views);
@@ -246,7 +230,6 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 		if (return_unicode_name && str_unprocessed[lang][1] != '\0')
 		{
 			memcpy(_dst_uncode_name,&str_unprocessed[lang][0],84);
-			//gprintf("0x%08X\n",(u32)_dst_uncode_name);
 		}
 		else if(return_unicode_name)
 			gprintf("WARNING : empty unprocessed string\n");
@@ -466,34 +449,11 @@ s32 LoadListTitles( void )
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Loading title..."))*13/2))>>1, 208, "Loading title...");
 
 			//lets start this bitch
-
-			u8 *inbuf = 0;
-			u8 *outbuf = 0;
-			s32 di_fd = IOS_Open("/dev/di",0);
-			if(di_fd)
-			{
-				inbuf = (u8*)mem_align( 32, 0x20 );
-				outbuf = (u8*)mem_align( 32, 0x20 );
-
-				memset(inbuf, 0, 0x20 );
-				memset(outbuf, 0, 0x20 );
-
-				((u32*)inbuf)[0x00] = 0xE3000000;
-				((u32*)inbuf)[0x01] = 0;
-				((u32*)inbuf)[0x02] = 0;
-
-				DCFlushRange(inbuf, 0x20);
 #ifdef USE_DVD_ASYNC
-				IOS_IoctlAsync( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20, SetDriveState , NULL);
+			DVDStopDisc(true);
 #else
-				IOS_Ioctl( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20);
-				IOS_Close(di_fd);
-				mem_free( outbuf );
-				mem_free( inbuf );
+			DVDStopDisc(false);
 #endif
-			}
-			else
-				gprintf("DVDStopDisc : IOS_Open error %d\n",di_fd);
 			
 			u32 cnt ATTRIBUTE_ALIGN(32) = 0;
 			STACK_ALIGN(tikview,views,4,32);
@@ -501,23 +461,22 @@ s32 LoadListTitles( void )
 			if (ES_GetNumTicketViews(titles[cur_off].title_id, &cnt) < 0)
 			{
 				gprintf("GetNumTicketViews failure\n");
-				break;
+				goto failure;
 			}
 			if (ES_GetTicketViews(titles[cur_off].title_id, views, cnt) < 0 )
 			{
 				gprintf("ES_GetTicketViews failure!\n");
-				break;
+				goto failure;
 			}
 			if(wcslen((wchar_t*)titles[cur_off].name_unicode))
 			{
 				//kill play_rec.dat if its already there...
 				ret = ISFS_Delete(PLAYRECPATH);
-				gprintf("delete ret = %d\n",ret);
 				//and create it with the new info :)
 				std::string id;
 				id.push_back(titles[cur_off].title_id & 0xFFFFFFFF);
 				ret = Playlog_Update(id.c_str(), titles[cur_off].name_unicode);
-				gprintf("play_rec ret = %d\n",ret);
+				gdprintf("play_rec ret = %d\n",ret);
 			}
 			else
 			{
@@ -530,36 +489,32 @@ s32 LoadListTitles( void )
 			ShutdownDevices();
 
 #ifdef USE_DVD_ASYNC
-			if(!DriveClosed)
+			/*if(!DVD_state.DriveClosed)
 			{
 				gprintf("waiting for drive to shutdown...\n");
 			}
-			else
+			while(DVD_state.DriveClosed != 0 && GetDvdFD() != 0)
 			{
-				IOS_Close(di_fd);
-				mem_free( outbuf );
-				mem_free( inbuf );
-			}
-			while(DriveClosed != 0 && di_fd != 0)
-			{
-				if(DriveError)
+				if(DVD_state.DriveError)
 				{
-					IOS_Ioctl( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20);
-					DriveClosed = 1;
+					DVDCleanUp();
+					DVDStopDisc(false);
+					DVD_state.DriveClosed = 1;
 				}
-				if(DriveClosed)
+				if(DVD_state.DriveClosed)
 				{
-					IOS_Close(di_fd);
-					mem_free( outbuf );
-					mem_free( inbuf );
+					DVDCleanUp();
 					break;
 				}
-			}
+			}*/
+			gdprintf("waiting for drive to stop...\n");
+			while(DvdKilled() < 1);
 #endif
 			VIDEO_SetBlack(1);
 			VIDEO_Flush();
 
 			ES_LaunchTitle(titles[cur_off].title_id, &views[0]);
+failure:
 			VIDEO_SetBlack(0);
 			VIDEO_Flush();
 			VIDEO_WaitVSync();

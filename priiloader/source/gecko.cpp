@@ -53,8 +53,8 @@ void gprintf( const char *str, ... )
 		printf(astr);
 		time_t start,end;
 		time(&start);
-		//i hate while loops. but its safer when gprintf is called from a thread like the STM callback...
-		//sleep seems to shit brix when called from the STM callback
+		//i hate while loops. but its safer when gprintf is called from a callback like the STM callback...
+		//sleep seems to shit brix when called from a callback
 		while(difftime(end, start) < 1)
 		{
 			time(&end);
