@@ -40,8 +40,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <algorithm>
 #include <time.h>
 
-#include <mp3player.h>
-#include <asndlib.h>
 
 //Project files
 #include "../../Shared/svnrev.h"
@@ -624,7 +622,7 @@ void SysHackHashSettings( void )
 				FILE *in = NULL;
 				if (Mounted != 0)
 				{
-					in = fopen ("fat:/hacks_hash.ini","rb");
+					in = fopen ("fat:/apps/priiloader/hacks_hash.ini","rb");
 				}
 				else
 				{
@@ -1553,8 +1551,6 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 		ElfHdr.e_ident[EI_MAG2] == 'L' ||
 		ElfHdr.e_ident[EI_MAG3] == 'F' )
 	{
-		//its an elf; lets start killing DVD :')
-		DVDStopDisc(true);
 
 		gdprintf("BootDolFromMem : ELF Found\n");
 		gdprintf("Type:      \t%04X\n", ElfHdr.e_type );
@@ -1577,6 +1573,8 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 			gprintf("BootDolFromMem : ELF entrypoint error: abort!\n");
 			return -1;
 		}
+		//its an elf; lets start killing DVD :')
+		DVDStopDisc(true);
 		if( ElfHdr.e_phnum == 0 )
 		{
 			gdprintf("BootDolFromMem : Warning program header entries are zero!\n");
@@ -1633,10 +1631,10 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 	else
 	{
 		gdprintf("BootDolFromMem : DOL detected\n");
-		DVDStopDisc(true);
 
 		dolhdr *dolfile;
 		dolfile = (dolhdr *) dolstart;
+		//entrypoint & BSS checking
 		if( 
 			( dolfile->entrypoint >= 0x80E00000 && dolfile->entrypoint <= 0x81330000 ) ||
 			( dolfile->addressBSS >= 0x80E00000 && dolfile->addressBSS <= 0x81330000 ) )
@@ -1644,6 +1642,36 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 			gprintf("BootDolFromMem : entrypoint/BSS error: abort!\n");
 			return -1;
 		}
+		else if ( dolfile->entrypoint == 0x00000000 || dolfile->entrypoint < 0x80000000 )
+		{
+			gprintf("BootDolFromMem : bogus entrypoint detected\n");
+			return -2;
+		}
+		//BSS is in mem2 which means its better to reload ios & then load app. i dont really get it but thats what tantric said
+		//currently unused cause this is done for wiimc. however reloading ios also looses ahbprot/dvd access...
+		/*if( dolfile->addressBSS >= 0x90000000 )
+		{
+			if(!HW_AHBPROT_ENABLED || read32(0x0d800064) != 0xFFFFFFFF )
+			{
+				if( !isIOSstub(58) )
+				{
+					IOS_ReloadIOS(58);
+					system_state.ReloadedIOS = 1;
+				}
+				else if( !isIOSstub(IOS_GetPreferredVersion()) )
+				{
+					IOS_ReloadIOS(IOS_GetPreferredVersion());
+					system_state.ReloadedIOS = 1;
+				}
+				else
+				{
+					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
+					sleep(2);	
+				}
+			}
+		}*/
+		//start killing DVD :')
+		DVDStopDisc(true);
 		for (i = 0; i < 7; i++) {
 			if ((!dolfile->sizeText[i]) || (dolfile->addressText[i] < 0x100)) continue;
 			ICInvalidateRange ((void *) dolfile->addressText[i],dolfile->sizeText[i]);
@@ -1657,8 +1685,8 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 			gdprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (dolfile->offsetData[i]), dolfile->addressData[i], dolfile->sizeData[i]);
 		}
 
-		memset ((void *) dolfile->addressBSS, 0, dolfile->sizeBSS);
-		DCFlushRange((void *) dolfile->addressBSS, dolfile->sizeBSS);
+		/*memset ((void *) dolfile->addressBSS, 0, dolfile->sizeBSS);
+		DCFlushRange((void *) dolfile->addressBSS, dolfile->sizeBSS);*/
 		entrypoint = (void (*)())(dolfile->entrypoint);
 	}
 	if(entrypoint == 0x00000000 )
@@ -1686,23 +1714,20 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 
 	if(!HW_AHBPROT_ENABLED || read32(0x0d800064) != 0xFFFFFFFF )
 	{
-		if( isIOSstub(58) )
-		{
-			if( isIOSstub(IOS_GetPreferredVersion()) )
-			{
-				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
-				sleep(3);
-			}
-			else
-			{
-				IOS_ReloadIOS(IOS_GetPreferredVersion());
-				system_state.ReloadedIOS = 1;
-			}
-		}
-		else
+		if( !isIOSstub(58) )
 		{
 			IOS_ReloadIOS(58);
 			system_state.ReloadedIOS = 1;
+		}
+		else if( !isIOSstub(IOS_GetPreferredVersion()) )
+		{
+			IOS_ReloadIOS(IOS_GetPreferredVersion());
+			system_state.ReloadedIOS = 1;
+		}
+		else
+		{
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
+			sleep(2);	
 		}
 	}
 	
@@ -2576,7 +2601,6 @@ void InstallLoadDOL( void )
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Loading binary..."))*13/2))>>1, 208, "Loading binary...");
 			ret = BootDolFromDir(app_list[cur_off].app_path.c_str(),app_list[cur_off].HW_AHBPROT_ENABLED);
 			gprintf("loading %s ret %d\n",app_list[cur_off].app_path.c_str(),ret);
-			sleep(1);
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to load binary"))*13/2))>>1, 224, "failed to load binary");
 			sleep(3);
 			ClearScreen();
@@ -2956,31 +2980,7 @@ void CheckForUpdate()
 		sleep(5);
 		return;
 	}
-//Check Pad for lulz or not
-//-----------------------------
 	s32 file_size = 0;
-	u8 *Easter_egg = NULL;
-	PAD_ScanPads();
-	u32 PAD_Pressed  = PAD_ButtonsHeld(0) | PAD_ButtonsHeld(1) | PAD_ButtonsHeld(2) | PAD_ButtonsHeld(3);// | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3); //PAD_ButtonsHeld
-	if (PAD_Pressed & PAD_TRIGGER_Z)
-	{
-		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/Easter.mp33",Easter_egg,0);
-		if(file_size > 0)
-		{
-			ASND_Init();
-			ASND_Pause(0);
-			MP3Player_Init();
-			MP3Player_Volume(125);
-			MP3Player_PlayBuffer(Easter_egg,file_size,NULL);
-			ClearScreen();
-			PrintFormat( 1, ((640/2)-((strlen("MOOT MOOT ;D"))*13/2))>>1, 208, "MOOT MOOT ;D");
-			while(MP3Player_IsPlaying())
-				sleep(1);
-			ASND_End();
-		}
-		mem_free(Easter_egg);
-	}
-	file_size = 0;
 //start update
 //---------------
 	UpdateStruct UpdateFile;

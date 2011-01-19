@@ -73,7 +73,7 @@ void DVDStopDisc( bool do_async )
 		((u32*)inbuf)[0x02] = 0;
 
 		DCFlushRange(inbuf, 0x20);
-		//why crediar used an async is beyond me but it looks wrong... :/
+		//why crediar used an async and not look if it really closed (or was busy closing) is beyond me...
 		if(!do_async)
 		{
 			IOS_Ioctl( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20);
@@ -98,21 +98,20 @@ s8 DvdKilled( void )
 {
 	if(async_called == 0) // no async was called so this function is useless
 		return 1;
-	while(DVD_state.DriveClosed != 0 && GetDvdFD() != 0)
+	if(DVD_state.DriveError)
 	{
-		if(DVD_state.DriveError)
-		{
-			DVDCleanUp();
-			DVDStopDisc(false);
-			DVD_state.DriveClosed = 1;
-		}
-		if(DVD_state.DriveClosed)
-		{
-			DVDCleanUp();
-			async_called = 0;
-			return 1;
-		}
+		DVDCleanUp();
+		DVDStopDisc(false);
+		DVD_state.DriveError = 0;
+		DVD_state.DriveClosed = 1;
+		async_called = 0;
+		return 1;
 	}
-	async_called = 0;
-	return 1;
+	if(DVD_state.DriveClosed)
+	{
+		DVDCleanUp();
+		async_called = 0;
+		return 1;
+	}
+	return 0;
 }
