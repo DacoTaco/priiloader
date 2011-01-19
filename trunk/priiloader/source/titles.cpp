@@ -519,6 +519,7 @@ failure:
 			VIDEO_Flush();
 			VIDEO_WaitVSync();
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to Load Title!"))*13/2))>>1, 224, "Failed to Load Title!");
+			while(DvdKilled() < 1);
 			sleep(3);
 			redraw = true;
 		}			

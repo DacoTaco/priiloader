@@ -478,7 +478,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 	FILE* in = NULL;
 	if(!Force_Load_Nand)
 	{
-		in = fopen ("fat:/hacks_hash.ini","rb");
+		in = fopen ("fat:/apps/priiloader/hacks_hash.ini","rb");
 	}
 	if( !in )
 	{
