@@ -1637,13 +1637,13 @@ int main(int argc, char **argv)
 	u32 keyId = 0;
 	s32 ret = ES_Identify( (signed_blob*)certs_bin, certs_bin_size, (signed_blob*)su_tmd, su_tmd_size, (signed_blob*)su_tik, su_tik_size, &keyId);
 	gprintf("ES_Identify : %d\n",ret);
-	ret = ES_GetTitleID(&TitleID);
 	if(ret < 0)
 	{
 		printf("\x1b[2J");
 		fflush(stdout);
 		abort("\n\n\n\ncIOS%d isn't ES_Identify patched : error %d.",IOS_GetVersion(),ret);
 	}
+	ret = ES_GetTitleID(&TitleID);
 	gprintf("identified as = 0x%08X%08X\n",(u32)(TitleID >> 32),(u32) (TitleID & 0xFFFFFFFF));
 	if (ISFS_Initialize() < 0)
 	{
