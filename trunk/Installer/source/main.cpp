@@ -51,6 +51,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 // Bin Files
 
 // Priiloader Application
+#include "certs_bin.h"
+#include "su_tmd.h"
+#include "su_tik.h"
 #include "priiloader_app.h"
 
 static void *xfb = NULL;
@@ -882,31 +885,35 @@ s8 PatchTMD( u8 delete_mode )
 	u8 *TMD_chk = NULL;
 	s32 fd = 0;
 	s32 r = 0;
-#ifdef _DEBUG
-	gprintf("Path : %s\n",TMD_Path);
-#endif
 	memset(TMD_Path,0,64);
 	memset(TMD_Path2,0,64);
 	sprintf(TMD_Path, "/title/%08x/%08x/content/title.tmd",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
 	sprintf(TMD_Path2, "/title/%08x/%08x/content/title_or.tmd",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
+	#ifdef _DEBUG
+	gprintf("Path : %s\n",TMD_Path);
+#endif
+	r = ISFS_GetAttr(TMD_Path, &Perm.owner, &Perm.group, &Perm.attributes, &Perm.ownerperm, &Perm.groupperm, &Perm.otherperm);
+	if(r < 0 )
+	{
+		//attribute getting failed. returning to default
+		printf("\x1b[%u;%dm", 33, 1);
+		printf("\nWARNING : failed to get file's permissions. using defaults\n");
+		printf("\x1b[%u;%dm", 37, 1);
+		gprintf("permission failure on desination! error %d\n",r);
+		gprintf("writing with max permissions\n");
+		Perm.ownerperm = 3;
+		Perm.groupperm = 3;
+		Perm.otherperm = 0;
+	}
+	else
+	{
+		gprintf("r %d owner %d group %d attributes %X perm:%X-%X-%X\n", r, Perm.owner, Perm.group, Perm.attributes, Perm.ownerperm, Perm.groupperm, Perm.otherperm);
+	}
+
 	if(delete_mode == 0)
 	{
 		gprintf("patching TMD...\n");
 		printf("Patching TMD...");
-		r = ISFS_GetAttr(TMD_Path, &Perm.owner, &Perm.group, &Perm.attributes, &Perm.ownerperm, &Perm.groupperm, &Perm.otherperm);
-		if(r < 0 )
-		{
-			//attribute getting failed. returning to default
-			printf("\x1b[%u;%dm", 33, 1);
-			printf("\nWARNING : failed to get file's permissions. using defaults\n");
-			printf("\x1b[%u;%dm", 37, 1);
-			gprintf("permission failure on desination! error %d\n",r);
-			gprintf("writing with max permissions\n");
-		}
-		else
-		{
-			gprintf("r %d owner %d group %d attributes %X perm:%X-%X-%X\n", r, Perm.owner, Perm.group, Perm.attributes, Perm.ownerperm, Perm.groupperm, Perm.otherperm);
-		}
 
 	}
 	else
@@ -945,20 +952,6 @@ s8 PatchTMD( u8 delete_mode )
 		//not so sure why we'd want to delete the tmd modification but ok...
 		if(delete_mode)
 		{
-			r = ISFS_GetAttr(TMD_Path, &Perm.owner, &Perm.group, &Perm.attributes, &Perm.ownerperm, &Perm.groupperm, &Perm.otherperm);
-			if(r < 0 )
-			{
-				//attribute getting failed. returning to default
-				printf("\x1b[%u;%dm", 33, 1);
-				printf("\nWARNING : failed to get file's permissions. using defaults\n");
-				printf("\x1b[%u;%dm", 37, 1);
-				gprintf("permission failure on desination! error %d\n",r);
-				gprintf("writing with max permissions\n");
-			}
-			else
-			{
-				gprintf("r %d owner %d group %d attributes %X perm:%X-%X-%X\n", r, Perm.owner, Perm.group, Perm.attributes, Perm.ownerperm, Perm.groupperm, Perm.otherperm);
-			}
 			if ( nand_copy(TMD_Path2,TMD_Path,Perm) < 0)
 			{
 				if(r == -80)
@@ -1640,6 +1633,18 @@ int main(int argc, char **argv)
 	printf("THE AUTHOR(S) CANNOT BE HELD LIABLE FOR ANY DAMAGE IT MIGHT CAUSE\n\n\t");
 	printf("\tIF YOU DO NOT AGREE WITH THESE TERMS TURN YOUR WII OFF\n\n\n\n\t");
 	printf("\t\t\t\t\tPlease wait while we init...");
+	u64 TitleID = 0;
+	u32 keyId = 0;
+	s32 ret = ES_Identify( (signed_blob*)certs_bin, certs_bin_size, (signed_blob*)su_tmd, su_tmd_size, (signed_blob*)su_tik, su_tik_size, &keyId);
+	gprintf("ES_Identify : %d\n",ret);
+	ret = ES_GetTitleID(&TitleID);
+	if(ret < 0)
+	{
+		printf("\x1b[2J");
+		fflush(stdout);
+		abort("\n\n\n\ncIOS%d isn't ES_Identify patched : error %d.",IOS_GetVersion(),ret);
+	}
+	gprintf("identified as = 0x%08X%08X\n",(u32)(TitleID >> 32),(u32) (TitleID & 0xFFFFFFFF));
 	if (ISFS_Initialize() < 0)
 	{
 		printf("\x1b[2J");
@@ -1662,7 +1667,7 @@ int main(int argc, char **argv)
 
 	WPAD_Init();
 	PAD_Init();
-	sleepx(6);
+	sleepx(3);
 
 	printf("\r\t\t\t    Press (+/A) to install or update Priiloader\n\t");
 	printf("\tPress (-/Y) to remove Priiloader and restore system menu\n\t");
