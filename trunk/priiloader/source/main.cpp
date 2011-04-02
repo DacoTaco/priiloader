@@ -33,7 +33,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <ogc/usb.h>
 #include <ogc/machine/processor.h>
 #include <ogc/machine/asm.h>
-#include "usbstorage.h"
 
 #include <sys/dir.h>
 #include <vector>
@@ -66,6 +65,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 extern "C"
 {
 	extern void _unstub_start(void);
+	extern void __exception_closeall();
 }
 typedef struct {
 	unsigned int offsetText[7];
@@ -100,7 +100,8 @@ typedef struct wii_state {
 	s8 InMainMenu:2;
 } wii_state;
 wii_state system_state;
-time_t startloop;
+time_t startloop = 0;
+u32 appentrypoint = 0;
 
 s32 __IOS_LoadStartupIOS()
 {
@@ -119,7 +120,7 @@ u8 DetectHBC( void )
 		return 0;
 	}
 
-    list = (u64*)mem_align(32, ((titlecount * sizeof(u64)) + 31)&(~31));
+    list = (u64*)mem_align(32, ALIGN32( titlecount * sizeof(u64) ) );
 
     ret = ES_GetTitles(list, titlecount);
     if(ret < 0) {
@@ -219,7 +220,7 @@ bool isIOSstub(u8 ios_number)
 		gdprintf("isIOSstub : ES_GetTMDViewSize fail,ios %d\n",ios_number);
 		return true;
 	}
-	ios_tmd = (tmd_view *)mem_align( 32, (tmd_size+31)&(~31) );
+	ios_tmd = (tmd_view *)mem_align( 32, ALIGN32(tmd_size) );
 	if(!ios_tmd)
 	{
 		gdprintf("isIOSstub : TMD alloc failure\n");
@@ -330,7 +331,7 @@ void SysHackSettings( void )
 				FILE *in = NULL;
 				if (Mounted != 0)
 				{
-					in = fopen ("fat:/hacks.ini","rb");
+					in = fopen ("fat:/apps/priiloader/hacks.ini","rb");
 				}
 				else
 				{
@@ -348,8 +349,8 @@ void SysHackSettings( void )
 					u32 size = ftell(in);
 					fseek( in, 0, 0);
 
-					char *buf = (char*)mem_align( 32, (size+31)&(~31) );
-					memset( buf, 0, (size+31)&(~31) );
+					char *buf = (char*)mem_align( 32, ALIGN32(size) );
+					memset( buf, 0, size );
 					fread( buf, sizeof( char ), size, in );
 
 					fclose(in);
@@ -640,8 +641,8 @@ void SysHackHashSettings( void )
 					u32 size = ftell(in);
 					fseek( in, 0, 0);
 
-					char *buf = (char*)mem_align( 32, (size+31)&(~31) );
-					memset( buf, 0, (size+31)&(~31) );
+					char *buf = (char*)mem_align( 32, ALIGN32(size) );
+					memset( buf, 0, size );
 					fread( buf, sizeof( char ), size, in );
 
 					fclose(in);
@@ -1503,21 +1504,19 @@ void LoadBootMii( void )
 		}
 		return;
 	}
-	else
-	{
-		fclose(BootmiiFile);
-		BootmiiFile = fopen("fat:/bootmii/ppcboot.elf","r");
-		if(!BootmiiFile)
-		{
-			if(rmode != NULL)
-			{	
-				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not find fat:/bootmii/ppcboot.elf"))*13/2))>>1, 208, "Could not find fat:/bootmii/ppcboot.elf");
-				sleep(5);
-			}
-			return;
-		}
-	}
 	fclose(BootmiiFile);
+		
+	/*BootmiiFile = fopen("fat:/bootmii/ppcboot.elf","r");
+	if(!BootmiiFile)
+	{
+		if(rmode != NULL)
+		{	
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not find fat:/bootmii/ppcboot.elf"))*13/2))>>1, 208, "Could not find fat:/bootmii/ppcboot.elf");
+			sleep(5);
+		}
+		return;
+	}
+	fclose(BootmiiFile);*/
 	u8 currentIOS = IOS_GetVersion();
 	for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {
 		if(WPAD_Probe(i,0) < 0)
@@ -1534,12 +1533,205 @@ void LoadBootMii( void )
 	WPAD_Init();
 	return;
 }
+s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED )
+{
+	void	(*entrypoint)();
+	Elf32_Ehdr ElfHdr;
+	fread( &ElfHdr, sizeof( ElfHdr ), 1, fat_fd );
+	if( ElfHdr.e_ident[EI_MAG0] == 0x7F ||
+		ElfHdr.e_ident[EI_MAG1] == 'E' ||
+		ElfHdr.e_ident[EI_MAG2] == 'L' ||
+		ElfHdr.e_ident[EI_MAG3] == 'F' )
+	{
+		//ELF detected
+		gdprintf("ELF Found\n");
+		gdprintf("Type:      \t%04X\n", ElfHdr.e_type );
+		gdprintf("Machine:   \t%04X\n", ElfHdr.e_machine );
+		gdprintf("Version:  %08X\n", ElfHdr.e_version );
+		gdprintf("Entry:    %08X\n", ElfHdr.e_entry );
+		gdprintf("Flags:    %08X\n", ElfHdr.e_flags );
+		gdprintf("EHsize:    \t%04X\n\n", ElfHdr.e_ehsize );
+
+		gdprintf("PHoff:    %08X\n",	ElfHdr.e_phoff );
+		gdprintf("PHentsize: \t%04X\n",	ElfHdr.e_phentsize );
+		gdprintf("PHnum:     \t%04X\n\n",ElfHdr.e_phnum );
+
+		gdprintf("SHoff:    %08X\n",	ElfHdr.e_shoff );
+		gdprintf("SHentsize: \t%04X\n",	ElfHdr.e_shentsize );
+		gdprintf("SHnum:     \t%04X\n",	ElfHdr.e_shnum );
+		gdprintf("SHstrndx:  \t%04X\n\n",ElfHdr.e_shstrndx );
+		
+		if( ( (ElfHdr.e_entry | 0x80000000) >= 0x80E00000 ) && ( (ElfHdr.e_entry | 0x80000000) <= 0x81330000) )
+		{
+			gprintf("BootDolFromFat : ELF entrypoint error: abort!\n");
+			return -1;
+		}
+
+		if( ElfHdr.e_phnum == 0 )
+			gdprintf("Warning program header entries are zero!\n");
+		else 
+		{
+			//program headers
+			for( int i=0; i < ElfHdr.e_phnum; ++i )
+			{
+				fseek( fat_fd, ElfHdr.e_phoff + sizeof( Elf32_Phdr ) * i, SEEK_SET );
+				Elf32_Phdr phdr;
+				fread( &phdr, sizeof( phdr ), 1, fat_fd );
+				gdprintf("Type:%08X Offset:%08X VAdr:%08X PAdr:%08X FileSz:%08X\n", phdr.p_type, phdr.p_offset, phdr.p_vaddr, phdr.p_paddr, phdr.p_filesz );
+				if(phdr.p_type == PT_LOAD )
+				{
+					fseek( fat_fd, phdr.p_offset, 0 );
+					fread( (void*)(phdr.p_vaddr | 0x80000000), sizeof( u8 ), phdr.p_filesz, fat_fd);
+					ICInvalidateRange ((void*)(phdr.p_vaddr | 0x80000000),phdr.p_filesz);
+				}
+			}
+		}
+
+		if( ElfHdr.e_shnum == 0 )
+		{
+			gdprintf("BootDolFromFat : Warning section header entries are zero!\n");
+		} 
+		else 
+		{
+
+			for( s32 i=0; i < ElfHdr.e_shnum; ++i )
+			{
+				fseek( fat_fd, ElfHdr.e_shoff + sizeof( Elf32_Shdr ) * i, SEEK_SET );
+
+				Elf32_Shdr shdr;
+				fread( &shdr, sizeof( shdr ), 1, fat_fd );
+
+				if( shdr.sh_type == SHT_NULL )
+					continue;
+
+				if( shdr.sh_type > SHT_GROUP )
+					gdprintf("Warning the type: %08X could be invalid!\n", shdr.sh_type );
+
+				if( shdr.sh_flags & ~0xF0000007 )
+					gdprintf("Warning the flag: %08X is invalid!\n", shdr.sh_flags );
+
+				gdprintf("Type:%08X Offset:%08X Name:%08X Off:%08X Size:%08X\n", shdr.sh_type, shdr.sh_offset, shdr.sh_name, shdr.sh_addr, shdr.sh_size );
+				
+				if (shdr.sh_type == SHT_NOBITS)
+				{
+					fseek( fat_fd, shdr.sh_offset, 0 );
+					fread( (void*)(shdr.sh_addr | 0x80000000), sizeof( u8 ), shdr.sh_size, fat_fd);
+					DCFlushRange((void*)(shdr.sh_addr | 0x80000000),shdr.sh_size);
+				}
+			}
+		}
+		entrypoint = (void (*)())(ElfHdr.e_entry | 0x80000000);
+	}
+	else
+	{
+		//DOL detected
+		dolhdr hdr;
+		fseek( fat_fd, 0, 0);
+		fread( &hdr, sizeof( dolhdr ), 1, fat_fd );
+		if( 
+		( hdr.entrypoint >= 0x80E00000 && hdr.entrypoint <= 0x81330000 ) ||
+		( hdr.addressBSS >= 0x80E00000 && hdr.addressBSS <= 0x81330000 ) )
+		{
+			gprintf("BootDolFromFat : entrypoint/BSS error: abort!\n");
+			fclose(fat_fd);
+			return -1;
+		}
+		else if ( hdr.entrypoint < 0x80000000 )
+		{
+			gprintf("BootDolFromFat : bogus entrypoint of %u detected\n",hdr.entrypoint);
+			fclose(fat_fd);
+			return -2;
+		}
+
+		DVDStopDisc(true);
+		//Text Sections
+		for (s8 i = 0; i < 6; i++)
+		{
+			if( hdr.sizeText[i] && hdr.addressText[i] && hdr.offsetText[i] )
+			{
+				fseek( fat_fd, hdr.offsetText[i], SEEK_SET );
+				fread( (void*)(hdr.addressText[i]), sizeof( char ), hdr.sizeText[i], fat_fd );
+				DCFlushRange ((void *) hdr.addressText[i], hdr.sizeText[i]);
+				DCInvalidateRange( (void*)(hdr.addressText[i]), hdr.sizeText[i] );
+			}
+		}
+		// data sections
+		for (s8 i = 0; i <= 10; i++)
+		{
+			if( hdr.sizeData[i] && hdr.addressData[i] && hdr.offsetData[i] )
+			{
+				fseek( fat_fd, hdr.offsetData[i], SEEK_SET );
+				fread( (void*)(hdr.addressData[i]), sizeof( char ), hdr.sizeData[i], fat_fd );
+				DCFlushRange( (void*)(hdr.addressData[i]), hdr.sizeData[i] );
+			}
+		}
+		if( (hdr.addressBSS + hdr.sizeBSS < 0x817FFFFF) && hdr.sizeBSS < 0x01500000 )
+		{
+			memset ((void *) hdr.addressBSS, 0, hdr.sizeBSS);
+			DCFlushRange((void *) hdr.addressBSS, hdr.sizeBSS);
+		}
+		entrypoint = (void (*)())(hdr.entrypoint);
+	}
+	fclose( fat_fd );
+	gprintf("BootDolFromFat : starting binary...\n");
+	for (int i = 0;i < WPAD_MAX_WIIMOTES ;i++)
+	{
+		if(WPAD_Probe(i,0) > 0)
+		{
+			if(WPAD_Probe(i,0) < 0)
+				continue;
+			WPAD_Flush(i);
+			WPAD_Disconnect(i);
+		}
+	}
+	ClearState();
+	WPAD_Shutdown();
+	ShutdownDevices();
+	gdprintf("waiting for drive to stop...\n");
+	while(DvdKilled() < 1);
+	if(!HW_AHBPROT_ENABLED || read32(0x0d800064) != 0xFFFFFFFF )
+	{
+		if( !isIOSstub(58) )
+		{
+			IOS_ReloadIOS(58);
+			system_state.ReloadedIOS = 1;
+		}
+		else if( !isIOSstub(IOS_GetPreferredVersion()) )
+		{
+			IOS_ReloadIOS(IOS_GetPreferredVersion());
+			system_state.ReloadedIOS = 1;
+		}
+		else
+		{
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
+			sleep(2);	
+		}
+	}
+
+	gprintf("BootDolFromFat : Entrypoint: 0x%08X\n", (u32)(entrypoint) );
+
+	ISFS_Deinitialize();
+	ShutdownDevices();
+	USB_Deinitialize();
+	__IOS_ShutdownSubsystems();
+	VIDEO_Flush();
+	VIDEO_WaitVSync();
+	__exception_closeall();
+	ICSync();
+	entrypoint();
+	//it failed. FAIL!
+	__IOS_InitializeSubsystems();
+	PollDevices();
+	ISFS_Initialize();
+	WPAD_Init();
+	PAD_Init();
+	return -1;
+}
 s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED ) 
 {
 	if(dolstart == NULL)
 		return -1;
 
-    u32 i;
 	void	(*entrypoint)();
 	
 	Elf32_Ehdr ElfHdr;
@@ -1642,16 +1834,16 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 			gprintf("BootDolFromMem : entrypoint/BSS error: abort!\n");
 			return -1;
 		}
-		else if ( dolfile->entrypoint == 0x00000000 || dolfile->entrypoint < 0x80000000 )
+		else if ( dolfile->entrypoint < 0x80000000 )
 		{
 			gprintf("BootDolFromMem : bogus entrypoint detected\n");
 			return -2;
 		}
-		//BSS is in mem2 which means its better to reload ios & then load app. i dont really get it but thats what tantric said
-		//currently unused cause this is done for wiimc. however reloading ios also looses ahbprot/dvd access...
-		/*if( dolfile->addressBSS >= 0x90000000 )
+		if( dolfile->addressBSS >= 0x90000000 )
 		{
-			if(!HW_AHBPROT_ENABLED || read32(0x0d800064) != 0xFFFFFFFF )
+			//BSS is in mem2 which means its better to reload ios & then load app. i dont really get it but thats what tantric said
+			//currently unused cause this is done for wiimc. however reloading ios also looses ahbprot/dvd access...
+			/*if(!HW_AHBPROT_ENABLED || read32(0x0d800064) != 0xFFFFFFFF )
 			{
 				if( !isIOSstub(58) )
 				{
@@ -1668,31 +1860,29 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
 					sleep(2);	
 				}
-			}
-		}*/
+			}*/
+		}
 		//start killing DVD :')
 		DVDStopDisc(true);
-		for (i = 0; i < 7; i++) {
+		for (s8 i = 0; i < 7; i++) {
 			if ((!dolfile->sizeText[i]) || (dolfile->addressText[i] < 0x100)) continue;
-			ICInvalidateRange ((void *) dolfile->addressText[i],dolfile->sizeText[i]);
 			memmove ((void *) dolfile->addressText[i],dolstart+dolfile->offsetText[i],dolfile->sizeText[i]);
+			DCFlushRange ((void *) dolfile->addressText[i], dolfile->sizeText[i]);
+			ICInvalidateRange ((void *) dolfile->addressText[i],dolfile->sizeText[i]);
 		}
 		gdprintf("Data Sections :\n");
-		for (i = 0; i < 11; i++) {
+		for (s8 i = 0; i < 11; i++) {
 			if ((!dolfile->sizeData[i]) || (dolfile->offsetData[i] < 0x100)) continue;
 			memmove ((void *) dolfile->addressData[i],dolstart+dolfile->offsetData[i],dolfile->sizeData[i]);
-			DCFlushRangeNoSync ((void *) dolfile->offsetData[i],dolfile->sizeData[i]);
+			DCFlushRange((void *) dolfile->offsetData[i],dolfile->sizeData[i]);
 			gdprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (dolfile->offsetData[i]), dolfile->addressData[i], dolfile->sizeData[i]);
 		}
-
-		/*memset ((void *) dolfile->addressBSS, 0, dolfile->sizeBSS);
-		DCFlushRange((void *) dolfile->addressBSS, dolfile->sizeBSS);*/
+		if( (dolfile->addressBSS + dolfile->sizeBSS < 0x817FFFFF) && dolfile->sizeBSS < 0x01500000 )
+		{
+			memset ((void *) dolfile->addressBSS, 0, dolfile->sizeBSS);
+			DCFlushRange((void *) dolfile->addressBSS, dolfile->sizeBSS);
+		}
 		entrypoint = (void (*)())(dolfile->entrypoint);
-	}
-	if(entrypoint == 0x00000000 )
-	{
-		gprintf("BootDolFromMem : bogus entrypoint detected\n");
-		return -2;
 	}
 	gprintf("BootDolFromMem : starting binary...\n");
 	for (int i = 0;i < WPAD_MAX_WIIMOTES ;i++)
@@ -1733,18 +1923,21 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 	
 	gprintf("BootDolFromMem : Entrypoint: 0x%08X\n", (u32)(entrypoint) );
 
-	__STM_Close();
 	ISFS_Deinitialize();
 	ShutdownDevices();
 	USB_Deinitialize();
 	__IOS_ShutdownSubsystems();
-	mtmsr(mfmsr() & ~0x8000);
-	mtmsr(mfmsr() | 0x2002);
+	VIDEO_Flush();
+    VIDEO_WaitVSync();
+    __exception_closeall();
 	ICSync();
-	entrypoint();
-	/*
+    entrypoint();
+
+
+
+	
 	//alternate booting code. seems to be as good(or bad) as the above code
-	u32 level;
+	/*u32 level;
 	__STM_Close();
 	ISFS_Deinitialize();
 	ShutdownDevices();
@@ -1783,23 +1976,31 @@ s8 BootDolFromDir( const char* Dir , u8 HW_AHBPROT_ENABLED )
 		fseek (dol , 0 , SEEK_END);
 		lSize = ftell (dol);
 		rewind (dol);
-		// allocate memory to contain the whole file:
-		buffer = (u8*) mem_malloc((sizeof(u8)*lSize+31)&(~31));
-		if (buffer == NULL) 
+		if (lSize > 7* 1048576 )
 		{
-			return -3;
+			gdprintf("booting from fat...\n");
+			BootDolFromFat(dol,HW_AHBPROT_ENABLED);
 		}
 		else
 		{
-			// copy the file into the buffer:
-			s32 result = fread (buffer,1,lSize,dol);
-			if (result != lSize) 
+			// allocate memory to contain the whole file:
+			buffer = (u8*) mem_malloc( ALIGN32(sizeof(u8)*lSize) );
+			if (buffer == NULL) 
 			{
-				mem_free(buffer);
-				return -4;
+				fclose(dol);
+				return -3;
 			}
 			else
 			{
+				// copy the file into the buffer:
+				s32 result = fread (buffer,1,lSize,dol);
+				if (result != lSize) 
+				{
+					mem_free(buffer);
+					fclose(dol);
+					return -4;
+				}
+				fclose(dol);
 				BootDolFromMem(buffer,HW_AHBPROT_ENABLED);
 				mem_free(buffer);
 				return -5;
@@ -1808,8 +2009,10 @@ s8 BootDolFromDir( const char* Dir , u8 HW_AHBPROT_ENABLED )
 	}
 	else
 	{
+		fclose(dol);
 		return -2;
 	}
+	return -1;
 }
 void BootMainSysMenu( u8 init )
 {
@@ -1898,14 +2101,14 @@ void BootMainSysMenu( u8 init )
 		goto free_and_return;
 	}
 
-	status = (fstats *)mem_align(32, (sizeof( fstats )+31)&(~31) );
+	status = (fstats *)mem_align(32, ALIGN32(sizeof( fstats )) );
 	if( status == NULL )
 	{
 		ISFS_Close( fd );
 		error = ERROR_MALLOC;
 		goto free_and_return;
 	}
-	memset(status,0, (sizeof( fstats )+31)&(~31) );
+	memset(status,0, sizeof( fstats ) );
 	r = ISFS_GetFileStats( fd, status);
 	if( r < 0 || status->file_length == 0)
 	{
@@ -1916,14 +2119,14 @@ void BootMainSysMenu( u8 init )
 	}
 
 	mem_free(status);
-	boot_hdr = (dolhdr *)mem_align(32, (sizeof( dolhdr )+31)&(~31) );
+	boot_hdr = (dolhdr *)mem_align(32, ALIGN32(sizeof( dolhdr )) );
 	if(boot_hdr == NULL)
 	{
 		error = ERROR_MALLOC;
 		ISFS_Close(fd);
 		goto free_and_return;
 	}
-	memset( boot_hdr, 0, (sizeof( dolhdr )+31)&(~31) );
+	memset( boot_hdr, 0, ALIGN32(sizeof( dolhdr )) );
 	
 	r = ISFS_Seek( fd, 0, SEEK_SET );
 	if ( r < 0)
@@ -2098,14 +2301,14 @@ void BootMainSysMenu( u8 init )
 		}
 
 		//create buffer
-		buf = (char*)mem_align( 32, (tstatus->file_length+31)&(~31) );
+		buf = (char*)mem_align( 32, ALIGN32(tstatus->file_length) );
 		if( buf == NULL )
 		{
 			ISFS_Close( fd );
 			error = ERROR_MALLOC;
 			goto free_and_return;
 		}
-		memset(buf, 0, (tstatus->file_length+31)&(~31) );
+		memset(buf, 0, tstatus->file_length );
 
 		//read file
 		r = ISFS_Read( fd, buf, tstatus->file_length );
@@ -2128,7 +2331,7 @@ void BootMainSysMenu( u8 init )
 			__IOS_InitializeSubsystems();
 			goto free_and_return;
 		}
-		TMD = (signed_blob *)mem_align( 32, (tmd_size_temp+31)&(~31) );
+		TMD = (signed_blob *)mem_align( 32, ALIGN32(tmd_size_temp) );
 		if(TMD == NULL)
 		{
 			gprintf("ES_Identify: memalign TMD failure\n");
@@ -2319,7 +2522,10 @@ void InstallLoadDOL( void )
 					app_bin = fopen(filepath,"rb");
 					if(!app_bin)
 					{
-						continue;
+						sprintf(filepath,"fat:/apps/%s/boot.elf",filename);
+						app_bin = fopen(filepath,"rb");
+						if(!app_bin)
+							continue;
 					}
 					fclose(app_bin);
 					Binary_struct temp;
@@ -2479,11 +2685,11 @@ void InstallLoadDOL( void )
 		if( redraw )
 		{
 			s16 i= min_pos;
-			if((s32)app_list.size() > max_pos && (min_pos != (s32)app_list.size() - max_pos - 1))
+			if((s32)app_list.size() -1 > max_pos && (min_pos != (s32)app_list.size() - max_pos - 1) )
 			{
 				PrintFormat( 0,((rmode->viWidth /2)-((strlen("-----More-----"))*13/2))>>1,64+(max_pos+2)*16,"-----More-----");
 			}
-			if(min_pos > 0)
+			if(min_pos > 0 )
 			{
 				PrintFormat( 0,((rmode->viWidth /2)-((strlen("-----Less-----"))*13/2))>>1,64,"-----Less-----");
 			}
@@ -2530,36 +2736,42 @@ void InstallLoadDOL( void )
 			fseek( dol, 0, 0 );
 
 			char *buf = (char*)mem_align( 32, sizeof( char ) * size );
-			memset( buf, 0, sizeof( char ) * size );
-
-			fread( buf, sizeof( char ), size, dol );
-			fclose( dol );
-
-			//Check if there is already a main.dol installed
-			s32 fd = ISFS_Open("/title/00000001/00000002/data/main.bin", 1|2 );
-
-			if( fd >= 0 )	//delete old file
+			if(buf != NULL)
 			{
+				memset( buf, 0, sizeof( char ) * size );
+
+				fread( buf, sizeof( char ), size, dol );
+				fclose( dol );
+
+				//Check if there is already a main.dol installed
+				s32 fd = ISFS_Open("/title/00000001/00000002/data/main.bin", 1|2 );
+
+				if( fd >= 0 )	//delete old file
+				{
+					ISFS_Close( fd );
+					ISFS_Delete("/title/00000001/00000002/data/main.bin");
+				}
+
+				//file not found create a new one
+				ISFS_CreateFile("/title/00000001/00000002/data/main.bin", 0, 3, 3, 3);
+				fd = ISFS_Open("/title/00000001/00000002/data/main.bin", 1|2 );
+
+				if( ISFS_Write( fd, buf, sizeof( char ) * size ) != (signed)(sizeof( char ) * size) )
+				{
+					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Writing file failed!"))*13/2))>>1, 240, "Writing file failed!");
+				} else {
+					PrintFormat( 0, ((rmode->viWidth /2)-((strlen("\"%s\" installed")+strlen(app_list[cur_off].app_name.c_str()))*13/2))>>1, 240, "\"%s\" installed", app_list[cur_off].app_name.c_str());
+				}
 				ISFS_Close( fd );
-				ISFS_Delete("/title/00000001/00000002/data/main.bin");
+				mem_free( buf );
 			}
-
-			//file not found create a new one
-			ISFS_CreateFile("/title/00000001/00000002/data/main.bin", 0, 3, 3, 3);
-			fd = ISFS_Open("/title/00000001/00000002/data/main.bin", 1|2 );
-
-			if( ISFS_Write( fd, buf, sizeof( char ) * size ) != (signed)(sizeof( char ) * size) )
+			else
 			{
 				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Writing file failed!"))*13/2))>>1, 240, "Writing file failed!");
-			} else {
-				PrintFormat( 0, ((rmode->viWidth /2)-((strlen("\"%s\" installed")+strlen(app_list[cur_off].app_name.c_str()))*13/2))>>1, 240, "\"%s\" installed", app_list[cur_off].app_name.c_str());
 			}
-
 			sleep(5);
 			ClearScreen();
 			redraw=true;
-			ISFS_Close( fd );
-			mem_free( buf );
 
 		}
 
@@ -2671,7 +2883,7 @@ void AutoBootDol( void )
 
 	void	(*entrypoint)();
 
-	Elf32_Ehdr *ElfHdr = (Elf32_Ehdr *)mem_align( 32, (sizeof( Elf32_Ehdr )+31)&(~31) );
+	Elf32_Ehdr *ElfHdr = (Elf32_Ehdr *)mem_align( 32, ALIGN32( sizeof( Elf32_Ehdr ) ) );
 	if( ElfHdr == NULL )
 	{
 		error = ERROR_MALLOC;
@@ -2721,7 +2933,7 @@ void AutoBootDol( void )
 					return;
 				}
 
-				Elf32_Phdr *phdr = (Elf32_Phdr *)mem_align( 32, (sizeof( Elf32_Phdr )+31)&(~31) );
+				Elf32_Phdr *phdr = (Elf32_Phdr *)mem_align( 32, ALIGN32( sizeof( Elf32_Phdr ) ) );
 				if( phdr == NULL )
 				{
 					error = ERROR_MALLOC;
@@ -2766,7 +2978,7 @@ void AutoBootDol( void )
 			gdprintf("Warning section header entries are zero!\n");
 		else 
 		{
-			Elf32_Shdr *shdr = (Elf32_Shdr *)mem_align( 32, (sizeof( Elf32_Shdr )+31)&(~31) );
+			Elf32_Shdr *shdr = (Elf32_Shdr *)mem_align( 32, ALIGN32( sizeof( Elf32_Shdr ) ) );
 			if( shdr == NULL )
 			{
 				error = ERROR_MALLOC;
@@ -2840,7 +3052,7 @@ void AutoBootDol( void )
 	} else {
 		//Dol
 		//read the header
-		dolhdr *hdr = (dolhdr *)mem_align(32, (sizeof( dolhdr )+31)&(~31) );
+		dolhdr *hdr = (dolhdr *)mem_align(32, ALIGN32( sizeof( dolhdr ) ) );
 		if( hdr == NULL )
 		{
 			error = ERROR_MALLOC;
@@ -3041,15 +3253,14 @@ void CheckForUpdate()
 	//make a nice list of the updates
 	if ( (VERSION < UpdateFile.version) || (VERSION == UpdateFile.version && EN_BETAVERSION > 0) )
 		VersionUpdates = 1;
-	else
 	//to make the if short :
 	// - beta updates should be enabled
 	// - the current betaversion should be less then the online beta
-	// - the current version +1 should == the beta OR the version == the beta IF a beta is installed
+	// - the current version should < the beta OR the version == the beta IF a beta is installed
 	if ( 
 		SGetSetting(SETTING_SHOWBETAUPDATES) && 
-		(EN_BETAVERSION < UpdateFile.beta_number) && 
-		( ( (VERSION) +1 == UpdateFile.beta_version && EN_BETAVERSION == 0 ) || ( VERSION == UpdateFile.beta_version && EN_BETAVERSION > 0 ) ) 
+		EN_BETAVERSION < UpdateFile.beta_number && 
+		( ( VERSION < UpdateFile.beta_version && EN_BETAVERSION == 0 ) || ( VERSION == UpdateFile.beta_version && EN_BETAVERSION > 0 ) ) 
 		)
 	{
 		BetaUpdates = 1;
@@ -3808,7 +4019,8 @@ int main(int argc, char **argv)
 		error=ERROR_ISFS_INIT;
 	}
 
-	AddMem2Area (9*1024*1024, OTHER_AREA);
+	//tho 9MB is more then enough, some dols are like...12MB like wiimc o_O;
+	AddMem2Area (14*1024*1024, OTHER_AREA);
 	LoadHBCStub();
 	gprintf("\"Magic Priiloader word\": %x\n",*(vu32*)0x8132FFFB);
 	LoadSettings();
@@ -3950,6 +4162,7 @@ int main(int argc, char **argv)
 	{
 		gprintf("Reset Button is held down\n");
 	}
+
 	if ( SGetSetting(SETTING_SHOWGECKOTEXT) == 0 )
 	{
 		//init video first so we can see crashes :)
@@ -3985,6 +4198,7 @@ int main(int argc, char **argv)
 	{
 		DVDStopDisc(false);
 	}
+	_sync();
 	time(&startloop);
 	gdprintf("priiloader v%d.%d DEBUG (Sys:%d)(IOS:%d)(%s %s)\n", VERSION>>8, VERSION&0xFF, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
 	system_state.InMainMenu = 1;

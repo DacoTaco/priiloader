@@ -14,6 +14,12 @@
 #define mem_malloc(x) mem2_malloc(x,OTHER_AREA)
 #define mem_free(x) if(x != NULL) { mem2_free(x,OTHER_AREA);x=NULL; }
 #define mem_align(x,y) mem2_memalign(x,y,OTHER_AREA)
+#define ALIGN32(x) (((x) + 31) & ~31)
+#ifndef STACK_ALIGN
+// courtesy of Marcan
+#define STACK_ALIGN(type, name, cnt, alignment)		u8 _al__##name[((sizeof(type)*(cnt)) + (alignment) + (((sizeof(type)*(cnt))%(alignment)) > 0 ? ((alignment) - ((sizeof(type)*(cnt))%(alignment))) : 0))]; \
+													type *name = (type*)(((u32)(_al__##name)) + ((alignment) - (((u32)(_al__##name))&((alignment)-1))))
+#endif
 
 enum mem2_areas_enum {
 	VIDEO_AREA,

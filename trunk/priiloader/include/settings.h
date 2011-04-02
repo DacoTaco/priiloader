@@ -23,10 +23,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #ifndef _SETTINGS_H_
 #define _SETTINGS_H_
 //version is absolete. i wont allow languages to just go past this eventho i can't fully control this now can i ? :P
-#define VERSION		06
+#define VERSION		07
 
 //define of the language beta
-#define EN_BETAVERSION	0x00000000
+#define EN_BETAVERSION	0x00000001
 
 //define english
 #ifndef EN_BETAVERSION

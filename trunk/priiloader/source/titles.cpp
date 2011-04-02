@@ -104,13 +104,13 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 	gdprintf("GetTitleName : %s\n",file);
 	u32 cnt ATTRIBUTE_ALIGN(32);
 	cnt = 0;
-	IMET *data = (IMET *)mem_align(32, (sizeof(IMET)+31)&(~31));
+	IMET *data = (IMET *)mem_align(32, ALIGN32( sizeof(IMET) ) );
 	if(data == NULL)
 	{
 		gprintf("GetTitleName : IMET header align failure\n");
 		return -1;
 	}
-	memset(data,0,(sizeof(IMET)+31)&(~31));
+	memset(data,0,sizeof(IMET) );
 	r = ES_GetNumTicketViews(id, &cnt);
 	if(r < 0)
 	{
@@ -304,14 +304,14 @@ s32 LoadListTitles( void )
 					fflush(stdout);
 					continue;
 				}
-				rTMD = (tmd_view*)mem_align( 32, (tmd_size+31)&(~31) );
+				rTMD = (tmd_view*)mem_align( 32, ALIGN32(tmd_size) );
 				if( rTMD == NULL )
 				{
 					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to MemAlign TMD!"))*13/2))>>1, 208+16, "Failed to MemAlign TMD!");
 					sleep(3);
 					return 0;
 				}
-				memset(rTMD,0, (tmd_size+31)&(~31) );
+				memset(rTMD,0, tmd_size );
 				ret = ES_GetTMDView(title_list[i], (u8*)rTMD, tmd_size);
 				if(ret<0)
 				{

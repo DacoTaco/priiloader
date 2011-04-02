@@ -45,13 +45,13 @@ u32 GetSysMenuVersion( void )
 		return 0;
 	}
 
-	tmd_view *rTMD = (tmd_view*)mem_align( 32, (tmd_size+31)&(~31) );
+	tmd_view *rTMD = (tmd_view*)mem_align( 32, ALIGN32(tmd_size) );
 	if( rTMD == NULL )
 	{
 		gdprintf("SysMenuVersion : memalign failure\n");
 		return 0;
 	}
-	memset(rTMD,0, (tmd_size+31)&(~31) );
+	memset(rTMD,0, tmd_size );
 	r = ES_GetTMDView(TitleID, (u8*)rTMD, tmd_size);
 	if(r<0)
 	{
@@ -80,13 +80,13 @@ u32 GetSysMenuIOS( void )
 		return 0;
 	}
 
-	tmd_view *rTMD = (tmd_view*)mem_align( 32, (tmd_size+31)&(~31) );
+	tmd_view *rTMD = (tmd_view*)mem_align( 32, ALIGN32(tmd_size) );
 	if( rTMD == NULL )
 	{
 		gdprintf("GetSysMenuIOS : memalign failure\n");
 		return 0;
 	}
-	memset(rTMD,0, (tmd_size+31)&(~31) );
+	memset(rTMD,0, tmd_size );
 	r = ES_GetTMDView(TitleID, (u8*)rTMD, tmd_size);
 	if(r<0)
 	{
@@ -155,7 +155,7 @@ void LoadSettings( void )
 	if(settings == NULL)
 	{
 		//the settings still need to be aligned/allocated. so lets do that
-		settings = (Settings*)mem_align( 32, (sizeof( Settings )+31)&(~31));
+		settings = (Settings*)mem_align( 32, ALIGN32( sizeof( Settings ) ) );
 	}
 	memset( settings, 0, sizeof( Settings ) );
 	
@@ -183,7 +183,7 @@ void LoadSettings( void )
 		}
 		ISFS_Seek( fd, 0, 0 );
 	}
-	fstats *status = (fstats*)mem_align(32,(sizeof(fstats)+31)&(~31));
+	fstats *status = (fstats*)mem_align(32,ALIGN32(sizeof(fstats)) );
 	memset(status,0,sizeof(fstats));
 	ISFS_GetFileStats(fd,status);
 	if ( status->file_length != sizeof(Settings) )
