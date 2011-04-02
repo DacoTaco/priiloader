@@ -108,13 +108,13 @@ void InstallPassword( void )
 				psize = pstatus->file_length;
 				mem_free( pstatus );
 				mem_free( pbuf );
-				pbuf = (char*)mem_align( 32, (psize+32+1)&(~31) );
+				pbuf = (char*)mem_align( 32, ALIGN32(psize) );
 				if( pbuf == NULL )
 				{
 					error = ERROR_MALLOC;
 					return;
 				}
-				memset( pbuf, 0, (psize+32+1)&(~31) );
+				memset( pbuf, 0, psize );
 				ISFS_Read( pfd, pbuf, psize );
 				ISFS_Close( pfd );
 
@@ -303,13 +303,13 @@ void password_check( void )
 	{
 		mem_free( cpstatus );
 	}
-	cpbuf = (char*)mem_align( 32, (cpsize+32+1)&(~31) );
+	cpbuf = (char*)mem_align( 32, ALIGN32(cpsize) );
 	if( cpbuf == NULL )
 	{
 		error = ERROR_MALLOC;
 		return;
 	}
-	memset( cpbuf, 0, (cpsize+32+1)&(~31) );
+	memset( cpbuf, 0, cpsize );
 	ISFS_Read( cpfd, cpbuf, cpsize );
 	ISFS_Close( cpfd );
 

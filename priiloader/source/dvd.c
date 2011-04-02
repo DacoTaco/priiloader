@@ -45,10 +45,10 @@ static s32 SetDriveState (s32 result,void *usrdata)
 	}
 	return 1;
 }
-static s32 GetDvdFD ( void )
+/*static s32 GetDvdFD ( void )
 {
 	return di_fd;
-}
+}*/
 void DVDStopDisc( bool do_async )
 {
 	if(async_called == 1) // async was called so this function is useless to do again
@@ -78,6 +78,7 @@ void DVDStopDisc( bool do_async )
 		{
 			IOS_Ioctl( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20);
 			DVDCleanUp();
+			return;
 		}
 		else
 		{

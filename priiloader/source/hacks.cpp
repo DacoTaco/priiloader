@@ -115,12 +115,12 @@ u32 LoadHacks( bool Force_Load_Nand )
 	bool mode = true;
 	s32 fd=0;
 	char *buf=NULL;
-	fstats *status = NULL;
+	STACK_ALIGN(fstats,status,sizeof(fstats),32);
 	unsigned int size=0;
 	FILE* in = NULL;
 	if(!Force_Load_Nand)
 	{
-		in = fopen ("fat:/hacks.ini","rb");
+		in = fopen ("fat:/apps/priiloader/hacks.ini","rb");
 	}
 	if( !in )
 	{
@@ -146,13 +146,13 @@ u32 LoadHacks( bool Force_Load_Nand )
 			return 0;
 		}
 
-		buf = (char*)mem_align( 32, (size+31)&(~31));
+		buf = (char*)mem_align( 32, ALIGN32(size));
 		if( buf == NULL )
 		{
 			error = ERROR_MALLOC;
 			return 0;
 		}
-		memset( buf, 0, (size+31)&(~31) );
+		memset( buf, 0, size );
 		if(fread( buf, sizeof( char ), size, in ) != size )
 		{
 			mem_free(buf);
@@ -164,17 +164,15 @@ u32 LoadHacks( bool Force_Load_Nand )
 
 	} else {	//read file from NAND
 
-		status = (fstats *)mem_align( 32, (sizeof( fstats )+31)&(~31) );
 		ISFS_GetFileStats( fd, status);
 		size = status->file_length;
-		mem_free(status);
-		buf = (char*)mem_align( 32, (size+31)&(~31) );
+		buf = (char*)mem_align( 32, ALIGN32(size) );
 		if( buf == NULL )
 		{
 			error = ERROR_MALLOC;
 			return 0;
 		}
-		memset( buf, 0, (size+31)&(~31) );
+		memset( buf, 0, size );
 		ISFS_Read( fd, buf, size );
 		ISFS_Close( fd );
 	}
@@ -382,14 +380,14 @@ u32 LoadHacks( bool Force_Load_Nand )
 	//load hack states (on/off)
 	if ( states == NULL )
 	{
-		states = (u32*)mem_align( 32, ((sizeof( u32 ) * hacks.size())+31)&(~31) );
+		states = (u32*)mem_align( 32, ALIGN32( sizeof( u32 ) * hacks.size() ) );
 		if( states == NULL )
 		{
 			error = ERROR_MALLOC;
 			return 0;
 		}
 	}
-	memset( states, 0, ((sizeof( u32 ) * hacks.size())+31)&(~31) );
+	memset( states, 0, sizeof( u32 ) * hacks.size()  );
 
 	fd = ISFS_Open("/title/00000001/00000002/data/hacks_s.ini", 1|2 );
 
@@ -408,32 +406,23 @@ u32 LoadHacks( bool Force_Load_Nand )
 		ISFS_Seek( fd, 0, 0 );
 	}
 
-	status = (fstats *)mem_align( 32, (sizeof(fstats)+31)&(~31) );
-	if( status == NULL )
-	{
-		error = ERROR_MALLOC;
-		return 0;
-	}
-	memset( status, 0, (sizeof(fstats)+31)&(~31) );
+	memset( status, 0, sizeof(fstats) );
 
 	if(ISFS_GetFileStats( fd, status)<0)
 	{
-		mem_free(status);
 		return 0;
 	}
 
-	u8 *fbuf = (u8 *)mem_align( 32, (status->file_length+31)&(~31) );
+	u8 *fbuf = (u8 *)mem_align( 32, ALIGN32(status->file_length) );
 	if( fbuf == NULL )
 	{
-		mem_free(status);
 		error = ERROR_MALLOC;
 		return 0;
 	}
-	memset( fbuf, 0, (status->file_length+31)&(~31) );
+	memset( fbuf, 0, status->file_length );
 
 	if(ISFS_Read( fd, fbuf, status->file_length )<0)
 	{
-		mem_free(status);
 		mem_free(fbuf);
 		return 0;
 	}
@@ -444,7 +433,6 @@ u32 LoadHacks( bool Force_Load_Nand )
 		memcpy( states, fbuf, status->file_length );
 
 	mem_free(fbuf);
-	mem_free(status);
 	ISFS_Close( fd );
 
 	//Set all hacks from other regions to 0
@@ -473,7 +461,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 	bool mode = true;
 	s32 fd=0;
 	char *buf=NULL;
-	fstats *status = NULL;
+	STACK_ALIGN(fstats,status,sizeof(fstats),32);
 	unsigned int size=0;
 	FILE* in = NULL;
 	if(!Force_Load_Nand)
@@ -504,13 +492,13 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 			return 0;
 		}
 
-		buf = (char*)mem_align( 32, (size+31)&(~31));
+		buf = (char*)mem_align( 32, ALIGN32(size));
 		if( buf == NULL )
 		{
 			error = ERROR_MALLOC;
 			return 0;
 		}
-		memset( buf, 0, (size+31)&(~31) );
+		memset( buf, 0, size );
 		if(fread( buf, sizeof( char ), size, in ) != size )
 		{
 			mem_free(buf);
@@ -522,17 +510,15 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 
 	} else {	//read file from NAND
 
-		status = (fstats *)mem_align( 32, (sizeof( fstats )+31)&(~31) );
 		ISFS_GetFileStats( fd, status);
 		size = status->file_length;
-		mem_free(status);
-		buf = (char*)mem_align( 32, (size+31)&(~31) );
+		buf = (char*)mem_align( 32, size );
 		if( buf == NULL )
 		{
 			error = ERROR_MALLOC;
 			return 0;
 		}
-		memset( buf, 0, (size+31)&(~31) );
+		memset( buf, 0, size );
 		ISFS_Read( fd, buf, size );
 		ISFS_Close( fd );
 	}
@@ -876,7 +862,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 	//load hack states_hash (on/off)
 	if ( states_hash == NULL )
 	{
-		states_hash = (u32*)mem_align( 32, ((sizeof( u32 ) * hacks_hash.size())+31)&(~31) );
+		states_hash = (u32*)mem_align( 32, ALIGN32( sizeof( u32 ) * hacks_hash.size() ) );
 		if( states_hash == NULL )
 		{
 			error = ERROR_MALLOC;
@@ -884,7 +870,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 		}
 	}
 
-	memset( states_hash, 0, ((sizeof( u32 ) * hacks_hash.size())+31)&(~31) );
+	memset( states_hash, 0, sizeof( u32 ) * hacks_hash.size() );
 
 	fd = ISFS_Open("/title/00000001/00000002/data/hacksh_s.ini", 1|2 );
 
@@ -906,34 +892,24 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 		ISFS_Seek( fd, 0, 0 );
 	}
 
-	status = (fstats *)mem_align( 32, (sizeof(fstats)+31)&(~31) );
-	if( status == NULL )
-	{
-		error = ERROR_MALLOC;
-		return 0;
-	}
-
-	memset( status, 0, (sizeof(fstats)+31)&(~31) );
+	memset( status, 0, sizeof(fstats) );
 
 	if(ISFS_GetFileStats( fd, status)<0)
 	{
-		mem_free(status);
 		return 0;
 	}
 
-	u8 *fbuf = (u8 *)mem_align( 32, (status->file_length+31)&(~31) );
+	u8 *fbuf = (u8 *)mem_align( 32, ALIGN32(status->file_length) );
 	if( fbuf == NULL )
 	{
-		mem_free(status);
 		error = ERROR_MALLOC;
 		return 0;
 	}
 
-	memset( fbuf, 0, (status->file_length+31)&(~31) );
+	memset( fbuf, 0, status->file_length );
 
 	if(ISFS_Read( fd, fbuf, status->file_length )<0)
 	{
-		mem_free(status);
 		mem_free(fbuf);
 		return 0;
 	}
@@ -944,7 +920,6 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 		memcpy( states_hash, fbuf, status->file_length );
 
 	mem_free(fbuf);
-	mem_free(status);
 	ISFS_Close( fd );
 
 	//Set all hacks_hash for system menu > max_version || sysver < min_version to 0
