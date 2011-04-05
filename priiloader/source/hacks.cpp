@@ -467,6 +467,9 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 	if(!Force_Load_Nand)
 	{
 		in = fopen ("fat:/apps/priiloader/hacks_hash.ini","rb");
+		if(!in)
+			gprintf("fopen error : strerror %s\n",strerror(errno));
+
 	}
 	if( !in )
 	{
