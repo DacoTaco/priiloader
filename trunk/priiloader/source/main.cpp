@@ -268,7 +268,7 @@ void SysHackSettings( void )
 		}
 		else
 		{
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Can't find Hacks.ini on FAT Device"))*13/2))>>1, 208+16, "Can't find Hacks.ini on FAT Device");
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Can't find fat:/apps/priiloader/hacks.ini"))*13/2))>>1, 208+16, "Can't find fat:/apps/priiloader/hacks.ini");
 		}
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Can't find Hacks.ini on NAND"))*13/2))>>1, 208+16+16, "Can't find Hacks.ini on NAND");
 		sleep(5);
@@ -561,7 +561,7 @@ void SysHackHashSettings( void )
 		}
 		else
 		{
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Can't find hacks_hash.ini on FAT Device"))*13/2))>>1, 208+16, "Can't find hacks_hash.ini on FAT Device");
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Can't find fat:/apps/priiloader/hacks_hash.ini"))*13/2))>>1, 208+16, "Can't find fat:/apps/priiloader/hacks_hash.ini");
 		}
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Can't find hacks_hash.ini on NAND"))*13/2))>>1, 208+16+16, "Can't find hacks_hash.ini on NAND");
 		sleep(5);
@@ -3993,7 +3993,7 @@ int main(int argc, char **argv)
 #endif
 	gprintf("priiloader\n");
 	gprintf("Built   : %s %s\n", __DATE__, __TIME__ );
-	gprintf("Version : %d.%db (rev %s)\n", VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
+	gprintf("Version : %d.%d (rev %d)\n", VERSION>>16, VERSION&0xFFFF, SVN_REV);
 	gprintf("Firmware: %d.%d.%d\n", *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143 );
 
 	*(vu32*)0x80000020 = 0x0D15EA5E;				// Magic word (how did the console boot?)
@@ -4315,9 +4315,9 @@ int main(int argc, char **argv)
 		{
 			if( BETAVERSION > 0 )
 			{
-				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%db(beta v%d)", VERSION>>8, VERSION&0xFF, BETAVERSION&0xFF );
+				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d(beta v%d)", VERSION>>8, VERSION&0xFF, BETAVERSION&0xFF );
 			} else {
-				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%db (r%s)", VERSION>>8, VERSION&0xFF,SVN_REV_STR );
+				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d (r%d)", VERSION>>8, VERSION&0xFF,SVN_REV );
 			}
 			PrintFormat( 0, 16, rmode->viHeight-64, "IOS v%d", (*(vu32*)0x80003140)>>16 );
 			PrintFormat( 0, 16, rmode->viHeight-48, "Systemmenu v%d", SysVersion );			
