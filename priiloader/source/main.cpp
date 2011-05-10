@@ -1413,7 +1413,7 @@ void SetSettings( void )
 			PrintFormat( cur_off==6, 0, 128+80, "      Background Color:          %s", settings->BlackBackground?"Black":"White");
 			PrintFormat( cur_off==7, 0, 128+96, "    Protect Priiloader:          %s", settings->PasscheckPriiloader?"on ":"off");
 			PrintFormat( cur_off==8, 0, 128+112,"      Protect Autoboot:          %s", settings->PasscheckMenu?"on ":"off");
-			PrintFormat( cur_off==9, 0, 128+128,"   Display Gecko ouput:          %s", settings->ShowGeckoText?"on ":"off");
+			PrintFormat( cur_off==9, 0, 128+128,"  Display Gecko output:          %s", settings->ShowGeckoText?"on ":"off");
 			PrintFormat( cur_off==10,0, 128+144,"     Show Beta Updates:          %s", settings->ShowBetaUpdates?"on ":"off");
 			PrintFormat( cur_off==11,0, 128+160," Use Classic Hacks.ini:          %s", settings->UseClassicHacks?"on ":"off");
 			PrintFormat( cur_off==12,0, 128+176,"   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
