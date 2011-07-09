@@ -267,23 +267,6 @@ void InitVideo ( void )
 		VIDEO_WaitVSync();
 	gdprintf("resolution is %dx%d\n",rmode->viWidth,rmode->viHeight);
 }
-//the following doesn't work cause almost no compilers supports export ;_;
-/*export template <class pointer>
-s8 free_null_pointer(pointer*& ptr)*/
-s8 free_null_pointer(void*& ptr)
-{
-	if(ptr != NULL)
-	{
-		free(ptr); 
-		ptr = NULL;
-		return 0;
-	}
-	else
-	{
-		return -1;
-	}
-}
-
 void Control_VI_Regs ( u8 mode )
 {
 	vu16* const _viReg = (u16*)0xCC002000;
@@ -383,7 +366,7 @@ bool PollDevices( void )
 	//check if USB is mountable.deu to short circuit evaluation you need to be VERY CAREFUL when changing the next if or anything usbstorage related
 	//i know its stupid to init the USB device and yet not mount it, but thats the only way with c++ & the current usbstorage combo
 	//see http://en.wikipedia.org/wiki/Short-circuit_evaluation
-	else if( ( __io_usbstorage.startup() ) && ( __io_usbstorage.isInserted() ) && (Mounted == 0) && !(Device_Not_Mountable & 1) )
+	else if( !(Device_Not_Mountable & 1) && ( __io_usbstorage.startup() ) && ( __io_usbstorage.isInserted() ) && (Mounted == 0) )
 	{
 		//if( fatMountSimple("fat", &__io_usbstorage) )
 		if( fatMount("fat", &__io_usbstorage,0, 8, 64) )
