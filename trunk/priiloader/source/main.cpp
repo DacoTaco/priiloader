@@ -1665,7 +1665,11 @@ s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED )
 				DCFlushRange( (void*)(hdr.addressData[i]), hdr.sizeData[i] );
 			}
 		}
-		if( (hdr.addressBSS + hdr.sizeBSS < 0x817FFFFF) && hdr.sizeBSS < 0x01500000 )
+		if( 
+			(hdr.addressBSS + hdr.sizeBSS < 0x817FFFFF) && 
+			(hdr.sizeBSS < 0x01500000 ) &&
+			(hdr.addressBSS > 0x80003400)
+			)
 		{
 			memset ((void *) hdr.addressBSS, 0, hdr.sizeBSS);
 			DCFlushRange((void *) hdr.addressBSS, hdr.sizeBSS);
@@ -1822,7 +1826,7 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 	}
 	else
 	{
-		gdprintf("BootDolFromMem : DOL detected\n");
+		gprintf("BootDolFromMem : DOL detected\n");
 
 		dolhdr *dolfile;
 		dolfile = (dolhdr *) dolstart;
@@ -1877,11 +1881,20 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 			DCFlushRange((void *) dolfile->offsetData[i],dolfile->sizeData[i]);
 			gdprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (dolfile->offsetData[i]), dolfile->addressData[i], dolfile->sizeData[i]);
 		}
-		if( (dolfile->addressBSS + dolfile->sizeBSS < 0x817FFFFF) && dolfile->sizeBSS < 0x01500000 )
+		if( 
+			(dolfile->addressBSS + dolfile->sizeBSS < 0x817FFFFF) && 
+			(dolfile->sizeBSS < 0x01500000 ) &&
+			(dolfile->addressBSS > 0x80003400))
 		{
 			memset ((void *) dolfile->addressBSS, 0, dolfile->sizeBSS);
 			DCFlushRange((void *) dolfile->addressBSS, dolfile->sizeBSS);
 		}
+		/*if (argv && argv->argvMagic == ARGV_MAGIC)
+                {
+                        void *new_argv = (void *)(dolfile->entry_point + 8);
+                        memmove(new_argv, argv, sizeof(*argv));
+                        DCFlushRange(new_argv, sizeof(*argv));
+                }*/
 		entrypoint = (void (*)())(dolfile->entrypoint);
 	}
 	gprintf("BootDolFromMem : starting binary...\n");

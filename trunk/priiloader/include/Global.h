@@ -109,29 +109,7 @@ extern "C"
 
 void InitVideo ( void );
 
-//#define free_pointer(x) free_null_pointer((void*&)x)
-//cause no f***ing compiler alive has export support (except 1 apparently) i NEED to add the function in this f***ing header.
-//how f***ing retarded is that?!
-template <class pointer>
-s8 free_pointer(pointer*& ptr)
-{
-	if(ptr != NULL)
-	{
-		if( sizeof(pointer) > 0 )
-		{
-			//protection incase empty type was given
-			memset(ptr,0,sizeof(pointer));
-		}
-		free(ptr); 
-		ptr = NULL;
-		return 0;
-	}
-	else
-	{
-		return -1;
-	}
-}
-s8 free_null_pointer(void*& ptr);
+#define free_pointer(x) if(x != NULL) { free(x);x=NULL; }
 void Control_VI_Regs ( u8 mode );
 s8 InitNetwork();
 bool PollDevices( void );
