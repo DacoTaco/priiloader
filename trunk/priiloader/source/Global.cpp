@@ -21,6 +21,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 //global functions,defines & variables for priiloader
 #include "Global.h"
+
 GXRModeObj *rmode = NULL;
 void *xfb = NULL;
 s8 Mounted = 0;
