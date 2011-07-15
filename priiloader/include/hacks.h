@@ -22,12 +22,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "Global.h"
 #include <string>
 
-struct hack {
-	char *desc;
-	unsigned int version;
-	std::vector<unsigned int> offset;
-	std::vector<unsigned int> value;
-};
 struct patch_struct {
 	std::vector<uint8_t> hash;
 	std::vector<uint8_t> patch;
@@ -40,5 +34,4 @@ struct hack_hash {
 	std::vector< patch_struct > patches;
 };
 
-u32 LoadHacks( bool Force_Load_Nand );
 s8 LoadHacks_Hash( bool Force_Load_Nand );

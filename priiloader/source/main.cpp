@@ -87,7 +87,6 @@ typedef struct {
 extern DVD_status DVD_state;
 extern Settings *settings;
 extern u8 error;
-extern std::vector<hack> hacks;
 extern std::vector<hack_hash> hacks_hash;
 extern u32 *states;
 extern u32 *states_hash;
@@ -257,299 +256,52 @@ bool isIOSstub(u8 ios_number)
 	mem_free(ios_tmd);
 	return false;
 }
-
-void SysHackSettings( void )
+s32 ReloadIos(s32 Ios_version,s8* bool_ahbprot_after_reload)
 {
-	if( !LoadHacks(false) )
+	if(
+		((bool_ahbprot_after_reload != NULL) && *bool_ahbprot_after_reload > 0)
+		&& read32(0x0d800064) == 0xFFFFFFFF)
 	{
-		if(Mounted == 0)
+		if(read16(0x0d8b420a))
 		{
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to mount FAT device"))*13/2))>>1, 208+16, "Failed to mount FAT device");
+			//there is more you can do to make more available but meh, not needed
+			write16(0x0d8b420a, 0);
+		}
+		if(!( read16(0x0d8b420a) ) )
+		{
+			u8 es_set_ahbprot[] = { 0x68, 0x5B, 0x22, 0xEC, 0x00, 0x52, 0x18, 0x9B, 0x68, 0x1B, 0x46, 0x98, 0x07, 0xDB };
+			u8* mem_block = (u8*)read32(0x80003130);
+			while((u32)mem_block < 0x93FFFFFF)
+			{
+				u32 address = (u32)mem_block;
+				if (!memcmp(mem_block, es_set_ahbprot, sizeof(es_set_ahbprot)))
+				{
+					//pointers suck but do the trick. the installer uses a more safe method in its official, closed source version.but untill people start nagging ill use pointers
+					*(u8*)(address+25) = 0x01;
+					DCFlushRange((u8 *)((address) >> 5 << 5), (sizeof(es_set_ahbprot) >> 5 << 5) + 64);
+					ICInvalidateRange((u8 *)((address) >> 5 << 5), (sizeof(es_set_ahbprot) >> 5 << 5) + 64);
+					break;
+				}
+				mem_block++;
+			}
+		}
+	}
+	IOS_ReloadIOS(Ios_version);
+	if (bool_ahbprot_after_reload != NULL)
+	{
+		if(read32(0x0d800064) == 0xFFFFFFFF)
+		{
+			*bool_ahbprot_after_reload = 1;
 		}
 		else
 		{
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Can't find fat:/apps/priiloader/hacks.ini"))*13/2))>>1, 208+16, "Can't find fat:/apps/priiloader/hacks.ini");
-		}
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Can't find Hacks.ini on NAND"))*13/2))>>1, 208+16+16, "Can't find Hacks.ini on NAND");
-		sleep(5);
-		return;
-	}
-
-//Count hacks for current sys version
-	u32 HackCount=0;
-	u32 SysVersion=GetSysMenuVersion();
-	for( unsigned int i=0; i<hacks.size(); ++i)
-	{
-		if( hacks[i].version == SysVersion )
-		{
-			HackCount++;
+			*bool_ahbprot_after_reload = 0;
 		}
 	}
-
-	if( HackCount == 0 )
-	{
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Couldn't find any hacks for"))*13/2))>>1, 208, "Couldn't find any hacks for");
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("System Menu version:vxxx"))*13/2))>>1, 228, "System Menu version:v%d", SysVersion );
-		sleep(5);
-		return;
-	}
-
-	u32 DispCount=HackCount;
-
-	if( DispCount > 25 )
-		DispCount = 25;
-
-	u16 cur_off=0;
-	s32 menu_off=0;
-	bool redraw=true;
- 
-	while(1)
-	{
-		WPAD_ScanPads();
-		PAD_ScanPads();
-
-		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
-		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
-
-#ifdef DEBUG
-		if ( (WPAD_Pressed & WPAD_BUTTON_HOME) || (PAD_Pressed & PAD_BUTTON_START) )
-		{
-			exit(0);
-		}
-#endif
-		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
-		{
-			break;
-		}
-
-		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
-		{
-			if( cur_off == DispCount)
-			{
-				//first try to open the file on the SD card/USB, if we found it copy it, other wise skip
-				s16 fail = 0;
-				FILE *in = NULL;
-				if (Mounted != 0)
-				{
-					in = fopen ("fat:/apps/priiloader/hacks.ini","rb");
-				}
-				else
-				{
-					gprintf("no FAT device found\n");
-				}
-				if ( ( (Mounted & 2) && !__io_wiisd.isInserted() ) || ( (Mounted & 1) && !__io_usbstorage.isInserted() ) )
-				{
-					PrintFormat( 0, 103, rmode->viHeight-48, "saving failed : SD/USB error");
-					continue;
-				}
-				if( in != NULL )
-				{
-					//Read in whole file & create it on nand
-					fseek( in, 0, SEEK_END );
-					u32 size = ftell(in);
-					fseek( in, 0, 0);
-
-					char *buf = (char*)mem_align( 32, ALIGN32(size) );
-					memset( buf, 0, size );
-					fread( buf, sizeof( char ), size, in );
-
-					fclose(in);
-
-					s32 fd = ISFS_Open("/title/00000001/00000002/data/hacks.ini", 1|2 );
-					if( fd >= 0 )
-					{
-						//File already exists, delete and recreate!
-						ISFS_Close( fd );
-						if(ISFS_Delete("/title/00000001/00000002/data/hacks.ini") <0)
-						{
-							fail=1;
-							mem_free(buf);
-							goto handle_hacks_fail;
-						}
-					}
-					if(ISFS_CreateFile("/title/00000001/00000002/data/hacks.ini", 0, 3, 3, 3)<0)
-					{
-						fail=2;
-						mem_free(buf);
-						goto handle_hacks_fail;
-					}
-					fd = ISFS_Open("/title/00000001/00000002/data/hacks.ini", 1|2 );
-					if( fd < 0 )
-					{
-						fail=3;
-						ISFS_Close( fd );
-						mem_free(buf);
-						goto handle_hacks_fail;
-					}
-
-					if(ISFS_Write( fd, buf, size )<0)
-					{
-						fail = 4;
-						ISFS_Close( fd );
-						mem_free(buf);
-						goto handle_hacks_fail;
-					}
-					ISFS_Close( fd );
-					mem_free(buf);
-				}
-handle_hacks_fail:
-				if(fail > 0)
-				{
-					gprintf("hacks.ini save error %d\n",fail);
-				}
-				
-				s32 fd = ISFS_Open("/title/00000001/00000002/data/hacks_s.ini", 1|2 );
-
-				if( fd >= 0 )
-				{
-					//File already exists, delete and recreate!
-					ISFS_Close( fd );
-					if(ISFS_Delete("/title/00000001/00000002/data/hacks_s.ini")<0)
-					{
-						fail = 5;
-						goto handle_hacks_s_fail;
-					}
-				}
-
-				if(ISFS_CreateFile("/title/00000001/00000002/data/hacks_s.ini", 0, 3, 3, 3)<0)
-				{
-					fail = 6;
-					goto handle_hacks_s_fail;
-				}
-				fd = ISFS_Open("/title/00000001/00000002/data/hacks_s.ini", 1|2 );
-				if( fd < 0 )
-				{
-					fail=7;
-					goto handle_hacks_s_fail;
-				}
-				if(ISFS_Write( fd, states, sizeof( u32 ) * hacks.size() )<0)
-				{
-					fail = 8;
-					ISFS_Close(fd);
-					goto handle_hacks_s_fail;
-				}
-
-				ISFS_Close( fd );
-handle_hacks_s_fail:
-				if(fail > 0)
-				{
-					gprintf("hacks.ini save error %d\n",fail);
-				}
-
-				if( fail )
-					PrintFormat( 0, 118, rmode->viHeight-48, "saving failed");
-				else
-					PrintFormat( 0, 118, rmode->viHeight-48, "settings saved");
-			} 
-			else 
-			{
-
-				s32 j = 0;
-				u32 i = 0;
-				for(i=0; i<hacks.size(); ++i)
-				{
-					if( hacks[i].version == SysVersion )
-					{
-						if( cur_off+menu_off == j++)
-							break;
-					}
-				}
-
-				if(states[i])
-					states[i]=0;
-				else 
-					states[i]=1;
-
-				redraw = true;
-			}
-		}
-
-		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
-		{
-			cur_off++;
-
-			if( cur_off > DispCount )
-			{
-				cur_off--;
-				menu_off++;
-			}
-
-			if( cur_off+menu_off > (s32)HackCount )
-			{
-				cur_off = 0;
-				menu_off= 0;
-			}
-			
-			redraw=true;
-		} else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
-		{
-			if( cur_off == 0 )
-			{
-				if( menu_off > 0 )
-				{
-					cur_off++;
-					menu_off--;
-
-				} else {
-
-					//if( DispCount < 20 )
-					//{
-						cur_off=DispCount;
-						menu_off=(HackCount-DispCount);
-
-					//} else {
-
-					//	cur_off=DispCount;
-					//	menu_off=(HackCount-DispCount)-1;
-
-					//}
-				}
-			}
-			else
-				cur_off--;
-	
-			redraw=true;
-		}
-
-		if( redraw )
-		{
-			//printf("\x1b[2;0HHackCount:%d DispCount:%d cur_off:%d menu_off:%d Hacks:%d   \n", HackCount, DispCount, cur_off, menu_off, hacks.size() );
-			u32 j=0;
-			u32 skip=menu_off;
-			for( u32 i=0; i<hacks.size(); ++i)
-			{
-				if( hacks[i].version == SysVersion )
-				{
-					if( skip > 0 )
-					{
-						skip--;
-					} else {
-
-						PrintFormat( cur_off==j, 16, 48+j*16, "%s", hacks[i].desc );
-
-						if( states[i] )
-							PrintFormat( cur_off==j, 256, 48+j*16, "enabled ", hacks[i].desc);
-						else
-							PrintFormat( cur_off==j, 256, 48+j*16, "disabled", hacks[i].desc);
-						
-						j++;
-					}
-				}
-				if( j >= 25 ) 
-					break;
-			}
-
-			PrintFormat( cur_off==(signed)DispCount, 118, rmode->viHeight-64, "save settings");
-
-			PrintFormat( 0, 103, rmode->viHeight-48, "                            ");
-
-			redraw = false;
-		}
-
-		VIDEO_WaitVSync();
-	}
-
-	return;
+	if(Ios_version == IOS_GetVersion())
+		return Ios_version;
+	else
+		return -1;
 }
 void SysHackHashSettings( void )
 {
@@ -1226,7 +978,7 @@ void SetSettings( void )
 					redraw=true;
 				}
 			break;		
-			case 11: // Use Classic hacks file
+			case 11: // reload IOS when giving AHBPROT
 				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
 					 PAD_Pressed & PAD_BUTTON_LEFT				||
 					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
@@ -1238,13 +990,13 @@ void SetSettings( void )
 					 PAD_Pressed & PAD_BUTTON_A
 					)
 				{
-					if( settings->UseClassicHacks )
+					if( settings->AHBPROTReload )
 					{
-						settings->UseClassicHacks = false;
+						settings->AHBPROTReload = false;
 					}
 					else
 					{
-						settings->UseClassicHacks = true;
+						settings->AHBPROTReload = true;
 					}
 					redraw=true;
 				}
@@ -1415,7 +1167,7 @@ void SetSettings( void )
 			PrintFormat( cur_off==8, 0, 128+112,"      Protect Autoboot:          %s", settings->PasscheckMenu?"on ":"off");
 			PrintFormat( cur_off==9, 0, 128+128,"  Display Gecko output:          %s", settings->ShowGeckoText?"on ":"off");
 			PrintFormat( cur_off==10,0, 128+144,"     Show Beta Updates:          %s", settings->ShowBetaUpdates?"on ":"off");
-			PrintFormat( cur_off==11,0, 128+160," Use Classic Hacks.ini:          %s", settings->UseClassicHacks?"on ":"off");
+			PrintFormat( cur_off==11,0, 128+160,"     AHBPROT IOSreload:          %s", settings->AHBPROTReload?"on ":"off");
 			PrintFormat( cur_off==12,0, 128+176,"   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
 			if(!settings->UseSystemMenuIOS)
 			{
@@ -1693,22 +1445,43 @@ s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED )
 	ShutdownDevices();
 	gdprintf("waiting for drive to stop...\n");
 	while(DvdKilled() < 1);
-	if(!HW_AHBPROT_ENABLED || read32(0x0d800064) != 0xFFFFFFFF )
+
+	s8 bAHBPROT = 0;
+	s32 Ios_to_load = 0;
+	if(read32(0x0d800064) == 0xFFFFFFFF )
+		bAHBPROT = HW_AHBPROT_ENABLED;
+	if( !isIOSstub(58) )
 	{
-		if( !isIOSstub(58) )
+		Ios_to_load = 58;
+	}
+	else if( !isIOSstub(61) )
+	{
+		Ios_to_load = 61;
+	}
+	else if( !isIOSstub(IOS_GetPreferredVersion()) )
+	{
+		Ios_to_load = IOS_GetPreferredVersion();
+	}
+	else
+	{
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
+		sleep(2);	
+	}
+
+	if(Ios_to_load > 2 && Ios_to_load < 255)
+	{
+		if(SGetSetting(SETTING_AHBPROTRELOAD))
 		{
-			IOS_ReloadIOS(58);
+			ReloadIos(Ios_to_load,&bAHBPROT);
 			system_state.ReloadedIOS = 1;
 		}
-		else if( !isIOSstub(IOS_GetPreferredVersion()) )
+		else if(
+			(!HW_AHBPROT_ENABLED) ||
+			( HW_AHBPROT_ENABLED > 0 && read32(0x0d800064) != 0xFFFFFFFF)
+			)
 		{
-			IOS_ReloadIOS(IOS_GetPreferredVersion());
+			IOS_ReloadIOS(Ios_to_load);
 			system_state.ReloadedIOS = 1;
-		}
-		else
-		{
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
-			sleep(2);	
 		}
 	}
 
@@ -1830,6 +1603,15 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 
 		dolhdr *dolfile;
 		dolfile = (dolhdr *) dolstart;
+		/*struct __argv args;
+		memset(&args,0, sizeof(args));
+		args.argvMagic = ARGV_MAGIC;
+		args.length = 0;
+		args.commandLine = NULL;
+		args.argc = argc;
+		args.argv = &args.commandLine;
+		args.endARGV = args.argv + 1;*/
+
 		//entrypoint & BSS checking
 		if( 
 			( dolfile->entrypoint >= 0x80E00000 && dolfile->entrypoint <= 0x81330000 ) ||
@@ -1847,24 +1629,8 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 		{
 			//BSS is in mem2 which means its better to reload ios & then load app. i dont really get it but thats what tantric said
 			//currently unused cause this is done for wiimc. however reloading ios also looses ahbprot/dvd access...
-			/*if(!HW_AHBPROT_ENABLED || read32(0x0d800064) != 0xFFFFFFFF )
-			{
-				if( !isIOSstub(58) )
-				{
-					IOS_ReloadIOS(58);
-					system_state.ReloadedIOS = 1;
-				}
-				else if( !isIOSstub(IOS_GetPreferredVersion()) )
-				{
-					IOS_ReloadIOS(IOS_GetPreferredVersion());
-					system_state.ReloadedIOS = 1;
-				}
-				else
-				{
-					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
-					sleep(2);	
-				}
-			}*/
+			
+			//place IOS reload here
 		}
 		//start killing DVD :')
 		DVDStopDisc(true);
@@ -1889,12 +1655,12 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 			memset ((void *) dolfile->addressBSS, 0, dolfile->sizeBSS);
 			DCFlushRange((void *) dolfile->addressBSS, dolfile->sizeBSS);
 		}
-		/*if (argv && argv->argvMagic == ARGV_MAGIC)
-                {
-                        void *new_argv = (void *)(dolfile->entry_point + 8);
-                        memmove(new_argv, argv, sizeof(*argv));
-                        DCFlushRange(new_argv, sizeof(*argv));
-                }*/
+		/*if (args.argvMagic == ARGV_MAGIC)
+        {
+                void *new_argv = (void *)(dolfile->entrypoint + 8);
+                memmove(new_argv, &args, sizeof(args));
+                DCFlushRange(new_argv, sizeof(args));
+        }*/
 		entrypoint = (void (*)())(dolfile->entrypoint);
 	}
 	gprintf("BootDolFromMem : starting binary...\n");
@@ -1915,22 +1681,42 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 	while(DvdKilled() < 1);
 	//DVDStopDisc(false);
 
-	if(!HW_AHBPROT_ENABLED || read32(0x0d800064) != 0xFFFFFFFF )
+	s8 bAHBPROT = 0;
+	s32 Ios_to_load = 0;
+	if(read32(0x0d800064) == 0xFFFFFFFF )
+		bAHBPROT = HW_AHBPROT_ENABLED;
+	if( !isIOSstub(58) )
 	{
-		if( !isIOSstub(58) )
+		Ios_to_load = 58;
+	}
+	else if( !isIOSstub(61) )
+	{
+		Ios_to_load = 61;
+	}
+	else if( !isIOSstub(IOS_GetPreferredVersion()) )
+	{
+		Ios_to_load = IOS_GetPreferredVersion();
+	}
+	else
+	{
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
+		sleep(2);	
+	}
+
+	if(Ios_to_load > 2 && Ios_to_load < 255)
+	{
+		if(SGetSetting(SETTING_AHBPROTRELOAD))
 		{
-			IOS_ReloadIOS(58);
+			ReloadIos(Ios_to_load,&bAHBPROT);
 			system_state.ReloadedIOS = 1;
 		}
-		else if( !isIOSstub(IOS_GetPreferredVersion()) )
+		else if(
+			(!HW_AHBPROT_ENABLED) ||
+			( HW_AHBPROT_ENABLED > 0 && read32(0x0d800064) != 0xFFFFFFFF)
+			)
 		{
-			IOS_ReloadIOS(IOS_GetPreferredVersion());
+			IOS_ReloadIOS(Ios_to_load);
 			system_state.ReloadedIOS = 1;
-		}
-		else
-		{
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
-			sleep(2);	
 		}
 	}
 	
@@ -2225,14 +2011,8 @@ void BootMainSysMenu( u8 init )
 	entrypoint = (void (*)())(boot_hdr->entrypoint);
 	gdprintf("entrypoint %08X\n", entrypoint );
 
-	if( !SGetSetting( SETTING_CLASSIC_HACKS ) )
-	{
-		LoadHacks_Hash(true);
-	}
-	else
-	{
-		LoadHacks(true);
-	}
+	LoadHacks_Hash(true);
+
 	for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {
 		if(WPAD_Probe(i,0) < 0)
 			continue;
@@ -2385,67 +2165,43 @@ void BootMainSysMenu( u8 init )
 	*(vu32*)0x8000315C = 0x80800113;				// DI Legacy mode ?
 	DCFlushRange((void*)0x80000000,0x3400);
 
-	if( SGetSetting( SETTING_CLASSIC_HACKS ) )
+	gprintf("Hacks:%d\n",hacks_hash.size());
+	if(hacks_hash.size() != 0)
 	{
-		gprintf("Hacks:%d\n", hacks.size() );
-		//Apply patches
-		for( u32 i=0; i<hacks.size(); ++i)
+		mem_block = (u8*)(*boot_hdr->addressData - *boot_hdr->offsetData);
+		max_address = (u32)(*boot_hdr->sizeData + *boot_hdr->addressData);
+		for(u32 i = 0;i < hacks_hash.size();i++)
 		{
-			gdprintf("i:%d state:%d version:%d\n", i, states[i], hacks[i].version);
-			if( states[i] == 1 )
+			if(states_hash[i] == 1)
 			{
-				if( hacks[i].version != rTMD->title_version )
-					continue;
-
-				for( u32 z=0; z < hacks[i].value.size(); ++z )
+				u32 add = 0;
+				for(u32 y = 0; y < hacks_hash[i].amount;y++)
 				{
-					gdprintf("%08X:%08X\n", hacks[i].offset[z], hacks[i].value[z] );
-					*(vu32*)(hacks[i].offset[z]) = hacks[i].value[z];
-					DCFlushRange((void*)(hacks[i].offset[z]), 4);
-				}
-			}
-		}
-	}
-	else
-	{
-		gprintf("Hacks:%d\n",hacks_hash.size());
-		if(hacks_hash.size() != 0)
-		{
-			mem_block = (u8*)(*boot_hdr->addressData - *boot_hdr->offsetData);
-			max_address = (u32)(*boot_hdr->sizeData + *boot_hdr->addressData);
-			for(u32 i = 0;i < hacks_hash.size();i++)
-			{
-				if(states_hash[i] == 1)
-				{
-					u32 add = 0;
-					for(u32 y = 0; y < hacks_hash[i].amount;y++)
+					while( add + (u32)mem_block < max_address)
 					{
-						while( add + (u32)mem_block < max_address)
+						u8 temp_hash[hacks_hash[i].patches[y].hash.size()];
+						u8 temp_patch[hacks_hash[i].patches[y].patch.size()];
+						for(u32 z = 0;z < hacks_hash[i].patches[y].hash.size(); z++)
 						{
-							u8 temp_hash[hacks_hash[i].patches[y].hash.size()];
-							u8 temp_patch[hacks_hash[i].patches[y].patch.size()];
-							for(u32 z = 0;z < hacks_hash[i].patches[y].hash.size(); z++)
+							temp_hash[z] = hacks_hash[i].patches[y].hash[z];
+						}
+						if ( !memcmp(mem_block+add, temp_hash ,sizeof(temp_hash)) )
+						{
+							gprintf("Found %s @ 0x%X, patching hash # %d...\n",hacks_hash[i].desc.c_str(), add+(u32)mem_block, y+1);
+							for(u32 z = 0;z < hacks_hash[i].patches[y].patch.size(); z++)
 							{
-								temp_hash[z] = hacks_hash[i].patches[y].hash[z];
+								temp_patch[z] = hacks_hash[i].patches[y].patch[z];
 							}
-							if ( !memcmp(mem_block+add, temp_hash ,sizeof(temp_hash)) )
-							{
-								gprintf("Found %s @ 0x%X, patching hash # %d...\n",hacks_hash[i].desc.c_str(), add+(u32)mem_block,y+1);
-								for(u32 z = 0;z < hacks_hash[i].patches[y].patch.size(); z++)
-								{
-									temp_patch[z] = hacks_hash[i].patches[y].patch[z];
-								}
-								memcpy(mem_block+add,temp_patch,sizeof(temp_patch) );
-								DCFlushRange((u8 *)((add+(u32)mem_block) >> 5 << 5), (sizeof(temp_patch) >> 5 << 5) + 64);
-								break;
-							}
-							add++;
-						}//end while loop
-					} //end for loop of all hashes of hack i
-				} //end if state = 1
-			} // end general hacks loop
-		} //end if hacks > 0
-	} // end if classic hack are enabled
+							memcpy(mem_block+add,temp_patch,sizeof(temp_patch) );
+							DCFlushRange((u8 *)((add+(u32)mem_block) >> 5 << 5), (sizeof(temp_patch) >> 5 << 5) + 64);
+							break;
+						}
+						add++;
+					}//end while loop
+				} //end for loop of all hashes of hack i
+			} //end if state = 1
+		} // end general hacks loop
+	} //end if hacks > 0
 	if(TMD)
 		mem_free(TMD);
 	if(tstatus)
@@ -3151,27 +2907,31 @@ void AutoBootDol( void )
 	USB_Deinitialize();
 	gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
 
-	if(read32(0x0d800064) != 0xFFFFFFFF)
+	s32 Ios_to_load = 0;
+	if( !isIOSstub(58) )
 	{
-		if( isIOSstub(58) )
-		{
-			if( isIOSstub(IOS_GetPreferredVersion()) )
-			{
-				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
-				sleep(3);
-			}
-			else
-			{
-				IOS_ReloadIOS(IOS_GetPreferredVersion());
-				system_state.ReloadedIOS = 1;
-			}
-		}
-		else
-		{
-			IOS_ReloadIOS(58);
-			system_state.ReloadedIOS = 1;
-		}
+		Ios_to_load = 58;
 	}
+	else if( !isIOSstub(61) )
+	{
+		Ios_to_load = 61;
+	}
+	else if( !isIOSstub(IOS_GetPreferredVersion()) )
+	{
+		Ios_to_load = IOS_GetPreferredVersion();
+	}
+	else
+	{
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to reload ios for homebrew! ios is a stub!"))*13/2))>>1, 208, "failed to reload ios for homebrew! ios is a stub!");
+		sleep(2);	
+	}
+
+	if(Ios_to_load > 2 && Ios_to_load < 255)
+	{
+		ReloadIos(Ios_to_load,NULL);
+		system_state.ReloadedIOS = 1;
+	}
+
 	DVDStopDisc(false);
 	__IOS_ShutdownSubsystems();
 	//slightly modified loading code from USBLOADER GX...
@@ -3921,10 +3681,7 @@ int main(int argc, char **argv)
 					InstallLoadDOL();
 					break;
 				case 6:
-					if( SGetSetting( SETTING_CLASSIC_HACKS ) )
-						SysHackSettings();
-					else
-						SysHackHashSettings();
+					SysHackHashSettings();
 					break;
 				case 7:
 					CheckForUpdate();

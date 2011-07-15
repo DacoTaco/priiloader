@@ -45,7 +45,7 @@ typedef struct {
 	u8 PasscheckPriiloader;
 	u8 PasscheckMenu;
 	u32 ShowBetaUpdates;
-	u8 UseClassicHacks;
+	u16 AHBPROTReload;
 } Settings;
 enum {
 		SETTING_AUTBOOT,
@@ -62,7 +62,7 @@ enum {
 		SETTING_PASSCHECKPRII,
 		SETTING_PASSCHECKMENU,
 		SETTING_SHOWBETAUPDATES,
-		SETTING_CLASSIC_HACKS
+		SETTING_AHBPROTRELOAD,
 };
 
 enum {
