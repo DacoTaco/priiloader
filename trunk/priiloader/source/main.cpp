@@ -278,6 +278,7 @@ s32 ReloadIos(s32 Ios_version,s8* bool_ahbprot_after_reload)
 				{
 					//pointers suck but do the trick. the installer uses a more safe method in its official, closed source version.but untill people start nagging ill use pointers
 					*(u8*)(address+25) = 0x01;
+					*(u8*)(address+75) = 0x01;
 					DCFlushRange((u8 *)((address) >> 5 << 5), (sizeof(es_set_ahbprot) >> 5 << 5) + 64);
 					ICInvalidateRange((u8 *)((address) >> 5 << 5), (sizeof(es_set_ahbprot) >> 5 << 5) + 64);
 					break;
@@ -1380,9 +1381,7 @@ s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED )
 		dolhdr hdr;
 		fseek( fat_fd, 0, 0);
 		fread( &hdr, sizeof( dolhdr ), 1, fat_fd );
-		if( 
-		( hdr.entrypoint >= 0x80E00000 && hdr.entrypoint <= 0x81330000 ) ||
-		( hdr.addressBSS >= 0x80E00000 && hdr.addressBSS <= 0x81330000 ) )
+		if( hdr.entrypoint >= 0x80E00000 && hdr.entrypoint <= 0x81330000 )
 		{
 			gprintf("BootDolFromFat : entrypoint/BSS error: abort!\n");
 			fclose(fat_fd);
@@ -1418,10 +1417,8 @@ s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED )
 			}
 		}
 		if( 
-			(hdr.addressBSS + hdr.sizeBSS < 0x817FFFFF) && 
-			(hdr.sizeBSS < 0x01500000 ) &&
-			(hdr.addressBSS > 0x80003400)
-			)
+			( hdr.addressBSS + hdr.sizeBSS < 0x80E00000 ||(hdr.addressBSS > 0x80F00000 && hdr.addressBSS + hdr.sizeBSS < 0x817FFFFF) ) &&
+			hdr.addressBSS > 0x80003400 )
 		{
 			memset ((void *) hdr.addressBSS, 0, hdr.sizeBSS);
 			DCFlushRange((void *) hdr.addressBSS, hdr.sizeBSS);
@@ -1613,9 +1610,7 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 		args.endARGV = args.argv + 1;*/
 
 		//entrypoint & BSS checking
-		if( 
-			( dolfile->entrypoint >= 0x80E00000 && dolfile->entrypoint <= 0x81330000 ) ||
-			( dolfile->addressBSS >= 0x80E00000 && dolfile->addressBSS <= 0x81330000 ) )
+		if( dolfile->entrypoint >= 0x80E00000 && dolfile->entrypoint <= 0x81330000 )
 		{
 			gprintf("BootDolFromMem : entrypoint/BSS error: abort!\n");
 			return -1;
@@ -1638,7 +1633,7 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 			if ((!dolfile->sizeText[i]) || (dolfile->addressText[i] < 0x100)) continue;
 			memmove ((void *) dolfile->addressText[i],dolstart+dolfile->offsetText[i],dolfile->sizeText[i]);
 			DCFlushRange ((void *) dolfile->addressText[i], dolfile->sizeText[i]);
-			ICInvalidateRange ((void *) dolfile->addressText[i],dolfile->sizeText[i]);
+			DCInvalidateRange((void *) dolfile->addressText[i],dolfile->sizeText[i]);
 		}
 		gdprintf("Data Sections :\n");
 		for (s8 i = 0; i < 11; i++) {
@@ -1648,9 +1643,8 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 			gdprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (dolfile->offsetData[i]), dolfile->addressData[i], dolfile->sizeData[i]);
 		}
 		if( 
-			(dolfile->addressBSS + dolfile->sizeBSS < 0x817FFFFF) && 
-			(dolfile->sizeBSS < 0x01500000 ) &&
-			(dolfile->addressBSS > 0x80003400))
+			( dolfile->addressBSS + dolfile->sizeBSS < 0x80E00000 ||(dolfile->addressBSS > 0x80F00000 && dolfile->addressBSS + dolfile->sizeBSS < 0x817FFFFF) ) &&
+			dolfile->addressBSS > 0x80003400 )
 		{
 			memset ((void *) dolfile->addressBSS, 0, dolfile->sizeBSS);
 			DCFlushRange((void *) dolfile->addressBSS, dolfile->sizeBSS);
@@ -1679,7 +1673,6 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 	ShutdownDevices();
 	gdprintf("waiting for drive to stop...\n");
 	while(DvdKilled() < 1);
-	//DVDStopDisc(false);
 
 	s8 bAHBPROT = 0;
 	s32 Ios_to_load = 0;
@@ -1766,45 +1759,13 @@ s8 BootDolFromDir( const char* Dir , u8 HW_AHBPROT_ENABLED )
 		return -1;
 	}
 	FILE* dol;
-	s32 lSize;
-	u8* buffer;
 	dol = fopen(Dir,"rb");
 	if (dol)
 	{
-		// obtain file size:
-		fseek (dol , 0 , SEEK_END);
-		lSize = ftell (dol);
-		rewind (dol);
-		if (lSize > 7* 1048576 )
-		{
-			gdprintf("booting from fat...\n");
-			BootDolFromFat(dol,HW_AHBPROT_ENABLED);
-		}
-		else
-		{
-			// allocate memory to contain the whole file:
-			buffer = (u8*) mem_malloc( ALIGN32(sizeof(u8)*lSize) );
-			if (buffer == NULL) 
-			{
-				fclose(dol);
-				return -3;
-			}
-			else
-			{
-				// copy the file into the buffer:
-				s32 result = fread (buffer,1,lSize,dol);
-				if (result != lSize) 
-				{
-					mem_free(buffer);
-					fclose(dol);
-					return -4;
-				}
-				fclose(dol);
-				BootDolFromMem(buffer,HW_AHBPROT_ENABLED);
-				mem_free(buffer);
-				return -5;
-			}
-		}
+		gdprintf("booting from fat...\n");
+		BootDolFromFat(dol,HW_AHBPROT_ENABLED);
+		fclose(dol);
+		return -5;
 	}
 	else
 	{
@@ -2256,9 +2217,11 @@ void InstallLoadDOL( void )
 		{
 			ClearScreen();
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Reloading Binaries..."))*13/2))>>1, 208, "Reloading Binaries...");
-			sleep(2);
+			sleep(1);
 			app_list.clear();
 			reload = 1;
+			min_pos = 0;
+			max_pos = 0;
 			cur_off = 0;
 			redraw=1;
 		}
