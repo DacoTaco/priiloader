@@ -82,6 +82,7 @@ typedef struct {
 	std::string app_name;
 	std::string app_path;
 	u8 HW_AHBPROT_ENABLED;
+	std::vector<std::string> args;
 } Binary_struct;
 
 extern DVD_status DVD_state;
@@ -98,6 +99,11 @@ typedef struct wii_state {
 	s8 ReloadedIOS:2;
 	s8 InMainMenu:2;
 } wii_state;
+typedef struct __dol_settings 
+{
+	s8 HW_AHBPROT_bit;
+	std::vector<std::string> args;
+}__dol_settings;
 wii_state system_state;
 time_t startloop = 0;
 u32 appentrypoint = 0;
@@ -1286,7 +1292,7 @@ void LoadBootMii( void )
 	WPAD_Init();
 	return;
 }
-s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED )
+s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 {
 	void	(*entrypoint)();
 	Elf32_Ehdr ElfHdr;
@@ -1423,6 +1429,12 @@ s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED )
 			memset ((void *) hdr.addressBSS, 0, hdr.sizeBSS);
 			DCFlushRange((void *) hdr.addressBSS, hdr.sizeBSS);
 		}
+		if (args != NULL && args->argvMagic == ARGV_MAGIC)
+        {
+			void* new_argv = (void*)(hdr.entrypoint + 8);
+			memmove(new_argv, args, sizeof(__argv));
+			DCFlushRange(new_argv, sizeof(__argv));
+        }
 		entrypoint = (void (*)())(hdr.entrypoint);
 	}
 	fclose( fat_fd );
@@ -1501,7 +1513,7 @@ s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED )
 	PAD_Init();
 	return -1;
 }
-s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED ) 
+s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 {
 	if(dolstart == NULL)
 		return -1;
@@ -1600,14 +1612,6 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 
 		dolhdr *dolfile;
 		dolfile = (dolhdr *) dolstart;
-		/*struct __argv args;
-		memset(&args,0, sizeof(args));
-		args.argvMagic = ARGV_MAGIC;
-		args.length = 0;
-		args.commandLine = NULL;
-		args.argc = argc;
-		args.argv = &args.commandLine;
-		args.endARGV = args.argv + 1;*/
 
 		//entrypoint & BSS checking
 		if( dolfile->entrypoint >= 0x80E00000 && dolfile->entrypoint <= 0x81330000 )
@@ -1649,12 +1653,12 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 			memset ((void *) dolfile->addressBSS, 0, dolfile->sizeBSS);
 			DCFlushRange((void *) dolfile->addressBSS, dolfile->sizeBSS);
 		}
-		/*if (args.argvMagic == ARGV_MAGIC)
+		if (args != NULL && args->argvMagic == ARGV_MAGIC)
         {
-                void *new_argv = (void *)(dolfile->entrypoint + 8);
-                memmove(new_argv, &args, sizeof(args));
-                DCFlushRange(new_argv, sizeof(args));
-        }*/
+			void* new_argv = (void*)(dolfile->entrypoint + 8);
+			memmove(new_argv, args, sizeof(__argv));
+			DCFlushRange(new_argv, sizeof(__argv));
+        }
 		entrypoint = (void (*)())(dolfile->entrypoint);
 	}
 	gprintf("BootDolFromMem : starting binary...\n");
@@ -1752,27 +1756,72 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED )
 	return -1;
 }
 
-s8 BootDolFromDir( const char* Dir , u8 HW_AHBPROT_ENABLED )
+s8 BootDolFromDir( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<std::string> &args_list)
 {
 	if (Mounted == 0)
 	{
 		return -1;
 	}
+	struct __argv args;
+	bzero(&args, sizeof(args));
+	args.argvMagic = 0;
+	args.length = 0;
+	args.commandLine = NULL;
+	args.argc = 0;
+	args.argv = &args.commandLine;
+	args.endARGV = args.argv + 1;
+	
+	if(args_list.size() > 0)
+	{
+		//loading args
+		for(u32 i = 0; i < args_list.size(); i++)
+		{
+			if(args_list[i].c_str())
+				args.length += strlen(args_list[i].c_str())+1;
+		}
+		args.length += 1;
+		args.commandLine = (char*) mem_malloc(args.length);
+		if (args.commandLine != NULL)
+		{
+			u32 pos = 0;
+			for(u32 i = 0; i < args_list.size(); i++)
+			{
+				if(args_list[i].c_str())
+				{
+					strcpy(&args.commandLine[pos], args_list[i].c_str());
+					pos += strlen(args_list[i].c_str())+1;
+				}
+			}
+			args.commandLine[args.length - 1] = '\0';
+			args.argc = args_list.size();
+			args.argv = &args.commandLine;
+			args.endARGV = args.argv + 1;
+			args.argvMagic = ARGV_MAGIC; //everything is set so the magic is set so it becomes valid
+		}
+		else
+		{
+			args.commandLine = 0;
+			args.length = 0;
+		}
+	}
 	FILE* dol;
 	dol = fopen(Dir,"rb");
+	s8 ret = 0;
 	if (dol)
 	{
 		gdprintf("booting from fat...\n");
-		BootDolFromFat(dol,HW_AHBPROT_ENABLED);
+		BootDolFromFat(dol,HW_AHBPROT_ENABLED,&args);
 		fclose(dol);
-		return -5;
+		ret = -5;
 	}
 	else
 	{
 		fclose(dol);
-		return -2;
+		ret = -2;
 	}
-	return -1;
+	if(args.commandLine != NULL)
+		mem_free(args.commandLine);
+	return ret;
 }
 void BootMainSysMenu( u8 init )
 {
@@ -2262,6 +2311,7 @@ void InstallLoadDOL( void )
 					Binary_struct temp;
 					temp.HW_AHBPROT_ENABLED = 0;
 					temp.app_path = filepath;
+					temp.args.clear();
 					sprintf(filepath,"fat:/apps/%s/meta.xml",filename);
 					app_bin = fopen(filepath,"rb");
 					if(!app_bin)
@@ -2277,7 +2327,7 @@ void InstallLoadDOL( void )
 					fseek (app_bin , 0 , SEEK_END);
 					size = ftell(app_bin);
 					rewind (app_bin);
-					buf = (char*)mem_malloc(size);
+					buf = (char*)mem_malloc(size+1);
 					if(!buf)
 					{
 						gdprintf("buf == NULL\n");
@@ -2286,7 +2336,7 @@ void InstallLoadDOL( void )
 						app_list.push_back(temp);
 						continue;
 					}
-					memset(buf,0,size);
+					memset(buf,0,size+1);
 					ret = fread(buf,1,size,app_bin) ;
 					if(ret != (u32)size)
 					{
@@ -2299,24 +2349,53 @@ void InstallLoadDOL( void )
 					else
 					{
 						fclose(app_bin);
-						u8 _start = 0;
-						for(u16 mem_addr = 0;mem_addr < size;mem_addr++)
+						char* tag_start = 0;
+						char* tag_end = 0;
+						tag_start = strstr(buf,"<no_ios_reload/>");
+						if(tag_start != NULL)
+							temp.HW_AHBPROT_ENABLED = 1;
+						tag_start = 0;
+						tag_start = strstr(buf,"<name>");
+						if(tag_start != NULL)
 						{
-							if( _start == 0 && ( !memcmp(buf+mem_addr,"<name>",6)) )
+							tag_start += 6;
+							tag_end = strstr(tag_start,"</name>");
+							if(tag_start != NULL && tag_end != NULL)
 							{
-								mem_addr += 6;
-								_start = mem_addr;
+								char _temp[tag_end - tag_start+1];
+								memset(_temp,0,sizeof(_temp));
+								strncpy(_temp,tag_start,tag_end - tag_start);
+								gprintf("adding %s as name\n",_temp);
+								temp.app_name = _temp;
 							}
-							else if( temp.app_name.size() == 0 && (!memcmp(buf+mem_addr,"</name>",7) ) )
+						}
+						tag_end = 0;
+						tag_start = 0;
+						tag_start = strstr(buf,"<arguments>");
+						if(tag_start != NULL)
+						{
+							tag_end = strstr(tag_start+5,"</arguments>");
+							if(tag_start != NULL && tag_end != NULL)
 							{
-								char _temp[mem_addr - _start];
-								strncpy(_temp,buf+_start,mem_addr - _start);
-								for(u8 i = 0;i < mem_addr - _start;i++)
-									temp.app_name.push_back(_temp[i]);
-							}
-							else if(!memcmp(buf+mem_addr,"<no_ios_reload/>",16) )
-							{
-								temp.HW_AHBPROT_ENABLED = 1;
+								char* arg_start = strstr(buf,"<arg>");
+								char* arg_end = 0;
+								while(arg_start != NULL)
+								{
+									//arguments!
+									arg_start+= 5;
+									arg_end = strstr(arg_start,"</arg>");
+									if(arg_end == NULL)
+									{
+										//oh-ow. no ending. lets bail out
+										break;
+									}
+									char _temp[arg_end - arg_start+1];
+									memset(_temp,0,sizeof(_temp));
+									strncpy(_temp,arg_start,arg_end - arg_start);
+									temp.args.push_back(_temp);
+									arg_end = 0;
+									arg_start = strstr(arg_start,"<arg>");
+								}
 							}
 						}
 						mem_free(buf);
@@ -2542,8 +2621,8 @@ void InstallLoadDOL( void )
 		if ( WPAD_Pressed & WPAD_BUTTON_1 || WPAD_Pressed & WPAD_CLASSIC_BUTTON_Y || PAD_Pressed & PAD_BUTTON_Y )
 		{
 			ClearScreen();
-			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Loading binary..."))*13/2))>>1, 208, "Loading binary...");
-			ret = BootDolFromDir(app_list[cur_off].app_path.c_str(),app_list[cur_off].HW_AHBPROT_ENABLED);
+			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Loading binary..."))*13/2))>>1, 208, "Loading binary...");	
+			ret = BootDolFromDir(app_list[cur_off].app_path.c_str(),app_list[cur_off].HW_AHBPROT_ENABLED,app_list[cur_off].args);
 			gprintf("loading %s ret %d\n",app_list[cur_off].app_path.c_str(),ret);
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("failed to load binary"))*13/2))>>1, 224, "failed to load binary");
 			sleep(3);
@@ -2807,6 +2886,7 @@ void AutoBootDol( void )
 			error = ERROR_BOOT_DOL_READ;
 			return;
 		}
+		DVDStopDisc(true);
 		gdprintf("\nText Sections:\n");
 		int i=0;
 		for (i = 0; i < 6; i++)
@@ -2868,6 +2948,7 @@ void AutoBootDol( void )
 	ISFS_Deinitialize();
 	ShutdownDevices();
 	USB_Deinitialize();
+	while(DvdKilled() < 1);
 	gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
 
 	s32 Ios_to_load = 0;
@@ -2891,11 +2972,10 @@ void AutoBootDol( void )
 
 	if(Ios_to_load > 2 && Ios_to_load < 255)
 	{
-		ReloadIos(Ios_to_load,NULL);
+		s8 ahbprot = 1;
+		ReloadIos(Ios_to_load,&ahbprot);
 		system_state.ReloadedIOS = 1;
 	}
-
-	DVDStopDisc(false);
 	__IOS_ShutdownSubsystems();
 	//slightly modified loading code from USBLOADER GX...
 	u32 level;
@@ -3309,7 +3389,7 @@ void CheckForUpdate()
 		sleep(1);
 		//load the fresh installer
 		net_deinit();
-		BootDolFromMem(Data,1);
+		BootDolFromMem(Data,1,NULL);
 		mem_free(Data);
 		PrintFormat( 1, ((640/2)-((strlen("Error Booting Update dol"))*13/2))>>1, 224, "Error Booting Update dol");
 		sleep(5);
