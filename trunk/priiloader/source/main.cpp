@@ -81,8 +81,9 @@ typedef struct {
 typedef struct _dol_settings 
 {
 	s8 HW_AHBPROT_bit;
-	s8 argument_count;
-	std::vector<std::string> args;
+	u8 argument_count;
+	s32 arg_cli_lenght;
+	char* arg_command_line;
 }_dol_settings;
 typedef struct {
 	std::string app_name;
@@ -2583,16 +2584,37 @@ void InstallLoadDOL( void )
 					dol_settings->argument_count = app_list[cur_off].args.size();
 					for(u32 i = 0;i < app_list[cur_off].args.size();i++)
 					{
-						dol_settings->args.push_back(app_list[cur_off].args[i].c_str());
+						if(app_list[cur_off].args[i].c_str())
+							dol_settings->arg_cli_lenght += strlen(app_list[cur_off].args[i].c_str())+1;
 					}
-					fd = ISFS_Open("/title/00000001/00000002/data/main.nfo", 1|2 );
-					if( fd >= 0 )	//delete old file
+					dol_settings->arg_cli_lenght += 1;
+
+					dol_settings->arg_command_line = (char*)mem_align(32,dol_settings->arg_cli_lenght+1);
+					if(dol_settings->arg_command_line != NULL)
 					{
-						ISFS_Close( fd );
-						ISFS_Delete("/title/00000001/00000002/data/main.nfo");
+						u32 pos = 0;
+						for(u32 i = 0; i < app_list[cur_off].args.size(); i++)
+						{
+							if(app_list[cur_off].args[i].c_str())
+							{
+								strcpy(&dol_settings->arg_command_line[pos], app_list[cur_off].args[i].c_str());
+								pos += strlen(app_list[cur_off].args[i].c_str())+1;
+							}
+						}
+						dol_settings->arg_command_line[dol_settings->arg_cli_lenght -1] = 0x00;
+						fd = ISFS_Open("/title/00000001/00000002/data/main.nfo", 1|2 );
+						if( fd >= 0 )	//delete old file
+						{
+							ISFS_Close( fd );
+							ISFS_Delete("/title/00000001/00000002/data/main.nfo");
+						}
+						ISFS_CreateFile("/title/00000001/00000002/data/main.nfo", 0, 3, 3, 3);
+						fd = ISFS_Open("/title/00000001/00000002/data/main.nfo", 1|2 );
 					}
-					ISFS_CreateFile("/title/00000001/00000002/data/main.nfo", 0, 3, 3, 3);
-					fd = ISFS_Open("/title/00000001/00000002/data/main.nfo", 1|2 );
+					else
+					{
+						fd = -1; //to trigger the error
+					}
 					if( fd < 0 )
 					{
 						PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Writing nfo failed!"))*13/2))>>1, 272, "Writing nfo failed!");
@@ -2602,18 +2624,13 @@ void InstallLoadDOL( void )
 						STACK_ALIGN(s8,null,1,32);
 						memset(null,0,1);
 						//write the ahbprot byte and arg count by all at once since ISFS_Write fails like that
-						ISFS_Write(fd,&dol_settings->HW_AHBPROT_bit,sizeof(s16));
-						for(s32 i = 0;i < dol_settings->argument_count;i++)
-						{
-							//me use IOS_Write cause ISFS_Write in libogc has an irritating check to see if the address is aligned by 32 (removed in libogc svn @ 22/07/2011)
-							if(strlen(dol_settings->args[i].c_str()) > 0 && dol_settings->args[i].c_str() != NULL)
-								IOS_Write(fd,dol_settings->args[i].c_str(),strlen(dol_settings->args[i].c_str()));
-							if(i+1 <= dol_settings->argument_count)
-							{
-								ISFS_Write(fd,null,1);
-							}
-						}
-						ISFS_Write(fd,null,1);
+						ISFS_Write(fd,&dol_settings->HW_AHBPROT_bit,sizeof(s16));//s8(AHBPROT)+s8(argument count)+u32(arg lenght) = 6 bytes
+						if(&dol_settings->arg_cli_lenght != NULL && dol_settings->arg_cli_lenght > 0)
+							IOS_Write(fd,&dol_settings->arg_cli_lenght,sizeof(dol_settings->arg_cli_lenght));
+						//we use IOS_Write + 2 of the 3 checks of ISFS_Write cause ISFS_Write in libogc has an irritating check to see if the address is aligned by 32 
+						//(removed in libogc svn @ 22/07/2011)
+						if(dol_settings->arg_command_line != NULL && dol_settings->arg_cli_lenght > 0)
+							IOS_Write(fd,dol_settings->arg_command_line,dol_settings->arg_cli_lenght);
 						ISFS_Close( fd );
 					}
 					PrintFormat( 0, ((rmode->viWidth /2)-((strlen("\"%s\" installed")+strlen(app_list[cur_off].app_name.c_str()))*13/2))>>1, 240, "\"%s\" installed", app_list[cur_off].app_name.c_str());
@@ -2738,7 +2755,6 @@ void AutoBootDol( void )
 
 	STACK_ALIGN(_dol_settings,dol_settings,sizeof(_dol_settings),32);
 	memset(dol_settings,0,sizeof(_dol_settings));
-	char* buf = NULL;
 
 	struct __argv argv;
 	bzero(&argv, sizeof(argv));
@@ -2766,14 +2782,23 @@ void AutoBootDol( void )
 			ISFS_Close(fd);
 			goto read_dol;
 		}
-		//read the argument count and if AHBPROT is enabled
-		r = ISFS_Read( fd, dol_settings, sizeof(s8)*2 );
+		//read the argument count,AHBPROT bit and arg lenght is enabled
+		r = ISFS_Read( fd, dol_settings, sizeof(s16) );
 		if(r < 0)
 		{
 			gprintf("read fail.r = %x\n",r);
 			ISFS_Close(fd);
 			goto read_dol;
 		}
+		STACK_ALIGN(s32,temp,sizeof(s32),32);
+		r = ISFS_Read( fd, temp, sizeof(s32));
+		if(r < 0)
+		{
+			gprintf("read2 fail.r = %x\n",r);
+			ISFS_Close(fd);
+			goto read_dol;
+		}
+		dol_settings->arg_cli_lenght = *temp;
 		if(dol_settings->HW_AHBPROT_bit != 1 && dol_settings->HW_AHBPROT_bit != 0 )
 		{
 			//invalid. fuck the file then
@@ -2789,83 +2814,31 @@ void AutoBootDol( void )
 			gprintf("no args.\n");
 			goto read_dol;
 		}
-		buf = (char*)mem_align(32,ALIGN32(status->file_length));
-		if(buf == NULL)
+		argv.length = dol_settings->arg_cli_lenght;
+		argv.commandLine = (char*) mem_malloc(argv.length);
+		if (argv.commandLine == NULL)
 			goto reset_and_read;
-		memset(buf,0,status->file_length);
-		r = ISFS_Read( fd, buf, status->file_length );
+		r = ISFS_Read( fd, argv.commandLine, argv.length );
 		if(r <= 0)
 		{
 			gprintf("failed to read arguments\n");
 			goto reset_and_read;
 		}
 		ISFS_Close(fd);
-		s8 argc = 0;
-		char* pbuf = 0;
-		pbuf = strstr(buf,"\0");
-		std::vector<std::string> arguments;
-		while(pbuf != NULL && *pbuf != 0x00)
-		{
-			if(pbuf <= buf+status->file_length)
-			{	
-				char _temp[strlen(pbuf)+1];
-				memset(_temp,0,sizeof(_temp));
-				strncpy(_temp,pbuf,strlen(pbuf));
-				arguments.push_back(_temp);
-				argc++;
-			}
-			else
-			{	
-				//its fucked.
-				goto reset_and_read;
-			}
-			if(argc == dol_settings->argument_count)
-			{
-				break; //all the arguments are there. no need to keep going
-			}
-			pbuf = strstr(pbuf+strlen(pbuf)+1,"\0");
-		}
-		if(buf)
-			mem_free(buf);
-		//everything is ok :)
-		if(arguments.size() == 0)
-			goto reset_and_read;
-
-		for(u32 i = 0; i < arguments.size(); i++)
-		{
-			if(arguments[i].c_str())
-				argv.length += strlen(arguments[i].c_str())+1;
-		}
-		argv.length += 1;
-		argv.commandLine = (char*) mem_malloc(argv.length);
-		if (argv.commandLine != NULL)
-		{
-			u32 pos = 0;
-			for(u32 i = 0; i < arguments.size(); i++)
-			{
-				if(arguments[i].c_str())
-				{
-					strcpy(&argv.commandLine[pos], arguments[i].c_str());
-					pos += strlen(arguments[i].c_str())+1;
-				}
-			}
-			argv.commandLine[argv.length - 1] = '\0';
-			argv.argc = arguments.size();
-			argv.argv = &argv.commandLine;
-			argv.endARGV = argv.argv + 1;
-			argv.argvMagic = ARGV_MAGIC; //everything is set so the magic is set so it becomes valid
-		}
-		else
-		{
-			goto reset_and_read;
-		}
+		argv.argc = dol_settings->argument_count;
+		argv.commandLine[argv.length - 1] = '\0';
+		argv.argv = &argv.commandLine;
+		argv.endARGV = argv.argv + 1;
+		argv.argvMagic = ARGV_MAGIC; //everything is set so the magic is set so it becomes valid
 
 	}
 	goto read_dol;
 reset_and_read:
 	gprintf("something went wrong and wanted to bail out\n");
-	if(buf)
-		mem_free(buf);
+	if(argv.commandLine)
+		mem_free(argv.commandLine);
+	if(argv.length != 0)
+		argv.length = 0;
 	ISFS_Close(fd);
 	dol_settings->HW_AHBPROT_bit = 0;
 	dol_settings->argument_count = 0;
