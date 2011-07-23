@@ -24,8 +24,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define _SETTINGS_H_
 
 
-#define VERSION		07
-#define BETAVERSION 0x00000000
+#define VERSION		0x08
+#define BETAVERSION 0x00000001
 
 #include "Global.h"
 
