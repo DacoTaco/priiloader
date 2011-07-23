@@ -78,6 +78,12 @@ typedef struct {
 	unsigned int sizeBSS;
 	unsigned int entrypoint;
 } dolhdr;
+typedef struct _dol_settings 
+{
+	s8 HW_AHBPROT_bit;
+	s8 argument_count;
+	std::vector<std::string> args;
+}_dol_settings;
 typedef struct {
 	std::string app_name;
 	std::string app_path;
@@ -99,11 +105,6 @@ typedef struct wii_state {
 	s8 ReloadedIOS:2;
 	s8 InMainMenu:2;
 } wii_state;
-typedef struct __dol_settings 
-{
-	s8 HW_AHBPROT_bit;
-	std::vector<std::string> args;
-}__dol_settings;
 wii_state system_state;
 time_t startloop = 0;
 u32 appentrypoint = 0;
@@ -2365,7 +2366,6 @@ void InstallLoadDOL( void )
 								char _temp[tag_end - tag_start+1];
 								memset(_temp,0,sizeof(_temp));
 								strncpy(_temp,tag_start,tag_end - tag_start);
-								gprintf("adding %s as name\n",_temp);
 								temp.app_name = _temp;
 							}
 						}
@@ -2402,6 +2402,7 @@ void InstallLoadDOL( void )
 					}
 					if(temp.app_name.size())
 					{
+						gdprintf("added %s to list\n",temp.app_name);
 						app_list.push_back(temp);
 						continue;
 					}
@@ -2569,12 +2570,54 @@ void InstallLoadDOL( void )
 
 				if( ISFS_Write( fd, buf, sizeof( char ) * size ) != (signed)(sizeof( char ) * size) )
 				{
-					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Writing file failed!"))*13/2))>>1, 240, "Writing file failed!");
-				} else {
+					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Writing dol failed!"))*13/2))>>1, 240, "Writing dol failed!");
+				}
+				else
+				{
+					ISFS_Close( fd );
+					mem_free( buf );
+					//dol is saved. lets save the extra info now
+					STACK_ALIGN(_dol_settings,dol_settings,sizeof(_dol_settings),32);
+					memset(dol_settings,0,sizeof(_dol_settings));
+					dol_settings->HW_AHBPROT_bit = app_list[cur_off].HW_AHBPROT_ENABLED;
+					dol_settings->argument_count = app_list[cur_off].args.size();
+					for(u32 i = 0;i < app_list[cur_off].args.size();i++)
+					{
+						dol_settings->args.push_back(app_list[cur_off].args[i].c_str());
+					}
+					fd = ISFS_Open("/title/00000001/00000002/data/main.nfo", 1|2 );
+					if( fd >= 0 )	//delete old file
+					{
+						ISFS_Close( fd );
+						ISFS_Delete("/title/00000001/00000002/data/main.nfo");
+					}
+					ISFS_CreateFile("/title/00000001/00000002/data/main.nfo", 0, 3, 3, 3);
+					fd = ISFS_Open("/title/00000001/00000002/data/main.nfo", 1|2 );
+					if( fd < 0 )
+					{
+						PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Writing nfo failed!"))*13/2))>>1, 272, "Writing nfo failed!");
+					}
+					else
+					{
+						STACK_ALIGN(s8,null,1,32);
+						memset(null,0,1);
+						//write the ahbprot byte and arg count by all at once since ISFS_Write fails like that
+						ISFS_Write(fd,&dol_settings->HW_AHBPROT_bit,sizeof(s16));
+						for(s32 i = 0;i < dol_settings->argument_count;i++)
+						{
+							//me use IOS_Write cause ISFS_Write in libogc has an irritating check to see if the address is aligned by 32 (removed in libogc svn @ 22/07/2011)
+							if(strlen(dol_settings->args[i].c_str()) > 0 && dol_settings->args[i].c_str() != NULL)
+								IOS_Write(fd,dol_settings->args[i].c_str(),strlen(dol_settings->args[i].c_str()));
+							if(i+1 <= dol_settings->argument_count)
+							{
+								ISFS_Write(fd,null,1);
+							}
+						}
+						ISFS_Write(fd,null,1);
+						ISFS_Close( fd );
+					}
 					PrintFormat( 0, ((rmode->viWidth /2)-((strlen("\"%s\" installed")+strlen(app_list[cur_off].app_name.c_str()))*13/2))>>1, 240, "\"%s\" installed", app_list[cur_off].app_name.c_str());
 				}
-				ISFS_Close( fd );
-				mem_free( buf );
 			}
 			else
 			{
@@ -2592,6 +2635,8 @@ void InstallLoadDOL( void )
 			//Delete file
 
 			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("Deleting installed File..."))*13/2))>>1, 208, "Deleting installed File...");
+
+			ISFS_Delete("/title/00000001/00000002/data/main.nfo");
 
 			//Check if there is already a main.dol installed
 			s32 fd = ISFS_Open("/title/00000001/00000002/data/main.bin", 1|2 );
@@ -2685,27 +2730,167 @@ void InstallLoadDOL( void )
 }
 void AutoBootDol( void )
 {
-	s32 fd = ISFS_Open("/title/00000001/00000002/data/main.bin", 1 );
+	s32 fd = 0;
+	s32 r = 0;
+	s32 Ios_to_load = 0;
+	Elf32_Ehdr *ElfHdr = NULL;
+	dolhdr *hdr = NULL;
+
+	STACK_ALIGN(_dol_settings,dol_settings,sizeof(_dol_settings),32);
+	memset(dol_settings,0,sizeof(_dol_settings));
+	char* buf = NULL;
+
+	struct __argv argv;
+	bzero(&argv, sizeof(argv));
+	argv.argvMagic = 0;
+	argv.length = 0;
+	argv.commandLine = NULL;
+	argv.argc = 0;
+	argv.argv = &argv.commandLine;
+	argv.endARGV = argv.argv + 1;
+	
+	fd = ISFS_Open("/title/00000001/00000002/data/main.nfo", 1 );
+	if(fd >= 0)
+	{
+		STACK_ALIGN(fstats,status,sizeof(fstats),32);
+		if (ISFS_GetFileStats(fd,status) < 0)
+		{
+			gprintf("stats fail\n");
+			ISFS_Close(fd);
+			goto read_dol;
+		}
+		if(status->file_length < 2)
+		{
+			gprintf("<2 size.\n");
+			ISFS_Delete("/title/00000001/00000002/data/main.nfo");
+			ISFS_Close(fd);
+			goto read_dol;
+		}
+		//read the argument count and if AHBPROT is enabled
+		r = ISFS_Read( fd, dol_settings, sizeof(s8)*2 );
+		if(r < 0)
+		{
+			gprintf("read fail.r = %x\n",r);
+			ISFS_Close(fd);
+			goto read_dol;
+		}
+		if(dol_settings->HW_AHBPROT_bit != 1 && dol_settings->HW_AHBPROT_bit != 0 )
+		{
+			//invalid. fuck the file then
+			gprintf("invalid. %d\n",dol_settings->HW_AHBPROT_bit);
+			ISFS_Delete("/title/00000001/00000002/data/main.nfo");
+			ISFS_Close(fd);
+			goto reset_and_read;
+		}
+		if(dol_settings->argument_count == 0)
+		{
+			//no arguments. so lets not bother anymore
+			ISFS_Close(fd);
+			gprintf("no args.\n");
+			goto read_dol;
+		}
+		buf = (char*)mem_align(32,ALIGN32(status->file_length));
+		if(buf == NULL)
+			goto reset_and_read;
+		memset(buf,0,status->file_length);
+		r = ISFS_Read( fd, buf, status->file_length );
+		if(r <= 0)
+		{
+			gprintf("failed to read arguments\n");
+			goto reset_and_read;
+		}
+		ISFS_Close(fd);
+		s8 argc = 0;
+		char* pbuf = 0;
+		pbuf = strstr(buf,"\0");
+		std::vector<std::string> arguments;
+		while(pbuf != NULL && *pbuf != 0x00)
+		{
+			if(pbuf <= buf+status->file_length)
+			{	
+				char _temp[strlen(pbuf)+1];
+				memset(_temp,0,sizeof(_temp));
+				strncpy(_temp,pbuf,strlen(pbuf));
+				arguments.push_back(_temp);
+				argc++;
+			}
+			else
+			{	
+				//its fucked.
+				goto reset_and_read;
+			}
+			if(argc == dol_settings->argument_count)
+			{
+				break; //all the arguments are there. no need to keep going
+			}
+			pbuf = strstr(pbuf+strlen(pbuf)+1,"\0");
+		}
+		if(buf)
+			mem_free(buf);
+		//everything is ok :)
+		if(arguments.size() == 0)
+			goto reset_and_read;
+
+		for(u32 i = 0; i < arguments.size(); i++)
+		{
+			if(arguments[i].c_str())
+				argv.length += strlen(arguments[i].c_str())+1;
+		}
+		argv.length += 1;
+		argv.commandLine = (char*) mem_malloc(argv.length);
+		if (argv.commandLine != NULL)
+		{
+			u32 pos = 0;
+			for(u32 i = 0; i < arguments.size(); i++)
+			{
+				if(arguments[i].c_str())
+				{
+					strcpy(&argv.commandLine[pos], arguments[i].c_str());
+					pos += strlen(arguments[i].c_str())+1;
+				}
+			}
+			argv.commandLine[argv.length - 1] = '\0';
+			argv.argc = arguments.size();
+			argv.argv = &argv.commandLine;
+			argv.endARGV = argv.argv + 1;
+			argv.argvMagic = ARGV_MAGIC; //everything is set so the magic is set so it becomes valid
+		}
+		else
+		{
+			goto reset_and_read;
+		}
+
+	}
+	goto read_dol;
+reset_and_read:
+	gprintf("something went wrong and wanted to bail out\n");
+	if(buf)
+		mem_free(buf);
+	ISFS_Close(fd);
+	dol_settings->HW_AHBPROT_bit = 0;
+	dol_settings->argument_count = 0;
+read_dol:
+	fd = ISFS_Open("/title/00000001/00000002/data/main.bin", 1 );
 	if( fd < 0 )
 	{
 		error = ERROR_BOOT_DOL_OPEN;
-		return;
+		goto return_dol;
 	}
 
 	void	(*entrypoint)();
 
-	Elf32_Ehdr *ElfHdr = (Elf32_Ehdr *)mem_align( 32, ALIGN32( sizeof( Elf32_Ehdr ) ) );
+	ElfHdr = (Elf32_Ehdr *)mem_align( 32, ALIGN32( sizeof( Elf32_Ehdr ) ) );
 	if( ElfHdr == NULL )
 	{
 		error = ERROR_MALLOC;
-		return;
+		goto return_dol;
 	}
 
-	s32 r = ISFS_Read( fd, ElfHdr, sizeof( Elf32_Ehdr ) );
+	r = ISFS_Read( fd, ElfHdr, sizeof( Elf32_Ehdr ) );
 	if( r < 0 || r != sizeof( Elf32_Ehdr ) )
 	{
 		error = ERROR_BOOT_DOL_READ;
-		return;
+		goto return_dol;
 	}
 
 	if( ElfHdr->e_ident[EI_MAG0] == 0x7F ||
@@ -2741,7 +2926,7 @@ void AutoBootDol( void )
 				{
 					error = ERROR_BOOT_DOL_SEEK;
 					mem_free(ElfHdr);
-					return;
+					goto return_dol;
 				}
 
 				Elf32_Phdr *phdr = (Elf32_Phdr *)mem_align( 32, ALIGN32( sizeof( Elf32_Phdr ) ) );
@@ -2749,7 +2934,7 @@ void AutoBootDol( void )
 				{
 					error = ERROR_MALLOC;
 					mem_free(ElfHdr);
-					return;
+					goto return_dol;
 				}
 				memset(phdr,0,sizeof(Elf32_Phdr));
 				r = ISFS_Read( fd, phdr, sizeof( Elf32_Phdr ) );
@@ -2758,7 +2943,7 @@ void AutoBootDol( void )
 					error = ERROR_BOOT_DOL_READ;
 					mem_free( phdr );
 					mem_free(ElfHdr);
-					return;
+					goto return_dol;
 				}
 				gdprintf("Type:%08X Offset:%08X VAdr:%08X PAdr:%08X FileSz:%08X\n", phdr->p_type, phdr->p_offset, phdr->p_vaddr, phdr->p_paddr, phdr->p_filesz );
 				r = ISFS_Seek( fd, phdr->p_offset, 0 );
@@ -2767,7 +2952,7 @@ void AutoBootDol( void )
 					error = ERROR_BOOT_DOL_SEEK;
 					mem_free( phdr );
 					mem_free(ElfHdr);
-					return;
+					goto return_dol;
 				}
 
 				if(phdr->p_type == PT_LOAD && phdr->p_vaddr != 0)
@@ -2779,7 +2964,7 @@ void AutoBootDol( void )
 						error = ERROR_BOOT_DOL_READ;
 						mem_free( phdr );
 						mem_free(ElfHdr);
-						return;
+						goto return_dol;
 					}
 				}
 				mem_free( phdr );
@@ -2794,7 +2979,7 @@ void AutoBootDol( void )
 			{
 				error = ERROR_MALLOC;
 				mem_free(ElfHdr);
-				return;
+				goto return_dol;
 			}
 			memset(shdr,0,sizeof(Elf32_Shdr));
 			for( int i=0; i < ElfHdr->e_shnum; ++i )
@@ -2805,7 +2990,7 @@ void AutoBootDol( void )
 					error = ERROR_BOOT_DOL_SEEK;
 					mem_free( shdr );
 					mem_free(ElfHdr);
-					return;
+					goto return_dol;
 				}
 
 				r = ISFS_Read( fd, shdr, sizeof( Elf32_Shdr ) );
@@ -2814,7 +2999,7 @@ void AutoBootDol( void )
 					error = ERROR_BOOT_DOL_READ;
 					mem_free( shdr );
 					mem_free(ElfHdr);
-					return;
+					goto return_dol;
 				}
 
 				if( shdr->sh_type == 0 || shdr->sh_size == 0 )
@@ -2835,7 +3020,7 @@ void AutoBootDol( void )
 					error = ERROR_BOOT_DOL_SEEK;
 					mem_free( shdr );
 					mem_free(ElfHdr);
-					return;
+					goto return_dol;
 				}
 
 				
@@ -2848,7 +3033,7 @@ void AutoBootDol( void )
 						error = ERROR_BOOT_DOL_READ;
 						mem_free( shdr );
 						mem_free(ElfHdr);
-						return;
+						goto return_dol;
 					}
 				}
 
@@ -2861,13 +3046,15 @@ void AutoBootDol( void )
 		mem_free(ElfHdr);
 
 	} else {
+		if(ElfHdr != NULL)
+			mem_free(ElfHdr);
 		//Dol
 		//read the header
-		dolhdr *hdr = (dolhdr *)mem_align(32, ALIGN32( sizeof( dolhdr ) ) );
+		hdr = (dolhdr *)mem_align(32, ALIGN32( sizeof( dolhdr ) ) );
 		if( hdr == NULL )
 		{
 			error = ERROR_MALLOC;
-			return;
+			goto return_dol;
 		}
 
 		s32 r = ISFS_Seek( fd, 0, 0);
@@ -2875,7 +3062,7 @@ void AutoBootDol( void )
 		{
 			gprintf("AutoBootDol : ISFS_Seek(%d)\n", r);
 			error = ERROR_BOOT_DOL_SEEK;
-			return;
+			goto return_dol;
 		}
 
 		r = ISFS_Read( fd, hdr, sizeof(dolhdr) );
@@ -2884,7 +3071,7 @@ void AutoBootDol( void )
 		{
 			gprintf("AutoBootDol : ISFS_Read(%d)\n", r);
 			error = ERROR_BOOT_DOL_READ;
-			return;
+			goto return_dol;
 		}
 		DVDStopDisc(true);
 		gdprintf("\nText Sections:\n");
@@ -2896,12 +3083,12 @@ void AutoBootDol( void )
 				if(ISFS_Seek( fd, hdr->offsetText[i], SEEK_SET )<0)
 				{
 					error = ERROR_BOOT_DOL_SEEK;
-					return;
+					goto return_dol;
 				}
 				if(ISFS_Read( fd, (void*)(hdr->addressText[i]), hdr->sizeText[i] )<0)
 				{
 					error = ERROR_BOOT_DOL_READ;
-					return;
+					goto return_dol;
 				}
 				DCInvalidateRange( (void*)(hdr->addressText[i]), hdr->sizeText[i] );
 				gdprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr->offsetText[i]), hdr->addressText[i], hdr->sizeText[i]);
@@ -2916,26 +3103,31 @@ void AutoBootDol( void )
 				if(ISFS_Seek( fd, hdr->offsetData[i], SEEK_SET )<0)
 				{
 					error = ERROR_BOOT_DOL_SEEK;
-					return;
+					goto return_dol;
 				}
 				if( ISFS_Read( fd, (void*)(hdr->addressData[i]), hdr->sizeData[i] )<0)
 				{
 					error = ERROR_BOOT_DOL_READ;
-					return;
+					goto return_dol;
 				}
 
 				DCInvalidateRange( (void*)(hdr->addressData[i]), hdr->sizeData[i] );
 				gdprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr->offsetData[i]), hdr->addressData[i], hdr->sizeData[i]);
 			}
 		}
-
+		if (dol_settings->argument_count > 0 && argv.argvMagic == ARGV_MAGIC)
+        {
+			void* new_argv = (void*)(hdr->entrypoint + 8);
+			memmove(new_argv, &argv, sizeof(__argv));
+			DCFlushRange(new_argv, sizeof(__argv));
+        }
 		entrypoint = (void (*)())(hdr->entrypoint);
 
 	}
 	if( entrypoint == 0x00000000 )
 	{
 		error = ERROR_BOOT_DOL_ENTRYPOINT;
-		return;
+		goto return_dol;
 	}
 	for(int i=0;i<WPAD_MAX_WIIMOTES;i++) {
 		if(WPAD_Probe(i,0) < 0)
@@ -2951,7 +3143,6 @@ void AutoBootDol( void )
 	while(DvdKilled() < 1);
 	gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
 
-	s32 Ios_to_load = 0;
 	if( !isIOSstub(58) )
 	{
 		Ios_to_load = 58;
@@ -2972,8 +3163,8 @@ void AutoBootDol( void )
 
 	if(Ios_to_load > 2 && Ios_to_load < 255)
 	{
-		s8 ahbprot = 1;
-		ReloadIos(Ios_to_load,&ahbprot);
+		s8 bAHBPROT = dol_settings->HW_AHBPROT_bit;
+		ReloadIos(Ios_to_load,&bAHBPROT);
 		system_state.ReloadedIOS = 1;
 	}
 	__IOS_ShutdownSubsystems();
@@ -2989,6 +3180,13 @@ void AutoBootDol( void )
 	WPAD_Init();
 	PAD_Init();
 	ISFS_Initialize();
+return_dol:
+	if(argv.commandLine != NULL)
+		mem_free(argv.commandLine);
+	if(hdr != NULL)
+		mem_free(hdr);
+	if(ElfHdr != NULL)
+		mem_free(ElfHdr);
 	return;
 }
 void HandleWiiMoteEvent(s32 chan)

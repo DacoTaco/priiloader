@@ -11,9 +11,9 @@
 #define _MEM2MANAGER_H_
 #include <ogc/system.h>
 
-#define mem_malloc(x) mem2_malloc(x,OTHER_AREA)
+#define mem_malloc(size) mem2_malloc(size,OTHER_AREA)
 #define mem_free(x) if(x != NULL) { mem2_free(x,OTHER_AREA);x=NULL; }
-#define mem_align(x,y) mem2_memalign(x,y,OTHER_AREA)
+#define mem_align(align,size) mem2_memalign(align,size,OTHER_AREA)
 #define ALIGN32(x) (((x) + 31) & ~31)
 #ifndef STACK_ALIGN
 // courtesy of Marcan
