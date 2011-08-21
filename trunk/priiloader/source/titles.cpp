@@ -260,10 +260,19 @@ s32 LoadListTitles( void )
 		return ret;
 	}
 	gdprintf("%u titles\n",count);
-	static u64 title_list[256] ATTRIBUTE_ALIGN(32);
-	memset(title_list,0,sizeof(title_list));
+
+	u64* title_list = (u64*)mem_align( 32, ALIGN32(sizeof(u64)*count) );
+	if(title_list == NULL)
+	{
+		gprintf("LoadListTitles : fail to memalign list\n");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+16, "Failed to get the titles list!");
+		sleep(3);
+		return ret;
+	}
+	memset(title_list,0,sizeof(u64)*count);
 	ret = ES_GetTitles(title_list, count);
 	if (ret < 0) {
+		mem_free(title_list);
 		gprintf("ES_GetTitles error %x\n",-ret);
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+16, "Failed to get the titles list!");
 		sleep(3);
@@ -307,6 +316,7 @@ s32 LoadListTitles( void )
 				rTMD = (tmd_view*)mem_align( 32, ALIGN32(tmd_size) );
 				if( rTMD == NULL )
 				{
+					mem_free(title_list);
 					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to MemAlign TMD!"))*13/2))>>1, 208+16, "Failed to MemAlign TMD!");
 					sleep(3);
 					return 0;
@@ -354,6 +364,7 @@ s32 LoadListTitles( void )
 				break;
 		}
 	}
+	mem_free(title_list);
 	//done detecting titles. lets list them
 	if(titles.size() <= 0)
 	{
