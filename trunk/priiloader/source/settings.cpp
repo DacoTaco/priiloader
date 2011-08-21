@@ -143,8 +143,6 @@ u32 SGetSetting( u32 s )
 			return settings->PasscheckMenu;
 		case SETTING_SHOWBETAUPDATES:
 			return settings->ShowBetaUpdates;
-		case SETTING_AHBPROTRELOAD:
-			return settings->AHBPROTReload;
 		default:
 			return 0;
 		break;
@@ -169,7 +167,6 @@ void LoadSettings( void )
 		settings->UseSystemMenuIOS = true;
 		settings->autoboot = AUTOBOOT_SYS;
 		settings->ShowBetaUpdates = false;
-		settings->AHBPROTReload = true;
 		fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", 1|2 );
 		if( fd < 0 )
 		{
@@ -198,7 +195,6 @@ void LoadSettings( void )
 		settings->version = VERSION;
 		settings->UseSystemMenuIOS = true;
 		settings->autoboot = AUTOBOOT_SYS;
-		settings->AHBPROTReload = true;
 		fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", 1|2 );
 		if( fd < 0 )
 		{

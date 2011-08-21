@@ -624,6 +624,9 @@ void Delete_Priiloader_Files( u8 mode )
 	}
 	if(main_bin)
 	{
+		sprintf(file_path, "/title/%08x/%08x/data/main.nfo",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
+		ret = ISFS_Delete(file_path);
+		gprintf("main.nfo : %d\n",ret);
 		sprintf(file_path, "/title/%08x/%08x/data/main.bin",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
 		ret = ISFS_Delete(file_path);
 		gprintf("main.bin : %d\n",ret);
@@ -1541,9 +1544,9 @@ int main(int argc, char **argv)
 				exit(0);
 			}
 		}
-		if ( pDown & WPAD_BUTTON_HOME || GCpDown & PAD_BUTTON_START) 
+		if ( GCpDown & PAD_BUTTON_START || pDown & WPAD_BUTTON_HOME) 
 		{
-			printf("\x1b[2J");
+			printf("\x1b[5;0H");
 			fflush(stdout);
 			abort("Installation canceled");
 		}
