@@ -57,7 +57,7 @@ void ShowError ( void )
 			break;
 			case ERROR_BOOT_DOL_ENTRYPOINT:
 				PrintFormat( 0, 16, (rmode->viHeight)-128, "Error autobooting file, try reinstalling!");
-				PrintFormat( 0, 16, (rmode->viHeight)-112, "Entrypoint is zero!");
+				PrintFormat( 0, 16, (rmode->viHeight)-112, "Entrypoint is unusable!");
 			break;
 			case ERROR_ISFS_INIT:
 				PrintFormat( 0, 16, (rmode->viHeight)-128, "ISFS_Initialize() failed");

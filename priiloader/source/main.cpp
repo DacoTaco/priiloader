@@ -84,13 +84,13 @@ typedef struct _dol_settings
 	u8 argument_count;
 	s32 arg_cli_lenght;
 	char* arg_command_line;
-}_dol_settings;
+}__attribute((packed))_dol_settings;
 typedef struct {
 	std::string app_name;
 	std::string app_path;
 	u8 HW_AHBPROT_ENABLED;
 	std::vector<std::string> args;
-} Binary_struct;
+}Binary_struct;
 
 extern DVD_status DVD_state;
 extern Settings *settings;
@@ -105,7 +105,7 @@ typedef struct wii_state {
 	s8 BootSysMenu:2;
 	s8 ReloadedIOS:2;
 	s8 InMainMenu:2;
-} wii_state;
+}__attribute((packed))wii_state;
 wii_state system_state;
 time_t startloop = 0;
 u32 appentrypoint = 0;
@@ -266,6 +266,7 @@ bool isIOSstub(u8 ios_number)
 }
 s32 ReloadIos(s32 Ios_version,s8* bool_ahbprot_after_reload)
 {
+	//this function would not be possible without tjeuidj releasing his patch. its not that davebaol's patch is less safe, but teuidj's is cleaner. and clean == good
 	if(
 		((bool_ahbprot_after_reload != NULL) && *bool_ahbprot_after_reload > 0)
 		&& read32(0x0d800064) == 0xFFFFFFFF)
@@ -277,7 +278,14 @@ s32 ReloadIos(s32 Ios_version,s8* bool_ahbprot_after_reload)
 		}
 		if(!( read16(0x0d8b420a) ) )
 		{
-			u8 es_set_ahbprot[] = { 0x68, 0x5B, 0x22, 0xEC, 0x00, 0x52, 0x18, 0x9B, 0x68, 0x1B, 0x46, 0x98, 0x07, 0xDB };
+			static const u16 es_set_ahbprot[] = {
+			  0x685B,          // ldr r3,[r3,#4]  ; get TMD pointer
+			  0x22EC, 0x0052,  // movls r2, 0x1D8
+			  0x189B,          // adds r3, r3, r2 ; add offset of access rights field in TMD
+			  0x681B,          // ldr r3, [r3]    ; load access rights (haxxme!)
+			  0x4698,          // mov r8, r3      ; store it for the DVD video bitcheck later
+			  0x07DB           // lsls r3, r3, #31; check AHBPROT bit
+			};
 			u8* mem_block = (u8*)read32(0x80003130);
 			while((u32)mem_block < 0x93FFFFFF)
 			{
@@ -285,8 +293,8 @@ s32 ReloadIos(s32 Ios_version,s8* bool_ahbprot_after_reload)
 				if (!memcmp(mem_block, es_set_ahbprot, sizeof(es_set_ahbprot)))
 				{
 					//pointers suck but do the trick. the installer uses a more safe method in its official, closed source version.but untill people start nagging ill use pointers
-					*(u8*)(address+25) = 0x01;
-					*(u8*)(address+75) = 0x01;
+					*(u8*)(address+8) = 0x23;
+					*(u8*)(address+9) = 0xFF;
 					DCFlushRange((u8 *)((address) >> 5 << 5), (sizeof(es_set_ahbprot) >> 5 << 5) + 64);
 					ICInvalidateRange((u8 *)((address) >> 5 << 5), (sizeof(es_set_ahbprot) >> 5 << 5) + 64);
 					break;
@@ -305,6 +313,7 @@ s32 ReloadIos(s32 Ios_version,s8* bool_ahbprot_after_reload)
 		else
 		{
 			*bool_ahbprot_after_reload = 0;
+			system_state.ReloadedIOS = 1;
 		}
 	}
 	if(Ios_version == IOS_GetVersion())
@@ -987,30 +996,7 @@ void SetSettings( void )
 					redraw=true;
 				}
 			break;		
-			case 11: // reload IOS when giving AHBPROT
-				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
-					 PAD_Pressed & PAD_BUTTON_LEFT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
-					 PAD_Pressed & PAD_BUTTON_RIGHT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_A				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
-					 PAD_Pressed & PAD_BUTTON_A
-					)
-				{
-					if( settings->AHBPROTReload )
-					{
-						settings->AHBPROTReload = false;
-					}
-					else
-					{
-						settings->AHBPROTReload = true;
-					}
-					redraw=true;
-				}
-			break;
-			case 12: //ignore ios reloading for system menu?
+			case 11: //ignore ios reloading for system menu?
 			{
 				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
 					 PAD_Pressed & PAD_BUTTON_LEFT				||
@@ -1048,7 +1034,7 @@ void SetSettings( void )
 				}
 			}
 			break;
-			case 13:		//	System Menu IOS
+			case 12:		//	System Menu IOS
 			{
 				if ( WPAD_Pressed & WPAD_BUTTON_LEFT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT || PAD_Pressed & PAD_BUTTON_LEFT )
 				{
@@ -1086,7 +1072,7 @@ void SetSettings( void )
 				}
 
 			} break;
-			case 14:
+			case 13:
 			{
 				if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 				{
@@ -1105,19 +1091,19 @@ void SetSettings( void )
 		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
 		{
 			cur_off++;
-			if( (settings->UseSystemMenuIOS) && (cur_off == 13))
+			if( (settings->UseSystemMenuIOS) && (cur_off == 12))
 				cur_off++;
-			if( cur_off >= 15)
+			if( cur_off >= 14)
 				cur_off = 0;
 			
 			redraw=true;
 		} else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
 		{
 			cur_off--;
-			if( (settings->UseSystemMenuIOS) && (cur_off == 13))
+			if( (settings->UseSystemMenuIOS) && (cur_off == 12))
 				cur_off--;
 			if( cur_off < 0 )
-				cur_off = 14;
+				cur_off = 13;
 			
 			redraw=true;
 		}
@@ -1167,26 +1153,25 @@ void SetSettings( void )
 			
 			//PrintFormat( 0, 16, 64, "Pos:%d", ((rmode->viWidth /2)-(strlen("settings saved")*13/2))>>1);
 
-			PrintFormat( cur_off==2, 0, 128+16, "           Shutdown to:          %s", settings->ShutdownToPreloader?"Priiloader":"off       ");
-			PrintFormat( cur_off==3, 0, 128+32, "  Stop disc on startup:          %s", settings->StopDisc?"on ":"off");
-			PrintFormat( cur_off==4, 0, 128+48, "   Light slot on error:          %s", settings->LidSlotOnError?"on ":"off");
-			PrintFormat( cur_off==5, 0, 128+64, "        Ignore standby:          %s", settings->IgnoreShutDownMode?"on ":"off");
-			PrintFormat( cur_off==6, 0, 128+80, "      Background Color:          %s", settings->BlackBackground?"Black":"White");
-			PrintFormat( cur_off==7, 0, 128+96, "    Protect Priiloader:          %s", settings->PasscheckPriiloader?"on ":"off");
-			PrintFormat( cur_off==8, 0, 128+112,"      Protect Autoboot:          %s", settings->PasscheckMenu?"on ":"off");
-			PrintFormat( cur_off==9, 0, 128+128,"  Display Gecko output:          %s", settings->ShowGeckoText?"on ":"off");
-			PrintFormat( cur_off==10,0, 128+144,"     Show Beta Updates:          %s", settings->ShowBetaUpdates?"on ":"off");
-			PrintFormat( cur_off==11,0, 128+160,"     AHBPROT IOSreload:          %s", settings->AHBPROTReload?"on ":"off");
-			PrintFormat( cur_off==12,0, 128+176,"   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
+			PrintFormat( cur_off==2, 0, 128+(16*1), "           Shutdown to:          %s", settings->ShutdownToPreloader?"Priiloader":"off       ");
+			PrintFormat( cur_off==3, 0, 128+(16*2), "  Stop disc on startup:          %s", settings->StopDisc?"on ":"off");
+			PrintFormat( cur_off==4, 0, 128+(16*3), "   Light slot on error:          %s", settings->LidSlotOnError?"on ":"off");
+			PrintFormat( cur_off==5, 0, 128+(16*4), "        Ignore standby:          %s", settings->IgnoreShutDownMode?"on ":"off");
+			PrintFormat( cur_off==6, 0, 128+(16*5), "      Background Color:          %s", settings->BlackBackground?"Black":"White");
+			PrintFormat( cur_off==7, 0, 128+(16*6), "    Protect Priiloader:          %s", settings->PasscheckPriiloader?"on ":"off");
+			PrintFormat( cur_off==8, 0, 128+(16*7),"      Protect Autoboot:          %s", settings->PasscheckMenu?"on ":"off");
+			PrintFormat( cur_off==9, 0, 128+(16*8),"  Display Gecko output:          %s", settings->ShowGeckoText?"on ":"off");
+			PrintFormat( cur_off==10,0, 128+(16*9),"     Show Beta Updates:          %s", settings->ShowBetaUpdates?"on ":"off");
+			PrintFormat( cur_off==11,0, 128+(16*10),"   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
 			if(!settings->UseSystemMenuIOS)
 			{
-				PrintFormat( cur_off==13, 0, 128+192, "     IOS to use for SM:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
+				PrintFormat( cur_off==12, 0, 128+(16*11), "     IOS to use for SM:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
 			}
 			else
 			{
-				PrintFormat( cur_off==13, 0, 128+192,	"                                        ");
+				PrintFormat( cur_off==12, 0, 128+(16*11),	"                                        ");
 			}
-			PrintFormat( cur_off==14, 118, 128+224, "save settings");
+			PrintFormat( cur_off==13, 118, 128+224, "save settings");
 			PrintFormat( 0, 114, 128+224+16, "                 ");
 
 			redraw = false;
@@ -1322,7 +1307,7 @@ s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		gdprintf("SHnum:     \t%04X\n",	ElfHdr.e_shnum );
 		gdprintf("SHstrndx:  \t%04X\n\n",ElfHdr.e_shstrndx );
 		
-		if( ( (ElfHdr.e_entry | 0x80000000) >= 0x80E00000 ) && ( (ElfHdr.e_entry | 0x80000000) <= 0x81330000) )
+		if( ( (ElfHdr.e_entry | 0x80000000) >= 0x81000000 ) && ( (ElfHdr.e_entry | 0x80000000) <= 0x81330000) )
 		{
 			gprintf("BootDolFromFat : ELF entrypoint error: abort!\n");
 			return -1;
@@ -1389,7 +1374,7 @@ s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		dolhdr hdr;
 		fseek( fat_fd, 0, 0);
 		fread( &hdr, sizeof( dolhdr ), 1, fat_fd );
-		if( hdr.entrypoint >= 0x80E00000 && hdr.entrypoint <= 0x81330000 )
+		if( hdr.entrypoint >= 0x81000000 && hdr.entrypoint <= 0x81330000 )
 		{
 			gprintf("BootDolFromFat : entrypoint/BSS error: abort!\n");
 			fclose(fat_fd);
@@ -1425,7 +1410,7 @@ s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 			}
 		}
 		if( 
-			( hdr.addressBSS + hdr.sizeBSS < 0x80E00000 ||(hdr.addressBSS > 0x80F00000 && hdr.addressBSS + hdr.sizeBSS < 0x817FFFFF) ) &&
+			( hdr.addressBSS + hdr.sizeBSS < 0x80F00000 ||(hdr.addressBSS > 0x81500000 && hdr.addressBSS + hdr.sizeBSS < 0x817FFFFF) ) &&
 			hdr.addressBSS > 0x80003400 )
 		{
 			memset ((void *) hdr.addressBSS, 0, hdr.sizeBSS);
@@ -1481,19 +1466,8 @@ s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 
 	if(Ios_to_load > 2 && Ios_to_load < 255)
 	{
-		if(SGetSetting(SETTING_AHBPROTRELOAD))
-		{
-			ReloadIos(Ios_to_load,&bAHBPROT);
-			system_state.ReloadedIOS = 1;
-		}
-		else if(
-			(!HW_AHBPROT_ENABLED) ||
-			( HW_AHBPROT_ENABLED > 0 && read32(0x0d800064) != 0xFFFFFFFF)
-			)
-		{
-			IOS_ReloadIOS(Ios_to_load);
-			system_state.ReloadedIOS = 1;
-		}
+		ReloadIos(Ios_to_load,&bAHBPROT);
+		system_state.ReloadedIOS = 1;
 	}
 
 	gprintf("BootDolFromFat : Entrypoint: 0x%08X\n", (u32)(entrypoint) );
@@ -1548,7 +1522,7 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		gdprintf("SHentsize: \t%04X\n",	ElfHdr.e_shentsize );
 		gdprintf("SHnum:     \t%04X\n",	ElfHdr.e_shnum );
 		gdprintf("SHstrndx:  \t%04X\n\n",ElfHdr.e_shstrndx );
-		if( ( (ElfHdr.e_entry | 0x80000000) >= 0x80E00000 ) && ( (ElfHdr.e_entry | 0x80000000) <= 0x81330000) )
+		if( ( (ElfHdr.e_entry | 0x80000000) >= 0x81000000 ) && ( (ElfHdr.e_entry | 0x80000000) <= 0x81330000) )
 		{
 			gprintf("BootDolFromMem : ELF entrypoint error: abort!\n");
 			return -1;
@@ -1616,7 +1590,7 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		dolfile = (dolhdr *) dolstart;
 
 		//entrypoint & BSS checking
-		if( dolfile->entrypoint >= 0x80E00000 && dolfile->entrypoint <= 0x81330000 )
+		if( dolfile->entrypoint >= 0x80F00000 && dolfile->entrypoint <= 0x81330000 )
 		{
 			gprintf("BootDolFromMem : entrypoint/BSS error: abort!\n");
 			return -1;
@@ -1649,7 +1623,7 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 			gdprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (dolfile->offsetData[i]), dolfile->addressData[i], dolfile->sizeData[i]);
 		}
 		if( 
-			( dolfile->addressBSS + dolfile->sizeBSS < 0x80E00000 ||(dolfile->addressBSS > 0x80F00000 && dolfile->addressBSS + dolfile->sizeBSS < 0x817FFFFF) ) &&
+			( dolfile->addressBSS + dolfile->sizeBSS < 0x80F00000 ||(dolfile->addressBSS > 0x81500000 && dolfile->addressBSS + dolfile->sizeBSS < 0x817FFFFF) ) &&
 			dolfile->addressBSS > 0x80003400 )
 		{
 			memset ((void *) dolfile->addressBSS, 0, dolfile->sizeBSS);
@@ -1704,19 +1678,8 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 
 	if(Ios_to_load > 2 && Ios_to_load < 255)
 	{
-		if(SGetSetting(SETTING_AHBPROTRELOAD))
-		{
-			ReloadIos(Ios_to_load,&bAHBPROT);
-			system_state.ReloadedIOS = 1;
-		}
-		else if(
-			(!HW_AHBPROT_ENABLED) ||
-			( HW_AHBPROT_ENABLED > 0 && read32(0x0d800064) != 0xFFFFFFFF)
-			)
-		{
-			IOS_ReloadIOS(Ios_to_load);
-			system_state.ReloadedIOS = 1;
-		}
+		ReloadIos(Ios_to_load,&bAHBPROT);
+		system_state.ReloadedIOS = 1;
 	}
 	
 	gprintf("BootDolFromMem : Entrypoint: 0x%08X\n", (u32)(entrypoint) );
@@ -1762,7 +1725,7 @@ s8 BootDolFromDir( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<std
 {
 	if (Mounted == 0)
 	{
-		return -1;
+		return -5;
 	}
 	struct __argv args;
 	bzero(&args, sizeof(args));
@@ -1812,14 +1775,13 @@ s8 BootDolFromDir( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<std
 	if (dol)
 	{
 		gdprintf("booting from fat...\n");
-		BootDolFromFat(dol,HW_AHBPROT_ENABLED,&args);
+		ret = BootDolFromFat(dol,HW_AHBPROT_ENABLED,&args);
 		fclose(dol);
-		ret = -5;
 	}
 	else
 	{
 		fclose(dol);
-		ret = -2;
+		ret = -6;
 	}
 	if(args.commandLine != NULL)
 		mem_free(args.commandLine);
@@ -1855,6 +1817,7 @@ void BootMainSysMenu( u8 init )
 	//general:
 	s32 r = 0;
 	s32 fd = 0;
+	void	(*entrypoint)();
 
 
 	if(init == 0)
@@ -1961,7 +1924,6 @@ void BootMainSysMenu( u8 init )
 		goto free_and_return;
 	}
 
-	void	(*entrypoint)();
 	for (u8 i = 0; i < 6; i++)
 	{
 		if( boot_hdr->sizeText[i] && boot_hdr->addressText[i] && boot_hdr->offsetText[i] )
@@ -2782,23 +2744,14 @@ void AutoBootDol( void )
 			ISFS_Close(fd);
 			goto read_dol;
 		}
-		//read the argument count,AHBPROT bit and arg lenght is enabled
-		r = ISFS_Read( fd, dol_settings, sizeof(s16) );
+		//read the argument count,AHBPROT bit and arg lenght
+		r = ISFS_Read( fd, dol_settings, sizeof(s16)+sizeof(s32) );
 		if(r < 0)
 		{
 			gprintf("read fail.r = %x\n",r);
 			ISFS_Close(fd);
 			goto read_dol;
 		}
-		STACK_ALIGN(s32,temp,sizeof(s32),32);
-		r = ISFS_Read( fd, temp, sizeof(s32));
-		if(r < 0)
-		{
-			gprintf("read2 fail.r = %x\n",r);
-			ISFS_Close(fd);
-			goto read_dol;
-		}
-		dol_settings->arg_cli_lenght = *temp;
 		if(dol_settings->HW_AHBPROT_bit != 1 && dol_settings->HW_AHBPROT_bit != 0 )
 		{
 			//invalid. fuck the file then
@@ -2887,7 +2840,12 @@ read_dol:
 		gdprintf("SHentsize: \t%04X\n",	ElfHdr->e_shentsize );
 		gdprintf("SHnum:     \t%04X\n",	ElfHdr->e_shnum );
 		gdprintf("SHstrndx:  \t%04X\n\n",ElfHdr->e_shstrndx );
-
+		
+		if( ( (ElfHdr->e_entry | 0x80000000) >= 0x81000000 ) && ( (ElfHdr->e_entry | 0x80000000) <= 0x81330000) )
+		{
+			gprintf("AutoBoot : ELF entrypoint error: abort!\n");
+			goto return_dol;
+		}
 		if( ElfHdr->e_phnum == 0 )
 			gdprintf("Warning program header entries are zero!\n");
 		else 
@@ -3046,6 +3004,12 @@ read_dol:
 			error = ERROR_BOOT_DOL_READ;
 			goto return_dol;
 		}
+		if( hdr->entrypoint >= 0x81000000 && hdr->entrypoint <= 0x81330000 )
+		{
+			gprintf("BootDolFromFat : entrypoint/BSS error: abort!\n");
+			error = ERROR_BOOT_DOL_ENTRYPOINT;
+			goto return_dol;
+		}
 		DVDStopDisc(true);
 		gdprintf("\nText Sections:\n");
 		int i=0;
@@ -3097,6 +3061,7 @@ read_dol:
 		entrypoint = (void (*)())(hdr->entrypoint);
 
 	}
+	ISFS_Close(fd);
 	if( entrypoint == 0x00000000 )
 	{
 		error = ERROR_BOOT_DOL_ENTRYPOINT;
@@ -3154,6 +3119,7 @@ read_dol:
 	PAD_Init();
 	ISFS_Initialize();
 return_dol:
+	ISFS_Close(fd);
 	if(argv.commandLine != NULL)
 		mem_free(argv.commandLine);
 	if(hdr != NULL)
