@@ -368,8 +368,7 @@ void password_check( void )
 
  	if(filecheck != 0)
 	{
-		if ( SGetSetting(SETTING_SHOWGECKOTEXT) == 0 )
-			InitVideo();
+		InitVideo();
 		ClearScreen();
 		PrintFormat( 0, 5, 10, "Please insert the Password:");
 		PrintFormat( 0, 5+(count*8), 35, "_");

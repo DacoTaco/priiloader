@@ -37,7 +37,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 void CheckForGecko( void );
 void gprintf( const char *str, ... );
-void SetShowDebug( u8 value );
+void SetDumpDebug( u8 value );
 void InitGDBDebug( void );
 
 #ifdef __cplusplus

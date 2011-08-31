@@ -242,6 +242,7 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 }
 s32 LoadListTitles( void )
 {
+	PrintFormat( 1, ((rmode->viWidth /2)-((strlen("loading titles..."))*13/2))>>1, 208+16, "loading titles...");
 	s32 ret;
 	u32 count = 0;
 	ret = ES_GetNumTitles(&count);
@@ -255,7 +256,7 @@ s32 LoadListTitles( void )
 	if(count == 0)
 	{
 		gprintf("count == 0\n");
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+16, "Failed to get the titles list!");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+32, "Failed to get the titles list!");
 		sleep(3);
 		return ret;
 	}
@@ -265,7 +266,7 @@ s32 LoadListTitles( void )
 	if(title_list == NULL)
 	{
 		gprintf("LoadListTitles : fail to memalign list\n");
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+16, "Failed to get the titles list!");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+32, "Failed to get the titles list!");
 		sleep(3);
 		return ret;
 	}
@@ -274,7 +275,7 @@ s32 LoadListTitles( void )
 	if (ret < 0) {
 		mem_free(title_list);
 		gprintf("ES_GetTitles error %x\n",-ret);
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+16, "Failed to get the titles list!");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+32, "Failed to get the titles list!");
 		sleep(3);
 		return ret;
 	}
@@ -288,21 +289,15 @@ s32 LoadListTitles( void )
 		//u32 titletype = title_list[i] >> 32;
 		switch (title_list[i] >> 32)
 		{
-			case 1: // IOS, MIOS, BC, System Menu
-			case 0x10000: // TMD installed by running a disc
-			case 0x10004: // "Hidden channels by discs" -- WiiFit channel
-			case 0x10008: // "Hidden channels" -- EULA, rgnsel
-			case 0x10005: // Downloadable Content for Wiiware
-			default:
-				break;
 			case 0x10001: // Normal channels / VC
 			case 0x10002: // "System channels" -- News, Weather, etc.
+			{
 				u32 tmd_size;
 				ret = ES_GetTMDViewSize(title_list[i], &tmd_size);
 				if(ret<0)
 				{
 					gprintf("WARNING : GetTMDViewSize error %d on title %x-%x\n",ret,(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
-					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMDSize error on 00000000-00000000!"))*13/2))>>1, 208+16, "WARNING : TMDSize error on %08X-%08X",(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
+					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMDSize error on 00000000-00000000!"))*13/2))>>1, 208+32, "WARNING : TMDSize error on %08X-%08X",(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
 					sleep(3);
 					if( !SGetSetting(SETTING_BLACKBACKGROUND))
 						VIDEO_ClearFrameBuffer( rmode, xfb, 0xFF80FF80);
@@ -311,13 +306,14 @@ s32 LoadListTitles( void )
 					VIDEO_WaitVSync();
 					printf("\x1b[5;0H");
 					fflush(stdout);
+					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("loading titles..."))*13/2))>>1, 208+16, "loading titles...");
 					continue;
 				}
 				rTMD = (tmd_view*)mem_align( 32, ALIGN32(tmd_size) );
 				if( rTMD == NULL )
 				{
 					mem_free(title_list);
-					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to MemAlign TMD!"))*13/2))>>1, 208+16, "Failed to MemAlign TMD!");
+					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to MemAlign TMD!"))*13/2))>>1, 208+32, "Failed to MemAlign TMD!");
 					sleep(3);
 					return 0;
 				}
@@ -326,7 +322,7 @@ s32 LoadListTitles( void )
 				if(ret<0)
 				{
 					gprintf("WARNING : GetTMDView error %d on title %x-%x\n",ret,(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
-					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMD error on 00000000-00000000!"))*13/2))>>1, 208+16, "WARNING : TMD error on %08X-%08X!",(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
+					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMD error on 00000000-00000000!"))*13/2))>>1, 208+32, "WARNING : TMD error on %08X-%08X!",(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
 					sleep(3);
 					if(rTMD)
 					{
@@ -339,6 +335,7 @@ s32 LoadListTitles( void )
 					VIDEO_WaitVSync();
 					printf("\x1b[5;0H");
 					fflush(stdout);
+					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("loading titles..."))*13/2))>>1, 208+16, "loading titles...");
 					continue;
 				}
 				memset(temp_name,0,sizeof(temp_name));
@@ -361,6 +358,14 @@ s32 LoadListTitles( void )
 				{
 					mem_free(rTMD);
 				}
+				//break;
+			}
+			case 1: // IOS, MIOS, BC, System Menu
+			case 0x10000: // TMD installed by running a disc
+			case 0x10004: // "Hidden channels by discs" -- WiiFit channel
+			case 0x10008: // "Hidden channels" -- EULA, rgnsel
+			case 0x10005: // Downloadable Content for Wiiware
+			default:
 				break;
 		}
 	}
@@ -368,10 +373,17 @@ s32 LoadListTitles( void )
 	//done detecting titles. lets list them
 	if(titles.size() <= 0)
 	{
-		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("ERROR : No VC/Wiiware channels found"))*13/2))>>1, 208+16, "ERROR : No VC/Wiiware channels found");
+		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("ERROR : No VC/Wiiware channels found"))*13/2))>>1, 208+32, "ERROR : No VC/Wiiware channels found");
 		sleep(3);
 		return 0;
 	}
+	if( !SGetSetting(SETTING_BLACKBACKGROUND))
+		VIDEO_ClearFrameBuffer( rmode, xfb, 0xFF80FF80);
+	else
+		VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
+	VIDEO_WaitVSync();
+	printf("\x1b[5;0H");
+	fflush(stdout);
 	s8 redraw = true;
 	s16 cur_off = 0;
 	//eventho normally a tv would be able to show 23 titles; some TV's do 60hz in a horrible mannor 

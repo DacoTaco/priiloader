@@ -158,7 +158,7 @@ u8 DetectHBC( void )
 	mem_free(list);
     if(ret < 1)
 	{
-		gprintf("HBC not found\n");
+		gprintf("DetectHBC: HBC not found\n");
 	}
 	return ret;
 }
@@ -191,7 +191,7 @@ void LoadHBCStub ( void )
 			*(vu16*)0x800024CA = 0x4841;//"HA";
 			*(vu16*)0x800024D2 = 0x5858;//"XX";
 			DCFlushRange((void*)0x80001800,stub_bin_size);
-		case 2: //JODI, no changes are needed
+		case 2: //JODI, no changes are needed. the internal stub we load is dumped from jodi(1.0.6)
 			break;
 	}
 	gprintf("HBC stub : Loaded\n");
@@ -699,7 +699,7 @@ void SetSettings( void )
 		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 		{
 			LoadSettings();
-			SetShowDebug(SGetSetting(SETTING_SHOWGECKOTEXT));
+			SetDumpDebug(SGetSetting(SETTING_DUMPGECKOTEXT));
 			break;
 		}
 		switch( cur_off )
@@ -969,11 +969,11 @@ void SetSettings( void )
 					 PAD_Pressed & PAD_BUTTON_A
 					)
 				{
-					if ( settings->ShowGeckoText )
-						settings->ShowGeckoText = 0;			
+					if ( settings->DumpGeckoText )
+						settings->DumpGeckoText = 0;			
 					else
-						settings->ShowGeckoText = 1;
-					SetShowDebug(settings->ShowGeckoText);
+						settings->DumpGeckoText = 1;
+					SetDumpDebug(settings->DumpGeckoText);
 					redraw=true;
 				}
 			break;
@@ -1159,9 +1159,9 @@ void SetSettings( void )
 			PrintFormat( cur_off==5, 0, 128+(16*4), "        Ignore standby:          %s", settings->IgnoreShutDownMode?"on ":"off");
 			PrintFormat( cur_off==6, 0, 128+(16*5), "      Background Color:          %s", settings->BlackBackground?"Black":"White");
 			PrintFormat( cur_off==7, 0, 128+(16*6), "    Protect Priiloader:          %s", settings->PasscheckPriiloader?"on ":"off");
-			PrintFormat( cur_off==8, 0, 128+(16*7),"      Protect Autoboot:          %s", settings->PasscheckMenu?"on ":"off");
-			PrintFormat( cur_off==9, 0, 128+(16*8),"  Display Gecko output:          %s", settings->ShowGeckoText?"on ":"off");
-			PrintFormat( cur_off==10,0, 128+(16*9),"     Show Beta Updates:          %s", settings->ShowBetaUpdates?"on ":"off");
+			PrintFormat( cur_off==8, 0, 128+(16*7), "      Protect Autoboot:          %s", settings->PasscheckMenu?"on ":"off");
+			PrintFormat( cur_off==9, 0, 128+(16*8), "     Dump Gecko output:          %s", settings->DumpGeckoText?"on ":"off");
+			PrintFormat( cur_off==10,0, 128+(16*9), "     Show Beta Updates:          %s", settings->ShowBetaUpdates?"on ":"off");
 			PrintFormat( cur_off==11,0, 128+(16*10),"   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
 			if(!settings->UseSystemMenuIOS)
 			{
@@ -2187,7 +2187,7 @@ void BootMainSysMenu( u8 init )
 
 	ShutdownDevices();
 	USB_Deinitialize();
-	if(init == 1 || SGetSetting(SETTING_SHOWGECKOTEXT) != 0 )
+	if(init == 1 || SGetSetting(SETTING_DUMPGECKOTEXT) != 0 )
 		Control_VI_Regs(2);
 	ISFS_Deinitialize();
 	__STM_Close();
@@ -2733,13 +2733,13 @@ void AutoBootDol( void )
 		STACK_ALIGN(fstats,status,sizeof(fstats),32);
 		if (ISFS_GetFileStats(fd,status) < 0)
 		{
-			gprintf("stats fail\n");
+			gdprintf("stats fail\n");
 			ISFS_Close(fd);
 			goto read_dol;
 		}
 		if(status->file_length < 2)
 		{
-			gprintf("<2 size.\n");
+			gdprintf("<2 size\n");
 			ISFS_Delete("/title/00000001/00000002/data/main.nfo");
 			ISFS_Close(fd);
 			goto read_dol;
@@ -2748,14 +2748,14 @@ void AutoBootDol( void )
 		r = ISFS_Read( fd, dol_settings, sizeof(s16)+sizeof(s32) );
 		if(r < 0)
 		{
-			gprintf("read fail.r = %x\n",r);
+			gdprintf("read fail.r = %x\n",r);
 			ISFS_Close(fd);
 			goto read_dol;
 		}
 		if(dol_settings->HW_AHBPROT_bit != 1 && dol_settings->HW_AHBPROT_bit != 0 )
 		{
 			//invalid. fuck the file then
-			gprintf("invalid. %d\n",dol_settings->HW_AHBPROT_bit);
+			gdprintf("invalid. %d\n",dol_settings->HW_AHBPROT_bit);
 			ISFS_Delete("/title/00000001/00000002/data/main.nfo");
 			ISFS_Close(fd);
 			goto reset_and_read;
@@ -2764,7 +2764,7 @@ void AutoBootDol( void )
 		{
 			//no arguments. so lets not bother anymore
 			ISFS_Close(fd);
-			gprintf("no args.\n");
+			gdprintf("no args.\n");
 			goto read_dol;
 		}
 		argv.length = dol_settings->arg_cli_lenght;
@@ -2774,7 +2774,7 @@ void AutoBootDol( void )
 		r = ISFS_Read( fd, argv.commandLine, argv.length );
 		if(r <= 0)
 		{
-			gprintf("failed to read arguments\n");
+			gdprintf("failed to read arguments\n");
 			goto reset_and_read;
 		}
 		ISFS_Close(fd);
@@ -3630,11 +3630,11 @@ int main(int argc, char **argv)
 	LoadHBCStub();
 	gprintf("\"Magic Priiloader word\": %x\n",*(vu32*)0x8132FFFB);
 	LoadSettings();
-	SetShowDebug(SGetSetting(SETTING_SHOWGECKOTEXT));
-	if ( SGetSetting(SETTING_SHOWGECKOTEXT) != 0 )
+	if(SGetSetting(SETTING_DUMPGECKOTEXT) == 1)
 	{
-		InitVideo();
+		PollDevices();
 	}
+	SetDumpDebug(SGetSetting(SETTING_DUMPGECKOTEXT));
 	s16 Bootstate = CheckBootState();
 	gprintf("BootState:%d\n", Bootstate );
 	memset(&system_state,0,sizeof(wii_state));
@@ -3769,11 +3769,8 @@ int main(int argc, char **argv)
 		gprintf("Reset Button is held down\n");
 	}
 
-	if ( SGetSetting(SETTING_SHOWGECKOTEXT) == 0 )
-	{
-		//init video first so we can see crashes :)
-		InitVideo();
-	}
+	//init video first so we can see crashes :)
+	InitVideo();
   	if( SGetSetting(SETTING_PASSCHECKPRII) )
  		password_check();
 

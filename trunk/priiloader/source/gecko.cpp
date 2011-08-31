@@ -21,8 +21,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 #include "gecko.h"
+#include "Global.h" // i hate to do this, but i need to if i want to prevent a crash when dumping gecko output & switching device. also, why the fuck does fopen succeed if not device is mounted?!
 u8 GeckoFound = 0;
-u8 ShowDebug = 0;
+u8 DumpDebug = 0;
 
 void CheckForGecko( void )
 {
@@ -33,10 +34,11 @@ void CheckForGecko( void )
 }
 void gprintf( const char *str, ... )
 {
-	if(!GeckoFound && !ShowDebug)
+	if(!GeckoFound && !DumpDebug)
 		return;
 
-	char astr[4096];
+	char astr[2048];
+	memset(astr,0,sizeof(astr));
 
 	va_list ap;
 	va_start(ap,str);
@@ -48,25 +50,53 @@ void gprintf( const char *str, ... )
 		usb_sendbuffer( 1, astr, strlen(astr) );
 		usb_flush(EXI_CHANNEL_1);
 	}
-	if (ShowDebug)
+	if (DumpDebug && Mounted)
 	{
-		printf(astr);
-		time_t start,end;
-		time(&start);
-		//i hate while loops. but its safer when gprintf is called from a callback like the STM callback...
-		//sleep seems to shit brix when called from a callback
-		while(difftime(end, start) < 2)
+		FILE* fd = NULL;
+		fd = fopen("fat:/prii.log","ab");
+		if(fd != NULL);
 		{
-			time(&end);
+			//0x0D0A = \r\n
+			if(astr[strlen(astr)-1] == '\n' && astr[strlen(astr)-2] != '\r')
+			{
+				astr[strlen(astr)-1] = '\r';
+				astr[strlen(astr)] = '\n';
+				astr[strlen(astr)+1] = '\0';
+			}
+			fwrite(astr,1,strlen(astr),fd);
+			fclose(fd);
 		}
 	}
 	return;
 }
-void SetShowDebug( u8 value )
+void SetDumpDebug( u8 value )
 {
 	if (value != 1 && value != 0)
 		return;
-	ShowDebug = value;
+	DumpDebug = value;
+	if(DumpDebug & Mounted)
+	{
+		//create file, or re-open and add lining
+		FILE* fd = NULL;
+		fd = fopen("fat:/prii.log","rb");
+		if(fd != NULL)
+		{
+			fclose(fd);
+			fd = fopen("fat:/prii.log","ab");
+			char str[] = "--------gecko_output_enabled------\r\n";
+			fwrite(str,1,strlen(str),fd);
+			fclose(fd);
+		}
+		else
+		{
+			//file didn't exist
+			fclose(fd);
+			fd = fopen("fat:/prii.log","wb");
+			if(fd != NULL)
+				fclose(fd);
+		}
+		
+	}
 	return;
 }
 void InitGDBDebug( void )
