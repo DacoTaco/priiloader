@@ -74,7 +74,7 @@ void SetDumpDebug( u8 value )
 	if (value != 1 && value != 0)
 		return;
 	DumpDebug = value;
-	if(DumpDebug & Mounted)
+	if(DumpDebug && Mounted)
 	{
 		//create file, or re-open and add lining
 		FILE* fd = NULL;
