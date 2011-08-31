@@ -135,8 +135,8 @@ u32 SGetSetting( u32 s )
 
 		case SETTING_BLACKBACKGROUND:
 			return settings->BlackBackground;
-		case SETTING_SHOWGECKOTEXT:
-			return settings->ShowGeckoText;
+		case SETTING_DUMPGECKOTEXT:
+			return settings->DumpGeckoText;
 		case SETTING_PASSCHECKPRII:
 			return settings->PasscheckPriiloader;
 		case SETTING_PASSCHECKMENU:

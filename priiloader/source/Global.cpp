@@ -26,6 +26,7 @@ GXRModeObj *rmode = NULL;
 void *xfb = NULL;
 s8 Mounted = 0;
 s8 Device_Not_Mountable = 0;
+static vid_init = 0;
 
 static const struct _timing {
 	u8 equ;
@@ -242,6 +243,8 @@ static void ___VIInit( void )
 }
 void InitVideo ( void )
 {
+	if (vid_init == 1)
+		return;
 	VIDEO_Init();
 
 	if(rmode == NULL)
@@ -266,7 +269,9 @@ void InitVideo ( void )
 	VIDEO_WaitVSync();
 	if(rmode->viTVMode&VI_NON_INTERLACE)
 		VIDEO_WaitVSync();
+	vid_init = 1;
 	gdprintf("resolution is %dx%d\n",rmode->viWidth,rmode->viHeight);
+	return;
 }
 void Control_VI_Regs ( u8 mode )
 {
@@ -334,14 +339,15 @@ bool PollDevices( void )
 		fatUnmount("fat:/");
 		if(Mounted & 1)
 		{
+			Mounted = 0;
 			gprintf("USB removed\n");
 		}
 		if(Mounted & 2)
 		{
+			Mounted = 0;
 			gprintf("SD removed\n");
 			__io_wiisd.shutdown();
 		}			
-		Mounted = 0;
 	}
 	//check if SD is mountable
 	if( !(Mounted & 2) && __io_wiisd.startup() &&  __io_wiisd.isInserted() && !(Device_Not_Mountable & 2) )
@@ -350,8 +356,8 @@ bool PollDevices( void )
 		{
 			//USB is mounted. lets kick it out and use SD instead :P
 			fatUnmount("fat:/");
-			gprintf("USB: Unmounted\n");
 			Mounted = 0;
+			gprintf("USB: Unmounted\n");
 		}
 		if(fatMountSimple("fat",&__io_wiisd))
 		{
@@ -360,8 +366,8 @@ bool PollDevices( void )
 		}
 		else
 		{
-			gprintf("SD: Failed to mount\n");
 			Device_Not_Mountable |= 2;
+			gprintf("SD: Failed to mount\n");
 		}
 	}
 	//check if USB is mountable.deu to short circuit evaluation you need to be VERY CAREFUL when changing the next if or anything usbstorage related
@@ -372,27 +378,27 @@ bool PollDevices( void )
 		//if( fatMountSimple("fat", &__io_usbstorage) )
 		if( fatMount("fat", &__io_usbstorage,0, 8, 64) )
 		{
-			gprintf("USB: Mounted\n");
 			Mounted |= 1;
+			gprintf("USB: Mounted\n");
 		}
 		else
 		{
-			gprintf("USB: Failed to mount\n");
 			Device_Not_Mountable |= 1;
+			gprintf("USB: Failed to mount\n");
 		}
 	}
 	if ( Device_Not_Mountable > 0 )
 	{
 		if ( ( Device_Not_Mountable & 1 ) && !__io_usbstorage.isInserted() )
 		{
-			gdprintf("USB: NM Flag Reset\n");
 			Device_Not_Mountable -= 1;
+			gdprintf("USB: NM Flag Reset\n");
 		}
 		if ( ( Device_Not_Mountable & 2 ) &&  !__io_wiisd.isInserted() )
 		{
 			//not needed for SD yet but just to be on the safe side
-			gdprintf("SD: NM Flag Reset\n");
 			Device_Not_Mountable -= 2;
+			gdprintf("SD: NM Flag Reset\n");
 			__io_wiisd.shutdown();
 		}
 	}

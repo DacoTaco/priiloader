@@ -121,7 +121,7 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket
 		}
 		memset(Data,0,sizeof(u8));
 		s32 total = 0;
-		gprintf( "Download: %c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c\r",
+		gdprintf( "Download: %c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c\r",
 		176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176 );
 		while (total != file_size)
 		{
@@ -138,15 +138,15 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int external_socket
 			memcpy( &Data[total], buffer, bytes_read );
 			total += bytes_read;
 			int Ddone = (total *20 )/ file_size;
-			gprintf("Download: ");
+			gdprintf("Download: ");
 			while( Ddone )
 			{
-				gprintf( "%c", 178 );
+				gdprintf( "%c", 178 );
 				Ddone--;
 			}
-			gprintf( "\r" );
+			gdprintf( "\r" );
 		}
-		gprintf("\r\n");
+		gdprintf("\r\n");
 	}
 	else
 	{

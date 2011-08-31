@@ -41,7 +41,7 @@ typedef struct {
 	u8 SystemMenuIOS;
 	u8 UseSystemMenuIOS;
 	u8 BlackBackground;
-	u8 ShowGeckoText;
+	u8 DumpGeckoText;
 	u8 PasscheckPriiloader;
 	u8 PasscheckMenu;
 	u32 ShowBetaUpdates;
@@ -57,7 +57,7 @@ enum {
 		SETTING_SYSTEMMENUIOS,
 		SETTING_USESYSTEMMENUIOS,
 		SETTING_BLACKBACKGROUND,
-		SETTING_SHOWGECKOTEXT,
+		SETTING_DUMPGECKOTEXT,
 		SETTING_PASSCHECKPRII,
 		SETTING_PASSCHECKMENU,
 		SETTING_SHOWBETAUPDATES,
