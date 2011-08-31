@@ -26,7 +26,7 @@ GXRModeObj *rmode = NULL;
 void *xfb = NULL;
 s8 Mounted = 0;
 s8 Device_Not_Mountable = 0;
-static vid_init = 0;
+static u8 vid_init = 0;
 
 static const struct _timing {
 	u8 equ;
