@@ -3625,8 +3625,7 @@ int main(int argc, char **argv)
 		error=ERROR_ISFS_INIT;
 	}
 
-	//tho 9MB is more then enough, some dols are like...12MB like wiimc o_O;
-	AddMem2Area (14*1024*1024, OTHER_AREA);
+	AddMem2Area (9*1024*1024, OTHER_AREA);
 	LoadHBCStub();
 	gprintf("\"Magic Priiloader word\": %x\n",*(vu32*)0x8132FFFB);
 	LoadSettings();
