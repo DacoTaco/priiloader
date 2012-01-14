@@ -115,5 +115,6 @@ s8 InitNetwork();
 bool PollDevices( void );
 void ShutdownDevices();
 bool RemountDevices( void );
+s8 GetMountedValue(void);
 
 #endif

@@ -308,7 +308,10 @@ void Control_VI_Regs ( u8 mode )
 
 	}
 }
-
+s8 GetMountedValue(void)
+{
+	return Mounted;
+}
 s8 InitNetwork()
 {
 	s32 result;
@@ -373,7 +376,8 @@ bool PollDevices( void )
 	//check if USB is mountable.deu to short circuit evaluation you need to be VERY CAREFUL when changing the next if or anything usbstorage related
 	//i know its stupid to init the USB device and yet not mount it, but thats the only way with c++ & the current usbstorage combo
 	//see http://en.wikipedia.org/wiki/Short-circuit_evaluation
-	else if( !(Device_Not_Mountable & 1) && ( __io_usbstorage.startup() ) && ( __io_usbstorage.isInserted() ) && (Mounted == 0) )
+	//else if( !(Device_Not_Mountable & 1) && ( __io_usbstorage.startup() ) && ( __io_usbstorage.isInserted() ) && (Mounted == 0) )
+	else if( ( __io_usbstorage.startup() ) && ( __io_usbstorage.isInserted() ) && (Mounted == 0) && !(Device_Not_Mountable & 1) )
 	{
 		//if( fatMountSimple("fat", &__io_usbstorage) )
 		if( fatMount("fat", &__io_usbstorage,0, 8, 64) )
