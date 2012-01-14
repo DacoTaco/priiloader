@@ -50,7 +50,7 @@ void gprintf( const char *str, ... )
 		usb_sendbuffer( 1, astr, strlen(astr) );
 		usb_flush(EXI_CHANNEL_1);
 	}
-	if (DumpDebug && Mounted)
+	if (DumpDebug > 0 && GetMountedValue() > 0)
 	{
 		FILE* fd = NULL;
 		fd = fopen("fat:/prii.log","ab");
@@ -72,9 +72,12 @@ void gprintf( const char *str, ... )
 void SetDumpDebug( u8 value )
 {
 	if (value != 1 && value != 0)
+	{
+		DumpDebug = 0;
 		return;
+	}
 	DumpDebug = value;
-	if(DumpDebug && Mounted)
+	if (DumpDebug > 0 && GetMountedValue() > 0)
 	{
 		//create file, or re-open and add lining
 		FILE* fd = NULL;

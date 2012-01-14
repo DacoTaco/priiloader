@@ -33,6 +33,35 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 Settings *settings=NULL;
 extern u8 error;
+static u32 Create_Settings_File( void )
+{
+	if(settings == NULL)
+	{
+		return -99;
+	}
+	s32 fd = 0;
+	ISFS_CreateFile("/title/00000001/00000002/data/loader.ini", 0, 3, 3, 3);
+	//set a few default settings
+	settings->BetaVersion = BETAVERSION;
+	settings->version = VERSION;
+	settings->UseSystemMenuIOS = 1;
+	settings->autoboot = AUTOBOOT_SYS;
+	settings->BlackBackground = 1;
+	fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", ISFS_OPEN_WRITE );
+	if( fd < 0 )
+	{
+		error = ERROR_SETTING_OPEN;
+		return fd;
+	}
+	if(ISFS_Write( fd, settings, sizeof( Settings ) )<0)
+	{
+		ISFS_Close( fd );
+		error = ERROR_SETTING_WRITE;
+		return fd;
+	}
+	ISFS_Close( fd );
+	return 1;
+}
 u32 GetSysMenuVersion( void )
 {
 	//Get sysversion from TMD
@@ -157,31 +186,15 @@ void LoadSettings( void )
 	}
 	memset( settings, 0, sizeof( Settings ) );
 	
-	s32 fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", 1|2 );
+	s32 fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", ISFS_OPEN_READ );
 	if( fd < 0 )
 	{
 		//file not found create a new one
-		ISFS_CreateFile("/title/00000001/00000002/data/loader.ini", 0, 3, 3, 3);
-		//set a few default settings
-		settings->version = VERSION;
-		settings->UseSystemMenuIOS = true;
-		settings->autoboot = AUTOBOOT_SYS;
-		settings->ShowBetaUpdates = false;
-		fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", 1|2 );
-		if( fd < 0 )
-		{
-			error = ERROR_SETTING_OPEN;
-			return;
-		}
-		if(ISFS_Write( fd, settings, sizeof( Settings ) )<0)
-		{
-			ISFS_Close( fd );
-			error = ERROR_SETTING_WRITE;
-			return;
-		}
-		ISFS_Seek( fd, 0, 0 );
+		Create_Settings_File();
+		return; // settings was created from scratch. no need to do it all over
+		//ISFS_Seek( fd, 0, 0 );
 	}
-	fstats *status = (fstats*)mem_align(32,ALIGN32(sizeof(fstats)) );
+	STACK_ALIGN(fstats,status,sizeof(fstats),32);//fstats *status = (fstats*)mem_align(32,ALIGN32(sizeof(fstats)) );
 	memset(status,0,sizeof(fstats));
 	ISFS_GetFileStats(fd,status);
 	if ( status->file_length != sizeof(Settings) )
@@ -190,51 +203,32 @@ void LoadSettings( void )
 		gprintf("LoadSettings : status->file_length != struct size , resetting...\n");
 		//recreate settings file
 		ISFS_Delete("/title/00000001/00000002/data/loader.ini");
-		ISFS_CreateFile("/title/00000001/00000002/data/loader.ini", 0, 3, 3, 3);
-		//set a few default settings
-		settings->version = VERSION;
-		settings->UseSystemMenuIOS = true;
-		settings->autoboot = AUTOBOOT_SYS;
-		fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", 1|2 );
-		if( fd < 0 )
+		Create_Settings_File();
+		/*if(status)
 		{
-			error = ERROR_SETTING_OPEN;
-			if(status)
-			{
-				mem_free(status);				
-			}
-			return;
-		}
-		if(ISFS_Write( fd, settings, sizeof( Settings ) )<0)
-		{
-			ISFS_Close( fd );
-			if(status)
-			{
-				mem_free(status);
-			}
-			error = ERROR_SETTING_WRITE;
-			return;
-		}
-		ISFS_Seek( fd, 0, 0 );
+			mem_free(status);
+		}*/
+		return;
+		//ISFS_Seek( fd, 0, 0 );
 	}
-	if(status)
+	/*if(status)
 	{
 		mem_free(status);
-	}
+	}*/
 	if(ISFS_Read( fd, settings, sizeof( Settings ) )<0)
 	{
 		ISFS_Close( fd );
 		error = ERROR_SETTING_READ;
 		return;
 	}
-	ISFS_Close( fd );
-	if( settings->version == 0 || settings->version != VERSION || settings->BetaVersion == 0 || settings->BetaVersion != BETAVERSION )
+	if( settings->version == 0 || settings->version != VERSION || settings->BetaVersion != BETAVERSION )
 	{
 		settings->version = VERSION;
 		settings->BetaVersion = BETAVERSION;
 		ISFS_Seek( fd, 0, 0 );
 		ISFS_Write( fd, settings, sizeof( Settings ) );
 	}
+	ISFS_Close( fd );
 	return;
 }
 int SaveSettings( void )

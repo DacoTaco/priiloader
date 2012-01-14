@@ -24,15 +24,15 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define _SETTINGS_H_
 
 
-#define VERSION		0x08
-#define BETAVERSION 0x00000001
+#define VERSION		0x00000008
+#define BETAVERSION 0x00000002
 
 #include "Global.h"
 
 typedef struct {
-	u32 autoboot;
+	u8 autoboot;
 	u32 version;
-	u32 ReturnTo;
+	u8 ReturnTo;
 	u8 ShutdownToPreloader;
 	u8 StopDisc;
 	u8 LidSlotOnError;
@@ -44,8 +44,9 @@ typedef struct {
 	u8 DumpGeckoText;
 	u8 PasscheckPriiloader;
 	u8 PasscheckMenu;
-	u32 ShowBetaUpdates;
-} Settings;
+	u8 ShowBetaUpdates;
+} ATTRIBUTE_ALIGN(32) Settings;
+
 enum {
 		SETTING_AUTBOOT,
 		SETTING_RETURNTO,

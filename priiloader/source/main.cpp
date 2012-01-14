@@ -96,7 +96,6 @@ extern DVD_status DVD_state;
 extern Settings *settings;
 extern u8 error;
 extern std::vector<hack_hash> hacks_hash;
-extern u32 *states;
 extern u32 *states_hash;
 extern s8 Mounted;
 
@@ -105,7 +104,8 @@ typedef struct wii_state {
 	s8 BootSysMenu:2;
 	s8 ReloadedIOS:2;
 	s8 InMainMenu:2;
-}__attribute((packed))wii_state;
+}__attribute((packed)) wii_state;
+
 wii_state system_state;
 time_t startloop = 0;
 u32 appentrypoint = 0;
@@ -2172,8 +2172,8 @@ void BootMainSysMenu( u8 init )
 						}
 						add++;
 					}//end while loop
-				} //end for loop of all hashes of hack i
-			} //end if state = 1
+				} //end for loop of all hashes of hack[i]
+			} //end if state[i] = 1
 		} // end general hacks loop
 	} //end if hacks > 0
 	if(TMD)
@@ -2437,17 +2437,11 @@ void InstallLoadDOL( void )
 					{
 						for(int swap_index = 0;swap_index < (s32)app_list.size();swap_index++)
 						{
-							std::string temp_name_cnt = app_list[count].app_name;
-							std::transform(temp_name_cnt.begin(),temp_name_cnt.end(),temp_name_cnt.begin(),tolower);
-							std::string temp_name_swap = app_list[swap_index].app_name;
-							std::transform(temp_name_swap.begin(),temp_name_swap.end(),temp_name_swap.begin(),tolower);
-							if ( temp_name_cnt < temp_name_swap )
+							if ( strcasecmp(app_list[count].app_name.c_str(), app_list[swap_index].app_name.c_str()) < 0 )
 							{
 								swap = 1;
 								std::swap(app_list[count],app_list[swap_index]);
 							}
-							temp_name_cnt.clear();
-							temp_name_swap.clear();
 						}
 					}
 				}
@@ -2510,7 +2504,7 @@ void InstallLoadDOL( void )
 			unsigned int size = ftell( dol );
 			fseek( dol, 0, 0 );
 
-			char *buf = (char*)mem_align( 32, sizeof( char ) * size );
+			char *buf = (char*)mem_align( 32, ALIGN32(sizeof( char ) * size) );
 			if(buf != NULL)
 			{
 				memset( buf, 0, sizeof( char ) * size );
@@ -3591,6 +3585,13 @@ void Autoboot_System( void )
 	}
 	return;
 }
+s8 CheckMagicWords( void )
+{
+	//0x4461636f = "Daco" in hex, 0x50756e65 = "Pune"
+	if( *(vu32*)0x8132FFFB == 0x4461636f || *(vu32*)0x8132FFFB == 0x50756e65 )
+		return 1;
+	return 0;
+}
 int main(int argc, char **argv)
 {
 	CheckForGecko();
@@ -3625,7 +3626,7 @@ int main(int argc, char **argv)
 		error=ERROR_ISFS_INIT;
 	}
 
-	AddMem2Area (9*1024*1024, OTHER_AREA);
+	AddMem2Area (14*1024*1024, OTHER_AREA);
 	LoadHBCStub();
 	gprintf("\"Magic Priiloader word\": %x\n",*(vu32*)0x8132FFFB);
 	LoadSettings();
@@ -3638,8 +3639,7 @@ int main(int argc, char **argv)
 	gprintf("BootState:%d\n", Bootstate );
 	memset(&system_state,0,sizeof(wii_state));
 	//Check reset button state
-	//TODO : move magic word handling to some place else (its own function?)
-	if( ((*(vu32*)0xCC003000)>>16)&1 && *(vu32*)0x8132FFFB != 0x4461636f && *(vu32*)0x8132FFFB != 0x50756e65) //0x4461636f = "Daco" in hex, 0x50756e65 = "Pune"
+	if( ((*(vu32*)0xCC003000)>>16)&1 && !CheckMagicWords()) 
 	{
 		//Check autoboot settings
 		StateFlags temp;
@@ -3802,7 +3802,14 @@ int main(int argc, char **argv)
 	}
 	_sync();
 	time(&startloop);
+#ifdef DEBUG
 	gdprintf("priiloader v%d.%d DEBUG (Sys:%d)(IOS:%d)(%s %s)\n", VERSION>>8, VERSION&0xFF, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
+#else
+	if(BETAVERSION > 0)
+	{
+		gprintf("priiloader v%d.%d BETA %d (Sys:%d)(IOS:%d)(%s %s)\n", VERSION>>8, VERSION&0xFF,BETAVERSION,SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
+	}
+#endif
 	system_state.InMainMenu = 1;
 	while(1)
 	{
