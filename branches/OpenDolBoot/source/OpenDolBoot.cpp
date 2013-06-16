@@ -11,7 +11,7 @@ int main(int argc, char **argv)
 	char ShowInfo = false;
 	char* Nand_Use_File = 0;
 	char* OutputFile = 0;
-	if ( argc < 1 && (strcmp(argv[1],"-h") == 0 || strcmp(argv[1],"-H") == 0 || argc == 1))
+	if ( argc < 2 || (strcmp(argv[1],"-h") == 0 || strcmp(argv[1],"-H") == 0 || argc == 1))
 	{
 		Display_Parameters();
 		exit(0);

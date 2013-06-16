@@ -2,7 +2,7 @@
 
 priiloader/preloader 0.30 - A tool which allows to change the default boot up sequence on the Wii console
 
-Copyright (C) 2008-2009  crediar
+Copyright (C) 2008-2013  crediar
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -35,33 +35,23 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "font.h"
 #include "mem2_manager.h"
 
-unsigned long trans_font(unsigned long int value, int add_color[5])
+u32 trans_font(u32 value, int add_color[4])
 {
-	char val[11], t[3], valou[11];
-	unsigned long valout;
-	int new_color[5];
-	int i;
-	sprintf(val, "%08lX", value);
-	val[10]='\0';
-	for(i=0;i<4;i++)
+	if (!add_color) 
+		gprintf("SOMEONE DONE FUCKED UP!!!\n");
+	u32 i, out = 0;
+	/* in a,b,g,r order */
+	for (i = 0; i < 4; i++)
 	{
-		strncpy(t, val+(i*2), 2);
-		t[2]='\0';
-		new_color[i] = strtol(t,NULL,16);
+		u32 color = (value >> (8*i)) & 0xff;
+		color += add_color[3-i];
+		if (color & 0x80000000) 
+			color = 0;
+		else if (color > 0xff) 
+			color = 0xff;
+		out |= (color << (8*i));
 	}
-	for(i=0;i<4;i++)
-	{
-		if(new_color[i] + add_color[i] > 255)
-			new_color[i] = 255;
-		else if(new_color[i] + add_color[i] < 0)
-			new_color[i] = 0;
-		else
-			new_color[i] = new_color[i] + add_color[i];
-	}
-
-	sprintf(valou, "0x%02X%02X%02X%02X", new_color[0], new_color[1], new_color[2], new_color[3]);
-	valout = strtoul(valou, NULL, 16);
-	return valout;
+	return out;
 }
 
 void PrintCharY( int xx, int yy, char c )
@@ -69,16 +59,12 @@ void PrintCharY( int xx, int yy, char c )
 	//selected text
 	unsigned long* fb = (unsigned long*)VIDEO_GetCurrentFramebuffer();
 
-	int change_color[5];
-	change_color[0] =  10;
-	change_color[1] =  30;
-	change_color[2] =  50;
-	change_color[3] = -10;
+	int change_color[4] = {10,30,50,-10};
 
 	if( fb == NULL )
 		return;
 
-	if( c >= 0x7F || c < 0x20)
+	if( c >= 0x7E || c < 0x20)
 		c = ' ';
 	for( int x=1; x <7; ++x)
 	{
@@ -144,17 +130,15 @@ void PrintString( int col, int x, int y, char *str )
 }
 void PrintFormat(int col, int x, int y, const char *str, ... )
 {
-	char *astr = (char*)mem_malloc( 2048 );
+	char astr[2048];
 	memset( astr, 0, 2048 );
 
 	va_list ap;
 	va_start( ap, str );
 
-	vsprintf( astr, str, ap);
+	vsnprintf(astr, 2047, str, ap);
 
 	va_end( ap );
 
 	PrintString( col, x, y, astr );
-
-	mem_free(astr);
 }

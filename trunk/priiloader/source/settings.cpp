@@ -2,7 +2,7 @@
 
 priiloader/preloader 0.30 - A tool which allows to change the default boot up sequence on the Wii console
 
-Copyright (C) 2008-2009  crediar
+Copyright (C) 2008-2013  crediar
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -184,6 +184,8 @@ void LoadSettings( void )
 		//the settings still need to be aligned/allocated. so lets do that
 		settings = (Settings*)mem_align( 32, ALIGN32( sizeof( Settings ) ) );
 	}
+	if(settings == NULL)
+		return;
 	memset( settings, 0, sizeof( Settings ) );
 	
 	s32 fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", ISFS_OPEN_READ );
@@ -233,6 +235,11 @@ void LoadSettings( void )
 }
 int SaveSettings( void )
 {
+	if(settings == NULL)
+	{
+		error = ERROR_SETTING_WRITE;
+		return -1;
+	}
 	s32 fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", 1|2 );
 	
 	if( fd < 0 )

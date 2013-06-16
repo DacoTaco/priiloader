@@ -1,8 +1,8 @@
 /*
 
-priiloader/preloader 0.30 - A tool which allows to change the default boot up sequence on the Wii console
+priiloader - A tool which allows to change the default boot up sequence on the Wii console
 
-Copyright (C) 2008-2013  crediar
+Copyright (C) 2008-2013 DacoTaco
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -19,19 +19,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 */
-#include "Global.h"
-#include <string>
+#ifndef _VERSION_H_
+#define _VERSION_H_
 
-struct patch_struct {
-	std::vector<uint8_t> hash;
-	std::vector<uint8_t> patch;
-};
-struct hack_hash {
-	std::string desc;
-	unsigned int max_version;
-	unsigned int min_version;
-	unsigned int amount;
-	std::vector< patch_struct > patches;
-};
+#define VERSION		0x00000008
+#define BETAVERSION 0x00000007
 
-s8 LoadHacks_Hash( bool Force_Load_Nand );
+#endif
