@@ -1,7 +1,7 @@
 /*
 
 HTTP Parser by DacoTaco
-Copyright (C) 2009-20010  DacoTaco
+Copyright (C) 2013-2013  DacoTaco
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -217,7 +217,7 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int* external_socke
 			ret = -9;
 			goto return_ret;
 		}
-		memset(Data,0,sizeof(u8));
+		memset(Data,0,file_size);
 		s32 total = 0;
 		gdprintf( "Download: %c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c\r",
 		176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176 );

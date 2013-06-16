@@ -2,7 +2,7 @@
 
 priiloader - A tool which allows to change the default boot up sequence on the Wii console
 
-Copyright (C) 2008-2009 DacoTaco
+Copyright (C) 2008-2013 DacoTaco
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -31,13 +31,15 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "mem2_manager.h"
 #include "dvd.h"
 
+#define TITLE_UPPER(x) (u32)(x >> 32)
+#define TITLE_LOWER(x) (u32)(x & 0xFFFFFFFF)
 #define USE_DVD_ASYNC
-extern DVD_status DVD_state;
+
 s8 CheckTitleOnSD(u64 id)
 {
 	//check Mounted Devices so that IF the SD is inserted it also gets mounted
 	PollDevices();
-	if (!(Mounted & 2)) //no SD mounted, lets bail out
+	if (!(GetMountedValue() & 2)) //no SD mounted, lets bail out
 		return -1;
 	char title_ID[5];
 	//Check app on SD. it might be there. not that it matters cause we can't boot from SD
@@ -226,10 +228,10 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 	if(str[lang][0] != '\0')
 	{
 		gdprintf("GetTitleName : title %s\n",str[lang]);
-		sprintf(name, "%s", str[lang]);
+		snprintf(name,255, "%s", str[lang]);
 		if (return_unicode_name && str_unprocessed[lang][1] != '\0')
 		{
-			memcpy(_dst_uncode_name,&str_unprocessed[lang][0],84);
+			memcpy(_dst_uncode_name,&str_unprocessed[lang][0],83);
 		}
 		else if(return_unicode_name)
 			gprintf("WARNING : empty unprocessed string\n");
@@ -353,6 +355,7 @@ s32 LoadListTitles( void )
 					temp.content_id = rTMD->contents[0].cid;
 					//gprintf("0x%02X%02X%02X%02X\n",temp.name_unicode[0],temp.name_unicode[1],temp.name_unicode[2],temp.name_unicode[3]);
 					titles.push_back(temp);
+					gprintf("LoadListTitles : added %d , title id %08X/%08X(%s)\n",titles.size(),TITLE_UPPER(temp.title_id),TITLE_LOWER(temp.title_id),temp.name_ascii.c_str());
 				}
 				if(rTMD)
 				{
@@ -392,11 +395,11 @@ s32 LoadListTitles( void )
 	if( rmode->viTVMode == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
 	{
 		//ye, those tv's want a special treatment again >_>
-		max_pos = 18;
+		max_pos = 14;
 	}
 	else
 	{
-		max_pos = 23;
+		max_pos = 19;
 	}
 	s16 min_pos = 0;
 	if ((s32)titles.size() < max_pos)
@@ -420,7 +423,7 @@ s32 LoadListTitles( void )
 			if (cur_off < min_pos)
 			{
 				min_pos = cur_off;
-				if(titles.size() > 23)
+				if(titles.size() > 19)
 				{
 					for(s8 i = min_pos; i<=(min_pos + max_pos); i++ )
 					{
@@ -443,7 +446,7 @@ s32 LoadListTitles( void )
 			if (cur_off > (max_pos + min_pos))
 			{
 				min_pos = cur_off - max_pos;
-				if(titles.size() > 23)
+				if(titles.size() > 19)
 				{
 					for(s8 i = min_pos; i<=(min_pos + max_pos); i++ )
 					{
@@ -473,9 +476,25 @@ s32 LoadListTitles( void )
 
 			//lets start this bitch
 #ifdef USE_DVD_ASYNC
-			DVDStopDisc(true);
+			if(DVDCheckCover())
+			{
+				gprintf("LoadListTitles : excecuting StopDisc Async...\n");
+				DVDStopDisc(true);
+			}
+			else
+			{
+				gprintf("LoadListTitles : Skipping StopDisc -> no drive or disc in drive\n");
+			}
 #else
-			DVDStopDisc(false);
+			if(DVDCheckCover())
+			{
+				gprintf("LoadListTitles : excecuting StopDisc...\n");
+				DVDStopDisc(false);
+			}
+			else
+			{
+				gprintf("LoadListTitles : Skipping StopDisc -> no drive or disc in drive\n");
+			}
 #endif
 			
 			u32 cnt ATTRIBUTE_ALIGN(32) = 0;
@@ -512,24 +531,6 @@ s32 LoadListTitles( void )
 			ShutdownDevices();
 
 #ifdef USE_DVD_ASYNC
-			/*if(!DVD_state.DriveClosed)
-			{
-				gprintf("waiting for drive to shutdown...\n");
-			}
-			while(DVD_state.DriveClosed != 0 && GetDvdFD() != 0)
-			{
-				if(DVD_state.DriveError)
-				{
-					DVDCleanUp();
-					DVDStopDisc(false);
-					DVD_state.DriveClosed = 1;
-				}
-				if(DVD_state.DriveClosed)
-				{
-					DVDCleanUp();
-					break;
-				}
-			}*/
 			gdprintf("waiting for drive to stop...\n");
 			while(DvdKilled() < 1);
 #endif
@@ -548,8 +549,8 @@ failure:
 		}			
 		if(redraw)
 		{
-			s8 i= min_pos;
-			if((s32)titles.size() > max_pos && (min_pos != (s32)titles.size() - max_pos - 1))
+			s16 i= min_pos;
+			if((s32)titles.size() -1 > max_pos && (min_pos != (s32)titles.size() - max_pos - 1))
 			{
 				PrintFormat( 0,((rmode->viWidth /2)-((strlen("-----More-----"))*13/2))>>1,64+(max_pos+2)*16,"-----More-----");
 			}
@@ -571,6 +572,7 @@ failure:
 				}
 				title_ID[4]='\0';
 				PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "(%d)%s(%s)                   ",i+1,titles[i].name_ascii.c_str(), title_ID);
+				//gprintf("lolid : %s - %x & %x \n",title_ID,titles[i].title_id,(titles[i].title_id & 0x00000000FFFFFFFF) << 32);
 				PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Load Title       "))*13/2))>>1, rmode->viHeight-32, "A(A) Load Title");
 			}
 			redraw = false;

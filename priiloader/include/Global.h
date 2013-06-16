@@ -2,7 +2,7 @@
 
 priiloader(preloader mod) - A tool which allows to change the default boot up sequence on the Wii console
 
-Copyright (C) 2009-2010  DacoTaco
+Copyright (C) 2013-2013  DacoTaco
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -95,8 +95,6 @@ typedef struct _tmd_view_t
 //--------------
 extern GXRModeObj *rmode;
 extern void *xfb;
-extern s8 Mounted;
-extern s8 Device_Not_Mountable;
 
 //FUNCTIONS
 //---------------
@@ -112,6 +110,8 @@ void InitVideo ( void );
 #define free_pointer(x) if(x != NULL) { free(x);x=NULL; }
 void Control_VI_Regs ( u8 mode );
 s8 InitNetwork();
+u8 GetUsbOnlyMode();
+u8 ToggleUSBOnlyMode();
 bool PollDevices( void );
 void ShutdownDevices();
 bool RemountDevices( void );

@@ -2,7 +2,7 @@
 
 priiloader/preloader 0.30 - A tool which allows to change the default boot up sequence on the Wii console
 
-Copyright (C) 2008-2009  crediar
+Copyright (C) 2008-2013  crediar
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -20,6 +20,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 */
 //#define DEBUG
+#define MAGIC_WORD_ADDRESS_1 0x8132FFFB
+#define MAGIC_WORD_ADDRESS_2 0x817FEFF0
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -97,22 +99,24 @@ extern Settings *settings;
 extern u8 error;
 extern std::vector<hack_hash> hacks_hash;
 extern u32 *states_hash;
-extern s8 Mounted;
 
 typedef struct wii_state {
 	s8 Shutdown:2;
 	s8 BootSysMenu:2;
 	s8 ReloadedIOS:2;
 	s8 InMainMenu:2;
-}__attribute((packed)) wii_state;
+} wii_state;
 
 wii_state system_state;
 time_t startloop = 0;
 u32 appentrypoint = 0;
 
+//overwrite the weak variable in libogc that enables malloc to use mem2. this disables it
+u32 MALLOC_MEM2 = 0;
+
 s32 __IOS_LoadStartupIOS()
 {
-        return 0;
+	return 0;
 }
 u8 DetectHBC( void )
 {
@@ -139,6 +143,11 @@ u8 DetectHBC( void )
 	//lets check for known HBC title id's.
     for(u32 i=0; i<titlecount; i++) 
 	{
+		if (list[i] == 0x000100014C554C5ALL)
+		{
+			if(ret < 4)
+				ret = 4;
+		}
 		if (list[i] == 0x00010001AF1BF516LL)
 		{
 			if(ret < 3)
@@ -169,29 +178,56 @@ void LoadHBCStub ( void )
 	//HBC < 1.0.5 = HAXX or 4841 5858
 	//HBC >= 1.0.5 = JODI or 4A4F 4449
 	//HBC >= 1.0.7 = .... or AF1B F516
-	if ( *(vu32*)0x80001804 == 0x53545542 && *(vu32*)0x80001808 == 0x48415858 )
+
+	//in the JODI stub 0x800024CA & 24D2 needed to be changed. in the new 0.10 its 0x80001F62 & 1F6A
+	/*if ( *(vu32*)0x80001804 == 0x53545542 && *(vu32*)0x80001808 == 0x48415858 )
 	{
 		return;
-	}
+	}*/
 	//load Stub, contains JODI by default.
 	memcpy((void*)0x80001800, stub_bin, stub_bin_size);
 	DCFlushRange((void*)0x80001800,stub_bin_size);
 	
 	//see if changes are needed to change it to the right ID
+	//TODO : try the "LOADKTHX" function of the stub instead of changing titleID
+	//(9:16:33 AM) megazig: 0x80002760 has a ptr. write 'LOADKTHX' where that points
+	//(9:16:49 AM) megazig: 0x80002764 has a pttr. write u64 titleid there
+	//(12:55:06 PM) megazig: DacoTaco: the trick of overwriting their memset does. without nopping then memset it does not
+	/*
+	//disable the memset that disables this LOADKTHX function in the stub
+	*(u32*)0x800019B0 = 0x60000000; 
+	DCFlushRange((void*)0x800019A0, 0x20);
+	//set up the LOADKTHX parameters
+	*(u32*)(*(u32*)0x80002760) = 0x4c4f4144;
+	*(u32*)((*(u32*)0x80002760)+4) = 0x4b544858;
+	*(u32*)0x80002F08 = 0x00010001;
+	*(u32*)0x80002F0C = 0x4441434F;
+	DCFlushRange((void*)0x80001800,stub_bin_size);*/
+
     switch(DetectHBC())
 	{
 		default: //not good, no HBC was detected >_> lets keep the stub anyway
-			gprintf("HBC stub : No HBC Detected!1.0.8 stub loaded by default\n");
-		case 3:
-			*(vu16*)0x800024CA = 0xAF1B;
-			*(vu16*)0x800024D2 = 0xF516;
+			gprintf("HBC stub : No HBC Detected!1.1.0 stub loaded by default\n");
+			break;
+		case 4:
+			*(vu16*)0x80001F62 = 0x4C55;
+			*(vu16*)0x80001F6A = 0x4C5A;
 			DCFlushRange((void*)0x80001800,stub_bin_size);
 			break;
+		case 3:
+			/**(vu16*)0x80001F62 = 0xAF1B;
+			*(vu16*)0x80001F6A = 0xF516;
+			DCFlushRange((void*)0x80001800,stub_bin_size);*/
+			break;
 		case 1: //HAXX
-			*(vu16*)0x800024CA = 0x4841;//"HA";
-			*(vu16*)0x800024D2 = 0x5858;//"XX";
+			*(vu16*)0x80001F62 = 0x4841;//"HA";
+			*(vu16*)0x80001F6A = 0x5858;//"XX";
 			DCFlushRange((void*)0x80001800,stub_bin_size);
-		case 2: //JODI, no changes are needed. the internal stub we load is dumped from jodi(1.0.6)
+			break;
+		case 2: //JODI
+			*(vu16*)0x80001F62 = 0x4A4F; //"JO";
+			*(vu16*)0x80001F6A = 0x4449; //"DI";
+			DCFlushRange((void*)0x80001800,stub_bin_size);
 			break;
 	}
 	gprintf("HBC stub : Loaded\n");
@@ -200,6 +236,7 @@ void LoadHBCStub ( void )
 void UnloadHBCStub( void )
 {
 	//some apps apparently dislike it if the stub stays in memory but for some reason isn't active :/
+	//this isn't used cause as odd as the bug sounds, it vanished...
 	memset((void*)0x80001800, 0, stub_bin_size);
 	DCFlushRange((void*)0x80001800,stub_bin_size);	
 	return;
@@ -325,7 +362,7 @@ void SysHackHashSettings( void )
 {
 	if( !LoadHacks_Hash(false) )
 	{
-		if(Mounted == 0)
+		if(GetMountedValue() == 0)
 		{
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to mount FAT device"))*13/2))>>1, 208+16, "Failed to mount FAT device");
 		}
@@ -373,12 +410,6 @@ void SysHackHashSettings( void )
 		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
 		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
 
-#ifdef DEBUG
-		if ( (WPAD_Pressed & WPAD_BUTTON_HOME) || (PAD_Pressed & PAD_BUTTON_START) )
-		{
-			exit(0);
-		}
-#endif
 		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 		{
 			break;
@@ -391,7 +422,7 @@ void SysHackHashSettings( void )
 				//first try to open the file on the SD card/USB, if we found it copy it, other wise skip
 				s16 fail = 0;
 				FILE *in = NULL;
-				if (Mounted != 0)
+				if (GetMountedValue() != 0)
 				{
 					in = fopen ("fat:/apps/priiloader/hacks_hash.ini","rb");
 				}
@@ -399,7 +430,7 @@ void SysHackHashSettings( void )
 				{
 					gprintf("no FAT device found\n");
 				}
-				if ( ( (Mounted & 2) && !__io_wiisd.isInserted() ) || ( (Mounted & 1) && !__io_usbstorage.isInserted() ) )
+				if ( ( (GetMountedValue() & 2) && !__io_wiisd.isInserted() ) || ( (GetMountedValue() & 1) && !__io_usbstorage.isInserted() ) )
 				{
 					PrintFormat( 0, 103, rmode->viHeight-48, "saving failed : SD/USB error");
 					continue;
@@ -690,12 +721,6 @@ void SetSettings( void )
 		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
 		u32 PAD_Pressed  = PAD_ButtonsDown(0)  | PAD_ButtonsDown(1)  | PAD_ButtonsDown(2)  | PAD_ButtonsDown(3);
 
-#ifdef DEBUG
-		if ( (WPAD_Pressed & WPAD_BUTTON_HOME) || (PAD_Pressed & PAD_BUTTON_START) )
-		{
-			exit(0);
-		}
-#endif
 		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 		{
 			LoadSettings();
@@ -904,6 +929,7 @@ void SetSettings( void )
 							{
 								break;
 							}
+							VIDEO_WaitVSync();
 						}
 						ClearScreen();
 						
@@ -950,6 +976,7 @@ void SetSettings( void )
 							{
 								break;
 							}
+							VIDEO_WaitVSync();
 						}
 						ClearScreen();
 					}
@@ -1202,6 +1229,10 @@ void LoadHBC( void )
 			gprintf("LoadHBC : >=0.7 detected\n");
 			TitleID = 0x00010001AF1BF516LL;
 			break;
+		case 4: //1.2 , 'LULZ'
+			gprintf("LoadHBC : 1.2 detected\n");
+			TitleID = 0x000100014C554C5ALL;
+			break;
 		default: //LOL nothing?
 			error = ERROR_BOOT_HBC;
 			return;
@@ -1231,7 +1262,7 @@ void LoadBootMii( void )
 		}
 		return;
 	}
-	if ( !(Mounted & 2) )
+	if ( !(GetMountedValue() & 2) )
 	{
 		if(rmode != NULL)
 		{
@@ -1284,9 +1315,9 @@ s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 	void	(*entrypoint)();
 	Elf32_Ehdr ElfHdr;
 	fread( &ElfHdr, sizeof( ElfHdr ), 1, fat_fd );
-	if( ElfHdr.e_ident[EI_MAG0] == 0x7F ||
-		ElfHdr.e_ident[EI_MAG1] == 'E' ||
-		ElfHdr.e_ident[EI_MAG2] == 'L' ||
+	if( ElfHdr.e_ident[EI_MAG0] == 0x7F &&
+		ElfHdr.e_ident[EI_MAG1] == 'E' &&
+		ElfHdr.e_ident[EI_MAG2] == 'L' &&
 		ElfHdr.e_ident[EI_MAG3] == 'F' )
 	{
 		//ELF detected
@@ -1386,8 +1417,16 @@ s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 			fclose(fat_fd);
 			return -2;
 		}
-
-		DVDStopDisc(true);
+		
+		if(DVDCheckCover())
+		{
+			gprintf("BootDolFromFat : excecuting StopDisc Async...\n");
+			DVDStopDisc(true);
+		}
+		else
+		{
+			gprintf("BootDolFromFat : Skipping StopDisc -> no drive or disc in drive\n");
+		}
 		//Text Sections
 		for (s8 i = 0; i < 6; i++)
 		{
@@ -1439,8 +1478,11 @@ s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 	ClearState();
 	WPAD_Shutdown();
 	ShutdownDevices();
-	gdprintf("waiting for drive to stop...\n");
-	while(DvdKilled() < 1);
+	if(DvdKilled() < 1)
+	{
+		gprintf("checking DVD drive...\n");
+		while(DvdKilled() < 1);
+	}
 
 	s8 bAHBPROT = 0;
 	s32 Ios_to_load = 0;
@@ -1470,6 +1512,7 @@ s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		system_state.ReloadedIOS = 1;
 	}
 
+	gprintf("IOS state : ios %d - ahbprot : %d \n",IOS_GetVersion(),(read32(0x0d800064) == 0xFFFFFFFF ));
 	gprintf("BootDolFromFat : Entrypoint: 0x%08X\n", (u32)(entrypoint) );
 
 	ISFS_Deinitialize();
@@ -1500,9 +1543,9 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 
 	memcpy(&ElfHdr,dolstart,sizeof(Elf32_Ehdr));
 	
-	if( ElfHdr.e_ident[EI_MAG0] == 0x7F ||
-		ElfHdr.e_ident[EI_MAG1] == 'E' ||
-		ElfHdr.e_ident[EI_MAG2] == 'L' ||
+	if( ElfHdr.e_ident[EI_MAG0] == 0x7F &&
+		ElfHdr.e_ident[EI_MAG1] == 'E' &&
+		ElfHdr.e_ident[EI_MAG2] == 'L' &&
 		ElfHdr.e_ident[EI_MAG3] == 'F' )
 	{
 
@@ -1528,7 +1571,15 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 			return -1;
 		}
 		//its an elf; lets start killing DVD :')
-		DVDStopDisc(true);
+		if(DVDCheckCover())
+		{
+			gprintf("BootDolFromMem : excecuting StopDisc Async...\n");
+			DVDStopDisc(true);
+		}
+		else
+		{
+			gprintf("BootDolFromMem : Skipping StopDisc -> no drive or disc in drive\n");
+		}
 		if( ElfHdr.e_phnum == 0 )
 		{
 			gdprintf("BootDolFromMem : Warning program header entries are zero!\n");
@@ -1608,7 +1659,16 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 			//place IOS reload here
 		}
 		//start killing DVD :')
-		DVDStopDisc(true);
+		if(DVDCheckCover())
+		{
+			gprintf("BootDolFromMem : excecuting StopDisc Async...\n");
+			DVDStopDisc(true);
+		}
+		else
+		{
+			gprintf("BootDolFromMem : Skipping StopDisc -> no drive or disc in drive\n");
+		}
+
 		for (s8 i = 0; i < 7; i++) {
 			if ((!dolfile->sizeText[i]) || (dolfile->addressText[i] < 0x100)) continue;
 			memmove ((void *) dolfile->addressText[i],dolstart+dolfile->offsetText[i],dolfile->sizeText[i]);
@@ -1651,8 +1711,12 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 	ClearState();
 	WPAD_Shutdown();
 	ShutdownDevices();
-	gdprintf("waiting for drive to stop...\n");
-	while(DvdKilled() < 1);
+
+	if(DvdKilled() < 1)
+	{
+		gprintf("checking DVD drive...\n");
+		while(DvdKilled() < 1);
+	}
 
 	s8 bAHBPROT = 0;
 	s32 Ios_to_load = 0;
@@ -1682,6 +1746,7 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		system_state.ReloadedIOS = 1;
 	}
 	
+	gprintf("IOS state : ios %d - ahbprot : %d \n",IOS_GetVersion(),(read32(0x0d800064) == 0xFFFFFFFF ));
 	gprintf("BootDolFromMem : Entrypoint: 0x%08X\n", (u32)(entrypoint) );
 
 	ISFS_Deinitialize();
@@ -1723,7 +1788,7 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 
 s8 BootDolFromDir( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<std::string> &args_list)
 {
-	if (Mounted == 0)
+	if (GetMountedValue() == 0)
 	{
 		return -5;
 	}
@@ -2218,7 +2283,7 @@ void InstallLoadDOL( void )
 	DIR* dir;
 	s8 reload = 1;
 	s8 redraw = 1;
-	s8 DevStat = Mounted;
+	s8 DevStat = GetMountedValue();
 	s16 cur_off = 0;
 	s16 max_pos = 0;
 	s16 min_pos = 0;
@@ -2226,7 +2291,7 @@ void InstallLoadDOL( void )
 	while(1)
 	{
 		PollDevices();
-		if (DevStat != Mounted)
+		if (DevStat != GetMountedValue())
 		{
 			ClearScreen();
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Reloading Binaries..."))*13/2))>>1, 208, "Reloading Binaries...");
@@ -2238,7 +2303,7 @@ void InstallLoadDOL( void )
 			cur_off = 0;
 			redraw=1;
 		}
-		if(Mounted == 0)
+		if(GetMountedValue() == 0)
 		{
 			ClearScreen();
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("NO fat device found!"))*13/2))>>1, 208, "NO fat device found!");
@@ -2247,7 +2312,8 @@ void InstallLoadDOL( void )
 		}
 		if(reload)
 		{
-			DevStat = Mounted;
+			gprintf("loading shit...\n");
+			DevStat = GetMountedValue();
 			reload = 0;
 			dir = opendir ("fat:/apps/");
 			if( dir != NULL )
@@ -2315,7 +2381,10 @@ void InstallLoadDOL( void )
 						fclose(app_bin);
 						char* tag_start = 0;
 						char* tag_end = 0;
+						//note to self. find safer fucking to replace strstr
 						tag_start = strstr(buf,"<no_ios_reload/>");
+						if(tag_start == NULL)
+							tag_start = strstr(buf,"<ahb_access/>");
 						if(tag_start != NULL)
 							temp.HW_AHBPROT_ENABLED = 1;
 						tag_start = 0;
@@ -2408,8 +2477,20 @@ void InstallLoadDOL( void )
 				}
 				closedir( dir );
 			}
+			
 			if( app_list.size() == 0 )
 			{
+				if((GetMountedValue() & 2) && ToggleUSBOnlyMode() == 1)
+				{
+					gprintf("switching to USB only...also mounted == %d\n",GetMountedValue());
+					reload = 1;
+					continue;
+				}
+				if(GetUsbOnlyMode() == 1)
+				{
+					gprintf("fixing usbonly mode...\n");
+					ToggleUSBOnlyMode();
+				}
 				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Couldn't find any executable files"))*13/2))>>1, 208, "Couldn't find any executable files");
 				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("in the fat:/apps/ on the device!"))*13/2))>>1, 228, "in the fat:/apps/ on the device!");
 				sleep(5);
@@ -2478,10 +2559,6 @@ void InstallLoadDOL( void )
 		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
 		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
  
-#ifdef DEBUG
-		if ( (WPAD_Pressed & WPAD_BUTTON_HOME) || (PAD_Pressed & PAD_BUTTON_START) )
-			exit(0);
-#endif
 		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
 		{
 			break;
@@ -2813,9 +2890,9 @@ read_dol:
 		goto return_dol;
 	}
 
-	if( ElfHdr->e_ident[EI_MAG0] == 0x7F ||
-		ElfHdr->e_ident[EI_MAG1] == 'E' ||
-		ElfHdr->e_ident[EI_MAG2] == 'L' ||
+	if( ElfHdr->e_ident[EI_MAG0] == 0x7F &&
+		ElfHdr->e_ident[EI_MAG1] == 'E' &&
+		ElfHdr->e_ident[EI_MAG2] == 'L' &&
 		ElfHdr->e_ident[EI_MAG3] == 'F' )
 	{
 		gdprintf("ELF Found\n");
@@ -3004,7 +3081,16 @@ read_dol:
 			error = ERROR_BOOT_DOL_ENTRYPOINT;
 			goto return_dol;
 		}
-		DVDStopDisc(true);
+
+		if(DVDCheckCover())
+		{
+			gprintf("AutoBootDol : excecuting StopDisc Async...\n");
+			DVDStopDisc(true);
+		}
+		else
+		{
+			gprintf("AutoBootDol : Skipping StopDisc -> no drive or disc in drive\n");
+		}
 		gdprintf("\nText Sections:\n");
 		int i=0;
 		for (i = 0; i < 6; i++)
@@ -3067,13 +3153,18 @@ read_dol:
 		WPAD_Flush(i);
 		WPAD_Disconnect(i);
 	}
+	if(DvdKilled() < 1)
+	{
+		gprintf("checking DVD drive...\n");
+		while(DvdKilled() < 1);
+	}
+
+	gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
 	WPAD_Shutdown();
 	ClearState();
 	ISFS_Deinitialize();
 	ShutdownDevices();
 	USB_Deinitialize();
-	while(DvdKilled() < 1);
-	gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
 
 	if( !isIOSstub(58) )
 	{
@@ -3122,13 +3213,6 @@ return_dol:
 		mem_free(ElfHdr);
 	return;
 }
-void HandleWiiMoteEvent(s32 chan)
-{
-	if(system_state.InMainMenu == 0)//see HandleSTMevent()
-		return;
-	system_state.Shutdown=1;
-	return;
-}
 void CheckForUpdate()
 {
 	ClearScreen();
@@ -3143,9 +3227,9 @@ void CheckForUpdate()
 //start update
 //---------------
 	UpdateStruct UpdateFile;
-	u8* buffer = 0;
+	u8* buffer = NULL;
 	file_size = GetHTTPFile("www.dacotaco.com","/priiloader/version.dat",buffer,0);
-	if ( file_size <= 0 || file_size != (s32)sizeof(UpdateStruct))
+	if ( file_size <= 0 || file_size != (s32)sizeof(UpdateStruct) || buffer == NULL)
 	{
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("error getting versions from server"))*13/2))>>1, 224, "error getting versions from server");
 		if (file_size < -9)
@@ -3216,7 +3300,7 @@ void CheckForUpdate()
 			}
 			else
 			{
-				PrintFormat( cur_off == 0, 16, 64+(16*1), "No official update\n");
+				PrintFormat( cur_off == 0, 16, 64+(16*1), "No major updates\n");
 			}
 			if (SGetSetting(SETTING_SHOWBETAUPDATES))
 			{
@@ -3239,6 +3323,7 @@ void CheckForUpdate()
 			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("B(B) Cancel Update         "))*13/2))>>1, rmode->viHeight-32, "B(B) Cancel Update         ");
 			redraw = 0;
 		}
+
 		WPAD_ScanPads();
 		PAD_ScanPads();
 
@@ -3249,7 +3334,7 @@ void CheckForUpdate()
 		{
 			return;
 		}
-		else if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
+		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 		{
 			if(cur_off == 0 && VersionUpdates == 1)
 			{
@@ -3263,7 +3348,7 @@ void CheckForUpdate()
 			}
 			redraw = 1;
 		}
-		else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
+		if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
 		{
 			cur_off--;
 			if(cur_off < 0)
@@ -3280,7 +3365,7 @@ void CheckForUpdate()
 			}
 			redraw = 1;
 		}
-		else if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
+		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
 		{
 			cur_off++;
 			if (SGetSetting(SETTING_SHOWBETAUPDATES))
@@ -3295,6 +3380,7 @@ void CheckForUpdate()
 			}
 			redraw = 1;
 		}
+		VIDEO_WaitVSync();
 	}
 //Download changelog and ask to proceed or not
 //------------------------------------------------------
@@ -3309,6 +3395,7 @@ void CheckForUpdate()
 	}
 	if (file_size > 0)
 	{
+		Changelog[file_size-1] == 0; // playing it safe for future shit
 		ClearScreen();
 		char se[5];
 		u8 line = 0;
@@ -3322,13 +3409,12 @@ void CheckForUpdate()
 
 		char *ptr;
 		std::vector<char*> lines;
-
 		if( strpbrk((char*)Changelog , "\r\n") )
 			sprintf(se, "\r\n");
 		else
 			sprintf(se, "\n");
 		ptr = strtok((char*)Changelog, se);
-		while (ptr != NULL)
+		while (ptr != NULL && (u32)ptr < (u32)Changelog+file_size ) //prevent it from going to far cause strtok is fucking dangerous.
 		{
 			lines.push_back(ptr);
 			ptr = strtok (NULL, se);
@@ -3396,6 +3482,7 @@ void CheckForUpdate()
 				redraw = false;
 				line = 0;
 			}
+			VIDEO_WaitVSync();
 		}
 	}
 	else if(file_size < 0)
@@ -3531,7 +3618,7 @@ void HandleSTMEvent(u32 event)
 {
 	if (system_state.InMainMenu == 0) //we have no buisness with the reset/power when we aren't in main menu
 		return;
-	f64 ontime;
+	double ontime;
 	switch(event)
 	{
 		case STM_EVENT_POWER:
@@ -3551,6 +3638,13 @@ void HandleSTMEvent(u32 event)
 		default:
 			break;
 	}
+	return;
+}
+void HandleWiiMoteEvent(s32 chan)
+{
+	if(system_state.InMainMenu == 0)//see HandleSTMevent()
+		return;
+	system_state.Shutdown=1;
 	return;
 }
 void Autoboot_System( void )
@@ -3588,13 +3682,17 @@ void Autoboot_System( void )
 s8 CheckMagicWords( void )
 {
 	//0x4461636f = "Daco" in hex, 0x50756e65 = "Pune"
-	if( *(vu32*)0x8132FFFB == 0x4461636f || *(vu32*)0x8132FFFB == 0x50756e65 )
+	if( *(vu32*)MAGIC_WORD_ADDRESS_1 == 0x4461636f || *(vu32*)MAGIC_WORD_ADDRESS_1 == 0x50756e65 )
+		return 1;
+	if( *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x4461636f || *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x50756e65 )
 		return 1;
 	return 0;
 }
-int main(int argc, char **argv)
+//a temp main to play around in for the crash <<
+int main2(int argc, char **argv)
 {
 	CheckForGecko();
+	time(&startloop);
 #ifdef DEBUG
 	InitGDBDebug();
 #endif
@@ -3603,22 +3701,6 @@ int main(int argc, char **argv)
 	gprintf("Version : %d.%d (rev %d)\n", VERSION>>16, VERSION&0xFFFF, SVN_REV);
 	gprintf("Firmware: %d.%d.%d\n", *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143 );
 
-	*(vu32*)0x80000020 = 0x0D15EA5E;				// Magic word (how did the console boot?)
-	*(vu32*)0x800000F8 = 0x0E7BE2C0;				// Bus Clock Speed
-	*(vu32*)0x800000FC = 0x2B73A840;				// CPU Clock Speed
-
-	*(vu32*)0x80000040 = 0x00000000;				// Debugger present?
-	*(vu32*)0x80000044 = 0x00000000;				// Debugger Exception mask
-	*(vu32*)0x80000048 = 0x00000000;				// Exception hook destination 
-	*(vu32*)0x8000004C = 0x00000000;				// Temp for LR
-	*(vu32*)0x80003100 = 0x01800000;				// Physical Mem1 Size
-	*(vu32*)0x80003104 = 0x01800000;				// Console Simulated Mem1 Size
-
-	*(vu32*)0x80003118 = 0x04000000;				// Physical Mem2 Size
-	*(vu32*)0x8000311C = 0x04000000;				// Console Simulated Mem2 Size
-
-	*(vu32*)0x80003120 = 0x93400000;				// MEM2 end address ?
-
 	s32 r = ISFS_Initialize();
 	if( r < 0 )
 	{
@@ -3626,191 +3708,41 @@ int main(int argc, char **argv)
 		error=ERROR_ISFS_INIT;
 	}
 
-	AddMem2Area (14*1024*1024, OTHER_AREA);
-	LoadHBCStub();
-	gprintf("\"Magic Priiloader word\": %x\n",*(vu32*)0x8132FFFB);
-	LoadSettings();
-	if(SGetSetting(SETTING_DUMPGECKOTEXT) == 1)
-	{
-		PollDevices();
-	}
-	SetDumpDebug(SGetSetting(SETTING_DUMPGECKOTEXT));
-	s16 Bootstate = CheckBootState();
+	gprintf("\"Magic Priiloader word\": %x - %x\n",*(vu32*)MAGIC_WORD_ADDRESS_2 ,*(vu32*)MAGIC_WORD_ADDRESS_1);
+	STM_RegisterEventHandler(HandleSTMEvent);
+	//memset(&system_state,0,sizeof(wii_state));
+	system_state.InMainMenu = 1;
+	gprintf("hold reset now\n");
+	sleep(5);
+	gprintf("lets go\n");
+	//that worked
+
+	PollDevices();
+	SetDumpDebug(1);
+	gprintf("hold reset now\n");
+	sleep(5);
+	gprintf("lets go\n");
+	//above crashed
+
+	s16 Bootstate = 0;//CheckBootState();
 	gprintf("BootState:%d\n", Bootstate );
-	memset(&system_state,0,sizeof(wii_state));
-	//Check reset button state
-	if( ((*(vu32*)0xCC003000)>>16)&1 && !CheckMagicWords()) 
-	{
-		//Check autoboot settings
-		StateFlags temp;
-		/*temp = GetStateFlags();
-		gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u & checksum %u\n",temp.type,temp.discstate,temp.returnto,temp.flags,temp.checksum);*/
-		switch( Bootstate )
-		{
-			case TYPE_UNKNOWN: //255 or -1, only seen when shutting down from MIOS or booting dol from HBC. it is actually an invalid value
-				temp = GetStateFlags();
-				gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u\n",temp.type,temp.discstate,temp.returnto,temp.flags);
-				if( temp.flags == 130 ) //&& temp.discstate != 2)
-				{
-					//if the flag is 130, its probably shutdown from mios. in that case system menu 
-					//will handle it perfectly (and i quote from SM's OSreport : "Shutdown system from GC!")
-					//it seems to reboot into bootstate 5. but its safer to let SM handle it
-					gprintf("255:System Menu\n");
-					BootMainSysMenu(0);
-				}
-				else
-				{
-					Autoboot_System();
-				}
-				break;
-			case TYPE_SHUTDOWNSYSTEM: // 5 - shutdown
-				ClearState();
-				//check for valid nandboot shitzle. if its found we need to change bootstate to 4.
-				//yellow8 claims system menu reset everything then, but it didn't on my wii (joy). this is why its not activated code.
-				//its not fully confirmed system menu does it(or ios while being standby) and if system menu does indeed clear it.
-				/*if(VerifyNandBootInfo())
-				{
-					gprintf("Verifty of NandBootInfo : 1\nbootstate changed to %d\n",CheckBootState());
-				}
-				else
-				{
-					gprintf("Verifty of NandBootInfo : 0\n");
-				}*/
-				if(!SGetSetting(SETTING_SHUTDOWNTOPRELOADER))
-				{
-					gprintf("Shutting down...\n");
-					DVDStopDisc(true);
-					ShutdownDevices();
-					USB_Deinitialize();
-					*(vu32*)0xCD8000C0 &= ~0x20;
-					Control_VI_Regs(0);
-					//DVDStopDisc(false);
-					while(DvdKilled() < 1);
-					if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
-					{
-						STM_ShutdownToStandby();
-
-					} else {
-						if( CONF_GetShutdownMode() == CONF_SHUTDOWN_STANDBY )
-						{
-							//standby = red = off							
-							STM_ShutdownToStandby();
-						}
-						else
-						{
-							//idle = orange = standby
-							s32 ret;
-							ret = CONF_GetIdleLedMode();
-							if (ret >= 0 && ret <= 2)
-								STM_SetLedMode(ret);
-							STM_ShutdownToIdle();
-						}
-					}
-				}
-				break;
-			case RETURN_TO_ARGS: //2 - normal reboot which funny enough doesn't happen very often
-			case TYPE_RETURN: //3 - return to system menu
-				switch( SGetSetting(SETTING_RETURNTO) )
-				{
-					case RETURNTO_SYSMENU:
-						gprintf("ReturnTo:System Menu\n");
-						BootMainSysMenu(0);
-					break;
-
-					case RETURNTO_AUTOBOOT:
-						Autoboot_System();
-					break;
-
-					default:
-					break;
-				}
-				break;
-			case TYPE_NANDBOOT: // 4 - nandboot
-				//apparently a boot state in which the system menu auto boots a title. read more : http://wiibrew.org/wiki/WiiConnect24#WC24_title_booting
-				//as it hardly happens i guess nothing bad can happen if we ignore it and just do autoboot instead :)
-			case RETURN_TO_SETTINGS: // 1 - Boot when fully shutdown & wiiconnect24 is off. why its called RETURN_TO_SETTINGS i have no clue...
-			case RETURN_TO_MENU: // 0 - boot when wiiconnect24 is on
-				Autoboot_System();
-				break;
-			default :
-				if( ClearState() < 0 )
-				{
-					error = ERROR_STATE_CLEAR;
-					gprintf("ClearState failure\n");
-				}
-				break;
-
-		}
-	}
-	//remove the "Magic Priiloader word" cause it has done its purpose
-	if(*(vu32*)0x8132FFFB == 0x4461636f)
- 	{
-		gprintf("\"Magic Priiloader Word\" 'Daco' found!\n");
-		gprintf("clearing memory of the \"Magic Priiloader Word\"\n");
-		*(vu32*)0x8132FFFB = 0x00000000;
-		DCFlushRange((void*)0x8132FFFB,4);
-	}
-	else if(*(vu32*)0x8132FFFB == 0x50756e65)
-	{
-		//detected the force for sys menu
-		gprintf("\"Magic Priiloader Word\" 'Pune' found!\n");
-		gprintf("clearing memory of the \"Magic Priiloader Word\" and starting system menu...\n");
-		*(vu32*)0x8132FFFB = 0x00000000;
-		DCFlushRange((void*)0x8132FFFB,4);
-		BootMainSysMenu(0);
-	}
-	else if( (
-			( SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED && ( Bootstate < 2 || Bootstate == 4 ) ) 
-		 || ( SGetSetting(SETTING_RETURNTO) != RETURNTO_PRIILOADER && Bootstate > 1 && Bootstate != 4 ) 
-		 || ( SGetSetting(SETTING_SHUTDOWNTOPRELOADER) == 0 && Bootstate == 5 ) ) 
-		 && error == 0 )
-	{
-		gprintf("Reset Button is held down\n");
-	}
 
 	//init video first so we can see crashes :)
 	InitVideo();
-  	if( SGetSetting(SETTING_PASSCHECKPRII) )
- 		password_check();
-
-	AUDIO_Init (NULL);
-	DSP_Init ();
-	AUDIO_StopDMA();
-	AUDIO_RegisterDMACallback(NULL);
-
-	r = (s32)PollDevices();
-	gprintf("FAT_Init():%d\n", r );
 
 	r = PAD_Init();
 	gprintf("PAD_Init():%d\n", r );
 
-	r = WPAD_Init();
-	gprintf("WPAD_Init():%d\n", r );
-
-	WPAD_SetPowerButtonCallback(HandleWiiMoteEvent);
-	STM_RegisterEventHandler(HandleSTMEvent);
-
-	ClearScreen();
-
 	s8 cur_off=0;
 	s8 redraw=true;
-	u32 SysVersion=GetSysMenuVersion();
-
-	if( SGetSetting(SETTING_STOPDISC) )
-	{
-		DVDStopDisc(false);
-	}
-	_sync();
-	time(&startloop);
+	u32 SysVersion= 512;
 #ifdef DEBUG
 	gdprintf("priiloader v%d.%d DEBUG (Sys:%d)(IOS:%d)(%s %s)\n", VERSION>>8, VERSION&0xFF, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
 #else
-	if(BETAVERSION > 0)
-	{
+	#if BETAVERSION > 0
 		gprintf("priiloader v%d.%d BETA %d (Sys:%d)(IOS:%d)(%s %s)\n", VERSION>>8, VERSION&0xFF,BETAVERSION,SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
-	}
+	#endif
 #endif
-	system_state.InMainMenu = 1;
 	while(1)
 	{
 		WPAD_ScanPads();
@@ -3819,22 +3751,6 @@ int main(int argc, char **argv)
 		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
 		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
  
-#ifdef DEBUG
-		if ( (WPAD_Pressed & WPAD_BUTTON_HOME) || (PAD_Pressed & PAD_BUTTON_START) )
-		{
-			
-			
-			LoadHacks(true);
-			//u64 TitleID = 0x0001000030303032LL;
-
-			//u32 cnt ATTRIBUTE_ALIGN(32);
-			//ES_GetNumTicketViews(TitleID, &cnt);
-			//tikview *views = (tikview *)mem_align( 32, sizeof(tikview)*cnt );
-			//ES_GetTicketViews(TitleID, views, cnt);
-			//ES_LaunchTitle(TitleID, &views[0]);	
-		}
-#endif
-
 		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
 		{
 			ClearScreen();
@@ -3898,7 +3814,7 @@ int main(int argc, char **argv)
 				if( cur_off >= 10 )
 					cur_off = 0;
 			}
-
+			//gprintf("loool %d-%d-%d\n",*(vu32*)0xCC003000,(*(vu32*)0xCC003000)>>16,((*(vu32*)0xCC003000)>>16)&1);
 			redraw=true;
 		} else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
 		{
@@ -3919,15 +3835,339 @@ int main(int argc, char **argv)
 
 		if( redraw )
 		{
-			if( BETAVERSION > 0 )
+
+			if (error > 0)
 			{
-				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d(beta v%d)", VERSION>>8, VERSION&0xFF, BETAVERSION&0xFF );
-			} else {
-				PrintFormat( 0, 160, rmode->viHeight-48, "priiloader v%d.%d (r%d)", VERSION>>8, VERSION&0xFF,SVN_REV );
+				ShowError();
+				error = ERROR_NONE;
 			}
-			PrintFormat( 0, 16, rmode->viHeight-64, "IOS v%d", (*(vu32*)0x80003140)>>16 );
-			PrintFormat( 0, 16, rmode->viHeight-48, "Systemmenu v%d", SysVersion );			
-			PrintFormat( 0, 16, rmode->viHeight-20, "Priiloader is a mod of Preloader 0.30");
+			redraw = false;
+		}
+		
+		VIDEO_WaitVSync();
+	}
+
+	return 0;
+}
+int main(int argc, char **argv)
+{
+	CheckForGecko();
+#ifdef DEBUG
+	InitGDBDebug();
+#endif
+	gprintf("priiloader\n");
+	gprintf("Built   : %s %s\n", __DATE__, __TIME__ );
+	gprintf("Version : %d.%d (rev %d)\n", VERSION>>16, VERSION&0xFFFF, SVN_REV);
+	gprintf("Firmware: %d.%d.%d\n", *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143 );
+
+	/**(vu32*)0x80000020 = 0x0D15EA5E;				// Magic word (how did the console boot?)
+	*(vu32*)0x800000F8 = 0x0E7BE2C0;				// Bus Clock Speed
+	*(vu32*)0x800000FC = 0x2B73A840;				// CPU Clock Speed
+
+	*(vu32*)0x80000040 = 0x00000000;				// Debugger present?
+	*(vu32*)0x80000044 = 0x00000000;				// Debugger Exception mask
+	*(vu32*)0x80000048 = 0x00000000;				// Exception hook destination 
+	*(vu32*)0x8000004C = 0x00000000;				// Temp for LR
+	*(vu32*)0x80003100 = 0x01800000;				// Physical Mem1 Size
+	*(vu32*)0x80003104 = 0x01800000;				// Console Simulated Mem1 Size
+
+	*(vu32*)0x80003118 = 0x04000000;				// Physical Mem2 Size
+	*(vu32*)0x8000311C = 0x04000000;				// Console Simulated Mem2 Size
+
+	*(vu32*)0x80003120 = 0x93400000;				// MEM2 end address ?*/
+
+	s32 r = ISFS_Initialize();
+	if( r < 0 )
+	{
+		*(vu32*)0xCD8000C0 |= 0x20;
+		error=ERROR_ISFS_INIT;
+	}
+
+	AddMem2Area (14*1024*1024, OTHER_AREA);
+	LoadHBCStub();
+	gprintf("\"Magic Priiloader word\": %x - %x\n",*(vu32*)MAGIC_WORD_ADDRESS_2 ,*(vu32*)MAGIC_WORD_ADDRESS_1);
+	LoadSettings();
+	if(SGetSetting(SETTING_DUMPGECKOTEXT) == 1)
+	{
+		PollDevices();
+	}
+
+	SetDumpDebug(SGetSetting(SETTING_DUMPGECKOTEXT));
+	s16 Bootstate = CheckBootState();
+	gprintf("BootState:%d\n", Bootstate );
+	memset(&system_state,0,sizeof(wii_state));
+	//Check reset button state
+	if( ((*(vu32*)0xCC003000)>>16) == 1 && CheckMagicWords() == 0) //if( ((*(vu32*)0xCC003000)>>16)&1 && !CheckMagicWords())
+	{
+		//Check autoboot settings
+		StateFlags temp;
+		/*temp = GetStateFlags();
+		gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u & checksum %u\n",temp.type,temp.discstate,temp.returnto,temp.flags,temp.checksum);*/
+		switch( Bootstate )
+		{
+			case TYPE_UNKNOWN: //255 or -1, only seen when shutting down from MIOS or booting dol from HBC. it is actually an invalid value
+				temp = GetStateFlags();
+				gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u\n",temp.type,temp.discstate,temp.returnto,temp.flags);
+				if( temp.flags == 130 ) //&& temp.discstate != 2)
+				{
+					//if the flag is 130, its probably shutdown from mios. in that case system menu 
+					//will handle it perfectly (and i quote from SM's OSreport : "Shutdown system from GC!")
+					//it seems to reboot into bootstate 5. but its safer to let SM handle it
+					gprintf("255:System Menu\n");
+					BootMainSysMenu(0);
+				}
+				else
+				{
+					Autoboot_System();
+				}
+				break;
+			case TYPE_SHUTDOWNSYSTEM: // 5 - shutdown
+				ClearState();
+				//check for valid nandboot shitzle. if its found we need to change bootstate to 4.
+				//yellow8 claims system menu reset everything then, but it didn't on my wii (joy). this is why its not activated code.
+				//its not fully confirmed system menu does it(or ios while being standby) and if system menu does indeed clear it.
+				/*if(VerifyNandBootInfo())
+				{
+					gprintf("Verifty of NandBootInfo : 1\nbootstate changed to %d\n",CheckBootState());
+				}
+				else
+				{
+					gprintf("Verifty of NandBootInfo : 0\n");
+				}*/
+				if(!SGetSetting(SETTING_SHUTDOWNTOPRELOADER))
+				{
+					gprintf("Shutting down...\n");
+					DVDStopDisc(true);
+					ShutdownDevices();
+					USB_Deinitialize();
+					*(vu32*)0xCD8000C0 &= ~0x20;
+					Control_VI_Regs(0);
+					while(DvdKilled() < 1);
+					if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
+					{
+						STM_ShutdownToStandby();
+
+					} else {
+						if( CONF_GetShutdownMode() == CONF_SHUTDOWN_STANDBY )
+						{
+							//standby = red = off							
+							STM_ShutdownToStandby();
+						}
+						else
+						{
+							//idle = orange = standby
+							s32 ret;
+							ret = CONF_GetIdleLedMode();
+							if (ret >= 0 && ret <= 2)
+								STM_SetLedMode(ret);
+							STM_ShutdownToIdle();
+						}
+					}
+				}
+				break;
+			case RETURN_TO_ARGS: //2 - normal reboot which funny enough doesn't happen very often
+			case TYPE_RETURN: //3 - return to system menu
+				switch( SGetSetting(SETTING_RETURNTO) )
+				{
+					case RETURNTO_SYSMENU:
+						gprintf("ReturnTo:System Menu\n");
+						BootMainSysMenu(0);
+					break;
+
+					case RETURNTO_AUTOBOOT:
+						Autoboot_System();
+					break;
+
+					default:
+					break;
+				}
+				break;
+			case TYPE_NANDBOOT: // 4 - nandboot
+				//apparently a boot state in which the system menu auto boots a title. read more : http://wiibrew.org/wiki/WiiConnect24#WC24_title_booting
+				//as it hardly happens i guess nothing bad can happen if we ignore it and just do autoboot instead :)
+			case RETURN_TO_SETTINGS: // 1 - Boot when fully shutdown & wiiconnect24 is off. why its called RETURN_TO_SETTINGS i have no clue...
+			case RETURN_TO_MENU: // 0 - boot when wiiconnect24 is on
+				Autoboot_System();
+				break;
+			default :
+				if( ClearState() < 0 )
+				{
+					error = ERROR_STATE_CLEAR;
+					gprintf("ClearState failure\n");
+				}
+				break;
+
+		}
+	}
+	//remove the "Magic Priiloader word" cause it has done its purpose
+	//Plan B address : 0x93FFFFFA
+	if(*(vu32*)MAGIC_WORD_ADDRESS_1 == 0x4461636f || *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x4461636f)
+ 	{
+		gprintf("\"Magic Priiloader Word\" 'Daco' found!\n");
+		gprintf("clearing memory of the \"Magic Priiloader Word\"\n");
+		*(vu32*)MAGIC_WORD_ADDRESS_1 = 0x00000000;
+		DCFlushRange((void*)MAGIC_WORD_ADDRESS_1,4);
+		*(vu32*)MAGIC_WORD_ADDRESS_2 = 0x00000000;
+		DCFlushRange((void*)MAGIC_WORD_ADDRESS_2,4);
+	}
+	else if(*(vu32*)MAGIC_WORD_ADDRESS_1 == 0x50756e65 || *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x50756e65)
+	{
+		//detected the force for sys menu
+		gprintf("\"Magic Priiloader Word\" 'Pune' found!\n");
+		gprintf("clearing memory of the \"Magic Priiloader Word\" and starting system menu...\n");
+		*(vu32*)MAGIC_WORD_ADDRESS_1 = 0x00000000;
+		DCFlushRange((void*)MAGIC_WORD_ADDRESS_1,4);
+		*(vu32*)MAGIC_WORD_ADDRESS_2 = 0x00000000;
+		DCFlushRange((void*)MAGIC_WORD_ADDRESS_2,4);
+		BootMainSysMenu(0);
+	}
+	else if( (
+			( SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED && ( Bootstate < 2 || Bootstate == 4 ) ) 
+		 || ( SGetSetting(SETTING_RETURNTO) != RETURNTO_PRIILOADER && Bootstate > 1 && Bootstate != 4 ) 
+		 || ( SGetSetting(SETTING_SHUTDOWNTOPRELOADER) == 0 && Bootstate == 5 ) ) 
+		 && error == 0 )
+	{
+		gprintf("Reset Button is held down\n");
+	}
+
+	//init video first so we can see crashes :)
+	InitVideo();
+  	if( SGetSetting(SETTING_PASSCHECKPRII) )
+ 		password_check();
+
+	r = (s32)PollDevices();
+	gprintf("FAT_Init():%d\n", r );
+
+	r = PAD_Init();
+	gprintf("PAD_Init():%d\n", r );
+
+	r = WPAD_Init();
+	gprintf("WPAD_Init():%d\n", r );
+
+	WPAD_SetPowerButtonCallback(HandleWiiMoteEvent);
+	STM_RegisterEventHandler(HandleSTMEvent);
+
+	ClearScreen();
+
+	s8 cur_off=0;
+	s8 redraw=true;
+	u32 SysVersion= GetSysMenuVersion();
+
+	if( SGetSetting(SETTING_STOPDISC) )
+	{
+		DVDStopDisc(false);
+	}
+	_sync();
+#ifdef DEBUG
+	gdprintf("priiloader v%d.%d DEBUG (Sys:%d)(IOS:%d)(%s %s)\n", VERSION>>8, VERSION&0xFF, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
+#else
+	#if BETAVERSION > 0
+		gprintf("priiloader v%d.%d BETA %d (Sys:%d)(IOS:%d)(%s %s)\n", VERSION>>8, VERSION&0xFF,BETAVERSION,SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
+	#endif
+#endif
+	time(&startloop);
+	system_state.InMainMenu = 1;
+	//gprintf("ptr : 0x%08X data of ptr : 0x%08X size : %d\n",&system_state,*((u32*)&system_state),sizeof(system_state));
+	while(1)
+	{
+		WPAD_ScanPads();
+		PAD_ScanPads();
+
+		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
+		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
+ 
+		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
+		{
+			ClearScreen();
+			system_state.InMainMenu = 0;
+			switch(cur_off)
+			{
+				case 0:
+					BootMainSysMenu(1);
+					if(!error)
+						error=ERROR_SYSMENU_GENERAL;
+					break;
+				case 1:		//Load HBC
+					LoadHBC();
+					break;
+				case 2: //Load Bootmii
+					LoadBootMii();
+					//well that failed...
+					error=ERROR_BOOT_BOOTMII;
+					break;
+				case 3: // show titles list
+					LoadListTitles();
+					break;
+				case 4:		//load main.bin from /title/00000001/00000002/data/ dir
+					AutoBootDol();
+					break;
+				case 5:
+					InstallLoadDOL();
+					break;
+				case 6:
+					SysHackHashSettings();
+					break;
+				case 7:
+					CheckForUpdate();
+					net_deinit();
+					break;
+				case 8:
+					InstallPassword();
+					break;
+				case 9:
+					SetSettings();
+					break;
+				default:
+					break;
+
+			}
+			system_state.InMainMenu = 1;
+			ClearScreen();
+			redraw=true;
+		}
+
+		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
+		{
+			cur_off++;
+
+			if( error == ERROR_UPDATE )
+			{
+				if( cur_off >= 11 )
+					cur_off = 0;
+			}else {
+
+				if( cur_off >= 10 )
+					cur_off = 0;
+			}
+			//gprintf("loool %d-%d-%d\n",*(vu32*)0xCC003000,(*(vu32*)0xCC003000)>>16,((*(vu32*)0xCC003000)>>16)&1);
+			redraw=true;
+		} else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
+		{
+			cur_off--;
+
+			if( cur_off < 0 )
+			{
+				if( error == ERROR_UPDATE )
+				{
+					cur_off=11-1;
+				} else {
+					cur_off=10-1;
+				}
+			}
+
+			redraw=true;
+		}
+
+		if( redraw )
+		{
+			#if BETAVERSION > 0
+				PrintFormat( 0, 160, rmode->viHeight-68, "priiloader v%d.%d(beta v%d)", VERSION>>8, VERSION&0xFF, BETAVERSION&0xFF );
+			#else
+				PrintFormat( 0, 160, rmode->viHeight-68, "priiloader v%d.%d (r%d)", VERSION>>8, VERSION&0xFF,SVN_REV );
+			#endif
+			PrintFormat( 0, 16, rmode->viHeight-84, "IOS v%d", (*(vu32*)0x80003140)>>16 );
+			PrintFormat( 0, 16, rmode->viHeight-68, "Systemmenu v%d", SysVersion );			
+			PrintFormat( 0, 16, rmode->viHeight-40, "Priiloader is a mod of Preloader 0.30");
 
 			PrintFormat( cur_off==0, ((rmode->viWidth /2)-((strlen("System Menu"))*13/2))>>1, 64, "System Menu");
 			PrintFormat( cur_off==1, ((rmode->viWidth /2)-((strlen("Homebrew Channel"))*13/2))>>1, 80, "Homebrew Channel");

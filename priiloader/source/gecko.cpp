@@ -2,7 +2,7 @@
 
 priiloader/preloader 0.30 - A tool which allows to change the default boot up sequence on the Wii console
 
-Copyright (C) 2008-2009  crediar & DacoTaco
+Copyright (C) 2008-2013  crediar & DacoTaco
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -38,16 +38,31 @@ void gprintf( const char *str, ... )
 		return;
 
 	char astr[2048];
+	s32 size = 0;
 	memset(astr,0,sizeof(astr));
+
+	//add time & date to string
+	time_t LeTime;
+	//time( &LeTime );
+	// Current date/time based on current system
+	LeTime = time(0);
+	struct tm * localtm;
+
+	// Convert now to tm struct for local timezone
+	localtm = localtime(&LeTime);
+	//cout << "The local date and time is: " << asctime(localtm) << endl;
+	char nstr[2048];
+	memset(nstr,0,2048);
+	snprintf(nstr,2048, "%d:%d:%d : %s",localtm->tm_hour,localtm->tm_min,localtm->tm_sec, str);
 
 	va_list ap;
 	va_start(ap,str);
-	vsprintf( astr, str, ap );
+	size = vsnprintf( astr, 2047, nstr, ap );
 	va_end(ap);
 
 	if(GeckoFound)
 	{
-		usb_sendbuffer( 1, astr, strlen(astr) );
+		usb_sendbuffer( 1, astr, size );
 		usb_flush(EXI_CHANNEL_1);
 	}
 	if (DumpDebug > 0 && GetMountedValue() > 0)
@@ -57,13 +72,13 @@ void gprintf( const char *str, ... )
 		if(fd != NULL);
 		{
 			//0x0D0A = \r\n
-			if(astr[strlen(astr)-1] == '\n' && astr[strlen(astr)-2] != '\r')
+			if(astr[strnlen(astr,2048)-1] == '\n' && astr[strnlen(astr,2048)-2] != '\r')
 			{
-				astr[strlen(astr)-1] = '\r';
-				astr[strlen(astr)] = '\n';
-				astr[strlen(astr)+1] = '\0';
+				astr[strnlen(astr,2048)-1] = '\r';
+				astr[strnlen(astr,2048)] = '\n';
+				astr[strnlen(astr,2047)+1] = '\0';
 			}
-			fwrite(astr,1,strlen(astr),fd);
+			fwrite(astr,1,size,fd);
 			fclose(fd);
 		}
 	}
@@ -81,24 +96,18 @@ void SetDumpDebug( u8 value )
 	{
 		//create file, or re-open and add lining
 		FILE* fd = NULL;
-		fd = fopen("fat:/prii.log","rb");
+		fd = fopen("fat:/prii.log","ab");
 		if(fd != NULL)
 		{
-			fclose(fd);
-			fd = fopen("fat:/prii.log","ab");
-			char str[] = "--------gecko_output_enabled------\r\n";
+			char str[] = "--------gecko_output_enabled------\r\n\0";
 			fwrite(str,1,strlen(str),fd);
 			fclose(fd);
 		}
 		else
 		{
-			//file didn't exist
-			fclose(fd);
-			fd = fopen("fat:/prii.log","wb");
-			if(fd != NULL)
-				fclose(fd);
+			//we failed. fuck this shit
+			DumpDebug = 0;
 		}
-		
 	}
 	return;
 }

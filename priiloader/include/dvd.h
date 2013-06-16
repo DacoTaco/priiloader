@@ -2,7 +2,7 @@
 
 priiloader - A tool which allows to change the default boot up sequence on the Wii console
 
-Copyright (C) 2008-2009 DacoTaco
+Copyright (C) 2008-2013 DacoTaco
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -37,10 +37,12 @@ typedef struct DVD_status {
    extern "C" {
 #endif
 
-void DVDStopDisc( bool do_async );
+u32 DVDCheckCover( void );
+s8 DVDStopDisc( bool do_async );
 void DVDCleanUp( void );
 s8 DvdKilled( void );
-//s32 GetDvdFD( void );
+s8 DVDReset( bool do_async );
+s8 DVD_DoCommand( s32 command , u32 inbuf_param_1, bool do_async);
 
 #ifdef __cplusplus
    }

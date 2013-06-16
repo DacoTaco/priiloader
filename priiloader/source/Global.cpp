@@ -2,7 +2,7 @@
 
 priiloader(preloader mod) - A tool which allows to change the default boot up sequence on the Wii console
 
-Copyright (C) 2009-2010  DacoTaco
+Copyright (C) 2013-2013  DacoTaco
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -27,6 +27,7 @@ void *xfb = NULL;
 s8 Mounted = 0;
 s8 Device_Not_Mountable = 0;
 static u8 vid_init = 0;
+static u8 UsbOnly = 0;
 
 static const struct _timing {
 	u8 equ;
@@ -185,9 +186,9 @@ static void ___VIInit( void )
 		case VI_TVMODE_NTSC_PROG:
 			cur_timing = &video_timing[6];
 			break;
-		case VI_TVMODE_NTSC_PROG_DS:
+		/*case VI_TVMODE_NTSC_PROG_DS:
 			cur_timing = &video_timing[7];
-			break;
+			break;*/
 		case VI_TVMODE_DEBUG_PAL_INT:
 			cur_timing = &video_timing[2];
 			break;
@@ -334,12 +335,42 @@ s8 InitNetwork()
 		return -2;
     }
 }
+u8 GetUsbOnlyMode()
+{
+	return UsbOnly;
+}
+u8 ToggleUSBOnlyMode()
+{
+	if(!UsbOnly && ( __io_usbstorage.startup() ) && ( __io_usbstorage.isInserted() ) && !(Device_Not_Mountable & 1) )
+	{
+		UsbOnly = 1;
+		if(Mounted & 2)
+		{
+			fatUnmount("fat:");
+			Mounted = 0;
+		}
+		PollDevices();
+		
+	}
+	else
+	{
+		UsbOnly = 0;
+		if(Mounted)
+		{
+			fatUnmount("fat:");
+			Mounted = 0;
+		}
+		PollDevices();
+	}
+	return UsbOnly;
+
+}
 bool PollDevices( void )
 {
 	//check mounted device's status and unmount or mount if needed. once something is unmounted, lets see if we can mount something in its place
 	if( ( (Mounted & 2) && !__io_wiisd.isInserted() ) || ( (Mounted & 1) && !__io_usbstorage.isInserted() ) )
 	{
-		fatUnmount("fat:/");
+		fatUnmount("fat:");
 		if(Mounted & 1)
 		{
 			Mounted = 0;
@@ -353,12 +384,12 @@ bool PollDevices( void )
 		}			
 	}
 	//check if SD is mountable
-	if( !(Mounted & 2) && __io_wiisd.startup() &&  __io_wiisd.isInserted() && !(Device_Not_Mountable & 2) )
+	if( UsbOnly == 0 && !(Mounted & 2) && __io_wiisd.startup() &&  __io_wiisd.isInserted() && !(Device_Not_Mountable & 2) )
 	{
 		if(Mounted & 1)
 		{
 			//USB is mounted. lets kick it out and use SD instead :P
-			fatUnmount("fat:/");
+			fatUnmount("fat:");
 			Mounted = 0;
 			gprintf("USB: Unmounted\n");
 		}
