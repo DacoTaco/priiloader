@@ -330,9 +330,10 @@ void* mem2_calloc(u32 num, u32 size, const int area)
     return ptr;
 }
 
+#ifdef DEBUG_MEM2_LEVEL
 static void PrintAreaInfo(int index)
 {
-#ifdef DEBUG_MEM2_LEVEL
+
 	heap_iblock info;
 
 	if(mem2_areas[index].size == 0) return;	
@@ -341,8 +342,8 @@ static void PrintAreaInfo(int index)
 	__lwp_heap_getinfo(&mem2_areas[index].heap,&info);
 	printf("Area: %i. free blocks: %u  free size: %u  used blocks: %u  used_size: %u\n",index, 
 			info.free_blocks,info.free_size,info.used_blocks,info.used_size); 
-#endif
 }
+#endif
 
 void ShowAreaInfo(const int area) //if area == -1 print all areas info
 {

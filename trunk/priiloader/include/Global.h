@@ -34,6 +34,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define _SHIFTL(v, s, w)	\
     ((u32) (((u32)(v) & ((0x01 << (w)) - 1)) << (s)))
 
+#define TEXT_OFFSET(X) ((((rmode->viWidth) / 2 ) - (sizeof((X))*13/2))>>1)
+
 #ifdef DEBUG
 	#define gdprintf gprintf
 #else
