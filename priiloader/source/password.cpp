@@ -359,7 +359,7 @@ void password_check( void )
 	char path[200];
 	if(file == NULL)
 	{
- 		file = "wii_secure.dol";
+ 		file = (char*)"wii_secure.dol";
 	}
 	sprintf(path, "fat:/%s", file);
 	f = fopen(path,"rb");
