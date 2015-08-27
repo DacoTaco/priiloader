@@ -1,7 +1,7 @@
 /*
-Preloader/Priiloader Installer - An installation utiltiy for preloader (c) 2008-2009 crediar
+Preloader/Priiloader Installer - An installation utiltiy for preloader (c) 2008-2013 crediar
 
-Copyright (c) 2009  phpgeek
+Copyright (c) 2013  phpgeek
 Edited by DacoTaco
 
 This program is free software; you can redistribute it and/or
@@ -50,7 +50,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "sha1.h"
 
 //rev version
-#include "../../Shared/svnrev.h"
+#include "../../Shared/gitrev.h"
+#include "../../priiloader/include/version.h"
 
 // Bin Files
 
@@ -96,7 +97,7 @@ void gprintf( const char *str, ... )
 	va_list ap;
 	va_start(ap,str);
 
-	vsprintf( astr, str, ap );
+	vsnprintf( astr,4095, str, ap );
 
 	va_end(ap);
 	usb_sendbuffer( 1, astr, strlen(astr) );
@@ -122,6 +123,7 @@ void sleepx (int seconds)
 	while(difftime(end, start) < seconds)
 	{
 		time(&end);
+		VIDEO_WaitVSync();
 	}
 	return;
 }
@@ -130,15 +132,24 @@ void abort(const char* msg, ...)
 	va_list args;
 	char text[4096];
 	va_start( args, msg );
-	strcpy( text + vsprintf( text,msg,args ),""); 
+	strcpy( text + vsnprintf( text,4095,msg,args ),""); 
 	va_end( args );
 	printf("\x1b[%u;%dm", 36, 1);
 	printf("%s, aborting mission...\n", text);
 	gprintf("%s, aborting mission...\n", text);
+	VIDEO_WaitVSync();
 	//ISFS_Deinitialize();
 	sleepx(5);
 	exit(0);
 	return;
+}
+//a function made by joostin that checks consoleID to see if its vwii or wii.
+//personally i'd like to check it differently but i dont know how so ye, this'll work i guess
+bool CheckvWii (void) {
+	u32 deviceID = 0;
+	ES_GetDeviceID(&deviceID);
+	// If it is greater than or equal to 0x20000000 (536870912), then you are running on a Wii U
+	return (deviceID >= 536870912);
 }
 bool CompareSha1Hash(u8 *Data1,u32 Data1_Size,u8 *Data2,u32 Data2_Size)
 {
@@ -1313,7 +1324,9 @@ s8 HaveNandPermissions( void )
 }
 int main(int argc, char **argv)
 {
+	//DEBUG_Init(GDBSTUB_DEVICE_USB, 1);
 	s8 ios_patched = 0;
+	init_states wii_state;
 	s32 ret = 0;
 
 	CheckForGecko();
@@ -1335,12 +1348,14 @@ int main(int argc, char **argv)
 	h = vmode->xfbHeight - (y + 20);
 
 	// Initialize the console
-	CON_InitEx(vmode, x, y, w, h);
-
+	//Con_InitEX works better but for some odd reason doesn't show right when clearing screen... 
+	//CON_InitEx(vmode, x, y, w, h);
+	CON_Init(xfb,x,y,w,h, vmode->fbWidth*VI_DISPLAY_PIX_SZ );
+	printf("\n\n\n");
 	VIDEO_ClearFrameBuffer(vmode, xfb, COLOR_BLACK);
 
 	gprintf("resolution is %dx%d\n",vmode->viWidth,vmode->viHeight);
-	printf("\x1b[2J");
+	//printf("\x1b[2J");
 	/*sleep(3);
 	gprintf("crashing...\n");
 	free((void*)0x1);*/
@@ -1351,14 +1366,40 @@ int main(int argc, char **argv)
 	//return 0;
 	//reload ios so that IF the user started this with AHBPROT we lose everything from HBC. also, IOS36 is the most patched ios :')
 	IOS_ReloadIOS(36);
+
 	printf("\nIOS %d rev %d\n\n",IOS_GetVersion(),IOS_GetRevision());
-	printf("\tPriiloader rev %d (preloader v0.30 mod) Installation / Removal Tool\n\n\n\n\t",SVN_REV);
+if( (VERSION&0xFF) % 10 == 0 )
+{
+#if BETAVERSION > 0
+		printf("Priiloader v%d.%db%d(r0x%08x) Installation/Removal Tool\n\n\n\n\t",VERSION>>8, (VERSION&0xFF) / 10,BETAVERSION,GIT_REV);
+#else
+		printf("\t\tPriiloader v%d.%d(r0x%08x) Installation / Removal Tool\n\n\n\n\t",VERSION>>8, (VERSION&0xFF) / 10,GIT_REV);
+#endif
+}
+else
+{
+#if BETAVERSION > 0
+		printf("Priiloader v%d.%d.%db%d(r0x%08x) Installation/Removal Tool\n\n\n\n\t",VERSION>>8, (VERSION&0xFF) / 10,(VERSION&0xFF) % 10,BETAVERSION,GIT_REV);
+#else
+		printf("\t\tPriiloader v%d.%d.%d(r0x%08x) Installation / Removal Tool\n\n\n\n\t",VERSION>>8, (VERSION&0xFF) / 10,(VERSION&0xFF) % 10,GIT_REV);
+#endif
+}
 	printf("\t\t\t\t\tPLEASE READ THIS CAREFULLY\n\n\t");
 	printf("\t\tTHIS PROGRAM/TOOL COMES WITHOUT ANY WARRANTIES!\n\t");
 	printf("\t\tYOU ACCEPT THAT YOU INSTALL THIS AT YOUR OWN RISK\n\n\n\t");
 	printf("THE AUTHOR(S) CANNOT BE HELD LIABLE FOR ANY DAMAGE IT MIGHT CAUSE\n\n\t");
 	printf("\tIF YOU DO NOT AGREE WITH THESE TERMS TURN YOUR WII OFF\n\n\n\n\t");
 	printf("\t\t\t\t\tPlease wait while we init...");
+		
+
+
+	if( CheckvWii() ) 
+	{
+		printf("\x1b[31;1m");
+		printf("\n\n\tError: vWii detected. please dont run this on a Wii u!");
+		abort("\n");
+	}
+
 	u64 TitleID = 0;
 	u32 keyId = 0;
 	ret = ES_Identify( (signed_blob*)certs_bin, certs_bin_size, (signed_blob*)su_tmd, su_tmd_size, (signed_blob*)su_tik, su_tik_size, &keyId);
@@ -1367,8 +1408,9 @@ int main(int argc, char **argv)
 	{
 		printf("\x1b[2J");
 		fflush(stdout);
-		abort("\n\n\n\ncIOS%d isn't ES_Identify patched : error %d.",IOS_GetVersion(),ret);
+		abort("\n\n\n\nIOS%d isn't ES_Identify patched : error %d.",IOS_GetVersion(),ret);
 	}
+
 	ret = ES_GetTitleID(&TitleID);
 	gprintf("identified as = 0x%08X%08X\n",TITLE_UPPER(TitleID),TITLE_LOWER(TitleID));
 
@@ -1387,10 +1429,13 @@ int main(int argc, char **argv)
 	{
 		printf("\x1b[2J");
 		fflush(stdout);
-		printf("Failed to retrieve nand permissions from nand!IOS 36 isn't patched!\n");
+		printf("\n\n\n\nFailed to retrieve nand permissions from nand!IOS 36 isn't patched!\n");
 		sleepx(5);
 		exit(0);
 	}
+
+
+	//IOS Shit Done
 	//read TMD so we can get the main booting dol
 	s32 fd = 0;
 	u32 id = 0;
@@ -1439,7 +1484,7 @@ int main(int argc, char **argv)
 
 	WPAD_Init();
 	PAD_Init();
-	sleepx(2);
+	sleepx(5);
 
 	printf("\r\t\t\t   Press (+/A) to install or update Priiloader\n\t");
 	printf("\tPress (-/Y) to remove Priiloader and restore system menu\n\t");
@@ -1455,27 +1500,24 @@ int main(int argc, char **argv)
 		u16 GCpDown = PAD_ButtonsDown(0);
 		u16 pHeld = WPAD_ButtonsHeld(0);
 		u16 GCpHeld = PAD_ButtonsHeld(0);
-		if (pDown & WPAD_BUTTON_PLUS || pDown & WPAD_BUTTON_MINUS || GCpDown & PAD_BUTTON_A || GCpDown & PAD_BUTTON_Y)
+		if ( (pHeld & WPAD_BUTTON_B || GCpHeld & PAD_BUTTON_B) && ( (pDown & WPAD_BUTTON_PLUS || GCpDown & PAD_BUTTON_A) || (pDown & WPAD_BUTTON_MINUS || GCpDown & PAD_BUTTON_Y ) ) )
 		{
-			if (pHeld & WPAD_BUTTON_B || GCpHeld & PAD_BUTTON_B )
+			if((ios_patched < 1) && (IOS_GetVersion() != 36 ) )
 			{
-				if((ios_patched < 1) && (IOS_GetVersion() != 36 ) )
+				WPAD_Shutdown();
+				IOS_ReloadIOS(36);
+				WPAD_Init();
+				if(HaveNandPermissions())
+					ios_patched++;
+				else
 				{
-					WPAD_Shutdown();
-    				IOS_ReloadIOS(36);
-    				WPAD_Init();
-					if(HaveNandPermissions())
-						ios_patched++;
-					else
-					{
-						printf("\x1b[2J");
-						fflush(stdout);
-						printf("Failed to retrieve nand permissions from nand!ios 36 isn't patched!\n");
-						sleepx(5);
-						exit(0);
-					}
+					printf("\x1b[2J");
+					fflush(stdout);
+					printf("\n\nFailed to retrieve nand permissions from nand!ios 36 isn't patched!\n");
+					sleepx(5);
+					exit(0);
 				}
-        	}
+			}
     	}
 
 		if (pDown & WPAD_BUTTON_PLUS || GCpDown & PAD_BUTTON_A)
@@ -1546,8 +1588,10 @@ int main(int argc, char **argv)
 		}
 		if ( GCpDown & PAD_BUTTON_START || pDown & WPAD_BUTTON_HOME) 
 		{
+			VIDEO_ClearFrameBuffer( vmode, xfb, COLOR_BLACK);
 			printf("\x1b[5;0H");
 			fflush(stdout);
+			VIDEO_WaitVSync();
 			abort("Installation canceled");
 		}
 		VIDEO_WaitVSync();
