@@ -3296,7 +3296,15 @@ void CheckForUpdate()
 		{
 			if ( VersionUpdates )
 			{
-				PrintFormat( cur_off == 0, 16, 64+(16*1), "Update to %d.%d",UpdateFile.version >> 8,UpdateFile.version&0xFF);
+				if( (UpdateFile.version&0xFF) % 10 == 0 )
+				{
+					PrintFormat( cur_off == 0, 16, 64+(16*1), "Update to %d.%d",UpdateFile.version >> 8,(UpdateFile.version&0xFF) / 10);
+				}
+				else
+				{
+					PrintFormat( cur_off == 0, 16, 64+(16*1), "Update to v%d.%d.%d", UpdateFile.version >>8, (UpdateFile.version&0xFF) / 10,(UpdateFile.version&0xFF) % 10 );
+					//PrintFormat( cur_off == 0, 16, 64+(16*1), "Update to %d.%d",UpdateFile.version >> 8,UpdateFile.version&0xFF);
+				}
 			}
 			else
 			{
@@ -3307,7 +3315,15 @@ void CheckForUpdate()
 				
 				if ( BetaUpdates )
 				{
-					PrintFormat( cur_off==1, 16, 64+(16*2), "Update to %d.%d beta %d",UpdateFile.beta_version >> 8,UpdateFile.beta_version&0xFF, UpdateFile.beta_number);
+					if( (UpdateFile.version&0xFF) % 10 == 0 )
+					{
+						//PrintFormat( cur_off==1, 16, 64+(16*2), "Update to %d.%d beta %d",UpdateFile.beta_version >> 8,UpdateFile.beta_version&0xFF, UpdateFile.beta_number);
+						PrintFormat( cur_off==1, 16, 64+(16*2), "Update to %d.%d beta %d",UpdateFile.beta_version >> 8,UpdateFile.beta_version&0xFF, UpdateFile.beta_number);
+					}
+					else
+					{
+						PrintFormat( cur_off==1, 16, 64+(16*2), "Update to %d.%d.%d beta %d",UpdateFile.beta_version >> 8,(UpdateFile.beta_version&0xFF) / 10,(UpdateFile.beta_version&0xFF) % 10, UpdateFile.beta_number);
+					}
 				}
 				else
 				{
@@ -3631,7 +3647,7 @@ void HandleSTMEvent(u32 event)
 				time_t inloop;
 				time(&inloop);
 				ontime = difftime(inloop, startloop);
-				gprintf("ontime = %4.2fs\n",ontime);
+				//gprintf("ontime = %4.2fs\n",ontime);
 				if (ontime >= 15)
 					system_state.BootSysMenu = 1;
 			}
@@ -3718,6 +3734,7 @@ int main2(int argc, char **argv)
 	//that worked
 
 	PollDevices();
+	//enable the commented gprintf in HandleSTMEvent for this to crash
 	SetDumpDebug(1);
 	gprintf("hold reset now\n");
 	sleep(5);
@@ -3857,7 +3874,7 @@ int main(int argc, char **argv)
 #endif
 	gprintf("priiloader\n");
 	gprintf("Built   : %s %s\n", __DATE__, __TIME__ );
-	gprintf("Version : %d.%d (rev %s)\n", VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
+	gprintf("Version : %d.%d.%d (rev %s)\n", VERSION>>8, (VERSION&0xFF) / 10,(VERSION&0xFF) % 10,SVN_REV_STR);//VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
 	gprintf("Firmware: %d.%d.%d\n", *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143 );
 
 	/**(vu32*)0x80000020 = 0x0D15EA5E;				// Magic word (how did the console boot?)
@@ -4160,14 +4177,26 @@ int main(int argc, char **argv)
 
 		if( redraw )
 		{
-			#if BETAVERSION > 0
-				PrintFormat( 0, 160, rmode->viHeight-68, "priiloader v%d.%d(beta v%d)", VERSION>>8, VERSION&0xFF, BETAVERSION&0xFF );
-			#else
-				PrintFormat( 0, 160, rmode->viHeight-68, "priiloader v%d.%d (r%d)", VERSION>>8, VERSION&0xFF,SVN_REV );
-			#endif
-			PrintFormat( 0, 16, rmode->viHeight-84, "IOS v%d", (*(vu32*)0x80003140)>>16 );
-			PrintFormat( 0, 16, rmode->viHeight-68, "Systemmenu v%d", SysVersion );			
-			PrintFormat( 0, 16, rmode->viHeight-40, "Priiloader is a mod of Preloader 0.30");
+			//if its 0, it means there is no minor version
+			if( (VERSION&0xFF) % 10 == 0 )
+			{
+#if BETAVERSION > 0
+					PrintFormat( 0, 160, rmode->viHeight-96, "Priiloader v%d.%d(beta v%d)", VERSION>>8, (VERSION&0xFF) / 10, BETAVERSION&0xFF );
+#else
+					PrintFormat( 0, 160, rmode->viHeight-96, "Priiloader v%d.%d (r%d)", VERSION>>8, (VERSION&0xFF) / 10 ,SVN_REV );
+#endif
+			}
+			else
+			{
+#if BETAVERSION > 0
+				PrintFormat( 0, 160, rmode->viHeight-96, "Priiloader v%d.%d.%d(beta v%d)", VERSION>>8, (VERSION&0xFF) / 10,(VERSION&0xFF) % 10, BETAVERSION&0xFF );
+#else
+				PrintFormat( 0, 160, rmode->viHeight-96, "Priiloader v%d.%d.%d (r%d)", VERSION>>8, (VERSION&0xFF) / 10,(VERSION&0xFF) % 10,SVN_REV );
+#endif
+			}
+			PrintFormat( 0, 16, rmode->viHeight-112, "IOS v%d", (*(vu32*)0x80003140)>>16 );
+			PrintFormat( 0, 16, rmode->viHeight-96, "Systemmenu v%d", SysVersion );			
+			PrintFormat( 0, 16, rmode->viHeight-64, "Priiloader is a mod of Preloader 0.30");
 
 			PrintFormat( cur_off==0, TEXT_OFFSET("System Menu"), 64, "System Menu");
 			PrintFormat( cur_off==1, TEXT_OFFSET("Homebrew Channel"), 80, "Homebrew Channel");

@@ -66,9 +66,12 @@ void PrintCharY( int xx, int yy, char c )
 
 	if( c >= 0x7E || c < 0x20)
 		c = ' ';
-	for( int x=1; x <7; ++x)
+
+	//the xx+7 < 318 is to make it so it doesn't write outside the screen
+	//same for the yy <= 512
+	for( int x=1; x <7 && xx+7 < 318; ++x)
 	{
-		for( int y=0; y<16; ++y)
+		for( int y=0; y<16 && yy <= 512; ++y)
 		{
 			if( SGetSetting(SETTING_BLACKBACKGROUND))
 			{
@@ -99,9 +102,11 @@ void PrintCharW( int xx, int yy, char c )
 	if( c >= 0x7F || c < 0x20)
 		c = ' ';
 
-	for( int x=1; x <7; ++x)
+	//the xx+7 < 318 is to make it so it doesn't write outside the screen
+	//same for the yy <= 512
+	for( int x=1; x <7 && xx+7 < 318; ++x)
 	{
-		for( int y=0; y<16; ++y)
+		for( int y=0; y<16 && yy <= 512; ++y)
 		{
 			if( SGetSetting(SETTING_BLACKBACKGROUND))
 			{
@@ -115,10 +120,11 @@ void PrintCharW( int xx, int yy, char c )
 		}
 	}
 }
-
 void PrintString( int col, int x, int y, char *str )
 {
 	int i=0;
+	//the string_max works, but is hacky imo. its better to use the numbers later on dont you think?
+	//int string_max = (640-(x*2)) / 12; //( x == 16 ) ? 50 : 53 ;
 	while(str[i]!='\0')
 	{
 		if( col )
@@ -126,6 +132,8 @@ void PrintString( int col, int x, int y, char *str )
 		else
 			PrintCharW( x+i*6, y, str[i] );
 		i++;
+		/*if (i >= string_max)
+			break;*/
 	}
 }
 void PrintFormat(int col, int x, int y, const char *str, ... )
