@@ -20,7 +20,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 //Note by DacoTaco : yes this isn't the prettiest HTTP Parser alive but it does the job better then loads of http parsers so stop complaining :)
 #include "HTTP_Parser.h"
-#include "../../Shared/svnrev.h"
+#include "../../Shared/gitrev.h"
 static char HTTP_Reply[4];
 static s8 redirects = 0;
 s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int* external_socket_to_use)
@@ -48,7 +48,7 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int* external_socke
 	s32 ret = 0;
 	char URL_Request[512];
 	//example : "GET /daco/version.dat HTTP/1.0\r\nHost: www.dacotaco.com\r\nUser-Agent: DacoTacoIsGod/version\r\n\r\n\0"
-	sprintf( URL_Request, "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: Priiloader/%s(Nintendo Wii) DacoTacoIsGod/1.0 \r\n\r\n", file,host,SVN_REV_STR );
+	sprintf( URL_Request, "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: Priiloader/%s(Nintendo Wii) DacoTacoIsGod/1.0 \r\n\r\n", file,host,GIT_REV_STR );
 	if(external_socket_to_use == 0 || *external_socket_to_use == 0)
 	{
 		socket = ConnectSocket(host,80);

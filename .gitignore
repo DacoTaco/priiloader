@@ -1,0 +1,31 @@
+*.*
+build
+branches
+old_Shared
+wiki
+
+
+# But not these files...
+!.gitignore
+!*.c
+!*.cpp
+!*.a
+!*.bin
+!*.h
+!*.s
+!*.vcproj
+!*.
+!*.ini
+!*.sln
+!*.exe
+!*.txt
+!*.bat
+!*.dll
+!*MakeFile
+!template.latex
+
+# Ignore everything
+
+# etc...
+
+# ...even if they are in subdirectories

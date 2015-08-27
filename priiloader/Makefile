@@ -98,11 +98,13 @@ UNAME := $(shell uname)
 #and now make the build list
 $(BUILD):
 ifeq ($(UNAME),Linux)
-	chmod 555 ../Shared/makesvnrev.sh
-	chmod +x ../Shared/makesvnrev.sh
-	../Shared/makesvnrev.sh
+	#chmod 555 ../Shared/makesvnrev.sh
+	#chmod +x ../Shared/makesvnrev.sh
+	#../Shared/makesvnrev.sh
+	echo LINUX CURRENTLY UNSUPPORTED. PLEASE FIX HELP ME MAKE A SCRIPT FOR LINUX
 else
-	../Shared/SubWCRev.exe "../." "../Shared/svnrev_template.h" "../Shared/svnrev.h"
+	#../Shared/SubWCRev.exe "../." "../Shared/svnrev_template.h" "../Shared/svnrev.h"
+	../Shared/GitVersion.exe
 endif
 	@[ -d $@ ] || mkdir -p $@
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile

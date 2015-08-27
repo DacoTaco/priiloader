@@ -43,7 +43,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 //Project files
-#include "../../Shared/svnrev.h"
+#include "../../Shared/gitrev.h"
 #include "Global.h"
 #include "settings.h"
 #include "state.h"
@@ -3714,7 +3714,7 @@ int main2(int argc, char **argv)
 #endif
 	gprintf("priiloader\n");
 	gprintf("Built   : %s %s\n", __DATE__, __TIME__ );
-	gprintf("Version : %d.%d (rev %s)\n", VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
+	gprintf("Version : %d.%d (rev %s)\n", VERSION>>16, VERSION&0xFFFF, GIT_REV_STR);
 	gprintf("Firmware: %d.%d.%d\n", *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143 );
 
 	s32 r = ISFS_Initialize();
@@ -3874,7 +3874,7 @@ int main(int argc, char **argv)
 #endif
 	gprintf("priiloader\n");
 	gprintf("Built   : %s %s\n", __DATE__, __TIME__ );
-	gprintf("Version : %d.%d.%d (rev %s)\n", VERSION>>8, (VERSION&0xFF) / 10,(VERSION&0xFF) % 10,SVN_REV_STR);//VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
+	gprintf("Version : %d.%d.%d (rev %s)\n", VERSION>>8, (VERSION&0xFF) / 10,(VERSION&0xFF) % 10,GIT_REV_STR);//VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
 	gprintf("Firmware: %d.%d.%d\n", *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143 );
 
 	/**(vu32*)0x80000020 = 0x0D15EA5E;				// Magic word (how did the console boot?)
@@ -4181,17 +4181,17 @@ int main(int argc, char **argv)
 			if( (VERSION&0xFF) % 10 == 0 )
 			{
 #if BETAVERSION > 0
-					PrintFormat( 0, 160, rmode->viHeight-96, "Priiloader v%d.%d(beta v%d)", VERSION>>8, (VERSION&0xFF) / 10, BETAVERSION&0xFF );
+					PrintFormat( 0, 128, rmode->viHeight-96, "Priiloader v%d.%d(beta v%d)", VERSION>>8, (VERSION&0xFF) / 10, BETAVERSION&0xFF );
 #else
-					PrintFormat( 0, 160, rmode->viHeight-96, "Priiloader v%d.%d (r%d)", VERSION>>8, (VERSION&0xFF) / 10 ,SVN_REV );
+					PrintFormat( 0, 128, rmode->viHeight-96, "Priiloader v%d.%d (r0x%08x)", VERSION>>8, (VERSION&0xFF) / 10 ,GIT_REV );
 #endif
 			}
 			else
 			{
 #if BETAVERSION > 0
-				PrintFormat( 0, 160, rmode->viHeight-96, "Priiloader v%d.%d.%d(beta v%d)", VERSION>>8, (VERSION&0xFF) / 10,(VERSION&0xFF) % 10, BETAVERSION&0xFF );
+				PrintFormat( 0, 128, rmode->viHeight-96, "Priiloader v%d.%d.%d(beta v%d)", VERSION>>8, (VERSION&0xFF) / 10,(VERSION&0xFF) % 10, BETAVERSION&0xFF );
 #else
-				PrintFormat( 0, 160, rmode->viHeight-96, "Priiloader v%d.%d.%d (r%d)", VERSION>>8, (VERSION&0xFF) / 10,(VERSION&0xFF) % 10,SVN_REV );
+				PrintFormat( 0, 128, rmode->viHeight-96, "Priiloader v%d.%d.%d (r0x%08x)", VERSION>>8, (VERSION&0xFF) / 10,(VERSION&0xFF) % 10,GIT_REV );
 #endif
 			}
 			PrintFormat( 0, 16, rmode->viHeight-112, "IOS v%d", (*(vu32*)0x80003140)>>16 );
