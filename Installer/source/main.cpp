@@ -127,6 +127,32 @@ void sleepx (int seconds)
 	}
 	return;
 }
+bool UserYesNoStop()
+{
+	u16 pDown;
+	u16 GCpDown;
+	while(1)
+	{
+		WPAD_ScanPads();
+		PAD_ScanPads();
+		pDown = WPAD_ButtonsDown(0);
+		GCpDown = PAD_ButtonsDown(0);
+		if (pDown & WPAD_BUTTON_A || GCpDown & PAD_BUTTON_A)
+		{
+			return true;
+		}
+		if (pDown & WPAD_BUTTON_B || GCpDown & PAD_BUTTON_B)
+		{
+			return false;
+		}
+		if (pDown & WPAD_BUTTON_HOME || GCpDown & PAD_BUTTON_START)
+		{
+			return false;
+		}
+	}
+	//it should never get here, but to kill that silly warning... :)
+	return false;
+}
 void abort(const char* msg, ...)
 {
 	va_list args;
@@ -135,11 +161,13 @@ void abort(const char* msg, ...)
 	strcpy( text + vsnprintf( text,4095,msg,args ),""); 
 	va_end( args );
 	printf("\x1b[%u;%dm", 36, 1);
-	printf("%s, aborting mission...\n", text);
 	gprintf("%s, aborting mission...\n", text);
+	printf("%s\nPress A to exit back to loader...\n",text);
+	UserYesNoStop();
+	printf("exitting...\n");
+	printf("\x1b[%u;%dm", 37, 1);
 	VIDEO_WaitVSync();
 	//ISFS_Deinitialize();
-	sleepx(5);
 	exit(0);
 	return;
 }
@@ -495,33 +523,6 @@ free_and_Return:
 	}
 	return 1;
 }
-bool UserYesNoStop()
-{
-	u16 pDown;
-	u16 GCpDown;
-	while(1)
-	{
-		WPAD_ScanPads();
-		PAD_ScanPads();
-		pDown = WPAD_ButtonsDown(0);
-		GCpDown = PAD_ButtonsDown(0);
-		if (pDown & WPAD_BUTTON_A || GCpDown & PAD_BUTTON_A)
-		{
-			return true;
-		}
-		if (pDown & WPAD_BUTTON_B || GCpDown & PAD_BUTTON_B)
-		{
-			return false;
-		}
-		if (pDown & WPAD_BUTTON_HOME || GCpDown & PAD_BUTTON_START)
-		{
-			abort("User command");
-			break;
-		}
-	}
-	//it should never get here, but to kill that silly warning... :)
-	return false;
-}
 void proccess_delete_ret( s32 ret )
 {
 	if(ret == -106)
@@ -727,7 +728,7 @@ s8 PatchTMD( u8 delete_mode )
 				printf("\nWARNING!!\nInstaller could not calculate the Checksum when restoring the TMD back!\n");
 				printf("the TMD however was copied...\n");
 				printf("Do you want to Continue ?\n");
-				printf("A = Yes       B = No       Home/Start = Exit\n  ");
+				printf("A = Yes       B = No\n  ");
 				printf("\x1b[%u;%dm", 37, 1);
 				if(!UserYesNoStop())
 				{
@@ -878,7 +879,7 @@ _return:
 		printf("\nWARNING!!\nInstaller couldn't Patch the system menu TMD.\n");
 		printf("Priiloader could still end up being installed but could end up working differently\n");
 		printf("Do you want the Continue ?\n");
-		printf("A = Yes       B = No       Home/Start = Exit\n  ");
+		printf("A = Yes       B = No\n  ");
 		printf("\x1b[%u;%dm", 37, 1);
 		if(!UserYesNoStop())
 		{
@@ -916,7 +917,7 @@ _checkreturn:
 	printf("\nWARNING!!\n  Installer could not calculate the Checksum for the TMD!");
 	printf("\nbut Patch write was successfull.\n");
 	printf("Do you want the Continue ?\n");
-	printf("A = Yes       B = No       Home/Start = Exit\n  ");
+	printf("A = Yes       B = No\n  ");
 	printf("\x1b[%u;%dm", 37, 1);
 	if(!UserYesNoStop())
 	{
@@ -1046,7 +1047,7 @@ s8 WritePriiloader( bool priiloader_found )
 				printf("\nWARNING!!\n  Installer could not calculate the Checksum for the System menu app");
 				printf("\nbut Copy was successfull.\n");
 				printf("Do you want the Continue ?\n");
-				printf("A = Yes       B = No       Home/Start = Exit\n  ");
+				printf("A = Yes       B = No\n  ");
 				printf("\x1b[%u;%dm", 37, 1);
 				if(!UserYesNoStop())
 				{
@@ -1280,7 +1281,7 @@ s8 RemovePriiloader ( void )
 			printf("\nWARNING!!\n  Installer could not calculate the Checksum when coping the System menu app\n");
 			printf("back! the app however was copied...\n");
 			printf("Do you want to Continue ?\n");
-			printf("A = Yes       B = No       Home/Start = Exit\n  ");
+			printf("A = Yes       B = No\n  ");
 			printf("\x1b[%u;%dm", 37, 1);
 			if(!UserYesNoStop())
 			{
@@ -1326,7 +1327,6 @@ int main(int argc, char **argv)
 {
 	//DEBUG_Init(GDBSTUB_DEVICE_USB, 1);
 	s8 ios_patched = 0;
-	init_states wii_state;
 	s32 ret = 0;
 
 	CheckForGecko();
@@ -1366,6 +1366,9 @@ int main(int argc, char **argv)
 	//return 0;
 	//reload ios so that IF the user started this with AHBPROT we lose everything from HBC. also, IOS36 is the most patched ios :')
 	IOS_ReloadIOS(36);
+
+	WPAD_Init();
+	PAD_Init();
 
 	printf("\nIOS %d rev %d\n\n",IOS_GetVersion(),IOS_GetRevision());
 if( (VERSION&0xFF) % 10 == 0 )
@@ -1482,8 +1485,6 @@ else
 	copy_app[33] = '1';
 	gprintf("%s &\n%s \n",original_app,copy_app);
 
-	WPAD_Init();
-	PAD_Init();
 	sleepx(5);
 
 	printf("\r\t\t\t   Press (+/A) to install or update Priiloader\n\t");
@@ -1547,18 +1548,16 @@ else
 			}
 			if(_Prii_Found)
 			{
-				printf("deleting extra priiloader files...\n");
+				printf("Deleting extra priiloader files...\n");
 				Delete_Priiloader_Files(1);
-				printf("\n\nUpdate done, exiting to loader... waiting 5s...\n");
+				abort("\n\nUpdate done!\n");
 			}
 			else if(!_Prii_Found)
 			{
 				printf("Attempting to delete leftover files...\n");
 				Delete_Priiloader_Files(0);
-				printf("Install done, exiting to loader... waiting 5s...\n");
+				abort("Install done!\n");
 			}
-			sleepx(5);
-			exit(0);
 
 		}
 		else if (pDown & WPAD_BUTTON_MINUS || GCpDown & PAD_BUTTON_Y )
@@ -1581,12 +1580,10 @@ else
 				printf("Deleting extra Priiloader files...\n");
 				Delete_Priiloader_Files(2);
 				printf("Done!\n\n");
-				printf("Removal done, exiting to loader... waiting 5s...\n");
-				sleepx(5);
-				exit(0);
+				abort("Removal done.\n");
 			}
 		}
-		if ( GCpDown & PAD_BUTTON_START || pDown & WPAD_BUTTON_HOME) 
+		else if ( GCpDown & PAD_BUTTON_START || pDown & WPAD_BUTTON_HOME) 
 		{
 			VIDEO_ClearFrameBuffer( vmode, xfb, COLOR_BLACK);
 			printf("\x1b[5;0H");
