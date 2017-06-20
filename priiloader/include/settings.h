@@ -30,7 +30,7 @@ typedef struct {
 	u8 autoboot;
 	u32 version;
 	u8 ReturnTo;
-	u8 ShutdownToPreloader;
+	u8 ShutdownTo;
 	u8 StopDisc;
 	u8 LidSlotOnError;
 	u8 IgnoreShutDownMode;
@@ -47,7 +47,7 @@ typedef struct {
 enum {
 		SETTING_AUTBOOT,
 		SETTING_RETURNTO,
-		SETTING_SHUTDOWNTOPRELOADER,
+		SETTING_SHUTDOWNTO,
 		SETTING_STOPDISC,
 		SETTING_LIDSLOTONERROR,
 		SETTING_IGNORESHUTDOWNMODE,
@@ -73,6 +73,12 @@ enum {
 		RETURNTO_SYSMENU,
 		RETURNTO_PRIILOADER,
 		RETURNTO_AUTOBOOT
+};
+
+enum {
+	SHUTDOWNTO_NONE,
+	SHUTDOWNTO_PRIILOADER,
+	SHUTDOWNTO_AUTOBOOT
 };
 
 

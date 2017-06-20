@@ -144,8 +144,8 @@ u32 SGetSetting( u32 s )
 		case SETTING_RETURNTO:
 			return settings->ReturnTo;
 
-		case SETTING_SHUTDOWNTOPRELOADER:
-			return settings->ShutdownToPreloader;
+		case SETTING_SHUTDOWNTO:
+			return settings->ShutdownTo;
 
 		case SETTING_STOPDISC:
 			return settings->StopDisc;

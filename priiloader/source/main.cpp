@@ -776,24 +776,31 @@ void SetSettings( void )
 			} break;
 			case 2:
 			{
-				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
-					 PAD_Pressed & PAD_BUTTON_LEFT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
-					 PAD_Pressed & PAD_BUTTON_RIGHT				||
+				if ( WPAD_Pressed & WPAD_BUTTON_RIGHT			||
 					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
+					 PAD_Pressed & PAD_BUTTON_RIGHT				||
 					 WPAD_Pressed & WPAD_BUTTON_A				||
 					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
 					 PAD_Pressed & PAD_BUTTON_A
 					)
 				{
-					if( settings->ShutdownToPreloader )
-						settings->ShutdownToPreloader = 0;
-					else 
-						settings->ShutdownToPreloader = 1;
+					settings->ShutdownTo++;
+
+					if(settings->ShutdownTo > SHUTDOWNTO_AUTOBOOT )
+						settings->ShutdownTo = SHUTDOWNTO_NONE;
 
 					redraw=true;
 				}
+				else if ( WPAD_Pressed & WPAD_BUTTON_LEFT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT || PAD_Pressed & PAD_BUTTON_LEFT ) {
+
+					if( settings->ShutdownTo == SHUTDOWNTO_NONE )
+						settings->ShutdownTo = SHUTDOWNTO_AUTOBOOT;
+					else
+						settings->ShutdownTo--;
+
+					redraw=true;
+				}
+
 
 
 			} break;
@@ -1177,10 +1184,27 @@ void SetSettings( void )
 					settings->ReturnTo = RETURNTO_PRIILOADER;
 					break;
 			}
+
+			switch( settings->ShutdownTo )
+			{
+				case SHUTDOWNTO_NONE:
+					PrintFormat( cur_off==2, 0, 128+(16*1), "           Shutdown to:          Power Off ");
+				break;
+				case SHUTDOWNTO_PRIILOADER:
+					PrintFormat( cur_off==2, 0, 128+(16*1), "           Shutdown to:          Priiloader");
+				break;
+				case SHUTDOWNTO_AUTOBOOT:
+					PrintFormat( cur_off==2, 0, 128+(16*1), "           Shutdown to:          Autoboot  ");
+				break;
+				default:
+					gdprintf("SetSettings : unknown shutdown to value %d\n",settings->ShutdownTo);
+					settings->ShutdownTo = SHUTDOWNTO_NONE;
+					break;
+			}
 			
 			//PrintFormat( 0, 16, 64, "Pos:%d", ((rmode->viWidth /2)-(strlen("settings saved")*13/2))>>1);
 
-			PrintFormat( cur_off==2, 0, 128+(16*1), "           Shutdown to:          %s", settings->ShutdownToPreloader?"Priiloader":"off       ");
+			//PrintFormat( cur_off==2, 0, 128+(16*1), "           Shutdown to:          %s", settings->ShutdownToPreloader?"Priiloader":"off       ");
 			PrintFormat( cur_off==3, 0, 128+(16*2), "  Stop disc on startup:          %s", settings->StopDisc?"on ":"off");
 			PrintFormat( cur_off==4, 0, 128+(16*3), "   Light slot on error:          %s", settings->LidSlotOnError?"on ":"off");
 			PrintFormat( cur_off==5, 0, 128+(16*4), "        Ignore standby:          %s", settings->IgnoreShutDownMode?"on ":"off");
@@ -1792,6 +1816,12 @@ s8 BootDolFromDir( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<std
 	{
 		return -5;
 	}
+
+	std::string _path;
+	_path.append(Dir);
+	//filename = _path.substr(_path.find_last_of("/\\") + 1);
+	gprintf("going to boot %s\n",_path.c_str());
+
 	struct __argv args;
 	bzero(&args, sizeof(args));
 	args.argvMagic = 0;
@@ -1801,6 +1831,8 @@ s8 BootDolFromDir( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<std
 	args.argv = &args.commandLine;
 	args.endARGV = args.argv + 1;
 	
+	//calculate the char lenght of the arguments
+	args.length = _path.size() +1;//strlen(_path.c_str())+1;
 	if(args_list.size() > 0)
 	{
 		//loading args
@@ -1809,11 +1841,27 @@ s8 BootDolFromDir( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<std
 			if(args_list[i].c_str())
 				args.length += strlen(args_list[i].c_str())+1;
 		}
-		args.length += 1;
-		args.commandLine = (char*) mem_malloc(args.length);
-		if (args.commandLine != NULL)
+	}
+
+
+	//allocate memory for the arguments
+	args.commandLine = (char*) mem_malloc(args.length);
+	if(args.commandLine == NULL)
+	{
+		args.commandLine = 0;
+		args.length = 0;
+	}
+	else
+	{
+		//assign arguments and the rest
+		strcpy(&args.commandLine[0], _path.c_str());
+
+		//add the other arguments
+		args.argc = 1;
+
+		if(args_list.size() > 0)
 		{
-			u32 pos = 0;
+			u32 pos = _path.size() +1;
 			for(u32 i = 0; i < args_list.size(); i++)
 			{
 				if(args_list[i].c_str())
@@ -1822,17 +1870,13 @@ s8 BootDolFromDir( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<std
 					pos += strlen(args_list[i].c_str())+1;
 				}
 			}
-			args.commandLine[args.length - 1] = '\0';
-			args.argc = args_list.size();
-			args.argv = &args.commandLine;
-			args.endARGV = args.argv + 1;
-			args.argvMagic = ARGV_MAGIC; //everything is set so the magic is set so it becomes valid
+			args.argc += args_list.size();
 		}
-		else
-		{
-			args.commandLine = 0;
-			args.length = 0;
-		}
+		
+		args.commandLine[args.length - 1] = '\0';
+		args.argv = &args.commandLine;
+		args.endARGV = args.argv + 1;
+		args.argvMagic = ARGV_MAGIC; //everything is set so the magic is set so it becomes valid*/
 	}
 	FILE* dol;
 	dol = fopen(Dir,"rb");
@@ -2605,6 +2649,7 @@ void InstallLoadDOL( void )
 				if( ISFS_Write( fd, buf, sizeof( char ) * size ) != (signed)(sizeof( char ) * size) )
 				{
 					PrintFormat( 1, TEXT_OFFSET("Writing dol failed!"), 240, "Writing dol failed!");
+					gprintf("writing dol failure! error %d ( 0x%08X )\n",fd);
 				}
 				else
 				{
@@ -2783,6 +2828,9 @@ void AutoBootDol( void )
 	s32 fd = 0;
 	s32 r = 0;
 	s32 Ios_to_load = 0;
+	s8 failure = 0;
+	std::string dol_path = "/title/00000001/00000002/data/main.bin";
+
 	Elf32_Ehdr *ElfHdr = NULL;
 	dolhdr *hdr = NULL;
 
@@ -2800,6 +2848,129 @@ void AutoBootDol( void )
 	
 	fd = ISFS_Open("/title/00000001/00000002/data/main.nfo", 1 );
 	if(fd >= 0)
+	{
+		STACK_ALIGN(fstats,status,sizeof(fstats),32);
+		if (ISFS_GetFileStats(fd,status) >= 0 && status->file_length >= 2)
+		{
+			//read the argument count,AHBPROT bit and arg lenght
+			r = ISFS_Read( fd, dol_settings, sizeof(s16)+sizeof(s32) );
+			if(r > 0)
+			{
+				if(dol_settings->HW_AHBPROT_bit != 1 && dol_settings->HW_AHBPROT_bit != 0 )
+				{
+					//invalid. fuck the file then
+					gprintf("invalid. %d\n",dol_settings->HW_AHBPROT_bit);
+					ISFS_Delete("/title/00000001/00000002/data/main.nfo");
+					ISFS_Close(fd);
+					failure = 1;
+				}
+				else
+				{
+
+					//NOTE : so far this code is broken.
+					//it looks like libogc dislikes the / in the NAND path...
+					//TODO : make a temp path which makes the / into \ (aka, string replace)
+					argv.length = dol_path.size()+1;
+
+					if(dol_settings->argument_count > 0)
+					{
+						argv.length += dol_settings->arg_cli_lenght;
+					}
+
+					argv.commandLine = (char*) mem_malloc(argv.length);
+					if (argv.commandLine != NULL)
+					{
+						memset(argv.commandLine,0,argv.length);
+
+						strncpy(argv.commandLine,dol_path.c_str(),dol_path.size());
+						argv.argc = 1;
+
+						STACK_ALIGN(char,pos,dol_settings->arg_cli_lenght,32);
+
+						memset(pos,0,dol_settings->arg_cli_lenght);
+						if(dol_settings->argument_count > 0)
+						{
+							r = ISFS_Read( fd, pos, dol_settings->arg_cli_lenght );
+							if(r <= 0)
+							{
+								gprintf("failed to read arguments ( %d )\n",r);
+								failure = 1;
+							}
+							else
+							{
+								memcpy(argv.commandLine+dol_path.size()+1,pos,dol_settings->arg_cli_lenght);
+							}
+							ISFS_Close(fd);
+							argv.argc += dol_settings->argument_count;
+						}
+						argv.commandLine[argv.length - 1] = '\0';
+						argv.argv = &argv.commandLine;
+						argv.endARGV = argv.argv + 1;
+						argv.argvMagic = ARGV_MAGIC; //everything is set so the magic is set so it becomes valid
+					}
+					else
+					{
+						gprintf("failed to allocate commandline!");
+						failure = 1;
+					}
+				}
+			}
+		}
+		else
+		{
+			gprintf("failed to get stats/file lenght");
+			failure = 1;
+		}
+	}
+	else
+		failure = 1;
+
+	if(failure != 0)
+	{
+		gprintf("something went wrong and wanted to bail out. setting arguments as defaults\n");
+		//ISFS_Delete("/title/00000001/00000002/data/main.nfo");
+		ISFS_Close(fd);
+		if(argv.commandLine)
+			mem_free(argv.commandLine);
+		if(argv.length != 0)
+			argv.length = 0;
+
+		//load in default arguments
+		argv.length = dol_path.size()+1;
+		argv.commandLine = (char*) mem_malloc(argv.length);
+		if (argv.commandLine != NULL)
+		{
+			strncpy(argv.commandLine,dol_path.c_str(),argv.length);
+			argv.commandLine[argv.length - 1] = '\0';
+			argv.argc = 1;
+			argv.argv = &argv.commandLine;
+			argv.endARGV = argv.argv + 1;
+			argv.argvMagic = ARGV_MAGIC; //everything is set so the magic is set so it becomes valid
+		}
+		else
+		{
+			gprintf("memory allocation fail...aboring arguments\n");
+			argv.length = 0;
+			argv.commandLine = NULL;
+		}
+		ISFS_Close(fd);
+		dol_settings->HW_AHBPROT_bit = 1;
+		dol_settings->argument_count = 1;
+	}
+//#ifdef DEBUG
+	gdprintf("argv says %d arguments while settings say %d\n",argv.argc,dol_settings->argument_count);
+	for(int i = 0;i < argv.length;i++)
+	{
+		if(argv.commandLine[i] == 0x00)
+		{
+			gprintf("[%d] = 0x00\n",i);
+		}
+		else
+			gprintf("[%d] = %c\n",i,argv.commandLine[i]);
+	}
+//#endif
+	failure = 0;
+	/*if(fd >= 0)
 	{
 		STACK_ALIGN(fstats,status,sizeof(fstats),32);
 		if (ISFS_GetFileStats(fd,status) < 0)
@@ -2865,9 +3036,10 @@ reset_and_read:
 		argv.length = 0;
 	ISFS_Close(fd);
 	dol_settings->HW_AHBPROT_bit = 0;
-	dol_settings->argument_count = 0;
-read_dol:
-	fd = ISFS_Open("/title/00000001/00000002/data/main.bin", 1 );
+	dol_settings->argument_count = 0;*/
+	gprintf("starting reading dol...\n");
+
+	fd = ISFS_Open(dol_path.c_str(), 1 );
 	if( fd < 0 )
 	{
 		error = ERROR_BOOT_DOL_OPEN;
@@ -3137,6 +3309,7 @@ read_dol:
 			void* new_argv = (void*)(hdr->entrypoint + 8);
 			memmove(new_argv, &argv, sizeof(__argv));
 			DCFlushRange(new_argv, sizeof(__argv));
+			struct __argv* test = (__argv*)new_argv;
         }
 		entrypoint = (void (*)())(hdr->entrypoint);
 
@@ -3697,10 +3870,10 @@ void Autoboot_System( void )
 }
 s8 CheckMagicWords( void )
 {
-	//0x4461636f = "Daco" in hex, 0x50756e65 = "Pune"
-	if( *(vu32*)MAGIC_WORD_ADDRESS_1 == 0x4461636f || *(vu32*)MAGIC_WORD_ADDRESS_1 == 0x50756e65 )
+	//0x4461636f = "Daco" in hex, 0x50756e65 = "Pune", 0x41627261 = "Abra"  
+	if( *(vu32*)MAGIC_WORD_ADDRESS_1 == 0x4461636f || *(vu32*)MAGIC_WORD_ADDRESS_1 == 0x50756e65 || *(vu32*)MAGIC_WORD_ADDRESS_1 == 0x41627261 )
 		return 1;
-	if( *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x4461636f || *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x50756e65 )
+	if( *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x4461636f || *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x50756e65 || *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x41627261  )
 		return 1;
 	return 0;
 }
@@ -3951,7 +4124,14 @@ int main(int argc, char **argv)
 				{
 					gprintf("Verifty of NandBootInfo : 0\n");
 				}*/
-				if(!SGetSetting(SETTING_SHUTDOWNTOPRELOADER))
+				if(SGetSetting(SETTING_SHUTDOWNTO) == SHUTDOWNTO_AUTOBOOT)
+				{
+					//a function asked for by Abraham Anderson. i understood his issue (emulators being easy to shutdown but not return to loader, making him want to shutdown to loader) 
+					//but still think its stupid. however, days of the wii are passed and i hope no idiot is going to screw his wii with this and then nag to me...
+					gprintf("booting autoboot instead of shutting down...\n");
+					Autoboot_System();
+				}
+				else if(SGetSetting(SETTING_SHUTDOWNTO) == SHUTDOWNTO_NONE)
 				{
 					gprintf("Shutting down...\n");
 					DVDStopDisc(true);
@@ -4038,10 +4218,21 @@ int main(int argc, char **argv)
 		DCFlushRange((void*)MAGIC_WORD_ADDRESS_2,4);
 		BootMainSysMenu(0);
 	}
+	else if( *(vu32*)MAGIC_WORD_ADDRESS_1 == 0x41627261 || *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x41627261 )
+	{
+		//detected the force for autoboot
+		gprintf("\"Magic Priiloader Word\" 'Abra' found!\n");
+		gprintf("clearing memory of the \"Magic Priiloader Word\" and starting Autorun setting...\n");
+		*(vu32*)MAGIC_WORD_ADDRESS_1 = 0x00000000;
+		DCFlushRange((void*)MAGIC_WORD_ADDRESS_1,4);
+		*(vu32*)MAGIC_WORD_ADDRESS_2 = 0x00000000;
+		DCFlushRange((void*)MAGIC_WORD_ADDRESS_2,4);
+		Autoboot_System();
+	}
 	else if( (
 			( SGetSetting(SETTING_AUTBOOT) != AUTOBOOT_DISABLED && ( Bootstate < 2 || Bootstate == 4 ) ) 
-		 || ( SGetSetting(SETTING_RETURNTO) != RETURNTO_PRIILOADER && Bootstate > 1 && Bootstate != 4 ) 
-		 || ( SGetSetting(SETTING_SHUTDOWNTOPRELOADER) == 0 && Bootstate == 5 ) ) 
+		 || ( SGetSetting(SETTING_RETURNTO) != RETURNTO_PRIILOADER && Bootstate > 1 && Bootstate < 4 ) 
+		 || ( SGetSetting(SETTING_SHUTDOWNTO) == SHUTDOWNTO_NONE && Bootstate == 5 ) ) 
 		 && error == 0 )
 	{
 		gprintf("Reset Button is held down\n");
