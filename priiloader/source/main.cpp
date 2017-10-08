@@ -58,11 +58,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "dvd.h"
 #include "titles.h"
 #include "mem2_manager.h"
+#include "HomebrewChannel.h"
+#include "IOS.h"
 
 
 //Bin includes
 #include "certs_bin.h"
-#include "stub_bin.h"
 
 extern "C"
 {
@@ -100,14 +101,7 @@ extern u8 error;
 extern std::vector<hack_hash> hacks_hash;
 extern u32 *states_hash;
 
-typedef struct wii_state {
-	s8 Shutdown:2;
-	s8 BootSysMenu:2;
-	s8 ReloadedIOS:2;
-	s8 InMainMenu:2;
-} wii_state;
 
-wii_state system_state;
 time_t startloop = 0;
 u32 appentrypoint = 0;
 
@@ -118,129 +112,7 @@ s32 __IOS_LoadStartupIOS()
 {
 	return 0;
 }
-u8 DetectHBC( void )
-{
-    u64 *list;
-    u32 titlecount;
-    s32 ret;
 
-    ret = ES_GetNumTitles(&titlecount);
-    if(ret < 0)
-	{
-		gprintf("DetectHBC : ES_GetNumTitles failure\n");
-		return 0;
-	}
-
-    list = (u64*)mem_align(32, ALIGN32( titlecount * sizeof(u64) ) );
-
-    ret = ES_GetTitles(list, titlecount);
-    if(ret < 0) {
-		gprintf("DetectHBC :ES_GetTitles failure. error %d\n",ret);
-		mem_free(list);
-		return 0;
-    }
-	ret = 0;
-	//lets check for known HBC title id's.
-    for(u32 i=0; i<titlecount; i++) 
-	{
-		if (list[i] == 0x000100014C554C5ALL)
-		{
-			if(ret < 4)
-				ret = 4;
-		}
-		if (list[i] == 0x00010001AF1BF516LL)
-		{
-			if(ret < 3)
-				ret = 3;
-		}
-		if (list[i] == 0x000100014A4F4449LL)
-		{
-			if (ret < 2)
-				ret = 2;
-		}
-        if (list[i] == 0x0001000148415858LL)
-        {
-			if (ret < 1)
-				ret = 1;
-        }
-    }
-	mem_free(list);
-    if(ret < 1)
-	{
-		gprintf("DetectHBC: HBC not found\n");
-	}
-	return ret;
-}
-void LoadHBCStub ( void )
-{
-	//LoadHBCStub: Load HBC JODI reload Stub and change stub to haxx if needed. 
-	//the first part of the title is at 0x800024CA (first 2 bytes) and 0x800024D2 (last 2 bytes)
-	//HBC < 1.0.5 = HAXX or 4841 5858
-	//HBC >= 1.0.5 = JODI or 4A4F 4449
-	//HBC >= 1.0.7 = .... or AF1B F516
-
-	//in the JODI stub 0x800024CA & 24D2 needed to be changed. in the new 0.10 its 0x80001F62 & 1F6A
-	/*if ( *(vu32*)0x80001804 == 0x53545542 && *(vu32*)0x80001808 == 0x48415858 )
-	{
-		return;
-	}*/
-	//load Stub, contains JODI by default.
-	memcpy((void*)0x80001800, stub_bin, stub_bin_size);
-	DCFlushRange((void*)0x80001800,stub_bin_size);
-	
-	//see if changes are needed to change it to the right ID
-	//TODO : try the "LOADKTHX" function of the stub instead of changing titleID
-	//(9:16:33 AM) megazig: 0x80002760 has a ptr. write 'LOADKTHX' where that points
-	//(9:16:49 AM) megazig: 0x80002764 has a pttr. write u64 titleid there
-	//(12:55:06 PM) megazig: DacoTaco: the trick of overwriting their memset does. without nopping then memset it does not
-	/*
-	//disable the memset that disables this LOADKTHX function in the stub
-	*(u32*)0x800019B0 = 0x60000000; 
-	DCFlushRange((void*)0x800019A0, 0x20);
-	//set up the LOADKTHX parameters
-	*(u32*)(*(u32*)0x80002760) = 0x4c4f4144;
-	*(u32*)((*(u32*)0x80002760)+4) = 0x4b544858;
-	*(u32*)0x80002F08 = 0x00010001;
-	*(u32*)0x80002F0C = 0x4441434F;
-	DCFlushRange((void*)0x80001800,stub_bin_size);*/
-
-    switch(DetectHBC())
-	{
-		default: //not good, no HBC was detected >_> lets keep the stub anyway
-			gprintf("HBC stub : No HBC Detected!1.1.0 stub loaded by default\n");
-			break;
-		case 4:
-			*(vu16*)0x80001F62 = 0x4C55;
-			*(vu16*)0x80001F6A = 0x4C5A;
-			DCFlushRange((void*)0x80001800,stub_bin_size);
-			break;
-		case 3:
-			/**(vu16*)0x80001F62 = 0xAF1B;
-			*(vu16*)0x80001F6A = 0xF516;
-			DCFlushRange((void*)0x80001800,stub_bin_size);*/
-			break;
-		case 1: //HAXX
-			*(vu16*)0x80001F62 = 0x4841;//"HA";
-			*(vu16*)0x80001F6A = 0x5858;//"XX";
-			DCFlushRange((void*)0x80001800,stub_bin_size);
-			break;
-		case 2: //JODI
-			*(vu16*)0x80001F62 = 0x4A4F; //"JO";
-			*(vu16*)0x80001F6A = 0x4449; //"DI";
-			DCFlushRange((void*)0x80001800,stub_bin_size);
-			break;
-	}
-	gprintf("HBC stub : Loaded\n");
-	return;	
-}
-void UnloadHBCStub( void )
-{
-	//some apps apparently dislike it if the stub stays in memory but for some reason isn't active :/
-	//this isn't used cause as odd as the bug sounds, it vanished...
-	memset((void*)0x80001800, 0, stub_bin_size);
-	DCFlushRange((void*)0x80001800,stub_bin_size);	
-	return;
-}
 void ClearScreen()
 {
 	if( !SGetSetting(SETTING_BLACKBACKGROUND))
@@ -252,112 +124,7 @@ void ClearScreen()
 	fflush(stdout);
 	return;
 }
-bool isIOSstub(u8 ios_number)
-{
-	u32 tmd_size = 0;
-	tmd_view *ios_tmd;
 
-	ES_GetTMDViewSize(0x0000000100000000ULL | ios_number, &tmd_size);
-	if (!tmd_size)
-	{
-		//getting size failed. invalid or fake tmd for sure!
-		gdprintf("isIOSstub : ES_GetTMDViewSize fail,ios %d\n",ios_number);
-		return true;
-	}
-	ios_tmd = (tmd_view *)mem_align( 32, ALIGN32(tmd_size) );
-	if(!ios_tmd)
-	{
-		gdprintf("isIOSstub : TMD alloc failure\n");
-		return true;
-	}
-	memset(ios_tmd , 0, tmd_size);
-	ES_GetTMDView(0x0000000100000000ULL | ios_number, (u8*)ios_tmd , tmd_size);
-	gdprintf("isIOSstub : IOS %d is rev %d(0x%x) with tmd size of %u and %u contents\n",ios_number,ios_tmd->title_version,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
-	/*Stubs have a few things in common:
-	- title version : it is mostly 65280 , or even better : in hex the last 2 digits are 0. 
-		example : IOS 60 rev 6400 = 0x1900 = 00 = stub
-	- exception for IOS21 which is active, the tmd size is 592 bytes (or 140 with the views)
-	- the stub ios' have 1 app of their own (type 0x1) and 2 shared apps (type 0x8001).
-	eventho the 00 check seems to work fine , we'll only use other knowledge as well cause some
-	people/applications install an ios with a stub rev >_> ...*/
-	u8 Version = ios_tmd->title_version;
-	//version now contains the last 2 bytes. as said above, if this is 00, its a stub
-	if ( Version == 0 )
-	{
-		if ( ( ios_tmd->num_contents == 3) && (ios_tmd->contents[0].type == 1 && ios_tmd->contents[1].type == 0x8001 && ios_tmd->contents[2].type == 0x8001) )
-		{
-			gdprintf("isIOSstub : %d == stub",ios_number);
-			mem_free(ios_tmd);
-			return true;
-		}
-		else
-		{
-			gdprintf("isIOSstub : %d != stub\n",ios_number);
-			mem_free(ios_tmd);
-			return false;
-		}
-	}
-	gdprintf("isIOSstub : %d != stub\n",ios_number);
-	mem_free(ios_tmd);
-	return false;
-}
-s32 ReloadIos(s32 Ios_version,s8* bool_ahbprot_after_reload)
-{
-	//this function would not be possible without tjeuidj releasing his patch. its not that davebaol's patch is less safe, but teuidj's is cleaner. and clean == good
-	if(
-		((bool_ahbprot_after_reload != NULL) && *bool_ahbprot_after_reload > 0)
-		&& read32(0x0d800064) == 0xFFFFFFFF)
-	{
-		if(read16(0x0d8b420a))
-		{
-			//there is more you can do to make more available but meh, not needed
-			write16(0x0d8b420a, 0);
-		}
-		if(!( read16(0x0d8b420a) ) )
-		{
-			static const u16 es_set_ahbprot[] = {
-			  0x685B,          // ldr r3,[r3,#4]  ; get TMD pointer
-			  0x22EC, 0x0052,  // movls r2, 0x1D8
-			  0x189B,          // adds r3, r3, r2 ; add offset of access rights field in TMD
-			  0x681B,          // ldr r3, [r3]    ; load access rights (haxxme!)
-			  0x4698,          // mov r8, r3      ; store it for the DVD video bitcheck later
-			  0x07DB           // lsls r3, r3, #31; check AHBPROT bit
-			};
-			u8* mem_block = (u8*)read32(0x80003130);
-			while((u32)mem_block < 0x93FFFFFF)
-			{
-				u32 address = (u32)mem_block;
-				if (!memcmp(mem_block, es_set_ahbprot, sizeof(es_set_ahbprot)))
-				{
-					//pointers suck but do the trick. the installer uses a more safe method in its official, closed source version.but untill people start nagging ill use pointers
-					*(u8*)(address+8) = 0x23;
-					*(u8*)(address+9) = 0xFF;
-					DCFlushRange((u8 *)((address) >> 5 << 5), (sizeof(es_set_ahbprot) >> 5 << 5) + 64);
-					ICInvalidateRange((u8 *)((address) >> 5 << 5), (sizeof(es_set_ahbprot) >> 5 << 5) + 64);
-					break;
-				}
-				mem_block++;
-			}
-		}
-	}
-	IOS_ReloadIOS(Ios_version);
-	if (bool_ahbprot_after_reload != NULL)
-	{
-		if(read32(0x0d800064) == 0xFFFFFFFF)
-		{
-			*bool_ahbprot_after_reload = 1;
-		}
-		else
-		{
-			*bool_ahbprot_after_reload = 0;
-			system_state.ReloadedIOS = 1;
-		}
-	}
-	if(Ios_version == IOS_GetVersion())
-		return Ios_version;
-	else
-		return -1;
-}
 void SysHackHashSettings( void )
 {
 	if( !LoadHacks_Hash(false) )
@@ -1231,107 +998,6 @@ void SetSettings( void )
 		VIDEO_WaitVSync();
 	}
 	mem_free(TitleIDs);
-	return;
-}
-void LoadHBC( void )
-{
-	//Note By DacoTaco :check for (0x00010001/4A4F4449 - JODI) HBC id
-	//or old one(0x00010001/148415858 - HAXX)
-	//or latest 0x00010001/AF1BF516
-	u64 TitleID = 0;
-	switch (DetectHBC())
-	{
-		case 1: //HAXX
-			gprintf("LoadHBC : HAXX detected\n");
-			TitleID = 0x0001000148415858LL;
-			break;
-		case 2: //JODI
-			gprintf("LoadHBC : JODI detected\n");
-			TitleID = 0x000100014A4F4449LL;
-			break;
-		case 3: //0.7
-			gprintf("LoadHBC : >=0.7 detected\n");
-			TitleID = 0x00010001AF1BF516LL;
-			break;
-		case 4: //1.2 , 'LULZ'
-			gprintf("LoadHBC : 1.2 detected\n");
-			TitleID = 0x000100014C554C5ALL;
-			break;
-		default: //LOL nothing?
-			error = ERROR_BOOT_HBC;
-			return;
-	}
-	u32 cnt ATTRIBUTE_ALIGN(32);
-	ES_GetNumTicketViews(TitleID, &cnt);
-	tikview *views = (tikview *)mem_align( 32, sizeof(tikview)*cnt );
-	ES_GetTicketViews(TitleID, views, cnt);
-	ClearState();
-	WPAD_Shutdown();
-	ES_LaunchTitle(TitleID, &views[0]);
-	//well that went wrong
-	error = ERROR_BOOT_HBC;
-	mem_free(views);
-	return;
-}
-void LoadBootMii( void )
-{
-	//when this was coded on 6th of Oct 2009 Bootmii ios was in IOS slot 254
-	PollDevices();
-	if(isIOSstub(254))
-	{
-		if(rmode != NULL)
-		{
-			PrintFormat( 1, TEXT_OFFSET("Bootmii(IOS254) Not found!"), 208, "Bootmii(IOS254) Not found!");
-			sleep(5);
-		}
-		return;
-	}
-	if ( !(GetMountedValue() & 2) )
-	{
-		if(rmode != NULL)
-		{
-			PrintFormat( 1, TEXT_OFFSET("Could not mount SD card"), 208, "Could not mount SD card");
-			sleep(5);
-		}
-		return;
-	}
-	FILE* BootmiiFile = fopen("fat:/bootmii/armboot.bin","r");
-	if (!BootmiiFile)
-	{
-		if(rmode != NULL)
-		{
-			PrintFormat( 1, TEXT_OFFSET("Could not find fat:/bootmii/armboot.bin"), 208, "Could not find fat:/bootmii/armboot.bin");
-			sleep(5);
-		}
-		return;
-	}
-	fclose(BootmiiFile);
-		
-	/*BootmiiFile = fopen("fat:/bootmii/ppcboot.elf","r");
-	if(!BootmiiFile)
-	{
-		if(rmode != NULL)
-		{	
-			PrintFormat( 1, TEXT_OFFSET("Could not find fat:/bootmii/ppcboot.elf"), 208, "Could not find fat:/bootmii/ppcboot.elf");
-			sleep(5);
-		}
-		return;
-	}
-	fclose(BootmiiFile);*/
-	u8 currentIOS = IOS_GetVersion();
-	for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {
-		if(WPAD_Probe(i,0) < 0)
-			continue;
-		WPAD_Flush(i);
-		WPAD_Disconnect(i);
-	}
-	WPAD_Shutdown();
-	IOS_ReloadIOS(254);
-	//launching bootmii failed. lets wait a bit for the launch(it could be delayed) and then load the other ios back
-	sleep(3);
-	IOS_ReloadIOS(currentIOS);
-	system_state.ReloadedIOS = 1;
-	WPAD_Init();
 	return;
 }
 s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED, struct __argv *args )

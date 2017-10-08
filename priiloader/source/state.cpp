@@ -29,6 +29,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "state.h"
 #include "mem2_manager.h"
 
+wii_state system_state;
+
 s32 CheckBootState( void )
 {
 	StateFlags *sf = (StateFlags *)mem_align( 32,  ALIGN32(sizeof(StateFlags)) );

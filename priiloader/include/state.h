@@ -59,6 +59,15 @@ typedef struct {
        u8 argbuf[0x1000];
 } __attribute__((packed)) NANDBootInfo;
 
+typedef struct wii_state {
+	s8 Shutdown:2;
+	s8 BootSysMenu:2;
+	s8 ReloadedIOS:2;
+	s8 InMainMenu:2;
+} wii_state;
+
+
+extern wii_state system_state;
 s32 CheckBootState( void );
 s32 ClearState( void );
 StateFlags GetStateFlags( void );

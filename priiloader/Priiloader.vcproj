@@ -93,7 +93,15 @@
 				>
 			</File>
 			<File
+				RelativePath=".\source\HomebrewChannel.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\source\HTTP_Parser.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\source\IOS.cpp"
 				>
 			</File>
 			<File
@@ -167,7 +175,15 @@
 				>
 			</File>
 			<File
+				RelativePath=".\include\HomebrewChannel.h"
+				>
+			</File>
+			<File
 				RelativePath=".\include\HTTP_Parser.h"
+				>
+			</File>
+			<File
+				RelativePath=".\include\IOS.h"
 				>
 			</File>
 			<File
