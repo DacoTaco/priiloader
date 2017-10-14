@@ -31,8 +31,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "mem2_manager.h"
 #include "dvd.h"
 
-#define TITLE_UPPER(x) (u32)(x >> 32)
-#define TITLE_LOWER(x) (u32)(x & 0xFFFFFFFF)
 #define USE_DVD_ASYNC
 
 s8 CheckTitleOnSD(u64 id)

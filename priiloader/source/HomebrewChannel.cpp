@@ -24,14 +24,23 @@
 //variables
 extern u8 error;
 
+//The known HBC titles
+title_info HBC_Titles[] = {
+	{ 0x0001000148415858LL, "HAXX" },
+	{ 0x000100014A4F4449LL, "JODI" },
+	{ 0x00010001AF1BF516LL, "0.7 - 1.1" },
+	{ 0x000100014C554C5ALL, "LULZ" },
+	{ 0x000100014F484243LL, "OpenHBC 1.4"}
+};
+
+//array size retrieval
+#define HBC_Titles_Size (s32)((sizeof(HBC_Titles) / sizeof(HBC_Titles[0])))
+
 //stub functions
 void LoadHBCStub ( void )
 {
-	//LoadHBCStub: Load HBC JODI reload Stub and change stub to haxx if needed. 
+	//LoadHBCStub: Load HBC 0.10 reload Stub and change stub to any TitleID if needed. 
 	//the first part of the title is at 0x800024CA (first 2 bytes) and 0x800024D2 (last 2 bytes)
-	//HBC < 1.0.5 = HAXX or 4841 5858
-	//HBC >= 1.0.5 = JODI or 4A4F 4449
-	//HBC >= 1.0.7 = .... or AF1B F516
 
 	//in the JODI stub 0x800024CA & 24D2 needed to be changed. in the new 0.10 its 0x80001F62 & 1F6A
 	/*if ( *(vu32*)0x80001804 == 0x53545542 && *(vu32*)0x80001808 == 0x48415858 )
@@ -59,35 +68,22 @@ void LoadHBCStub ( void )
 	DCFlushRange((void*)0x80001800,stub_bin_size);*/
 
 	u16 hex[2] = { 0x00,0x00};
-    switch(DetectHBC())
+	title_info title = { 0x00,"None"};
+	s32 ret = DetectHBC(&title);
+
+	if(ret >= 0 && title.title_id != 0x00)
 	{
-		default: //not good, no HBC was detected >_> lets keep the stub anyway
-			gprintf("HBC stub : No HBC Detected! 1.1.0 stub loaded by default\n");
-			break;
-		case 5:
-			hex[0] = 0x4F48;
-			hex[1] = 0x4243;
-			break;
-		case 4:
-			hex[0] = 0x4C55;
-			hex[1] = 0x4C5A;
-			break;
-		case 3:
-			/*hex[0] = 0xAF1B;
-			hex[1] = 0xF516;*/
-			break;
-		case 1: //HAXX
-			hex[0] = 0x4841;//"HA";
-			hex[1] = 0x5858;//"XX";
-			DCFlushRange((void*)0x80001800,stub_bin_size);
-			break;
-		case 2: //JODI
-			hex[0] = 0x4A4F; //"JO";
-			hex[1] = 0x4449; //"DI";
-			DCFlushRange((void*)0x80001800,stub_bin_size);
-			break;
+		hex[0] = (u16)((TITLE_LOWER(title.title_id) & 0xFFFF0000) >> 16);
+		hex[1] = (u16)(TITLE_LOWER(title.title_id) & 0x0000FFFF);
 	}
-	if(hex[0] != 0x00 && hex[1] != 0x00)
+	else
+	{
+		gprintf("HBC stub : No HBC Detected! 1.1.0 stub loaded by default\n");
+	}
+
+	if(
+		(hex[0] != 0x00 && hex[1] != 0x00) &&
+		(hex[0] != 0xAF1B && hex[1] != 0xF516)) //these are the default values in the loaded stub
 	{
 		*(vu16*)0x80001F62 = hex[0];
 		*(vu16*)0x80001F6A = hex[1];
@@ -106,17 +102,24 @@ void UnloadHBCStub( void )
 }
 
 //HBC functions
-u8 DetectHBC( void )
+s32 DetectHBC(title_info* title)
 {
-    u64 *list;
+	u64 *list;
     u32 titlecount;
     s32 ret;
+
+	if(HBC_Titles_Size <= 0)
+	{
+		title = NULL;
+		return -1;
+	}
 
     ret = ES_GetNumTitles(&titlecount);
     if(ret < 0)
 	{
 		gprintf("DetectHBC : ES_GetNumTitles failure\n");
-		return 0;
+		title = NULL;
+		return -1;
 	}
 
     list = (u64*)mem_align(32, ALIGN32( titlecount * sizeof(u64) ) );
@@ -125,79 +128,58 @@ u8 DetectHBC( void )
     if(ret < 0) {
 		gprintf("DetectHBC :ES_GetTitles failure. error %d\n",ret);
 		mem_free(list);
-		return 0;
+		title = NULL;
+		return -2;
     }
-	ret = 0;
-	//lets check for known HBC title id's.
-    for(u32 i=0; i<titlecount; i++) 
+	ret = -3;
+	//lets check for all known HBC title id's.
+	for(u32 i=0; i<titlecount; i++) 
 	{
-		if (list[i] == 0x000100014F484243LL)
+		for(s32 arrayIndex = (ret < 0)?0:ret; arrayIndex < HBC_Titles_Size;arrayIndex++)
 		{
-			if(ret < 5)
-				ret = 5;
+			if(ret < arrayIndex && list[i] == HBC_Titles[arrayIndex].title_id)
+			{
+				//gprintf("(new) Detected %s\n",Titles[arrayIndex].name_ascii.c_str());
+				ret = arrayIndex;
+			}
 		}
-		if (list[i] == 0x000100014C554C5ALL)
+
+		//we have found the latest, supported HBC. no need to proceed checking
+		if(ret >= HBC_Titles_Size)
 		{
-			if(ret < 4)
-				ret = 4;
+			gprintf("latest HBC detected. ret = %d,Titles_Size = %d\n",ret,HBC_Titles_Size);
+			break;
 		}
-		if (list[i] == 0x00010001AF1BF516LL)
-		{
-			if(ret < 3)
-				ret = 3;
-		}
-		if (list[i] == 0x000100014A4F4449LL)
-		{
-			if (ret < 2)
-				ret = 2;
-		}
-        if (list[i] == 0x0001000148415858LL)
-        {
-			if (ret < 1)
-				ret = 1;
-        }
-    }
+	}
 	mem_free(list);
-    if(ret < 1)
+    if(ret < 0 || ret > HBC_Titles_Size -1)
 	{
 		gprintf("DetectHBC: HBC not found\n");
+		title = NULL;
+		return -3;
 	}
+	*title = HBC_Titles[ret];
 	return ret;
 }
 
-
 void LoadHBC( void )
 {
-	//Note By DacoTaco :check for (0x00010001/4A4F4449 - JODI) HBC id
-	//or old one(0x00010001/148415858 - HAXX)
-	//or latest 0x00010001/AF1BF516
 	u64 TitleID = 0;
-	switch (DetectHBC())
+
+	title_info title = { 0x00,"None"};
+	s32 ret = DetectHBC(&title);
+
+	if(ret >= 0 && title.title_id != 0x00)
 	{
-		case 1: //HAXX
-			gprintf("LoadHBC : HAXX detected\n");
-			TitleID = 0x0001000148415858LL;
-			break;
-		case 2: //JODI
-			gprintf("LoadHBC : JODI detected\n");
-			TitleID = 0x000100014A4F4449LL;
-			break;
-		case 3: //0.7
-			gprintf("LoadHBC : >=0.7 detected\n");
-			TitleID = 0x00010001AF1BF516LL;
-			break;
-		case 4: //1.2 , 'LULZ'
-			gprintf("LoadHBC : 1.2 detected\n");
-			TitleID = 0x000100014C554C5ALL;
-			break;
-		case 5: //OpenHBC
-			gprintf("LoadHBC : OpenHBC detected\n");
-			TitleID = 0x000100014F484243LL;
-			break;
-		default: //LOL nothing?
-			error = ERROR_BOOT_HBC;
-			return;
+		gprintf("LoadHBC : %s detected\n",title.name_ascii.c_str());
+		TitleID = title.title_id;
 	}
+	else
+	{
+		error = ERROR_BOOT_HBC;
+		return;
+	}
+	
 	u32 cnt ATTRIBUTE_ALIGN(32);
 	ES_GetNumTicketViews(TitleID, &cnt);
 	tikview *views = (tikview *)mem_align( 32, sizeof(tikview)*cnt );

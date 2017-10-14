@@ -32,6 +32,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "playlog.h"
 #include "font.h"
 
+//defines
+#define TITLE_UPPER(x) (u32)(x >> 32)
+#define TITLE_LOWER(x) (u32)(x & 0xFFFFFFFF)
+
 //structs & classes
 //-------------------
 typedef struct {

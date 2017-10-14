@@ -2975,7 +2975,6 @@ reset_and_read:
 			void* new_argv = (void*)(hdr->entrypoint + 8);
 			memmove(new_argv, &argv, sizeof(__argv));
 			DCFlushRange(new_argv, sizeof(__argv));
-			struct __argv* test = (__argv*)new_argv;
         }
 		entrypoint = (void (*)())(hdr->entrypoint);
 
@@ -3591,7 +3590,7 @@ int main2(int argc, char **argv)
 
 	s8 cur_off=0;
 	s8 redraw=true;
-	u32 SysVersion= 512;
+	u32 SysVersion= GetSysMenuVersion();
 #ifdef DEBUG
 	gdprintf("priiloader v%d.%d DEBUG (Sys:%d)(IOS:%d)(%s %s)\n", VERSION>>8, VERSION&0xFF, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
 #else
@@ -3954,6 +3953,7 @@ int main(int argc, char **argv)
 		{
 			ClearScreen();
 			system_state.InMainMenu = 0;
+
 			switch(cur_off)
 			{
 				case 0:
