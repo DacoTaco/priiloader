@@ -2,7 +2,7 @@
 
 priiloader/preloader 0.30 - A tool which allows to change the default boot up sequence on the Wii console
 
-Copyright (C) 2008-2013  crediar
+Copyright (C) 2008-2017  crediar
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
