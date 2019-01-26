@@ -111,9 +111,9 @@ u32 Input_ButtonsDown( void )
 			pressed |= INPUT_BUTTON_B;
 		if(WPAD_Pressed & WPAD_BUTTON_PLUS || WPAD_Pressed & WPAD_CLASSIC_BUTTON_PLUS)
 			pressed |= INPUT_BUTTON_START;
-		if(WPAD_Pressed & WPAD_BUTTON_1 || WPAD_Pressed & WPAD_CLASSIC_BUTTON_1)
+		if(WPAD_Pressed & WPAD_BUTTON_1 || WPAD_Pressed & WPAD_CLASSIC_BUTTON_Y)
 			pressed |= INPUT_BUTTON_Y;
-		if(WPAD_Pressed & WPAD_BUTTON_2 || WPAD_Pressed & WPAD_CLASSIC_BUTTON_2)
+		if(WPAD_Pressed & WPAD_BUTTON_2 || WPAD_Pressed & WPAD_CLASSIC_BUTTON_X)
 			pressed |= INPUT_BUTTON_X;
 	}
 
