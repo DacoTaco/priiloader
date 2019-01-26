@@ -59,14 +59,34 @@
 				CompileAsManaged=""
 			/>
 		</Configuration>
+		<Configuration
+			Name="Priiloader only|Win32"
+			OutputDirectory="$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
+			ConfigurationType="0"
+			CharacterSet="2"
+			WholeProgramOptimization="1"
+			>
+			<Tool
+				Name="VCNMakeTool"
+				BuildCommandLine="make"
+				ReBuildCommandLine="make clean&#x0D;&#x0A;make"
+				CleanCommandLine="make clean"
+				Output="$(ProjectName).dol"
+				PreprocessorDefinitions="WIN32;VC7;NDEBUG;"
+				IncludeSearchPath="$(DKP_HOME)\libogc\include;$(DKP_HOME)\libogc\include\bte;$(DKP_HOME)\libogc\include\di;$(DKP_HOME)\libogc\include\mad;$(DKP_HOME)\libogc\include\modplay;$(DKP_HOME)\libogc\include\ogc;$(DKP_HOME)\libogc\include\sdcard;$(DKP_HOME)\libogc\include\wiiuse;source;include"
+				ForcedIncludes=""
+				AssemblySearchPath=""
+				ForcedUsingAssemblies=""
+				CompileAsManaged=""
+			/>
+		</Configuration>
 	</Configurations>
 	<References>
 	</References>
 	<Files>
 		<Filter
 			Name="Source Files"
-			Filter="cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx"
-			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
 				RelativePath=".\source\dvd.c"
@@ -98,6 +118,10 @@
 			</File>
 			<File
 				RelativePath=".\source\HTTP_Parser.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\source\Input.c"
 				>
 			</File>
 			<File
@@ -134,6 +158,10 @@
 			</File>
 			<File
 				RelativePath=".\source\titles.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\source\unstub.S"
 				>
 			</File>
 			<File
@@ -180,6 +208,10 @@
 			</File>
 			<File
 				RelativePath=".\include\HTTP_Parser.h"
+				>
+			</File>
+			<File
+				RelativePath=".\include\Input.h"
 				>
 			</File>
 			<File
@@ -241,10 +273,6 @@
 		</Filter>
 		<File
 			RelativePath=".\Makefile"
-			>
-		</File>
-		<File
-			RelativePath=".\source\unstub.S"
 			>
 		</File>
 	</Files>

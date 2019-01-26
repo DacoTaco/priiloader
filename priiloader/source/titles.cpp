@@ -30,6 +30,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "titles.h"
 #include "mem2_manager.h"
 #include "dvd.h"
+#include "Input.h"
 
 #define USE_DVD_ASYNC
 
@@ -100,7 +101,7 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 	}
     char file[256] ATTRIBUTE_ALIGN(32);
 	memset(file,0,256);
-    sprintf(file, "/title/%08x/%08x/content/%08x.app", (u32)(id >> 32), (u32)(id & 0xFFFFFFFF), app);
+    sprintf(file, "/title/%08lx/%08lx/content/%08lx.app", (u32)(id >> 32), (u32)(id & 0xFFFFFFFF), app);
 	gdprintf("GetTitleName : %s\n",file);
 	u32 cnt ATTRIBUTE_ALIGN(32);
 	cnt = 0;
@@ -404,18 +405,16 @@ s32 LoadListTitles( void )
 		max_pos = titles.size() -1;
 	while(1)
 	{
-		WPAD_ScanPads();
-		PAD_ScanPads();
+		Input_ScanPads();
 
-		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
-		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
-		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
+		u32 pressed  = Input_ButtonsDown();
+		if ( pressed & INPUT_BUTTON_B )
 		{
 			if(titles.size())
 				titles.clear();
 			break;
 		}
-		if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
+		if ( pressed & INPUT_BUTTON_UP )
 		{
 			cur_off--;
 			if (cur_off < min_pos)
@@ -438,7 +437,7 @@ s32 LoadListTitles( void )
 			}
 			redraw = true;
 		}
-		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
+		if ( pressed & INPUT_BUTTON_DOWN )
 		{
 			cur_off++;
 			if (cur_off > (max_pos + min_pos))
@@ -461,7 +460,7 @@ s32 LoadListTitles( void )
 			}
 			redraw = true;
 		}
-		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
+		if ( pressed & INPUT_BUTTON_A )
 		{
 			if( !SGetSetting(SETTING_BLACKBACKGROUND))
 				VIDEO_ClearFrameBuffer( rmode, xfb, 0xFF80FF80);

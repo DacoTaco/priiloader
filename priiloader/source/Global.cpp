@@ -321,7 +321,8 @@ s8 InitNetwork()
     if (result >= 0) 
 	{
         char myIP[16];
-		if (if_config(myIP, NULL, NULL, true) < 0) 
+		//s32 if_config( char *local_ip, char *netmask, char *gateway,bool use_dhcp, int max_retries);
+		if (if_config(myIP, NULL, NULL, true,1) < 0) 
 		{
 			gdprintf("InitNetwork : Error reading IP address\n");
 			return -1;

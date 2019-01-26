@@ -69,7 +69,7 @@ void gprintf( const char *str, ... )
 	{
 		FILE* fd = NULL;
 		fd = fopen("fat:/prii.log","ab");
-		if(fd != NULL);
+		if(fd != NULL)
 		{
 			//0x0D0A = \r\n
 			if(astr[strnlen(astr,2048)-1] == '\n' && astr[strnlen(astr,2048)-2] != '\r')

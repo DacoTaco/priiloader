@@ -55,6 +55,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <stdlib.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <sys/param.h>
 #include <errno.h>
 #include <network.h>
 #include <sdcard/wiisd_io.h>
@@ -100,12 +101,12 @@ extern void *xfb;
 
 //FUNCTIONS
 //---------------
+#ifdef PATCHED_ES
 extern "C"
 {
-#ifdef PATCHED_ES
 	extern s32 ES_OpenTitleContent_patched(u64 titleID, tikview *views, u16 index);
-#endif
 }
+#endif
 
 void InitVideo ( void );
 

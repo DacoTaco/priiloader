@@ -2,7 +2,7 @@
 
 priiloader/preloader 0.30 - A tool which allows to change the default boot up sequence on the Wii console
 
-Copyright (C) 2008-2017  crediar
+Copyright (C) 2008-2019  crediar/DacoTaco
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -22,6 +22,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //#define DEBUG
 #define MAGIC_WORD_ADDRESS_1 0x8132FFFB
 #define MAGIC_WORD_ADDRESS_2 0x817FEFF0
+#define MAGIC_WORD_DACO 1
+#define MAGIC_WORD_PUNE 2
+#define MAGIC_WORD_ABRA 3
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,6 +46,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 //Project files
+#include "Input.h"
 #include "../../Shared/gitrev.h"
 #include "Global.h"
 #include "settings.h"
@@ -100,10 +104,6 @@ extern Settings *settings;
 extern u8 error;
 extern std::vector<hack_hash> hacks_hash;
 extern u32 *states_hash;
-
-
-time_t startloop = 0;
-u32 appentrypoint = 0;
 
 //overwrite the weak variable in libogc that enables malloc to use mem2. this disables it
 u32 MALLOC_MEM2 = 0;
@@ -171,18 +171,16 @@ void SysHackHashSettings( void )
 	bool redraw=true;
 	while(1)
 	{
-		WPAD_ScanPads();
-		PAD_ScanPads();
+		Input_ScanPads();
 
-		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
-		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
+		u32 pressed = Input_ButtonsDown();
 
-		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
+		if ( pressed & INPUT_BUTTON_B )
 		{
 			break;
 		}
 
-		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
+		if ( pressed & INPUT_BUTTON_A )
 		{
 			if( cur_off == DispCount)
 			{
@@ -324,7 +322,7 @@ handle_hacks_s_fail:
 			}
 		}
 
-		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
+		if ( pressed & INPUT_BUTTON_DOWN )
 		{
 			cur_off++;
 
@@ -341,7 +339,7 @@ handle_hacks_s_fail:
 			}
 			
 			redraw=true;
-		} else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
+		} else if ( pressed & INPUT_BUTTON_UP )
 		{
 			if( cur_off == 0 )
 			{
@@ -482,13 +480,10 @@ void SetSettings( void )
 	int redraw=true;
 	while(1)
 	{
-		WPAD_ScanPads();
-		PAD_ScanPads();
+		Input_ScanPads();
+		u32 pressed = Input_ButtonsDown();
 
-		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
-		u32 PAD_Pressed  = PAD_ButtonsDown(0)  | PAD_ButtonsDown(1)  | PAD_ButtonsDown(2)  | PAD_ButtonsDown(3);
-
-		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
+		if ( pressed & INPUT_BUTTON_B )
 		{
 			LoadSettings();
 			SetDumpDebug(SGetSetting(SETTING_DUMPGECKOTEXT));
@@ -498,15 +493,17 @@ void SetSettings( void )
 		{
 			case 0:
 			{
-				if ( WPAD_Pressed & WPAD_BUTTON_LEFT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT || PAD_Pressed & PAD_BUTTON_LEFT )
+				if ( pressed & INPUT_BUTTON_LEFT )
 				{
+					gprintf("switching boot l : 0x%08X\n",pressed);
 					if( settings->autoboot == AUTOBOOT_DISABLED )
 						settings->autoboot = AUTOBOOT_FILE;
 					else
 						settings->autoboot--;
 					redraw=true;
-				}else if ( WPAD_Pressed & WPAD_BUTTON_RIGHT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT || PAD_Pressed & PAD_BUTTON_RIGHT )
+				}else if ( pressed & INPUT_BUTTON_RIGHT )
 				{
+					gprintf("switching boot r\n");
 					if( settings->autoboot == AUTOBOOT_FILE )
 						settings->autoboot = AUTOBOOT_DISABLED;
 					else
@@ -516,12 +513,8 @@ void SetSettings( void )
 			} break;
 			case 1:
 			{
-				if ( WPAD_Pressed & WPAD_BUTTON_RIGHT			||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
-					 PAD_Pressed & PAD_BUTTON_RIGHT				||
-					 WPAD_Pressed & WPAD_BUTTON_A				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
-					 PAD_Pressed & PAD_BUTTON_A
+				if ( pressed & INPUT_BUTTON_RIGHT				||
+					 pressed & INPUT_BUTTON_A
 					)
 				{
 					settings->ReturnTo++;
@@ -529,7 +522,7 @@ void SetSettings( void )
 						settings->ReturnTo = RETURNTO_SYSMENU;
 
 					redraw=true;
-				} else if ( WPAD_Pressed & WPAD_BUTTON_LEFT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT || PAD_Pressed & PAD_BUTTON_LEFT ) {
+				} else if ( pressed & INPUT_BUTTON_LEFT ) {
 
 					if( settings->ReturnTo == RETURNTO_SYSMENU )
 						settings->ReturnTo = RETURNTO_AUTOBOOT;
@@ -543,12 +536,8 @@ void SetSettings( void )
 			} break;
 			case 2:
 			{
-				if ( WPAD_Pressed & WPAD_BUTTON_RIGHT			||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
-					 PAD_Pressed & PAD_BUTTON_RIGHT				||
-					 WPAD_Pressed & WPAD_BUTTON_A				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
-					 PAD_Pressed & PAD_BUTTON_A
+				if ( pressed & INPUT_BUTTON_RIGHT				||
+					 pressed & INPUT_BUTTON_A
 					)
 				{
 					settings->ShutdownTo++;
@@ -558,7 +547,7 @@ void SetSettings( void )
 
 					redraw=true;
 				}
-				else if ( WPAD_Pressed & WPAD_BUTTON_LEFT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT || PAD_Pressed & PAD_BUTTON_LEFT ) {
+				else if ( pressed & INPUT_BUTTON_LEFT ) {
 
 					if( settings->ShutdownTo == SHUTDOWNTO_NONE )
 						settings->ShutdownTo = SHUTDOWNTO_AUTOBOOT;
@@ -573,15 +562,9 @@ void SetSettings( void )
 			} break;
 			case 3:
 			{
-				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
-					 PAD_Pressed & PAD_BUTTON_LEFT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
-					 PAD_Pressed & PAD_BUTTON_RIGHT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_A				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
-					 PAD_Pressed & PAD_BUTTON_A
+				if ( pressed & INPUT_BUTTON_LEFT				|| 
+					 pressed & INPUT_BUTTON_RIGHT				|| 
+					 pressed & INPUT_BUTTON_A
 					)
 				{
 					if( settings->StopDisc )
@@ -595,15 +578,9 @@ void SetSettings( void )
 			} break;
 			case 4:
 			{
-				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
-					 PAD_Pressed & PAD_BUTTON_LEFT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
-					 PAD_Pressed & PAD_BUTTON_RIGHT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_A				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
-					 PAD_Pressed & PAD_BUTTON_A
+				if ( pressed & INPUT_BUTTON_LEFT				|| 
+					 pressed & INPUT_BUTTON_RIGHT				|| 
+					 pressed & INPUT_BUTTON_A
 					)
 				{
 					if( settings->LidSlotOnError )
@@ -618,15 +595,9 @@ void SetSettings( void )
 			} break;
 			case 5:
 			{
-				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
-					 PAD_Pressed & PAD_BUTTON_LEFT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
-					 PAD_Pressed & PAD_BUTTON_RIGHT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_A				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
-					 PAD_Pressed & PAD_BUTTON_A
+				if ( pressed & INPUT_BUTTON_LEFT				|| 
+					 pressed & INPUT_BUTTON_RIGHT				|| 
+					 pressed & INPUT_BUTTON_A
 					)
 				{
 					if( settings->IgnoreShutDownMode )
@@ -641,15 +612,9 @@ void SetSettings( void )
 			} break;
 			case 6:
 			{
-				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
-					 PAD_Pressed & PAD_BUTTON_LEFT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
-					 PAD_Pressed & PAD_BUTTON_RIGHT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_A				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
-					 PAD_Pressed & PAD_BUTTON_A
+				if ( pressed & INPUT_BUTTON_LEFT				|| 
+					 pressed & INPUT_BUTTON_RIGHT				|| 
+					 pressed & INPUT_BUTTON_A
 					)
 				{
 					if( settings->BlackBackground )
@@ -667,15 +632,9 @@ void SetSettings( void )
 			break;
 			case 7:
 			{
-				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
-					 PAD_Pressed & PAD_BUTTON_LEFT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
-					 PAD_Pressed & PAD_BUTTON_RIGHT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_A				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
-					 PAD_Pressed & PAD_BUTTON_A
+				if ( pressed & INPUT_BUTTON_LEFT				|| 
+					 pressed & INPUT_BUTTON_RIGHT				|| 
+					 pressed & INPUT_BUTTON_A
 					)
 				{
 					if( settings->PasscheckPriiloader )
@@ -690,16 +649,14 @@ void SetSettings( void )
 						PrintFormat( 1, TEXT_OFFSET("off your own wii. proceed? (A = Yes, B = No)"), 248, "off your own wii. proceed? (A = Yes, B = No)" );
 						while(1)
 						{
-							WPAD_ScanPads();
-							PAD_ScanPads();
-							u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
-							u32 PAD_Pressed  = PAD_ButtonsDown(0)  | PAD_ButtonsDown(1)  | PAD_ButtonsDown(2)  | PAD_ButtonsDown(3);
-							if(WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A)
+							Input_ScanPads();
+							u32 pressed  = Input_ButtonsDown();
+							if(pressed & INPUT_BUTTON_A)
 							{
 								settings->PasscheckPriiloader = true;
 								break;
 							}
-							else if(WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B)
+							else if(pressed & INPUT_BUTTON_B)
 							{
 								break;
 							}
@@ -714,15 +671,9 @@ void SetSettings( void )
 			break;
 			case 8:
 			{
-				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
-					 PAD_Pressed & PAD_BUTTON_LEFT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
-					 PAD_Pressed & PAD_BUTTON_RIGHT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_A				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
-					 PAD_Pressed & PAD_BUTTON_A
+				if ( pressed & INPUT_BUTTON_LEFT				|| 
+					 pressed & INPUT_BUTTON_RIGHT				|| 
+					 pressed & INPUT_BUTTON_A
 					)
 				{
 					if( settings->PasscheckMenu )
@@ -737,16 +688,14 @@ void SetSettings( void )
 						PrintFormat( 1, TEXT_OFFSET("off your own wii. proceed? (A = Yes, B = No)"), 248, "off your own wii. proceed? (A = Yes, B = No)" );
 						while(1)
 						{
-							WPAD_ScanPads();
-							PAD_ScanPads();
-							u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
-							u32 PAD_Pressed  = PAD_ButtonsDown(0)  | PAD_ButtonsDown(1)  | PAD_ButtonsDown(2)  | PAD_ButtonsDown(3);
-							if(WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A)
+							Input_ScanPads();
+							u32 pressed  = Input_ButtonsDown();
+							if(pressed & INPUT_BUTTON_A)
 							{
 								settings->PasscheckMenu = true;
 								break;
 							}
-							else if(WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B)
+							else if(pressed & INPUT_BUTTON_B)
 							{
 								break;
 							}
@@ -759,15 +708,9 @@ void SetSettings( void )
 			}
 			break;
 			case 9: //show Debug Info
-				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
-					 PAD_Pressed & PAD_BUTTON_LEFT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
-					 PAD_Pressed & PAD_BUTTON_RIGHT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_A				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
-					 PAD_Pressed & PAD_BUTTON_A
+				if ( pressed & INPUT_BUTTON_LEFT				|| 
+					 pressed & INPUT_BUTTON_RIGHT				|| 
+					 pressed & INPUT_BUTTON_A
 					)
 				{
 					if ( settings->DumpGeckoText )
@@ -779,15 +722,9 @@ void SetSettings( void )
 				}
 			break;
 			case 10: //download beta updates
-				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
-					 PAD_Pressed & PAD_BUTTON_LEFT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
-					 PAD_Pressed & PAD_BUTTON_RIGHT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_A				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
-					 PAD_Pressed & PAD_BUTTON_A
+				if ( pressed & INPUT_BUTTON_LEFT				|| 
+					 pressed & INPUT_BUTTON_RIGHT				|| 
+					 pressed & INPUT_BUTTON_A
 					)
 				{
 					if ( settings->ShowBetaUpdates )
@@ -799,15 +736,9 @@ void SetSettings( void )
 			break;		
 			case 11: //ignore ios reloading for system menu?
 			{
-				if ( WPAD_Pressed & WPAD_BUTTON_LEFT			||
-					 PAD_Pressed & PAD_BUTTON_LEFT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_RIGHT			||
-					 PAD_Pressed & PAD_BUTTON_RIGHT				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT	|| 
-					 WPAD_Pressed & WPAD_BUTTON_A				||
-					 WPAD_Pressed & WPAD_CLASSIC_BUTTON_A		|| 
-					 PAD_Pressed & PAD_BUTTON_A
+				if ( pressed & INPUT_BUTTON_LEFT				|| 
+					 pressed & INPUT_BUTTON_RIGHT				|| 
+					 pressed & INPUT_BUTTON_A
 					)
 				{
 					if( settings->UseSystemMenuIOS )
@@ -837,7 +768,7 @@ void SetSettings( void )
 			break;
 			case 12:		//	System Menu IOS
 			{
-				if ( WPAD_Pressed & WPAD_BUTTON_LEFT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_LEFT || PAD_Pressed & PAD_BUTTON_LEFT )
+				if ( pressed & INPUT_BUTTON_LEFT )
 				{
 					while(1)
 					{
@@ -854,7 +785,7 @@ void SetSettings( void )
 #endif
 
 					redraw=true;
-				} else if( WPAD_Pressed & WPAD_BUTTON_RIGHT || WPAD_Pressed & WPAD_CLASSIC_BUTTON_RIGHT || PAD_Pressed & PAD_BUTTON_RIGHT ) 
+				} else if( pressed & INPUT_BUTTON_RIGHT ) 
 				{
 					while(1)
 					{
@@ -875,7 +806,7 @@ void SetSettings( void )
 			} break;
 			case 13:
 			{
-				if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
+				if ( pressed & INPUT_BUTTON_A )
 				{
 					if( SaveSettings() )
 						PrintFormat( 0, 114, 128+224+16, "settings saved");
@@ -889,7 +820,7 @@ void SetSettings( void )
 				break;
 		}
 
-		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
+		if ( pressed & INPUT_BUTTON_DOWN )
 		{
 			cur_off++;
 			if( (settings->UseSystemMenuIOS) && (cur_off == 12))
@@ -898,7 +829,7 @@ void SetSettings( void )
 				cur_off = 0;
 			
 			redraw=true;
-		} else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
+		} else if ( pressed & INPUT_BUTTON_UP )
 		{
 			cur_off--;
 			if( (settings->UseSystemMenuIOS) && (cur_off == 12))
@@ -1166,7 +1097,7 @@ s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		}
 	}
 	ClearState();
-	WPAD_Shutdown();
+	Input_Shutdown();
 	ShutdownDevices();
 	if(DvdKilled() < 1)
 	{
@@ -1218,7 +1149,7 @@ s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 	__IOS_InitializeSubsystems();
 	PollDevices();
 	ISFS_Initialize();
-	WPAD_Init();
+	Input_Init();
 	PAD_Init();
 	return -1;
 }
@@ -1399,7 +1330,7 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		}
 	}
 	ClearState();
-	WPAD_Shutdown();
+	Input_Shutdown();
 	ShutdownDevices();
 
 	if(DvdKilled() < 1)
@@ -1471,7 +1402,7 @@ s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 	__IOS_InitializeSubsystems();
 	PollDevices();
 	ISFS_Initialize();
-	WPAD_Init();
+	Input_Init();
 	PAD_Init();
 	return -1;
 }
@@ -1579,7 +1510,7 @@ void BootMainSysMenu( u8 init )
 	signed_blob *TMD = NULL;
 
 	//boot file:
-	u32 fileID = 0;
+	unsigned int fileID = 0;
 	char file[265] ATTRIBUTE_ALIGN(32);
 	fstats *status = NULL;
 	dolhdr *boot_hdr = NULL;
@@ -1768,7 +1699,7 @@ void BootMainSysMenu( u8 init )
 		WPAD_Flush(i);
 		WPAD_Disconnect(i);
 	}
-	WPAD_Shutdown();
+	Input_Shutdown();
 
 	//Step 1 of IOS handling : Reloading IOS if needed;
 	if( !SGetSetting( SETTING_USESYSTEMMENUIOS ) )
@@ -1791,7 +1722,7 @@ void BootMainSysMenu( u8 init )
 			}
 			else
 			{
-				WPAD_Init();
+				Input_Init();
 				error=ERROR_SYSMENU_IOSSTUB;
 				goto free_and_return;
 			}
@@ -1982,7 +1913,7 @@ free_and_return:
 	if(boot_hdr)
 		mem_free(boot_hdr);
 
-	WPAD_Init();
+	Input_Init();
 
 	return;
 }
@@ -2258,23 +2189,21 @@ void InstallLoadDOL( void )
 				PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "%s%s", app_list[i].app_name.c_str(),(read32(0x0d800064) == 0xFFFFFFFF && app_list[i].HW_AHBPROT_ENABLED != 0)?"(AHBPROT Available)":" ");
 			}
 			PrintFormat( 0, TEXT_OFFSET("A(A) Install File"), rmode->viHeight-64, "A(A) Install FIle");
-			PrintFormat( 0, TEXT_OFFSET("1(Z) Load File   "), rmode->viHeight-48, "1(Y) Load File");
+			PrintFormat( 0, TEXT_OFFSET("1(Y) Load File   "), rmode->viHeight-48, "1(Y) Load File");
 			PrintFormat( 0, TEXT_OFFSET("2(X) Delete installed File"), rmode->viHeight-32, "2(X) Delete installed File");
 
 			redraw = false;
 		}
-		WPAD_ScanPads();
-		PAD_ScanPads();
 
-		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
-		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
+		Input_ScanPads();
+		u32 pressed  = Input_ButtonsDown();
  
-		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
+		if ( pressed & INPUT_BUTTON_B )
 		{
 			break;
 		}
 
-		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
+		if ( pressed & INPUT_BUTTON_A )
 		{
 			ClearScreen();
 			FILE *dol = fopen(app_list[cur_off].app_path.c_str(),"rb");
@@ -2390,7 +2319,7 @@ void InstallLoadDOL( void )
 
 		}
 
-		if ( WPAD_Pressed & WPAD_BUTTON_2 || WPAD_Pressed & WPAD_CLASSIC_BUTTON_X || PAD_Pressed & PAD_BUTTON_X )
+		if ( pressed & INPUT_BUTTON_X )
 		{
 			ClearScreen();
 			//Delete file
@@ -2424,7 +2353,7 @@ void InstallLoadDOL( void )
 
 		}
 
-		if ( WPAD_Pressed & WPAD_BUTTON_1 || WPAD_Pressed & WPAD_CLASSIC_BUTTON_Y || PAD_Pressed & PAD_BUTTON_Y )
+		if ( pressed & INPUT_BUTTON_Y )
 		{
 			ClearScreen();
 			PrintFormat( 1, TEXT_OFFSET("Loading binary..."), 208, "Loading binary...");	
@@ -2435,7 +2364,7 @@ void InstallLoadDOL( void )
 			ClearScreen();
 			redraw=true;
 		}
-		if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
+		if ( pressed & INPUT_BUTTON_UP )
 		{
 			cur_off--;
 			if (cur_off < min_pos)
@@ -2458,7 +2387,7 @@ void InstallLoadDOL( void )
 			}
 			redraw = true;
 		}
-		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
+		if ( pressed & INPUT_BUTTON_DOWN )
 		{
 			cur_off++;
 			if (cur_off > (max_pos + min_pos))
@@ -2998,7 +2927,7 @@ reset_and_read:
 	}
 
 	gprintf("Entrypoint: %08X\n", (u32)(entrypoint) );
-	WPAD_Shutdown();
+	Input_Shutdown();
 	ClearState();
 	ISFS_Deinitialize();
 	ShutdownDevices();
@@ -3038,7 +2967,7 @@ reset_and_read:
 	entrypoint();
 	_CPU_ISR_Restore (level);
 	//never gonna happen; but failsafe
-	WPAD_Init();
+	Input_Init();
 	PAD_Init();
 	ISFS_Initialize();
 return_dol:
@@ -3178,17 +3107,15 @@ void CheckForUpdate()
 			redraw = 0;
 		}
 
-		WPAD_ScanPads();
-		PAD_ScanPads();
+		Input_ScanPads();
 
-		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
-		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
+		u32 pressed = Input_ButtonsDown();
 
-		if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
+		if ( pressed & INPUT_BUTTON_B )
 		{
 			return;
 		}
-		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
+		if ( pressed & INPUT_BUTTON_A )
 		{
 			if(cur_off == 0 && VersionUpdates == 1)
 			{
@@ -3202,7 +3129,7 @@ void CheckForUpdate()
 			}
 			redraw = 1;
 		}
-		if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
+		if ( pressed & INPUT_BUTTON_UP )
 		{
 			cur_off--;
 			if(cur_off < 0)
@@ -3219,7 +3146,7 @@ void CheckForUpdate()
 			}
 			redraw = 1;
 		}
-		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
+		if ( pressed & INPUT_BUTTON_DOWN )
 		{
 			cur_off++;
 			if (SGetSetting(SETTING_SHOWBETAUPDATES))
@@ -3285,27 +3212,25 @@ void CheckForUpdate()
 		}
 		PrintFormat( 0, TEXT_OFFSET("A(A)  Proceed(Download)"), rmode->viHeight-48, "A(A)  Proceed(Download)");
 		PrintFormat( 0, TEXT_OFFSET("B(B)  Cancel Update    "), rmode->viHeight-32, "B(B)  Cancel Update    ");
-		u32 PAD_Pressed = 0;
-		u32 WPAD_Pressed = 0;
+
+		u32 pressed = 0;
 		while(1)
 		{
-			WPAD_ScanPads();
-			PAD_ScanPads();
+			Input_ScanPads();
 
-			WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
-			PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
-			if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
+			pressed  = Input_ButtonsDown();
+			if ( pressed & INPUT_BUTTON_A )
 			{
 				mem_free(Changelog);
 				break;
 			}
-			if ( WPAD_Pressed & WPAD_BUTTON_B || WPAD_Pressed & WPAD_CLASSIC_BUTTON_B || PAD_Pressed & PAD_BUTTON_B )
+			if ( pressed & INPUT_BUTTON_B )
 			{
 				mem_free(Changelog);
 				ClearScreen();
 				return;
 			}
-			if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
+			if ( pressed & INPUT_BUTTON_DOWN )
 			{
 				if ( (min_line+max_line) < lines.size()-1 )
 				{
@@ -3313,7 +3238,7 @@ void CheckForUpdate()
 					redraw = true;
 				}
 			}
-			if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
+			if ( pressed & INPUT_BUTTON_UP )
 			{
 				if ( min_line > 0 )
 				{
@@ -3385,7 +3310,7 @@ void CheckForUpdate()
 	else
 	{
 		SHA1 sha; // SHA-1 class
-		u32 FileHash[5];
+		unsigned int FileHash[5];
 		sha.Reset();
 		sha.Input(Data,file_size);
 		if (!sha.Result(FileHash))
@@ -3468,32 +3393,6 @@ void CheckForUpdate()
 	}
 	return;
 }
-void HandleSTMEvent(u32 event)
-{
-	if (system_state.InMainMenu == 0) //we have no buisness with the reset/power when we aren't in main menu
-		return;
-	double ontime;
-	switch(event)
-	{
-		case STM_EVENT_POWER:
-			system_state.Shutdown=1;
-			system_state.BootSysMenu = 0;
-			break;
-		case STM_EVENT_RESET:
-			if (system_state.BootSysMenu == 0 && WPAD_Probe(0,0) < 0)
-			{
-				time_t inloop;
-				time(&inloop);
-				ontime = difftime(inloop, startloop);
-				//gprintf("ontime = %4.2fs\n",ontime);
-				if (ontime >= 15)
-					system_state.BootSysMenu = 1;
-			}
-		default:
-			break;
-	}
-	return;
-}
 void HandleWiiMoteEvent(s32 chan)
 {
 	if(system_state.InMainMenu == 0)//see HandleSTMevent()
@@ -3536,173 +3435,27 @@ void Autoboot_System( void )
 s8 CheckMagicWords( void )
 {
 	//0x4461636f = "Daco" in hex, 0x50756e65 = "Pune", 0x41627261 = "Abra"  
-	if( *(vu32*)MAGIC_WORD_ADDRESS_1 == 0x4461636f || *(vu32*)MAGIC_WORD_ADDRESS_1 == 0x50756e65 || *(vu32*)MAGIC_WORD_ADDRESS_1 == 0x41627261 )
-		return 1;
-	if( *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x4461636f || *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x50756e65 || *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x41627261  )
-		return 1;
+	if(  *(vu32*)MAGIC_WORD_ADDRESS_1 == 0x4461636f || *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x4461636f )
+	{
+		return MAGIC_WORD_DACO;
+	}
+	else if ( *(vu32*)MAGIC_WORD_ADDRESS_1 == 0x50756e65 || *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x50756e65 )
+	{
+		return MAGIC_WORD_PUNE;
+	}
+	else if( *(vu32*)MAGIC_WORD_ADDRESS_1 == 0x41627261 || *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x41627261 )
+	{
+		return MAGIC_WORD_ABRA;
+	}
 	return 0;
 }
-//a temp main to play around in for the crash <<
-int main2(int argc, char **argv)
+void ClearMagicWord( void )
 {
-	CheckForGecko();
-	time(&startloop);
-#ifdef DEBUG
-	InitGDBDebug();
-#endif
-	gprintf("priiloader\n");
-	gprintf("Built   : %s %s\n", __DATE__, __TIME__ );
-	gprintf("Version : %d.%d (rev %s)\n", VERSION>>16, VERSION&0xFFFF, GIT_REV_STR);
-	gprintf("Firmware: %d.%d.%d\n", *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143 );
-
-	s32 r = ISFS_Initialize();
-	if( r < 0 )
-	{
-		*(vu32*)0xCD8000C0 |= 0x20;
-		error=ERROR_ISFS_INIT;
-	}
-
-	gprintf("\"Magic Priiloader word\": %x - %x\n",*(vu32*)MAGIC_WORD_ADDRESS_2 ,*(vu32*)MAGIC_WORD_ADDRESS_1);
-	STM_RegisterEventHandler(HandleSTMEvent);
-	//memset(&system_state,0,sizeof(wii_state));
-	system_state.InMainMenu = 1;
-	gprintf("hold reset now\n");
-	sleep(5);
-	gprintf("lets go\n");
-	//that worked
-
-	PollDevices();
-	//enable the commented gprintf in HandleSTMEvent for this to crash
-	SetDumpDebug(1);
-	gprintf("hold reset now\n");
-	sleep(5);
-	gprintf("lets go\n");
-	//above crashed
-
-	s16 Bootstate = 0;//CheckBootState();
-	gprintf("BootState:%d\n", Bootstate );
-
-	//init video first so we can see crashes :)
-	InitVideo();
-
-	r = PAD_Init();
-	gprintf("PAD_Init():%d\n", r );
-
-	s8 cur_off=0;
-	s8 redraw=true;
-	u32 SysVersion= GetSysMenuVersion();
-#ifdef DEBUG
-	gdprintf("priiloader v%d.%d DEBUG (Sys:%d)(IOS:%d)(%s %s)\n", VERSION>>8, VERSION&0xFF, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
-#else
-	#if BETAVERSION > 0
-		gprintf("priiloader v%d.%d BETA %d (Sys:%d)(IOS:%d)(%s %s)\n", VERSION>>8, VERSION&0xFF,BETAVERSION,SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
-	#endif
-#endif
-	while(1)
-	{
-		WPAD_ScanPads();
-		PAD_ScanPads();
-
-		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
-		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
- 
-		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
-		{
-			ClearScreen();
-			system_state.InMainMenu = 0;
-			switch(cur_off)
-			{
-				case 0:
-					BootMainSysMenu(1);
-					if(!error)
-						error=ERROR_SYSMENU_GENERAL;
-					break;
-				case 1:		//Load HBC
-					LoadHBC();
-					break;
-				case 2: //Load Bootmii
-					LoadBootMii();
-					//well that failed...
-					error=ERROR_BOOT_BOOTMII;
-					break;
-				case 3: // show titles list
-					LoadListTitles();
-					break;
-				case 4:		//load main.bin from /title/00000001/00000002/data/ dir
-					AutoBootDol();
-					break;
-				case 5:
-					InstallLoadDOL();
-					break;
-				case 6:
-					SysHackHashSettings();
-					break;
-				case 7:
-					CheckForUpdate();
-					net_deinit();
-					break;
-				case 8:
-					InstallPassword();
-					break;
-				case 9:
-					SetSettings();
-					break;
-				default:
-					break;
-
-			}
-			system_state.InMainMenu = 1;
-			ClearScreen();
-			redraw=true;
-		}
-
-		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
-		{
-			cur_off++;
-
-			if( error == ERROR_UPDATE )
-			{
-				if( cur_off >= 11 )
-					cur_off = 0;
-			}else {
-
-				if( cur_off >= 10 )
-					cur_off = 0;
-			}
-			//gprintf("loool %d-%d-%d\n",*(vu32*)0xCC003000,(*(vu32*)0xCC003000)>>16,((*(vu32*)0xCC003000)>>16)&1);
-			redraw=true;
-		} else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
-		{
-			cur_off--;
-
-			if( cur_off < 0 )
-			{
-				if( error == ERROR_UPDATE )
-				{
-					cur_off=11-1;
-				} else {
-					cur_off=10-1;
-				}
-			}
-
-			redraw=true;
-		}
-
-		if( redraw )
-		{
-
-			if (error > 0)
-			{
-				ShowError();
-				error = ERROR_NONE;
-			}
-			redraw = false;
-		}
-		
-		VIDEO_WaitVSync();
-	}
-
-	return 0;
+	*(vu32*)MAGIC_WORD_ADDRESS_1 = 0x00000000;
+	DCFlushRange((void*)MAGIC_WORD_ADDRESS_1,4);
+	*(vu32*)MAGIC_WORD_ADDRESS_2 = 0x00000000;
+	DCFlushRange((void*)MAGIC_WORD_ADDRESS_2,4);
+	return;
 }
 int main(int argc, char **argv)
 {
@@ -3751,19 +3504,20 @@ int main(int argc, char **argv)
 	s16 Bootstate = CheckBootState();
 	gprintf("BootState:%d\n", Bootstate );
 	memset(&system_state,0,sizeof(wii_state));
-	StateFlags temp;
-	temp = GetStateFlags();
-	gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u & checksum %u\n",temp.type,temp.discstate,temp.returnto,temp.flags,temp.checksum);
+	StateFlags flags;
+	flags = GetStateFlags();
+	gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u & checksum %u\n",flags.type,flags.discstate,flags.returnto,flags.flags,flags.checksum);
+	s8 magicWord = CheckMagicWords();
 	//Check reset button state
-	if( ((*(vu32*)0xCC003000)>>16) == 1 && CheckMagicWords() == 0) //if( ((*(vu32*)0xCC003000)>>16)&1 && !CheckMagicWords())
+	if( (((*(vu32*)0xCC003000)>>16)&1) == 1 && magicWord == 0) //if( ((*(vu32*)0xCC003000)>>16)&1 && !CheckMagicWords())
 	{
 		//Check autoboot settings
 		switch( Bootstate )
 		{
 			case TYPE_UNKNOWN: //255 or -1, only seen when shutting down from MIOS or booting dol from HBC. it is actually an invalid value
-				temp = GetStateFlags();
-				gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u\n",temp.type,temp.discstate,temp.returnto,temp.flags);
-				if( temp.flags == 130 ) //&& temp.discstate != 2)
+				flags = GetStateFlags();
+				gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u\n",flags.type,flags.discstate,flags.returnto,flags.flags);
+				if( flags.flags == 130 ) //&& temp.discstate != 2)
 				{
 					//if the flag is 130, its probably shutdown from mios. in that case system menu 
 					//will handle it perfectly (and i quote from SM's OSreport : "Shutdown system from GC!")
@@ -3863,35 +3617,27 @@ int main(int argc, char **argv)
 	}
 	//remove the "Magic Priiloader word" cause it has done its purpose
 	//Plan B address : 0x93FFFFFA
-	if(*(vu32*)MAGIC_WORD_ADDRESS_1 == 0x4461636f || *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x4461636f)
+	if(magicWord == MAGIC_WORD_DACO)
  	{
 		gprintf("\"Magic Priiloader Word\" 'Daco' found!\n");
 		gprintf("clearing memory of the \"Magic Priiloader Word\"\n");
-		*(vu32*)MAGIC_WORD_ADDRESS_1 = 0x00000000;
-		DCFlushRange((void*)MAGIC_WORD_ADDRESS_1,4);
-		*(vu32*)MAGIC_WORD_ADDRESS_2 = 0x00000000;
-		DCFlushRange((void*)MAGIC_WORD_ADDRESS_2,4);
+		ClearMagicWord();
+		
 	}
-	else if(*(vu32*)MAGIC_WORD_ADDRESS_1 == 0x50756e65 || *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x50756e65)
+	else if(magicWord == MAGIC_WORD_PUNE)
 	{
 		//detected the force for sys menu
 		gprintf("\"Magic Priiloader Word\" 'Pune' found!\n");
 		gprintf("clearing memory of the \"Magic Priiloader Word\" and starting system menu...\n");
-		*(vu32*)MAGIC_WORD_ADDRESS_1 = 0x00000000;
-		DCFlushRange((void*)MAGIC_WORD_ADDRESS_1,4);
-		*(vu32*)MAGIC_WORD_ADDRESS_2 = 0x00000000;
-		DCFlushRange((void*)MAGIC_WORD_ADDRESS_2,4);
+		ClearMagicWord();
 		BootMainSysMenu(0);
 	}
-	else if( *(vu32*)MAGIC_WORD_ADDRESS_1 == 0x41627261 || *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x41627261 )
+	else if( magicWord == MAGIC_WORD_ABRA )
 	{
 		//detected the force for autoboot
 		gprintf("\"Magic Priiloader Word\" 'Abra' found!\n");
 		gprintf("clearing memory of the \"Magic Priiloader Word\" and starting Autorun setting...\n");
-		*(vu32*)MAGIC_WORD_ADDRESS_1 = 0x00000000;
-		DCFlushRange((void*)MAGIC_WORD_ADDRESS_1,4);
-		*(vu32*)MAGIC_WORD_ADDRESS_2 = 0x00000000;
-		DCFlushRange((void*)MAGIC_WORD_ADDRESS_2,4);
+		ClearMagicWord();
 		Autoboot_System();
 	}
 	else if( (
@@ -3911,14 +3657,10 @@ int main(int argc, char **argv)
 	r = (s32)PollDevices();
 	gprintf("FAT_Init():%d\n", r );
 
-	r = PAD_Init();
-	gprintf("PAD_Init():%d\n", r );
-
-	r = WPAD_Init();
-	gprintf("WPAD_Init():%d\n", r );
+	r = Input_Init();
+	gprintf("Input_Init():%d\n", r );
 
 	WPAD_SetPowerButtonCallback(HandleWiiMoteEvent);
-	STM_RegisterEventHandler(HandleSTMEvent);
 
 	ClearScreen();
 
@@ -3938,18 +3680,14 @@ int main(int argc, char **argv)
 		gprintf("priiloader v%d.%d BETA %d (Sys:%d)(IOS:%d)(%s %s)\n", VERSION>>8, VERSION&0xFF,BETAVERSION,SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
 	#endif
 #endif
-	time(&startloop);
 	system_state.InMainMenu = 1;
 	//gprintf("ptr : 0x%08X data of ptr : 0x%08X size : %d\n",&system_state,*((u32*)&system_state),sizeof(system_state));
 	while(1)
 	{
-		WPAD_ScanPads();
-		PAD_ScanPads();
-
-		u32 WPAD_Pressed = WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3);
-		u32 PAD_Pressed  = PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3);
+		Input_ScanPads();
+		u32 INPUT_Pressed = Input_ButtonsDown();
  
-		if ( WPAD_Pressed & WPAD_BUTTON_A || WPAD_Pressed & WPAD_CLASSIC_BUTTON_A || PAD_Pressed & PAD_BUTTON_A )
+		if ( INPUT_Pressed & INPUT_BUTTON_A )
 		{
 			ClearScreen();
 			system_state.InMainMenu = 0;
@@ -4000,7 +3738,7 @@ int main(int argc, char **argv)
 			redraw=true;
 		}
 
-		if ( WPAD_Pressed & WPAD_BUTTON_DOWN || WPAD_Pressed & WPAD_CLASSIC_BUTTON_DOWN || PAD_Pressed & PAD_BUTTON_DOWN )
+		if ( INPUT_Pressed & INPUT_BUTTON_DOWN )
 		{
 			cur_off++;
 
@@ -4015,7 +3753,7 @@ int main(int argc, char **argv)
 			}
 			//gprintf("loool %d-%d-%d\n",*(vu32*)0xCC003000,(*(vu32*)0xCC003000)>>16,((*(vu32*)0xCC003000)>>16)&1);
 			redraw=true;
-		} else if ( WPAD_Pressed & WPAD_BUTTON_UP || WPAD_Pressed & WPAD_CLASSIC_BUTTON_UP || PAD_Pressed & PAD_BUTTON_UP )
+		} else if ( INPUT_Pressed & INPUT_BUTTON_UP )
 		{
 			cur_off--;
 
@@ -4086,7 +3824,7 @@ int main(int argc, char **argv)
 				WPAD_Flush(i);
 				WPAD_Disconnect(i);
 			}
-			WPAD_Shutdown();
+			Input_Shutdown();
 			ShutdownDevices();
 			USB_Deinitialize();
 			if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )

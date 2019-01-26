@@ -43,7 +43,7 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int* external_socke
 	char buffer[1024];
 	s32 bytes_read = 0;
 	s32 bytes_send = 0;
-	s32 file_size = 0;
+	int file_size = 0;
 	int socket = 0;
 	s32 ret = 0;
 	char URL_Request[512];

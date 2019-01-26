@@ -17,6 +17,7 @@
 #include "IOS.h"
 #include "HomebrewChannel.h"
 #include "font.h"
+#include "Input.h"
 
 //Bin include
 #include "stub_bin.h"
@@ -25,6 +26,7 @@
 extern u8 error;
 
 //The known HBC titles
+
 title_info HBC_Titles[] = {
 	{ 0x0001000148415858LL, "HAXX" },
 	{ 0x000100014A4F4449LL, "JODI" },
@@ -139,13 +141,13 @@ s32 DetectHBC(title_info* title)
 		{
 			if(ret < arrayIndex && list[i] == HBC_Titles[arrayIndex].title_id)
 			{
-				//gprintf("(new) Detected %s\n",Titles[arrayIndex].name_ascii.c_str());
+				//gprintf("Detected %s\n",HBC_Titles[arrayIndex].name_ascii.c_str());
 				ret = arrayIndex;
 			}
 		}
 
 		//we have found the latest, supported HBC. no need to proceed checking
-		if(ret >= HBC_Titles_Size)
+		if(ret >= HBC_Titles_Size-1)
 		{
 			gprintf("latest HBC detected. ret = %d,Titles_Size = %d\n",ret,HBC_Titles_Size);
 			break;
@@ -185,7 +187,7 @@ void LoadHBC( void )
 	tikview *views = (tikview *)mem_align( 32, sizeof(tikview)*cnt );
 	ES_GetTicketViews(TitleID, views, cnt);
 	ClearState();
-	WPAD_Shutdown();
+	Input_Shutdown();
 	ES_LaunchTitle(TitleID, &views[0]);
 	//well that went wrong
 	error = ERROR_BOOT_HBC;
@@ -244,12 +246,12 @@ void LoadBootMii( void )
 		WPAD_Flush(i);
 		WPAD_Disconnect(i);
 	}
-	WPAD_Shutdown();
+	Input_Shutdown();
 	IOS_ReloadIOS(254);
 	//launching bootmii failed. lets wait a bit for the launch(it could be delayed) and then load the other ios back
 	sleep(3);
 	IOS_ReloadIOS(currentIOS);
 	system_state.ReloadedIOS = 1;
-	WPAD_Init();
+	Input_Init();
 	return;
 }
