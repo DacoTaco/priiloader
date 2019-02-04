@@ -82,12 +82,15 @@ u32 Input_ScanPads( void )
 	PAD_ScanPads();
 	return 1;
 }
-u32 Input_ButtonsDown( void )
+u32 Input_ButtonsDown( bool _overrideSTM )
 {
 	u32 pressed = 0;
 	if(_STM_input_pressed != 0)
 	{
-		pressed = _STM_input_pressed;
+		if(_overrideSTM)
+			pressed = INPUT_BUTTON_B;
+		else
+			pressed = _STM_input_pressed | INPUT_BUTTON_STM;
 		_STM_input_pressed = 0;
 	}
 	else
@@ -118,4 +121,8 @@ u32 Input_ButtonsDown( void )
 	}
 
 	return pressed;
+}
+u32 Input_ButtonsDown( void )
+{
+	return Input_ButtonsDown(false);
 }

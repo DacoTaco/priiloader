@@ -24,31 +24,24 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define _INPUT_H_
 
 //these are a copy of the GC PAD values. just named differently to distinguish them.
-#define INPUT_BUTTON_LEFT			0x0001
-#define INPUT_BUTTON_RIGHT			0x0002
-#define INPUT_BUTTON_DOWN			0x0004
-#define INPUT_BUTTON_UP				0x0008
-#define INPUT_TRIGGER_Z				0x0010
-#define INPUT_TRIGGER_R				0x0020
-#define INPUT_TRIGGER_L				0x0040
-#define INPUT_BUTTON_A				0x0100
-#define INPUT_BUTTON_B				0x0200
-#define INPUT_BUTTON_X				0x0400
-#define INPUT_BUTTON_Y				0x0800
-#define INPUT_BUTTON_MENU			0x1000
-#define INPUT_BUTTON_START			0x1000
-
-#ifdef __cplusplus
-   extern "C" {
-#endif /* __cplusplus */
+#define INPUT_BUTTON_LEFT			0x00000001
+#define INPUT_BUTTON_RIGHT			0x00000002
+#define INPUT_BUTTON_DOWN			0x00000004
+#define INPUT_BUTTON_UP				0x00000008
+#define INPUT_TRIGGER_Z				0x00000010
+#define INPUT_TRIGGER_R				0x00000020
+#define INPUT_TRIGGER_L				0x00000040
+#define INPUT_BUTTON_A				0x00000100
+#define INPUT_BUTTON_B				0x00000200
+#define INPUT_BUTTON_X				0x00000400
+#define INPUT_BUTTON_Y				0x00000800
+#define INPUT_BUTTON_START			0x00001000
+#define INPUT_BUTTON_STM			0x10000000
 
 s8 Input_Init( void );
 void Input_Shutdown( void );
 u32 Input_ScanPads( void );
+u32 Input_ButtonsDown( bool _overrideSTM );
 u32 Input_ButtonsDown( void );
-
-#ifdef __cplusplus
-   }
-#endif /* __cplusplus */
 
 #endif

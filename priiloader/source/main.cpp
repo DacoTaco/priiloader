@@ -495,7 +495,6 @@ void SetSettings( void )
 			{
 				if ( pressed & INPUT_BUTTON_LEFT )
 				{
-					gprintf("switching boot l : 0x%08X\n",pressed);
 					if( settings->autoboot == AUTOBOOT_DISABLED )
 						settings->autoboot = AUTOBOOT_FILE;
 					else
@@ -503,14 +502,14 @@ void SetSettings( void )
 					redraw=true;
 				}else if ( pressed & INPUT_BUTTON_RIGHT )
 				{
-					gprintf("switching boot r\n");
 					if( settings->autoboot == AUTOBOOT_FILE )
 						settings->autoboot = AUTOBOOT_DISABLED;
 					else
 						settings->autoboot++;
 					redraw=true;
 				}
-			} break;
+				break;
+			} 
 			case 1:
 			{
 				if ( pressed & INPUT_BUTTON_RIGHT				||
@@ -532,8 +531,8 @@ void SetSettings( void )
 					redraw=true;
 				}
 
-
-			} break;
+				break;
+			} 			
 			case 2:
 			{
 				if ( pressed & INPUT_BUTTON_RIGHT				||
@@ -547,7 +546,8 @@ void SetSettings( void )
 
 					redraw=true;
 				}
-				else if ( pressed & INPUT_BUTTON_LEFT ) {
+				else if ( pressed & INPUT_BUTTON_LEFT ) 
+				{
 
 					if( settings->ShutdownTo == SHUTDOWNTO_NONE )
 						settings->ShutdownTo = SHUTDOWNTO_AUTOBOOT;
@@ -556,10 +556,8 @@ void SetSettings( void )
 
 					redraw=true;
 				}
-
-
-
-			} break;
+				break;
+			} 		
 			case 3:
 			{
 				if ( pressed & INPUT_BUTTON_LEFT				|| 
@@ -574,8 +572,8 @@ void SetSettings( void )
 
 					redraw=true;
 				}
-
-			} break;
+				break;
+			} 
 			case 4:
 			{
 				if ( pressed & INPUT_BUTTON_LEFT				|| 
@@ -590,9 +588,8 @@ void SetSettings( void )
 				
 					redraw=true;
 				}
-
-
-			} break;
+				break;
+			} 
 			case 5:
 			{
 				if ( pressed & INPUT_BUTTON_LEFT				|| 
@@ -607,9 +604,8 @@ void SetSettings( void )
 				
 					redraw=true;
 				}
-
-
-			} break;
+				break;
+			} 
 			case 6:
 			{
 				if ( pressed & INPUT_BUTTON_LEFT				|| 
@@ -628,8 +624,8 @@ void SetSettings( void )
 					ClearScreen();
 					redraw=true;
 				}
-			}
-			break;
+				break;
+			}		
 			case 7:
 			{
 				if ( pressed & INPUT_BUTTON_LEFT				|| 
@@ -650,7 +646,7 @@ void SetSettings( void )
 						while(1)
 						{
 							Input_ScanPads();
-							u32 pressed  = Input_ButtonsDown();
+							u32 pressed  = Input_ButtonsDown(true);
 							if(pressed & INPUT_BUTTON_A)
 							{
 								settings->PasscheckPriiloader = true;
@@ -667,8 +663,8 @@ void SetSettings( void )
 					}
 					redraw=true;
 				}
-			}
-			break;
+				break;
+			}		
 			case 8:
 			{
 				if ( pressed & INPUT_BUTTON_LEFT				|| 
@@ -689,7 +685,7 @@ void SetSettings( void )
 						while(1)
 						{
 							Input_ScanPads();
-							u32 pressed  = Input_ButtonsDown();
+							u32 pressed  = Input_ButtonsDown(true);
 							if(pressed & INPUT_BUTTON_A)
 							{
 								settings->PasscheckMenu = true;
@@ -705,9 +701,10 @@ void SetSettings( void )
 					}
 					redraw=true;
 				}
-			}
-			break;
+				break;
+			}		
 			case 9: //show Debug Info
+			{
 				if ( pressed & INPUT_BUTTON_LEFT				|| 
 					 pressed & INPUT_BUTTON_RIGHT				|| 
 					 pressed & INPUT_BUTTON_A
@@ -720,8 +717,10 @@ void SetSettings( void )
 					SetDumpDebug(settings->DumpGeckoText);
 					redraw=true;
 				}
-			break;
+				break;
+			}
 			case 10: //download beta updates
+			{
 				if ( pressed & INPUT_BUTTON_LEFT				|| 
 					 pressed & INPUT_BUTTON_RIGHT				|| 
 					 pressed & INPUT_BUTTON_A
@@ -733,7 +732,8 @@ void SetSettings( void )
 						settings->ShowBetaUpdates = 1;
 					redraw=true;
 				}
-			break;		
+				break;		
+			}
 			case 11: //ignore ios reloading for system menu?
 			{
 				if ( pressed & INPUT_BUTTON_LEFT				|| 
@@ -765,7 +765,7 @@ void SetSettings( void )
 					redraw=true;
 				}
 			}
-			break;
+				break;
 			case 12:		//	System Menu IOS
 			{
 				if ( pressed & INPUT_BUTTON_LEFT )
@@ -802,19 +802,28 @@ void SetSettings( void )
 #endif
 					redraw=true;
 				}
-
-			} break;
+				break;
+			} 
 			case 13:
 			{
 				if ( pressed & INPUT_BUTTON_A )
 				{
 					if( SaveSettings() )
-						PrintFormat( 0, 114, 128+224+16, "settings saved");
+						PrintFormat( 1, 114, 128+(16*14), "save settings : done  ");
 					else
-						PrintFormat( 0, 118, 128+224+16, "saving failed");
+						PrintFormat( 1, 114, 128+(16*14), "save settings : failed");
 				}
-			} break;
-
+				break;
+			} 
+			case 14:
+			{
+				if ( pressed & INPUT_BUTTON_A )
+				{
+					goto _exit;
+					break;
+				}
+				break;
+			} 
 			default:
 				cur_off = 0;
 				break;
@@ -825,7 +834,7 @@ void SetSettings( void )
 			cur_off++;
 			if( (settings->UseSystemMenuIOS) && (cur_off == 12))
 				cur_off++;
-			if( cur_off >= 14)
+			if( cur_off >= 15)
 				cur_off = 0;
 			
 			redraw=true;
@@ -835,7 +844,7 @@ void SetSettings( void )
 			if( (settings->UseSystemMenuIOS) && (cur_off == 12))
 				cur_off--;
 			if( cur_off < 0 )
-				cur_off = 13;
+				cur_off = 14;
 			
 			redraw=true;
 		}
@@ -902,7 +911,6 @@ void SetSettings( void )
 			
 			//PrintFormat( 0, 16, 64, "Pos:%d", ((rmode->viWidth /2)-(strlen("settings saved")*13/2))>>1);
 
-			//PrintFormat( cur_off==2, 0, 128+(16*1), "           Shutdown to:          %s", settings->ShutdownToPreloader?"Priiloader":"off       ");
 			PrintFormat( cur_off==3, 0, 128+(16*2), "  Stop disc on startup:          %s", settings->StopDisc?"on ":"off");
 			PrintFormat( cur_off==4, 0, 128+(16*3), "   Light slot on error:          %s", settings->LidSlotOnError?"on ":"off");
 			PrintFormat( cur_off==5, 0, 128+(16*4), "        Ignore standby:          %s", settings->IgnoreShutDownMode?"on ":"off");
@@ -920,14 +928,17 @@ void SetSettings( void )
 			{
 				PrintFormat( cur_off==12, 0, 128+(16*11),	"                                        ");
 			}
-			PrintFormat( cur_off==13, 118, 128+224, "save settings");
-			PrintFormat( 0, 114, 128+224+16, "                 ");
+			PrintFormat( cur_off==13, 114, 128+(16*14), "save settings         ");
+			PrintFormat( cur_off==14, 114, 128+(16*15), "  Exit Menu");
 
 			redraw = false;
 		}
 
 		VIDEO_WaitVSync();
 	}
+_exit: 
+	LoadSettings();
+	SetDumpDebug(SGetSetting(SETTING_DUMPGECKOTEXT));
 	mem_free(TitleIDs);
 	return;
 }
@@ -2413,6 +2424,7 @@ void InstallLoadDOL( void )
 		VIDEO_WaitVSync();
 	}
 
+_exit_dol_load_install:
 	//free memory
 	app_list.clear();
 
@@ -3724,7 +3736,8 @@ int main(int argc, char **argv)
 					net_deinit();
 					break;
 				case 8:
-					InstallPassword();
+					//when using the front buttons, we will refusing going into the password menu
+						InstallPassword();
 					break;
 				case 9:
 					SetSettings();
@@ -3751,7 +3764,6 @@ int main(int argc, char **argv)
 				if( cur_off >= 10 )
 					cur_off = 0;
 			}
-			//gprintf("loool %d-%d-%d\n",*(vu32*)0xCC003000,(*(vu32*)0xCC003000)>>16,((*(vu32*)0xCC003000)>>16)&1);
 			redraw=true;
 		} else if ( INPUT_Pressed & INPUT_BUTTON_UP )
 		{

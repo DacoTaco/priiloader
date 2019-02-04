@@ -569,9 +569,9 @@ failure:
 				}
 				title_ID[4]='\0';
 				PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "(%d)%s(%s)                              ",i+1,titles[i].name_ascii.c_str(), title_ID);
-				//gprintf("lolid : %s - %x & %x \n",title_ID,titles[i].title_id,(titles[i].title_id & 0x00000000FFFFFFFF) << 32);
-				PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Load Title       "))*13/2))>>1, rmode->viHeight-32, "A(A) Load Title");
+				//gprintf("lolid : %s - %x & %x \n",title_ID,titles[i].title_id,(titles[i].title_id & 0x00000000FFFFFFFF) << 32);			
 			}
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Load Title       "))*13/2))>>1, rmode->viHeight-32, "A(A) Load Title");
 			redraw = false;
 		}
 		VIDEO_WaitVSync();

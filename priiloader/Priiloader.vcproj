@@ -121,7 +121,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\source\Input.c"
+				RelativePath=".\source\Input.cpp"
 				>
 			</File>
 			<File
