@@ -282,6 +282,9 @@ s32 LoadListTitles( void )
 	}
 	std::vector<title_info> titles;
 	titles.clear();
+	title_info GoBackInfo;
+	GoBackInfo.name_ascii = "<-- Go Back";
+	titles.push_back(GoBackInfo);
 	tmd_view *rTMD;
 	char temp_name[256];
 	char title_ID[5];
@@ -462,6 +465,12 @@ s32 LoadListTitles( void )
 		}
 		if ( pressed & INPUT_BUTTON_A )
 		{
+			if(cur_off == 0)
+			{
+				titles.clear();
+				break;
+			}
+
 			if( !SGetSetting(SETTING_BLACKBACKGROUND))
 				VIDEO_ClearFrameBuffer( rmode, xfb, 0xFF80FF80);
 			else
@@ -557,18 +566,25 @@ failure:
 			}
 			for(; i<=(min_pos + max_pos); i++ )
 			{
-				memset(title_ID,0,5);
-				u32 title_l = titles[i].title_id & 0xFFFFFFFF;
-				memcpy(title_ID, &title_l, 4);
-				for (s8 f=0; f<4; f++)
+				if(i == 0)
 				{
-					if(title_ID[f] < 0x20)
-						title_ID[f] = '.';
-					if(title_ID[f] > 0x7E)
-						title_ID[f] = '.';
+					PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "%s                             ",titles[i].name_ascii.c_str());
 				}
-				title_ID[4]='\0';
-				PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "(%d)%s(%s)                              ",i+1,titles[i].name_ascii.c_str(), title_ID);
+				else
+				{
+					memset(title_ID,0,5);
+					u32 title_l = titles[i].title_id & 0xFFFFFFFF;
+					memcpy(title_ID, &title_l, 4);
+					for (s8 f=0; f<4; f++)
+					{
+						if(title_ID[f] < 0x20)
+							title_ID[f] = '.';
+						if(title_ID[f] > 0x7E)
+							title_ID[f] = '.';
+					}
+					title_ID[4]='\0';
+					PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "(%d)%s(%s)                              ",i+1,titles[i].name_ascii.c_str(), title_ID);
+				}
 				//gprintf("lolid : %s - %x & %x \n",title_ID,titles[i].title_id,(titles[i].title_id & 0x00000000FFFFFFFF) << 32);			
 			}
 			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Load Title       "))*13/2))>>1, rmode->viHeight-32, "A(A) Load Title");

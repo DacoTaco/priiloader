@@ -36,9 +36,9 @@ void HandleSTMEvent(u32 event)
 	struct timeval stop;
 	gettimeofday(&stop, NULL);	
 
-	//only accept input every +/- 100ms
+	//only accept input every +/- 200ms
 	//this stops it from detecting one press as multiple fires
-	if(stop.tv_sec == start.tv_sec && (stop.tv_usec - start.tv_usec < 100000))
+	if(stop.tv_sec == start.tv_sec && (stop.tv_usec - start.tv_usec < 200000))
 		return;
 
 	gettimeofday(&start, NULL);

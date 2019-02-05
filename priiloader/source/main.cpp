@@ -764,8 +764,8 @@ void SetSettings( void )
 					}
 					redraw=true;
 				}
-			}
 				break;
+			}
 			case 12:		//	System Menu IOS
 			{
 				if ( pressed & INPUT_BUTTON_LEFT )
@@ -2199,9 +2199,9 @@ void InstallLoadDOL( void )
 			{
 				PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "%s%s", app_list[i].app_name.c_str(),(read32(0x0d800064) == 0xFFFFFFFF && app_list[i].HW_AHBPROT_ENABLED != 0)?"(AHBPROT Available)":" ");
 			}
-			PrintFormat( 0, TEXT_OFFSET("A(A) Install File"), rmode->viHeight-64, "A(A) Install FIle");
-			PrintFormat( 0, TEXT_OFFSET("1(Y) Load File   "), rmode->viHeight-48, "1(Y) Load File");
-			PrintFormat( 0, TEXT_OFFSET("2(X) Delete installed File"), rmode->viHeight-32, "2(X) Delete installed File");
+			PrintFormat( 0, TEXT_OFFSET("A(A) Install File"), rmode->viHeight-96, "A(A) Install FIle");
+			PrintFormat( 0, TEXT_OFFSET("1(Y) Load File   "), rmode->viHeight-80, "1(Y) Load File");
+			PrintFormat( 0, TEXT_OFFSET("2(X) Delete installed File"), rmode->viHeight-64, "2(X) Delete installed File");
 
 			redraw = false;
 		}
@@ -2424,7 +2424,6 @@ void InstallLoadDOL( void )
 		VIDEO_WaitVSync();
 	}
 
-_exit_dol_load_install:
 	//free memory
 	app_list.clear();
 
@@ -3701,8 +3700,11 @@ int main(int argc, char **argv)
  
 		if ( INPUT_Pressed & INPUT_BUTTON_A )
 		{
-			ClearScreen();
+			if(cur_off < 5)
+				ClearScreen();
+
 			system_state.InMainMenu = 0;
+			redraw=true;
 
 			switch(cur_off)
 			{
@@ -3726,18 +3728,43 @@ int main(int argc, char **argv)
 					AutoBootDol();
 					break;
 				case 5:
+					if((INPUT_Pressed & INPUT_BUTTON_STM) != 0)
+					{
+						redraw = false;
+						break;
+					}
+
+					ClearScreen();
 					InstallLoadDOL();
 					break;
 				case 6:
+					if((INPUT_Pressed & INPUT_BUTTON_STM) != 0)
+					{
+						redraw = false;
+						break;
+					}
+
+					ClearScreen();
 					SysHackHashSettings();
+					redraw=true;
 					break;
 				case 7:
+					ClearScreen();
 					CheckForUpdate();
 					net_deinit();
+					redraw=true;
 					break;
 				case 8:
 					//when using the front buttons, we will refusing going into the password menu
-						InstallPassword();
+					if((INPUT_Pressed & INPUT_BUTTON_STM) != 0)
+					{
+						redraw = false;
+						break;
+					}
+					
+					ClearScreen();
+					InstallPassword();
+					redraw=true;
 					break;
 				case 9:
 					SetSettings();
@@ -3747,8 +3774,9 @@ int main(int argc, char **argv)
 
 			}
 			system_state.InMainMenu = 1;
-			ClearScreen();
-			redraw=true;
+
+			if(redraw == true)
+				ClearScreen();		
 		}
 
 		if ( INPUT_Pressed & INPUT_BUTTON_DOWN )
