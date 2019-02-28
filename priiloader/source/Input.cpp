@@ -25,23 +25,27 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <sys/time.h>
 
 #include "Input.h"
-#include "gecko.h"
 
 s8 _input_init = 0;
 u32 _STM_input_pressed = 0;
-struct timeval start;
+struct timeval _last_press;
+struct timeval _time_init;
 
 void HandleSTMEvent(u32 event)
 {
-	struct timeval stop;
-	gettimeofday(&stop, NULL);	
+	struct timeval press;
+	gettimeofday(&press, NULL);	
+
+	//after the first second of being init, we wont accept input
+	if(_time_init.tv_sec >= press.tv_sec)
+		return;
 
 	//only accept input every +/- 200ms
 	//this stops it from detecting one press as multiple fires
-	if(stop.tv_sec == start.tv_sec && (stop.tv_usec - start.tv_usec < 200000))
+	if(press.tv_sec == _last_press.tv_sec && (press.tv_usec - _last_press.tv_usec < 200000))
 		return;
 
-	gettimeofday(&start, NULL);
+	gettimeofday(&_last_press, NULL);
 	switch(event)
 	{
 		case STM_EVENT_POWER:
@@ -65,6 +69,7 @@ s8 Input_Init( void )
 	s8 r;
 	r = PAD_Init();
 	r |= WPAD_Init();
+	gettimeofday(&_time_init, NULL);
 
 	STM_RegisterEventHandler(HandleSTMEvent);
 
