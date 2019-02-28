@@ -36,8 +36,8 @@ void HandleSTMEvent(u32 event)
 	struct timeval press;
 	gettimeofday(&press, NULL);	
 
-	//after the first second of being init, we wont accept input
-	if(_time_init.tv_sec >= press.tv_sec)
+	//after the 2 second of being init, we wont accept input
+	if(_time_init.tv_sec+2 >= press.tv_sec)
 		return;
 
 	//only accept input every +/- 200ms
