@@ -101,10 +101,13 @@ export OUTPUT	:=	$(CURDIR)/$(TARGET)
 .PHONY: $(BUILD) clean
 
 #---------------------------------------------------------------------------------
+#build order
+all: $(BUILD) run
+
+#run
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
-	wiiload $(OUTPUT).dol
 
 #---------------------------------------------------------------------------------
 clean:
@@ -113,7 +116,12 @@ clean:
 
 #---------------------------------------------------------------------------------
 run:
+#send elf to the wii
+ifneq ($(WIILOAD),)
 	wiiload $(TARGET).dol
+else
+	@echo "wiiload variable not set. skipping sending to homebrew channel (wiiload)"
+endif
 
 #---------------------------------------------------------------------------------
 else

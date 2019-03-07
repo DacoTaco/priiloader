@@ -96,11 +96,11 @@ export OUTPUT	:=	$(CURDIR)/$(TARGET)
 #lets see what OS we are on
 UNAME := $(shell uname)
 
+#build order
+all: $(BUILD) run
+
 #actual build script
-$(BUILD): build_priiloader run
-
-
-build_priiloader:
+$(BUILD):
 #pre-checks
 ifeq ($(wildcard ./data/certs.bin),)
 	@echo "wii-cert is missing (certs.bin)."
