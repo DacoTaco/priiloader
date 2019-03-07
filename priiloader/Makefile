@@ -95,25 +95,54 @@ export OUTPUT	:=	$(CURDIR)/$(TARGET)
 #---------------------------------------------------------------------------------
 #lets see what OS we are on
 UNAME := $(shell uname)
-#and now make the build list
-$(BUILD):
-ifeq ($(UNAME),Linux)
-	#chmod 555 ../Shared/makesvnrev.sh
-	#chmod +x ../Shared/makesvnrev.sh
-	#../Shared/makesvnrev.sh
-	echo LINUX CURRENTLY UNSUPPORTED. PLEASE FIX HELP ME MAKE A SCRIPT FOR LINUX
-else
-	#../Shared/SubWCRev.exe "../." "../Shared/svnrev_template.h" "../Shared/svnrev.h"
-	../Shared/GitVersion.exe
+
+#actual build script
+$(BUILD): build_priiloader run
+
+
+build_priiloader:
+#pre-checks
+ifeq ($(wildcard ./data/certs.bin),)
+	@echo "wii-cert is missing (certs.bin)."
+	@echo "please add your wii's certificate in the data directory"
+	@echo
+	@echo
+	@exit 1
 endif
+
+#pre-build
+ifeq ($(wildcard ../.git/.),)
+	@echo
+	@echo
+	@echo !!!!!!WARNING!!!!!!!
+	@echo --------------------
+	@echo NOT BUILDING FROM GIT CHECKOUT. REV NUMBERS WILL NOT MAKE ANY SENSE
+	@echo
+	@echo
+	@echo '#define GIT_REV 0xdeadbeef' > ../Shared/gitrev.h
+	@echo '#define GIT_REV_STR "0xdeadbeef-dirty"' >> ../Shared/gitrev.h
+else ifeq ($(UNAME),Linux) 
+	@echo LINUX CURRENTLY UNSUPPORTED. PLEASE HELP ME MAKE A SCRIPT FOR LINUX
+	@exit 1
+else
+#../Shared/SubWCRev.exe "../." "../Shared/svnrev_template.h" "../Shared/svnrev.h"
+#this exe just calls the bat file. starting bat from makefile was... eug
+#	-> system("call cmd /c ..\\Shared\\make_git.bat");
+		@../Shared/GitVersion.exe
+endif
+
+#build
 	@[ -d $@ ] || mkdir -p $@
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
+
+#create the app for the wii
 ifeq ($(UNAME),Linux)
-		./OpenDolBoot $(OUTPUT).dol ../Installer/data/priiloader.app
+		@echo
+		@./OpenDolBoot $(OUTPUT).dol ../Installer/data/priiloader.app
 else
-		./OpenDolBoot.exe $(OUTPUT).dol ../Installer/data/priiloader.app
+		@echo
+		@./OpenDolBoot.exe $(OUTPUT).dol ../Installer/data/priiloader.app
 endif
-	wiiload $(OUTPUT).elf
 
 #---------------------------------------------------------------------------------
 clean:
@@ -122,7 +151,12 @@ clean:
 
 #---------------------------------------------------------------------------------
 run:
-	wiiload $(TARGET).dol
+#send elf to the wii
+ifneq ($(WIILOAD),)
+	wiiload $(TARGET).elf
+else
+	@echo "wiiload variable not set. skipping sending to homebrew channel (wiiload)"
+endif
 
 #---------------------------------------------------------------------------------
 else
@@ -159,12 +193,6 @@ $(OUTPUT).elf: $(OFILES)
 
 -include $(DEPENDS)
 
-%.mp3.o	:	%.mp3
-#---------------------------------------------------------------------------------
-	@echo $(notdir $<)
-	$(bin2o)
-	
--include $(DEPENDS)
 #---------------------------------------------------------------------------------
 endif
 #---------------------------------------------------------------------------------
