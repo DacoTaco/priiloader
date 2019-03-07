@@ -95,6 +95,7 @@ export OUTPUT	:=	$(CURDIR)/$(TARGET)
 #---------------------------------------------------------------------------------
 #lets see what OS we are on
 UNAME := $(shell uname)
+NUMBER := $(shell bash -c 'echo $$RANDOM')
 
 #build order
 all: $(BUILD) run
@@ -119,8 +120,8 @@ ifeq ($(wildcard ../.git/.),)
 	@echo NOT BUILDING FROM GIT CHECKOUT. REV NUMBERS WILL NOT MAKE ANY SENSE
 	@echo
 	@echo
-	@echo '#define GIT_REV 0xdeadbeef' > ../Shared/gitrev.h
-	@echo '#define GIT_REV_STR "0xdeadbeef-dirty"' >> ../Shared/gitrev.h
+	@echo '#define GIT_REV 0x'$(NUMBER) > ../Shared/gitrev.h
+	@echo '#define GIT_REV_STR "0x'$(NUMBER)'-dirty"' >> ../Shared/gitrev.h
 else ifeq ($(UNAME),Linux) 
 	@echo LINUX CURRENTLY UNSUPPORTED. PLEASE HELP ME MAKE A SCRIPT FOR LINUX
 	@exit 1
@@ -130,7 +131,6 @@ else
 #	-> system("call cmd /c ..\\Shared\\make_git.bat");
 		@../Shared/GitVersion.exe
 endif
-
 #build
 	@[ -d $@ ] || mkdir -p $@
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
