@@ -2,7 +2,7 @@
 
 priiloader - A tool which allows to change the default boot up sequence on the Wii console
 
-Copyright (C) 2008-2017 DacoTaco
+Copyright (C) 2008-2019 DacoTaco
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License

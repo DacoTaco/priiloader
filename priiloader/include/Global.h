@@ -2,7 +2,7 @@
 
 priiloader(preloader mod) - A tool which allows to change the default boot up sequence on the Wii console
 
-Copyright (C) 2013-2017  DacoTaco
+Copyright (C) 2013-2019  DacoTaco
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -26,11 +26,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 //DEFINES
 //---------------
-//#define PATCHED_ES //needed if your libogc version is lower then libogc 1.8.3. 1.8.3 is needed for both the tmd views for ES_GetTMDView as the correct way to do ES_OpenTitleContent
-#ifdef PATCHED_ES
-#define ES_OpenTitleContent(x,y,z) ES_OpenTitleContent_patched(x,y,z)
-#endif
-
 #define _SHIFTL(v, s, w)	\
     ((u32) (((u32)(v) & ((0x01 << (w)) - 1)) << (s)))
 
@@ -44,11 +39,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 //INCLUDES
 //---------------
-#ifdef PATCHED_ES
-#include "es.h"
-#else
 #include <ogc/es.h>
-#endif
 #include <gctypes.h>
 #include <gccore.h>
 #include <stdio.h>
@@ -65,31 +56,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //STRUCTS
 //--------------
 
-#ifdef PATCHED_ES
-//patch to libogc was submitted for the following struct and is included starting libogc 1.8.3
-typedef struct _tmd_view_content_t
-{
-  uint32_t cid;
-  uint16_t index;
-  uint16_t type;
-  uint64_t size;
-} __attribute__((packed)) tmd_view_content_t;
-
-typedef struct _tmd_view_t
-{
-	uint8_t version; // 0x0000;
-	uint8_t filler[3];
-	uint64_t sys_version; //0x0004
-	uint64_t title_id; // 0x00c
-	uint32_t title_type; //0x0014
-	uint16_t group_id; //0x0018
-	uint8_t reserved[0x3e]; //0x001a this is the same reserved 0x3e bytes from the tmd
-	uint16_t title_version; //0x0058
-	uint16_t num_contents; //0x005a
-	tmd_view_content_t contents[]; //0x005c
-}__attribute__((packed)) tmd_view;
-#endif
-
 
 //TYPEDEFS
 //--------------
@@ -101,13 +67,6 @@ extern void *xfb;
 
 //FUNCTIONS
 //---------------
-#ifdef PATCHED_ES
-extern "C"
-{
-	extern s32 ES_OpenTitleContent_patched(u64 titleID, tikview *views, u16 index);
-}
-#endif
-
 void InitVideo ( void );
 
 #define free_pointer(x) if(x != NULL) { free(x);x=NULL; }

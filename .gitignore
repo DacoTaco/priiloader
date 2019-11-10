@@ -23,6 +23,5 @@ wiki
 !template.latex
 
 # But do ignore these:
-
 /Shared/gitrev.h
 /priiloader/data/certs.bin
