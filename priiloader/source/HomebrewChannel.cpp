@@ -23,7 +23,6 @@
 #include "stub_bin.h"
 
 //variables
-extern u8 error;
 
 //The known HBC titles
 

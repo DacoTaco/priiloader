@@ -19,10 +19,13 @@ wiki
 !*.txt
 !*.bat
 !*.dll
+!*.MD
 !*MakeFile
 !template.latex
 
 # But do ignore these:
-
+*.*
 /Shared/gitrev.h
 /priiloader/data/certs.bin
+/Installer/data/priiloader.app
+/priiloader/data/loader.bin

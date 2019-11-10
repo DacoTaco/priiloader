@@ -1,7 +1,7 @@
 /*
 
 HTTP Parser by DacoTaco
-Copyright (C) 2013-2017  DacoTaco
+Copyright (C) 2013-2019  DacoTaco
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License

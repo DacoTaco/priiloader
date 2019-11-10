@@ -2,7 +2,7 @@
 
 priiloader/preloader 0.30 - A tool which allows to change the default boot up sequence on the Wii console
 
-Copyright (C) 2008-2017  crediar
+Copyright (C) 2008-2019  crediar
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -34,11 +34,36 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "font.h"
 #include "mem2_manager.h"
 
-std::vector<hack_hash> hacks_hash;
+std::vector<system_hack> system_hacks;
 u32 *states_hash=NULL;
-extern u8 error;
-
 unsigned int foff=0;
+
+s8 LoadSystemHacks_Old(bool Force_Load_Nand);
+
+void _showError(const char* errorMsg, ...)
+{
+	char astr[2048];
+	memset(astr, 0, 2048);
+
+	va_list ap;
+	va_start(ap, errorMsg);
+
+	vsnprintf(astr, 2047, errorMsg, ap);
+
+	va_end(ap);
+
+	PrintString(1, ((640 / 2) - ((strlen(astr)) * 13 / 2)) >> 1, 208, astr);
+	sleep(5);
+	return;
+}
+
+s8 LoadSystemHacks(bool Force_Load_Nand)
+{
+	return LoadSystemHacks_Old(Force_Load_Nand);
+}
+
+
+
 char *GetLine( char *astr, unsigned int len)
 {
 	if( foff >= len )
@@ -98,11 +123,12 @@ char *GetLine( char *astr, unsigned int len)
 	foff+=llen+1;
 	return lbuf;
 }
-s8 LoadHacks_Hash( bool Force_Load_Nand )
+
+s8 LoadSystemHacks_Old( bool Force_Load_Nand )
 {	
-	if( hacks_hash.size() ) //hacks_hash already loaded
+	if( system_hacks.size() ) //system_hacks already loaded
 	{
-		hacks_hash.clear();
+		system_hacks.clear();
 		if(states_hash)
 		{
 			mem_free(states_hash);
@@ -142,8 +168,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 
 		if( size == 0 )
 		{
-			PrintFormat( 1, ((640/2)-((strlen("Error \"hacks_hash.ini\" is 0 byte!"))*13/2))>>1, 208, "Error \"hacks_hash.ini\" is 0 byte!");
-			sleep(5);
+			_showError("Error \"hacks_hash.ini\" is 0 byte!");
 			return 0;
 		}
 
@@ -157,8 +182,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 		if(fread( buf, sizeof( char ), size, in ) != size )
 		{
 			mem_free(buf);
-			PrintFormat( 1, ((640/2)-((strlen("Error reading \"hacks_hash.ini\""))*13/2))>>1, 208, "Error reading \"hacks_hash.ini\"");
-			sleep(5);
+			_showError("Error reading \"hacks_hash.ini\"");
 			return 0;
 		}
 		fclose(in);
@@ -186,15 +210,14 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 	patch_struct temp;
 	temp.hash.clear();
 	temp.patch.clear();
-	hack_hash new_hacks_hash;
+	system_hack new_system_hacks;
 
 	lbuf = GetLine( str, size );
 	if( lbuf == NULL )
 	{
-		PrintFormat( 1, ((640/2)-((strlen("Syntax error : unexpected EOF @ line   "))*13/2))>>1, 208, "Syntax error : unexpected EOF @ line %d", line);
+		_showError("Syntax error : unexpected EOF @ line %d", line);
 		mem_free(buf);
-		hacks_hash.clear();
-		sleep(5);
+		system_hacks.clear();
 		return 0;
 	}
 
@@ -205,31 +228,28 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 
 		if( strstr( lbuf, "[" ) == NULL )
 		{
-			PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing '[' before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : missing '[' before 'n' @ line %d", line);
-			hacks_hash.clear();
-			sleep(5);
+			_showError("Syntax error : missing '[' before 'n' @ line %d", line);
+			system_hacks.clear();
 			return 0;
 		}
 
 		char *s = strtok( lbuf+(strstr( lbuf, "[" )-lbuf) + 1, "]");
 		if( s == NULL )
 		{
-			PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing ']' before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : missing ']' before 'n' @ line %d", line);
-			hacks_hash.clear();
-			sleep(5);
+			_showError("Syntax error : missing ']' before 'n' @ line %d", line);
+			system_hacks.clear();
 			return 0;
 		}
 
-		new_hacks_hash.desc = s;
+		new_system_hacks.desc = s;
 		mem_free(lbuf);
 
 		line++;
 		lbuf = GetLine( str, size );
 		if( lbuf == NULL )
 		{
-			PrintFormat( 1, ((640/2)-((strlen("Syntax error : unexpected EOF @ line   "))*13/2))>>1, 208, "Syntax error : unexpected EOF @ line %d", line);
-			hacks_hash.clear();
-			sleep(5);
+			_showError("Syntax error : unexpected EOF @ line %d", line);
+			system_hacks.clear();
 			return 0;
 		}
 
@@ -237,33 +257,29 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 		{
 			if( strstr( lbuf, "=" ) ==  NULL )
 			{
-				PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing '=' before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : missing '=' before 'n' @ line %d", line);
-				hacks_hash.clear();
-				sleep(5);
+				_showError("Syntax error : missing '=' before 'n' @ line %d", line);
+				system_hacks.clear();
 				return 0;
 			}
 			s = strtok( lbuf+(strstr( lbuf, "=" )-lbuf) + 1, "\n");
 			if( s == NULL )
 			{
-				PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing value before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : missing value before 'n' @ line %d", line);
-				hacks_hash.clear();
-				sleep(5);
+				_showError("Syntax error : missing value before 'n' @ line %d", line);
+				system_hacks.clear();
 				return 0;
 			}
 		} else {
-			PrintFormat( 1, ((640/2)-((strlen("Syntax error : expected 'version' before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : expected 'version' before 'n' @ line %d", line);
-			hacks_hash.clear();
-			sleep(5);
+			_showError("Syntax error : expected 'version' before 'n' @ line %d", line);
+			system_hacks.clear();
 			return 0;
 		}
 
-		new_hacks_hash.max_version = atoi( s );
+		new_system_hacks.max_version = atoi( s );
 
-		if( new_hacks_hash.max_version == 0 )
+		if( new_system_hacks.max_version < 0 )
 		{
-			PrintFormat( 1, ((640/2)-((strlen("Error : maxversion is zero @ line   "))*13/2))>>1, 208, "Error : maxversion is zero @ line %d", line);
-			hacks_hash.clear();
-			sleep(5);
+			_showError("Error : maxversion is zero @ line %d", line);
+			system_hacks.clear();
 			return 0;
 		}
 
@@ -272,9 +288,8 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 		lbuf = GetLine( str, size );
 		if( lbuf == NULL )
 		{
-			PrintFormat( 1, ((640/2)-((strlen("Syntax error : unexpected EOF @ line   "))*13/2))>>1, 208, "Syntax error : unexpected EOF @ line %d", line);
-			hacks_hash.clear();
-			sleep(5);
+			_showError("Syntax error : unexpected EOF @ line %d", line);
+			system_hacks.clear();
 			return 0;
 		}
 
@@ -282,33 +297,29 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 		{
 			if( strstr( lbuf, "=" ) ==  NULL )
 			{
-				PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing '=' before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : missing '=' before 'n' @ line %d", line);
-				hacks_hash.clear();
-				sleep(5);
+				_showError("Syntax error : missing '=' before 'n' @ line %d", line);
+				system_hacks.clear();
 				return 0;
 			}
 			s = strtok( lbuf+(strstr( lbuf, "=" )-lbuf) + 1, "\n");
 			if( s == NULL )
 			{
-				PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing value before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : missing value before 'n' @ line %d", line);
-				hacks_hash.clear();
-				sleep(5);
+				_showError("Syntax error : missing value before 'n' @ line %d", line);
+				system_hacks.clear();
 				return 0;
 			}
 		} else {
-			PrintFormat( 1, ((640/2)-((strlen("Syntax error : expected 'minversion' before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : expected 'minversion' before 'n' @ line %d", line);
-			hacks_hash.clear();
-			sleep(5);
+			_showError("Syntax error : expected 'minversion' before 'n' @ line %d", line);
+			system_hacks.clear();
 			return 0;
 		}
 
-		new_hacks_hash.min_version = atoi( s );
+		new_system_hacks.min_version = atoi( s );
 
-		if( new_hacks_hash.min_version == 0 )
+		if( new_system_hacks.min_version < 0 )
 		{
-			PrintFormat( 1, ((640/2)-((strlen("Error : minversion is zero @ line   "))*13/2))>>1, 208, "Error : minversion is zero @ line %d", line);
-			hacks_hash.clear();
-			sleep(5);
+			_showError("Error : minversion is zero @ line %d", line);
+			system_hacks.clear();
 			return 0;
 		}
 
@@ -317,9 +328,8 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 		lbuf = GetLine( str, size );
 		if( lbuf == NULL )
 		{
-			PrintFormat( 1, ((640/2)-((strlen("Syntax error : unexpected EOF @ line   "))*13/2))>>1, 208, "Syntax error : expected EOF @ line %d", line);
-			hacks_hash.clear();
-			sleep(5);
+			_showError("Syntax error : expected EOF @ line %d", line);
+			system_hacks.clear();
 			return 0;
 		}
 
@@ -327,32 +337,28 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 		{
 			if( strstr( lbuf, "=" ) ==  NULL )
 			{
-				PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing '=' before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : missing '=' before 'n' @ line %d", line);
-				hacks_hash.clear();
-				sleep(5);
+				_showError("Syntax error : missing '=' before 'n' @ line %d", line);
+				system_hacks.clear();
 				return 0;
 			}
 			s = strtok( lbuf+(strstr( lbuf, "=" )-lbuf) + 1, "\n");
 			if( s == NULL )
 			{
-				PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing value before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : missing value before 'n' @ line %d", line);
-				hacks_hash.clear();
-				sleep(5);
+				_showError("Syntax error : missing value before 'n' @ line %d", line);
+				system_hacks.clear();
 				return 0;
 			}
 		} else {
-			PrintFormat( 1, ((640/2)-((strlen("Syntax error : expected 'amount' before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : expected 'patches' before 'n' @ line %d", line);
-			hacks_hash.clear();
-			sleep(5);
+			_showError("Syntax error : expected 'patches' before 'n' @ line %d", line);
+			system_hacks.clear();
 			return 0;
 		}
-		new_hacks_hash.amount = atoi( s );
+		new_system_hacks.amount = atoi( s );
 
-		if( new_hacks_hash.amount == 0 )
+		if( new_system_hacks.amount == 0 )
 		{
-			PrintFormat( 1, ((640/2)-((strlen("Error : patches amount is zero @ line   "))*13/2))>>1, 208, "Error : patches amount is zero @ line %d", line);
-			hacks_hash.clear();
-			sleep(5);
+			_showError("Error : patches amount is zero @ line %d", line);
+			system_hacks.clear();
 			return 0;
 		}
 		mem_free(lbuf);
@@ -362,21 +368,20 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 			lbuf = GetLine( str, size );
 			if(temp.hash.size() > 0 && temp.patch.size() > 0)
 			{
-				new_hacks_hash.patches.push_back(temp);
+				new_system_hacks.patches.push_back(temp);
 				temp.hash.clear();
 				temp.patch.clear();
 			} 
-			if( lbuf == NULL || new_hacks_hash.patches.size() == new_hacks_hash.amount )
+			if( lbuf == NULL || new_system_hacks.patches.size() == new_system_hacks.amount )
 			{
-				if(	new_hacks_hash.patches.size() != new_hacks_hash.amount)
+				if(	new_system_hacks.patches.size() != new_system_hacks.amount)
 				{
 					if( lbuf == NULL )
 					{
-						PrintFormat( 1, ((640/2)-((strlen("Syntax error : unexpected EOF @ line   "))*13/2))>>1, 208, "Syntax error : unexpected EOF @ line %d", line);
+						_showError("Syntax error : unexpected EOF @ line %d", line);
 						temp.hash.clear();
 						temp.patch.clear();
-						hacks_hash.clear();
-						sleep(5);
+						system_hacks.clear();
 						return 0;
 					}
 				}
@@ -387,24 +392,21 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 			{
 				if ( temp.hash.size() )
 				{
-					PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing 'patch' before line   "))*13/2))>>1, 208, "Syntax error : missing 'patch' before line %d", line);
-					hacks_hash.clear();
-					sleep(5);
+					_showError("Syntax error : missing 'patch' before line %d", line);
+					system_hacks.clear();
 					return 0;
 				}
 				if( strstr( lbuf, "=" ) ==  NULL )
 				{
-					PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing '=' before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : missing '=' before 'n' @ line %d", line);
-					hacks_hash.clear();
-					sleep(5);
+					_showError("Syntax error : missing '=' before 'n' @ line %d", line);
+					system_hacks.clear();
 					return 0;
 				}
 				s = strtok( lbuf+(strstr( lbuf, "=" )-lbuf) + 1, ",\n");
 				if( s == NULL )
 				{
-					PrintFormat( 1, ((640/2)-((strlen("Syntax error : expected value before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : expected value before 'n' @ line %d", line);
-					hacks_hash.clear();
-					sleep(5);
+					_showError("Syntax error : expected value before 'n' @ line %d", line);
+					system_hacks.clear();
 					return 0;
 				}
 				
@@ -442,24 +444,21 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 			{
 				if (temp.patch.size() || temp.hash.size() == 0 )
 				{
-					PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing 'hash' before line   "))*13/2))>>1, 208, "Syntax error : missing 'hash' before line %d", line);
-					hacks_hash.clear();
-					sleep(5);
+					_showError("Syntax error : missing 'hash' before line %d", line);
+					system_hacks.clear();
 					return 0;
 				}
 				if( strstr( lbuf, "=" ) ==  NULL )
 				{
-					PrintFormat( 1, ((640/2)-((strlen("Syntax error : missing '=' before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : missing '=' before 'n' @ line %d", line);
-					hacks_hash.clear();
-					sleep(5);
+					_showError("Syntax error : missing '=' before 'n' @ line %d", line);
+					system_hacks.clear();
 					return 0;
 				}
 				s = strtok( lbuf+(strstr( lbuf, "=" )-lbuf) + 1, ",\n");
 				if( s == NULL )
 				{
-					PrintFormat( 1, ((640/2)-((strlen("Syntax error : expected value before 'n' @ line   "))*13/2))>>1, 208, "Syntax error : expected value before 'n' @ line %d", line);
-					hacks_hash.clear();
-					sleep(5);
+					_showError("Syntax error : expected value before 'n' @ line %d", line);
+					system_hacks.clear();
 					return 0;
 				}
 				do{
@@ -492,32 +491,31 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 
 				}while( (s = strtok( NULL,",\n")) != NULL);
 			} else {
-				if(new_hacks_hash.patches.size() > 0 || temp.hash.size() > 0 || temp.patch.size() > 0)
-					PrintFormat( 1, ((640/2)-((strlen("Syntax Er: not enough 'hash' or 'patch' before line   "))*13/2))>>1, 208, "Syntax Er: not enough 'hash' or 'patch' before line %d", line);
+				if(new_system_hacks.patches.size() > 0 || temp.hash.size() > 0 || temp.patch.size() > 0)
+					_showError("Syntax Er: not enough 'hash' or 'patch' before line %d", line);
 				else
-					PrintFormat( 1, ((640/2)-((strlen("Syntax Err : expected 'hash' or 'patch' before line   "))*13/2))>>1, 208, "Syntax Err : expected 'hash' or 'patch' before line %d", line);
-				hacks_hash.clear();
-				sleep(5);
+					_showError("Syntax Err : expected 'hash' or 'patch' before line %d", line);
+				system_hacks.clear();
 				return 0;
 			}
 			mem_free(lbuf);
 		}
-		hacks_hash.push_back(new_hacks_hash);
-		new_hacks_hash.patches.clear();
-		new_hacks_hash.desc.clear();
-		new_hacks_hash.amount = 0;
-		new_hacks_hash.max_version = 0;
-		new_hacks_hash.min_version = 0;
+		system_hacks.push_back(new_system_hacks);
+		new_system_hacks.patches.clear();
+		new_system_hacks.desc.clear();
+		new_system_hacks.amount = 0;
+		new_system_hacks.max_version = 0;
+		new_system_hacks.min_version = 0;
 	}
 	mem_free(buf);
 
-	if(hacks_hash.size()==0)
+	if(system_hacks.size()==0)
 		return 0;
 
 	//load hack states_hash (on/off)
 	if ( states_hash == NULL )
 	{
-		states_hash = (u32*)mem_align( 32, ALIGN32( sizeof( u32 ) * hacks_hash.size() ) );
+		states_hash = (u32*)mem_align( 32, ALIGN32( sizeof( u32 ) * system_hacks.size() ) );
 		if( states_hash == NULL )
 		{
 			error = ERROR_MALLOC;
@@ -525,7 +523,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 		}
 	}
 
-	memset( states_hash, 0, sizeof( u32 ) * hacks_hash.size() );
+	memset( states_hash, 0, sizeof( u32 ) * system_hacks.size() );
 
 	fd = ISFS_Open("/title/00000001/00000002/data/hacksh_s.ini", 1|2 );
 
@@ -542,7 +540,7 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 		if( fd < 0 )
 			return 0;
 
-		ISFS_Write( fd, states_hash, sizeof( u32 ) * hacks_hash.size() );
+		ISFS_Write( fd, states_hash, sizeof( u32 ) * system_hacks.size() );
 
 		ISFS_Seek( fd, 0, 0 );
 	}
@@ -569,19 +567,19 @@ s8 LoadHacks_Hash( bool Force_Load_Nand )
 		return 0;
 	}
 
-	if( sizeof( u32 ) * hacks_hash.size() < status->file_length )
-		memcpy( states_hash, fbuf, sizeof( u32 ) * hacks_hash.size() );
+	if( sizeof( u32 ) * system_hacks.size() < status->file_length )
+		memcpy( states_hash, fbuf, sizeof( u32 ) * system_hacks.size() );
 	else
 		memcpy( states_hash, fbuf, status->file_length );
 
 	mem_free(fbuf);
 	ISFS_Close( fd );
 
-	//Set all hacks_hash for system menu > max_version || sysver < min_version to 0
+	//Set all system_hacks for system menu > max_version || sysver < min_version to 0
 	unsigned int sysver = GetSysMenuVersion();
-	for( u32 i=0; i < hacks_hash.size(); ++i)
+	for( u32 i=0; i < system_hacks.size(); ++i)
 	{
-		if( hacks_hash[i].max_version < sysver || hacks_hash[i].min_version > sysver)
+		if( system_hacks[i].max_version < sysver || system_hacks[i].min_version > sysver)
 		{
 			states_hash[i] = 0;
 		}

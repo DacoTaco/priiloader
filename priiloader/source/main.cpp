@@ -100,9 +100,6 @@ typedef struct {
 }Binary_struct;
 
 extern DVD_status DVD_state;
-extern Settings *settings;
-extern u8 error;
-extern std::vector<hack_hash> hacks_hash;
 extern u32 *states_hash;
 
 //overwrite the weak variable in libogc that enables malloc to use mem2. this disables it
@@ -127,7 +124,7 @@ void ClearScreen()
 
 void SysHackHashSettings( void )
 {
-	if( !LoadHacks_Hash(false) )
+	if( !LoadSystemHacks(false) )
 	{
 		if(GetMountedValue() == 0)
 		{
@@ -145,9 +142,9 @@ void SysHackHashSettings( void )
 //Count hacks for current sys version
 	u32 HackCount=0;
 	u32 SysVersion=GetSysMenuVersion();
-	for( unsigned int i=0; i<hacks_hash.size(); ++i)
+	for( unsigned int i=0; i<system_hacks.size(); ++i)
 	{
-		if( hacks_hash[i].max_version >= SysVersion && hacks_hash[i].min_version <= SysVersion)
+		if( system_hacks[i].max_version >= SysVersion && system_hacks[i].min_version <= SysVersion)
 		{
 			HackCount++;
 		}
@@ -280,7 +277,7 @@ handle_hacks_fail:
 					fail=7;
 					goto handle_hacks_s_fail;
 				}
-				if(ISFS_Write( fd, states_hash, sizeof( u32 ) * hacks_hash.size() )<0)
+				if(ISFS_Write( fd, states_hash, sizeof( u32 ) * system_hacks.size() )<0)
 				{
 					fail = 8;
 					ISFS_Close(fd);
@@ -304,9 +301,9 @@ handle_hacks_s_fail:
 
 				s32 j = 0;
 				u32 i = 0;
-				for(i=0; i<hacks_hash.size(); ++i)
+				for(i=0; i<system_hacks.size(); ++i)
 				{
-					if( hacks_hash[i].max_version >= SysVersion && hacks_hash[i].min_version <= SysVersion)
+					if( system_hacks[i].max_version >= SysVersion && system_hacks[i].min_version <= SysVersion)
 					{
 						if( cur_off+menu_off == j++)
 							break;
@@ -370,19 +367,19 @@ handle_hacks_s_fail:
 		}
 		if( redraw )
 		{
-			//printf("\x1b[2;0HHackCount:%d DispCount:%d cur_off:%d menu_off:%d Hacks:%d   \n", HackCount, DispCount, cur_off, menu_off, hacks_hash.size() );
+			//printf("\x1b[2;0HHackCount:%d DispCount:%d cur_off:%d menu_off:%d Hacks:%d   \n", HackCount, DispCount, cur_off, menu_off, system_hacks.size() );
 			u32 j=0;
 			u32 skip=menu_off;
-			for( u32 i=0; i<hacks_hash.size(); ++i)
+			for( u32 i=0; i<system_hacks.size(); ++i)
 			{
-				if( hacks_hash[i].max_version >= SysVersion && hacks_hash[i].min_version <= SysVersion)
+				if( system_hacks[i].max_version >= SysVersion && system_hacks[i].min_version <= SysVersion)
 				{
 					if( skip > 0 )
 					{
 						skip--;
 					} else {
 						
-						PrintFormat( cur_off==j, 16, 48+j*16, "%s", hacks_hash[i].desc.c_str() );
+						PrintFormat( cur_off==j, 16, 48+j*16, "%s", system_hacks[i].desc.c_str() );
 
 						if( states_hash[i] )
 						{
@@ -1702,7 +1699,7 @@ void BootMainSysMenu( u8 init )
 	entrypoint = (void (*)())(boot_hdr->entrypoint);
 	gdprintf("entrypoint %08X\n", entrypoint );
 
-	LoadHacks_Hash(true);
+	LoadSystemHacks(true);
 
 	for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {
 		if(WPAD_Probe(i,0) < 0)
@@ -1856,32 +1853,32 @@ void BootMainSysMenu( u8 init )
 	*(vu32*)0x8000315C = 0x80800113;				// DI Legacy mode ?
 	DCFlushRange((void*)0x80000000,0x3400);
 
-	gprintf("Hacks:%d\n",hacks_hash.size());
-	if(hacks_hash.size() != 0)
+	gprintf("Hacks:%d\n",system_hacks.size());
+	if(system_hacks.size() != 0)
 	{
 		mem_block = (u8*)(*boot_hdr->addressData - *boot_hdr->offsetData);
 		max_address = (u32)(*boot_hdr->sizeData + *boot_hdr->addressData);
-		for(u32 i = 0;i < hacks_hash.size();i++)
+		for(u32 i = 0;i < system_hacks.size();i++)
 		{
 			if(states_hash[i] == 1)
 			{
 				u32 add = 0;
-				for(u32 y = 0; y < hacks_hash[i].amount;y++)
+				for(u32 y = 0; y < system_hacks[i].amount;y++)
 				{
 					while( add + (u32)mem_block < max_address)
 					{
-						u8 temp_hash[hacks_hash[i].patches[y].hash.size()];
-						u8 temp_patch[hacks_hash[i].patches[y].patch.size()];
-						for(u32 z = 0;z < hacks_hash[i].patches[y].hash.size(); z++)
+						u8 temp_hash[system_hacks[i].patches[y].hash.size()];
+						u8 temp_patch[system_hacks[i].patches[y].patch.size()];
+						for(u32 z = 0;z < system_hacks[i].patches[y].hash.size(); z++)
 						{
-							temp_hash[z] = hacks_hash[i].patches[y].hash[z];
+							temp_hash[z] = system_hacks[i].patches[y].hash[z];
 						}
 						if ( !memcmp(mem_block+add, temp_hash ,sizeof(temp_hash)) )
 						{
-							gprintf("Found %s @ 0x%X, patching hash # %d...\n",hacks_hash[i].desc.c_str(), add+(u32)mem_block, y+1);
-							for(u32 z = 0;z < hacks_hash[i].patches[y].patch.size(); z++)
+							gprintf("Found %s @ 0x%X, patching hash # %d...\n",system_hacks[i].desc.c_str(), add+(u32)mem_block, y+1);
+							for(u32 z = 0;z < system_hacks[i].patches[y].patch.size(); z++)
 							{
-								temp_patch[z] = hacks_hash[i].patches[y].patch[z];
+								temp_patch[z] = system_hacks[i].patches[y].patch[z];
 							}
 							memcpy(mem_block+add,temp_patch,sizeof(temp_patch) );
 							DCFlushRange((u8 *)((add+(u32)mem_block) >> 5 << 5), (sizeof(temp_patch) >> 5 << 5) + 64);
@@ -1893,6 +1890,7 @@ void BootMainSysMenu( u8 init )
 			} //end if state[i] = 1
 		} // end general hacks loop
 	} //end if hacks > 0
+
 	if(TMD)
 		mem_free(TMD);
 	if(tstatus)
@@ -1930,7 +1928,7 @@ free_and_return:
 }
 void InstallLoadDOL( void )
 {
-	char filename[MAXPATHLEN],filepath[MAXPATHLEN];
+	char filename[MAXPATHLEN/2],filepath[MAXPATHLEN];
 	std::vector<Binary_struct> app_list;
 	DIR* dir;
 	s8 reload = 1;
@@ -3671,7 +3669,7 @@ int main(int argc, char **argv)
 	}
 	
 	r = (s32)PollDevices();
-	gprintf("FAT_Init():%d\n", r );
+	gprintf("FAT_Init():%d", r );
 
 	//init video first so we can see crashes :)
 	InitVideo();
@@ -3895,6 +3893,7 @@ int main(int argc, char **argv)
 			}
 
 		}
+
 		//boot system menu
 		if(system_state.BootSysMenu)
 		{
