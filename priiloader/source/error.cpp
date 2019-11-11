@@ -31,6 +31,55 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 u8 error = 0;
 
+void ShowAutoBootError(void)
+{
+	PrintFormat( 0, 16, (rmode->viHeight)-128, "Error autobooting systemmenu!");
+	switch( error )
+	{
+		case ERROR_SYSMENU_TIKNOTFOUND:
+			PrintFormat( 0, 16, (rmode->viHeight)-112, "Ticket not found!");
+			break;
+		case ERROR_SYSMENU_TIKSIZEGETFAILED:
+			PrintFormat( 0, 16, (rmode->viHeight)-112, "Could not get ticket size!");
+			break;
+		case ERROR_SYSMENU_TIKREADFAILED:
+			PrintFormat( 0, 16, (rmode->viHeight)-112, "Could not read ticket!");
+			break;
+		case ERROR_SYSMENU_ESDIVERFIY_FAILED:
+			PrintFormat( 0, 16, (rmode->viHeight)-112, "ES_DiVerfiy failed! Is the IOS patched?");
+			break;
+		case ERROR_SYSMENU_IOSSTUB:
+			PrintFormat( 0, 16, (rmode->viHeight)-112, "The going to load IOS was detected as Stub!");
+			break;
+		case ERROR_SYSMENU_GETTMDSIZEFAILED:
+			PrintFormat( 0, 16, (rmode->viHeight)-112, "Could not get TMD size!");
+			break;
+		case ERROR_SYSMENU_GETTMDFAILED:
+			PrintFormat( 0, 16, (rmode->viHeight)-112, "Could not get TMD!");
+			break;
+		case ERROR_SYSMENU_BOOTNOTFOUND:
+			PrintFormat( 0, 16, (rmode->viHeight)-112, "Boot file not found!");
+			break;
+		case ERROR_SYSMENU_BOOTOPENFAILED:
+			PrintFormat( 0, 16, (rmode->viHeight)-112, "Could not open boot file!");
+			break;
+		case ERROR_SYSMENU_BOOTGETSTATS:
+			PrintFormat( 0, 16, (rmode->viHeight)-112, "Could not get boot stats!");
+			break;
+	}
+	return;
+}
+void ShowHacksError(void)
+{
+	PrintFormat( 0, 16, (rmode->viHeight)-128, "Error loading hacks!");
+	switch( error )
+	{
+		case ERROR_HACKS_TO_LONG:
+			PrintFormat( 0, 16, (rmode->viHeight)-112, "Line in hacks file is to long");
+			break;
+	}
+	return;
+}
 void ShowError ( void )
 {
 	if( error >= 0 )
@@ -95,49 +144,26 @@ void ShowError ( void )
 			case ERROR_SYSMENU_GENERAL:
 				PrintFormat( 0, 16, (rmode->viHeight)-128, "Failed to load system menu!");
 			break;
+
 			case ERROR_SYSMENU_TIKNOTFOUND:
-				PrintFormat( 0, 16, (rmode->viHeight)-128, "Error autobooting systemmenu!");
-				PrintFormat( 0, 16, (rmode->viHeight)-112, "Ticket not found!");
-			break;
 			case ERROR_SYSMENU_TIKSIZEGETFAILED:
-				PrintFormat( 0, 16, (rmode->viHeight)-128, "Error autobooting systemmenu!");
-				PrintFormat( 0, 16, (rmode->viHeight)-112, "Could not get ticket size!");
-			break;
 			case ERROR_SYSMENU_TIKREADFAILED:
-				PrintFormat( 0, 16, (rmode->viHeight)-128, "Error autobooting systemmenu!");
-				PrintFormat( 0, 16, (rmode->viHeight)-112, "Could not read ticket!");
-			break;
 			case ERROR_SYSMENU_ESDIVERFIY_FAILED:
-				PrintFormat( 0, 16, (rmode->viHeight)-128, "Error autobooting systemmenu!");
-				PrintFormat( 0, 16, (rmode->viHeight)-112, "ES_DiVerfiy failed! Is the IOS patched?");
-			break;
 			case ERROR_SYSMENU_IOSSTUB:
-				PrintFormat( 0, 16, (rmode->viHeight)-128, "Error autobooting systemmenu!");
-				PrintFormat( 0, 16, (rmode->viHeight)-112, "The going to load IOS was detected as Stub!");
-			break;
 			case ERROR_SYSMENU_GETTMDSIZEFAILED:
-				PrintFormat( 0, 16, (rmode->viHeight)-128, "Error autobooting systemmenu!");
-				PrintFormat( 0, 16, (rmode->viHeight)-112, "Could not get TMD size!");
-			break;
 			case ERROR_SYSMENU_GETTMDFAILED:
-				PrintFormat( 0, 16, (rmode->viHeight)-128, "Error autobooting systemmenu!");
-				PrintFormat( 0, 16, (rmode->viHeight)-112, "Could not get TMD!");
-			break;
 			case ERROR_SYSMENU_BOOTNOTFOUND:
-				PrintFormat( 0, 16, (rmode->viHeight)-128, "Error autobooting systemmenu!");
-				PrintFormat( 0, 16, (rmode->viHeight)-112, "Boot file not found!");
-			break;
 			case ERROR_SYSMENU_BOOTOPENFAILED:
-				PrintFormat( 0, 16, (rmode->viHeight)-128, "Error autobooting systemmenu!");
-				PrintFormat( 0, 16, (rmode->viHeight)-112, "Could not open boot file!");
-			break;
 			case ERROR_SYSMENU_BOOTGETSTATS:
-				PrintFormat( 0, 16, (rmode->viHeight)-128, "Error autobooting systemmenu!");
-				PrintFormat( 0, 16, (rmode->viHeight)-112, "Could not get boot stats!");
-			break;
+				ShowAutoBootError();
+				break;
+
+			case ERROR_HACKS_TO_LONG:
+				ShowHacksError();
+				break;
 			/*
 			default:
-				PrintFormat( 0, 16, (rmode->viHeight)-128, "Unknown error:%d\n", error);
+				PrintFormat( 0, 16, (rmode->viHeight)-128, "Unknown error:%d\r\n", error);
 				break;*/
 		}
 	}

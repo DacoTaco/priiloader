@@ -38,7 +38,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 u32 trans_font(u32 value, int add_color[4])
 {
 	if (!add_color) 
-		gprintf("SOMEONE DONE FUCKED UP!!!\n");
+		gprintf("SOMEONE DONE FUCKED UP!!!\r\n");
 	u32 i, out = 0;
 	/* in a,b,g,r order */
 	for (i = 0; i < 4; i++)
