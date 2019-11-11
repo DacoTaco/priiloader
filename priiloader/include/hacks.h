@@ -19,22 +19,30 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 */
+
+#ifndef _HACKS_H_
+#define _HACKS_H_
+
 #include "Global.h"
 #include <string>
 
-struct patch_struct {
+struct system_patch {
 	std::vector<uint8_t> hash;
-	std::vector<uint8_t> offset;
+	u32 offset = 0;
 	std::vector<uint8_t> patch;
-};
+}ATTRIBUTE_ALIGN(32);
+
 struct system_hack {
 	std::string desc;
-	unsigned int max_version;
-	unsigned int min_version;
-	unsigned int amount;
-	std::vector< patch_struct > patches;
-};
+	unsigned int max_version = 0;
+	unsigned int min_version = 0;
+	unsigned int amount = 0;
+	std::vector< system_patch > patches;
+}ATTRIBUTE_ALIGN(32);
 
 extern std::vector<system_hack> system_hacks;
+extern std::vector<u8> states_hash;
 
 s8 LoadSystemHacks( bool Force_Load_Nand );
+
+#endif

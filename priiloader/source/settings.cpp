@@ -70,21 +70,21 @@ u32 GetSysMenuVersion( void )
 	s32 r = ES_GetTMDViewSize(TitleID, &tmd_size);
 	if(r<0)
 	{
-		gprintf("SysMenuVersion : GetTMDViewSize error %d\n",r);
+		gprintf("SysMenuVersion : GetTMDViewSize error %d\r\n",r);
 		return 0;
 	}
 
 	tmd_view *rTMD = (tmd_view*)mem_align( 32, ALIGN32(tmd_size) );
 	if( rTMD == NULL )
 	{
-		gdprintf("SysMenuVersion : memalign failure\n");
+		gdprintf("SysMenuVersion : memalign failure\r\n");
 		return 0;
 	}
 	memset(rTMD,0, tmd_size );
 	r = ES_GetTMDView(TitleID, (u8*)rTMD, tmd_size);
 	if(r<0)
 	{
-		gprintf("SysMenuVersion : GetTMDView error %d\n",r);
+		gprintf("SysMenuVersion : GetTMDView error %d\r\n",r);
 		mem_free( rTMD );
 		return 0;
 	}	
@@ -105,21 +105,21 @@ u32 GetSysMenuIOS( void )
 	s32 r = ES_GetTMDViewSize(TitleID, &tmd_size);
 	if(r<0)
 	{
-		gprintf("GetSysMenuIOS : GetTMDViewSize error %d\n",r);
+		gprintf("GetSysMenuIOS : GetTMDViewSize error %d\r\n",r);
 		return 0;
 	}
 
 	tmd_view *rTMD = (tmd_view*)mem_align( 32, ALIGN32(tmd_size) );
 	if( rTMD == NULL )
 	{
-		gdprintf("GetSysMenuIOS : memalign failure\n");
+		gdprintf("GetSysMenuIOS : memalign failure\r\n");
 		return 0;
 	}
 	memset(rTMD,0, tmd_size );
 	r = ES_GetTMDView(TitleID, (u8*)rTMD, tmd_size);
 	if(r<0)
 	{
-		gprintf("GetSysMenuIOS : GetTMDView error %d\n",r);
+		gprintf("GetSysMenuIOS : GetTMDView error %d\r\n",r);
 		mem_free( rTMD );
 		return 0;
 	}
@@ -202,7 +202,7 @@ void LoadSettings( void )
 	if ( status->file_length != sizeof(Settings) )
 	{
 		ISFS_Close(fd);
-		gprintf("LoadSettings : status->file_length != struct size , resetting...\n");
+		gprintf("LoadSettings : status->file_length != struct size , resetting...\r\n");
 		//recreate settings file
 		ISFS_Delete("/title/00000001/00000002/data/loader.ini");
 		Create_Settings_File();

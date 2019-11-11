@@ -229,7 +229,7 @@ void* mem2_memalign(u8 align, u32 size, const int area)
 		printf("mem malloc: %u  area: %i  allocated: %u  top allocated: %u \n",size,area,mem2_areas[area].allocated,mem2_areas[area].top_allocated );
 #endif
 	return ptr;
-}
+} 
 
 void* mem2_malloc(u32 size, const int area)
 {
@@ -293,6 +293,7 @@ void* mem2_realloc(void *ptr, u32 newsize, const int area)
 	newptr = mem2_malloc(newsize, area);
 	
 	if(newptr == NULL) return NULL;
+	memset(newptr, 0, newsize);
 	memcpy(newptr,ptr,size);
 	mem2_free(ptr,area);
 	return newptr;
