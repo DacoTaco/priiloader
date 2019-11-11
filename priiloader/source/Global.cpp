@@ -271,7 +271,7 @@ void InitVideo ( void )
 	if(rmode->viTVMode&VI_NON_INTERLACE)
 		VIDEO_WaitVSync();
 	vid_init = 1;
-	gdprintf("resolution is %dx%d\n",rmode->viWidth,rmode->viHeight);
+	gdprintf("resolution is %dx%d\r\n",rmode->viWidth,rmode->viHeight);
 	return;
 }
 void Control_VI_Regs ( u8 mode )
@@ -316,7 +316,7 @@ s8 GetMountedValue(void)
 s8 InitNetwork()
 {
 	s32 result;
-	gprintf("InitNetwork : Waiting for network to initialise...\n");
+	gprintf("InitNetwork : Waiting for network to initialise...\r\n");
     while ((result = net_init()) == -EAGAIN);
     if (result >= 0) 
 	{
@@ -324,15 +324,15 @@ s8 InitNetwork()
 		//s32 if_config( char *local_ip, char *netmask, char *gateway,bool use_dhcp, int max_retries);
 		if (if_config(myIP, NULL, NULL, true,1) < 0) 
 		{
-			gdprintf("InitNetwork : Error reading IP address\n");
+			gdprintf("InitNetwork : Error reading IP address\r\n");
 			return -1;
 		}
-		gdprintf("InitNetwork : IP Address -> %s\n",myIP);
+		gdprintf("InitNetwork : IP Address -> %s\r\n",myIP);
 		return 1;
     } 
 	else 
 	{
-		gprintf("InitNetwork : DHCP timeout or no known access point availble\n");
+		gprintf("InitNetwork : DHCP timeout or no known access point availble\r\n");
 		return -2;
     }
 }
@@ -375,12 +375,12 @@ bool PollDevices( void )
 		if(Mounted & 1)
 		{
 			Mounted = 0;
-			gprintf("USB removed\n");
+			gprintf("USB removed\r\n");
 		}
 		if(Mounted & 2)
 		{
 			Mounted = 0;
-			gprintf("SD removed\n");
+			gprintf("SD removed\r\n");
 			__io_wiisd.shutdown();
 		}			
 	}
@@ -392,17 +392,17 @@ bool PollDevices( void )
 			//USB is mounted. lets kick it out and use SD instead :P
 			fatUnmount("fat:");
 			Mounted = 0;
-			gprintf("USB: Unmounted\n");
+			gprintf("USB: Unmounted\r\n");
 		}
 		if(fatMountSimple("fat",&__io_wiisd))
 		{
 			Mounted |= 2;
-			gprintf("SD: Mounted\n");
+			gprintf("SD: Mounted\r\n");
 		}
 		else
 		{
 			Device_Not_Mountable |= 2;
-			gprintf("SD: Failed to mount\n");
+			gprintf("SD: Failed to mount\r\n");
 		}
 	}
 	//check if USB is mountable.deu to short circuit evaluation you need to be VERY CAREFUL when changing the next if or anything usbstorage related
@@ -415,12 +415,12 @@ bool PollDevices( void )
 		if( fatMount("fat", &__io_usbstorage,0, 8, 64) )
 		{
 			Mounted |= 1;
-			gprintf("USB: Mounted\n");
+			gprintf("USB: Mounted\r\n");
 		}
 		else
 		{
 			Device_Not_Mountable |= 1;
-			gprintf("USB: Failed to mount\n");
+			gprintf("USB: Failed to mount\r\n");
 		}
 	}
 	if ( Device_Not_Mountable > 0 )
@@ -428,13 +428,13 @@ bool PollDevices( void )
 		if ( ( Device_Not_Mountable & 1 ) && !__io_usbstorage.isInserted() )
 		{
 			Device_Not_Mountable -= 1;
-			gdprintf("USB: NM Flag Reset\n");
+			gdprintf("USB: NM Flag Reset\r\n");
 		}
 		if ( ( Device_Not_Mountable & 2 ) &&  !__io_wiisd.isInserted() )
 		{
 			//not needed for SD yet but just to be on the safe side
 			Device_Not_Mountable -= 2;
-			gdprintf("SD: NM Flag Reset\n");
+			gdprintf("SD: NM Flag Reset\r\n");
 			__io_wiisd.shutdown();
 		}
 	}

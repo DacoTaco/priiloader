@@ -14,6 +14,7 @@
 #define mem_malloc(size) mem2_malloc(size,OTHER_AREA)
 #define mem_free(x) if(x != NULL) { mem2_free(x,OTHER_AREA);x=NULL; }
 #define mem_align(align,size) mem2_memalign(align,size,OTHER_AREA)
+#define mem_realloc(oldPtr, newSize) mem2_realloc(oldPtr, newSize, OTHER_AREA)
 #define ALIGN32(x) (((x) + 31) & ~31)
 #ifndef STACK_ALIGN
 // courtesy of Marcan

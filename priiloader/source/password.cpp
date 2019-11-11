@@ -94,7 +94,7 @@ void InstallPassword( void )
 			pfd = ISFS_Open("/title/00000001/00000002/data/password.txt", 1 );
 			if( pfd < 0 )
 			{
-				gprintf("InstallPassword: ISFS_Open(password.txt) failure. error %d\n",pfd);
+				gprintf("InstallPassword: ISFS_Open(password.txt) failure. error %d\r\n",pfd);
 			}
 			else
 			{
@@ -277,7 +277,7 @@ void password_check( void )
 	cpfd = ISFS_Open("/title/00000001/00000002/data/password.txt", 1 );
 	if( cpfd < 0 )
 	{
-		gprintf("password_check: ISFS_Open(password.txt) failure. error %d\n",cpfd);
+		gprintf("password_check: ISFS_Open(password.txt) failure. error %d\r\n",cpfd);
 		return;
 	}
 	fstats *cpstatus = (fstats *)mem_align( 32, sizeof( fstats ) );

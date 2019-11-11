@@ -174,7 +174,7 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int* external_socke
 								strncpy(file_new,"/\0",2);
 								strncpy(host_new,buffer,strlen(buffer));
 							}
-							gprintf("new host & file : %s & %s\n",host_new,file_new);
+							gprintf("new host & file : %s & %s\r\n",host_new,file_new);
 							redirects++;
 							GetHTTPFile(host_new,file_new,Data,&socket);
 							if(redirects > 0)
