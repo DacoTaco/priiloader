@@ -25,3 +25,4 @@ wiki
 # But do ignore these:
 /Shared/gitrev.h
 /priiloader/data/certs.bin
+/priiloader/data/loader.bin

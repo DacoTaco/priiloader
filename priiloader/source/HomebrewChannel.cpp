@@ -26,7 +26,7 @@
 
 //The known HBC titles
 
-title_info HBC_Titles[] = {
+const title_info HBC_Titles[] = {
 	{ 0x0001000148415858LL, "HAXX" },
 	{ 0x000100014A4F4449LL, "JODI" },
 	{ 0x00010001AF1BF516LL, "0.7 - 1.1" },
@@ -79,7 +79,7 @@ void LoadHBCStub ( void )
 	}
 	else
 	{
-		gprintf("HBC stub : No HBC Detected! 1.1.0 stub loaded by default\r\n");
+		gprintf("HBC stub : No HBC Detected! 1.1.0 stub loaded by default");
 	}
 
 	if(
@@ -90,7 +90,7 @@ void LoadHBCStub ( void )
 		*(vu16*)0x80001F6A = hex[1];
 		DCFlushRange((void*)0x80001800,stub_bin_size);
 	}
-	gprintf("HBC stub : Loaded\r\n");
+	gprintf("HBC stub : Loaded");
 	return;	
 }
 void UnloadHBCStub( void )
@@ -118,7 +118,7 @@ s32 DetectHBC(title_info* title)
     ret = ES_GetNumTitles(&titlecount);
     if(ret < 0)
 	{
-		gprintf("DetectHBC : ES_GetNumTitles failure\r\n");
+		gprintf("DetectHBC : ES_GetNumTitles failure");
 		title = NULL;
 		return -1;
 	}
@@ -127,7 +127,7 @@ s32 DetectHBC(title_info* title)
 
     ret = ES_GetTitles(list, titlecount);
     if(ret < 0) {
-		gprintf("DetectHBC :ES_GetTitles failure. error %d\r\n",ret);
+		gprintf("DetectHBC :ES_GetTitles failure. error %d",ret);
 		mem_free(list);
 		title = NULL;
 		return -2;
@@ -140,7 +140,7 @@ s32 DetectHBC(title_info* title)
 		{
 			if(ret < arrayIndex && list[i] == HBC_Titles[arrayIndex].title_id)
 			{
-				gdprintf("Detected %s\r\n",HBC_Titles[arrayIndex].name_ascii.c_str());
+				gdprintf("Detected %s",HBC_Titles[arrayIndex].name_ascii.c_str());
 				ret = arrayIndex;
 			}
 		}
@@ -148,14 +148,14 @@ s32 DetectHBC(title_info* title)
 		//we have found the latest, supported HBC. no need to proceed checking
 		if(ret >= HBC_Titles_Size-1)
 		{
-			gprintf("latest HBC detected. ret = %d,Titles_Size = %d\r\n",ret,HBC_Titles_Size);
+			gprintf("latest HBC detected. ret = %d,Titles_Size = %d",ret,HBC_Titles_Size);
 			break;
 		}
 	}
 	mem_free(list);
     if(ret < 0 || ret > HBC_Titles_Size -1)
 	{
-		gprintf("DetectHBC: HBC not found\r\n");
+		gprintf("DetectHBC: HBC not found");
 		title = NULL;
 		return -3;
 	}
@@ -172,7 +172,7 @@ void LoadHBC( void )
 
 	if(ret >= 0 && title.title_id != 0x00)
 	{
-		gprintf("LoadHBC : %s detected\r\n",title.name_ascii.c_str());
+		gprintf("LoadHBC : %s detected",title.name_ascii.c_str());
 		TitleID = title.title_id;
 	}
 	else

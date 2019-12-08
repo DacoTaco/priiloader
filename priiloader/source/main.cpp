@@ -32,7 +32,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <unistd.h>
 #include <string>
 
-
 #include <gccore.h>
 #include <wiiuse/wpad.h>
 #include <ogc/usb.h>
@@ -51,7 +50,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "Global.h"
 #include "settings.h"
 #include "state.h"
-#include "elf.h"
 #include "error.h"
 #include "hacks.h"
 #include "font.h"
@@ -68,12 +66,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 //Bin includes
 #include "certs_bin.h"
+#include "loader_bin.h"
 
-extern "C"
-{
-	extern void _unstub_start(void);
-	extern void __exception_closeall();
-}
 typedef struct {
 	unsigned int offsetText[7];
 	unsigned int offsetData[11];
@@ -89,7 +83,7 @@ typedef struct _dol_settings
 {
 	s8 HW_AHBPROT_bit;
 	u8 argument_count;
-	s32 arg_cli_lenght;
+	s32 arg_cli_length;
 	char* arg_command_line;
 }__attribute((packed))_dol_settings;
 typedef struct {
@@ -98,6 +92,11 @@ typedef struct {
 	u8 HW_AHBPROT_ENABLED;
 	std::vector<std::string> args;
 }Binary_struct;
+
+extern "C"
+{
+	extern void __exception_closeall();
+}
 
 extern DVD_status DVD_state;
 
@@ -189,7 +188,7 @@ void SysHackHashSettings( void )
 				}
 				else
 				{
-					gprintf("no FAT device found\r\n");
+					gprintf("no FAT device found");
 				}
 				if ( ( (GetMountedValue() & 2) && !__io_wiisd.isInserted() ) || ( (GetMountedValue() & 1) && !__io_usbstorage.isInserted() ) )
 				{
@@ -249,7 +248,7 @@ void SysHackHashSettings( void )
 handle_hacks_fail:
 				if(fail > 0)
 				{
-					gprintf("hacks_hash.ini save error %d\r\n",fail);
+					gprintf("hacks_hash.ini save error %d",fail);
 				}
 				
 				s32 fd = ISFS_Open("/title/00000001/00000002/data/hacksh_s.ini", 1|2 );
@@ -287,7 +286,7 @@ handle_hacks_fail:
 handle_hacks_s_fail:
 				if(fail > 0)
 				{
-					gprintf("hacksh_s.ini save error %d\r\n",fail);
+					gprintf("hacksh_s.ini save error %d",fail);
 				}
 
 				if( fail > 0 )
@@ -366,7 +365,7 @@ handle_hacks_s_fail:
 		}
 		if( redraw )
 		{
-			//printf("\x1b[2;0HHackCount:%d DispCount:%d cur_off:%d menu_off:%d Hacks:%d   \r\n", HackCount, DispCount, cur_off, menu_off, system_hacks.size() );
+			//printf("\x1b[2;0HHackCount:%d DispCount:%d cur_off:%d menu_off:%d Hacks:%d   ", HackCount, DispCount, cur_off, menu_off, system_hacks.size() );
 			u32 j=0;
 			u32 skip=menu_off;
 
@@ -884,7 +883,7 @@ void SetSettings( void )
 					PrintFormat( cur_off==1, 0, 128,    "             Return to:          Autoboot   ");
 				break;
 				default:
-					gdprintf("SetSettings : unknown return to value %d\r\n",settings->ReturnTo);
+					gdprintf("SetSettings : unknown return to value %d",settings->ReturnTo);
 					settings->ReturnTo = RETURNTO_PRIILOADER;
 					break;
 			}
@@ -901,7 +900,7 @@ void SetSettings( void )
 					PrintFormat( cur_off==2, 0, 128+(16*1), "           Shutdown to:          Autoboot  ");
 				break;
 				default:
-					gdprintf("SetSettings : unknown shutdown to value %d\r\n",settings->ShutdownTo);
+					gdprintf("SetSettings : unknown shutdown to value %d",settings->ShutdownTo);
 					settings->ShutdownTo = SHUTDOWNTO_NONE;
 					break;
 			}
@@ -939,1008 +938,651 @@ _exit:
 	mem_free(TitleIDs);
 	return;
 }
-s8 BootDolFromFat( FILE* fat_fd , u8 HW_AHBPROT_ENABLED, struct __argv *args )
+s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 {
-	void	(*entrypoint)();
-	Elf32_Ehdr ElfHdr;
-	fread( &ElfHdr, sizeof( ElfHdr ), 1, fat_fd );
-	if( ElfHdr.e_ident[EI_MAG0] == 0x7F &&
-		ElfHdr.e_ident[EI_MAG1] == 'E' &&
-		ElfHdr.e_ident[EI_MAG2] == 'L' &&
-		ElfHdr.e_ident[EI_MAG3] == 'F' )
-	{
-		//ELF detected
-		gdprintf("ELF Found\r\n");
-		gdprintf("Type:      \t%04X\r\n", ElfHdr.e_type );
-		gdprintf("Machine:   \t%04X\r\n", ElfHdr.e_machine );
-		gdprintf("Version:  %08X\r\n", ElfHdr.e_version );
-		gdprintf("Entry:    %08X\r\n", ElfHdr.e_entry );
-		gdprintf("Flags:    %08X\r\n", ElfHdr.e_flags );
-		gdprintf("EHsize:    \t%04X\r\n\r\n", ElfHdr.e_ehsize );
-
-		gdprintf("PHoff:    %08X\r\n",	ElfHdr.e_phoff );
-		gdprintf("PHentsize: \t%04X\r\n",	ElfHdr.e_phentsize );
-		gdprintf("PHnum:     \t%04X\r\n\r\n",ElfHdr.e_phnum );
-
-		gdprintf("SHoff:    %08X\r\n",	ElfHdr.e_shoff );
-		gdprintf("SHentsize: \t%04X\r\n",	ElfHdr.e_shentsize );
-		gdprintf("SHnum:     \t%04X\r\n",	ElfHdr.e_shnum );
-		gdprintf("SHstrndx:  \t%04X\r\n\r\n",ElfHdr.e_shstrndx );
-		
-		if( ( (ElfHdr.e_entry | 0x80000000) >= 0x81000000 ) && ( (ElfHdr.e_entry | 0x80000000) <= 0x81330000) )
-		{
-			gprintf("BootDolFromFat : ELF entrypoint error: abort!\r\n");
-			return -1;
-		}
-
-		if( ElfHdr.e_phnum == 0 )
-			gdprintf("Warning program header entries are zero!\r\n");
-		else 
-		{
-			//program headers
-			for( int i=0; i < ElfHdr.e_phnum; ++i )
-			{
-				fseek( fat_fd, ElfHdr.e_phoff + sizeof( Elf32_Phdr ) * i, SEEK_SET );
-				Elf32_Phdr phdr;
-				fread( &phdr, sizeof( phdr ), 1, fat_fd );
-				gdprintf("Type:%08X Offset:%08X VAdr:%08X PAdr:%08X FileSz:%08X\r\n", phdr.p_type, phdr.p_offset, phdr.p_vaddr, phdr.p_paddr, phdr.p_filesz );
-				if(phdr.p_type == PT_LOAD )
-				{
-					fseek( fat_fd, phdr.p_offset, 0 );
-					fread( (void*)(phdr.p_vaddr | 0x80000000), sizeof( u8 ), phdr.p_filesz, fat_fd);
-					ICInvalidateRange ((void*)(phdr.p_vaddr | 0x80000000),phdr.p_filesz);
-				}
-			}
-		}
-
-		if( ElfHdr.e_shnum == 0 )
-		{
-			gdprintf("BootDolFromFat : Warning section header entries are zero!\r\n");
-		} 
-		else 
-		{
-
-			for( s32 i=0; i < ElfHdr.e_shnum; ++i )
-			{
-				fseek( fat_fd, ElfHdr.e_shoff + sizeof( Elf32_Shdr ) * i, SEEK_SET );
-
-				Elf32_Shdr shdr;
-				fread( &shdr, sizeof( shdr ), 1, fat_fd );
-
-				if( shdr.sh_type == SHT_NULL )
-					continue;
-
-				if( shdr.sh_type > SHT_GROUP )
-					gdprintf("Warning the type: %08X could be invalid!\r\n", shdr.sh_type );
-
-				if( shdr.sh_flags & ~0xF0000007 )
-					gdprintf("Warning the flag: %08X is invalid!\r\n", shdr.sh_flags );
-
-				gdprintf("Type:%08X Offset:%08X Name:%08X Off:%08X Size:%08X\r\n", shdr.sh_type, shdr.sh_offset, shdr.sh_name, shdr.sh_addr, shdr.sh_size );
-				
-				if (shdr.sh_type == SHT_NOBITS)
-				{
-					fseek( fat_fd, shdr.sh_offset, 0 );
-					fread( (void*)(shdr.sh_addr | 0x80000000), sizeof( u8 ), shdr.sh_size, fat_fd);
-					DCFlushRange((void*)(shdr.sh_addr | 0x80000000),shdr.sh_size);
-				}
-			}
-		}
-		entrypoint = (void (*)())(ElfHdr.e_entry | 0x80000000);
-	}
-	else
-	{
-		//DOL detected
-		dolhdr hdr;
-		fseek( fat_fd, 0, 0);
-		fread( &hdr, sizeof( dolhdr ), 1, fat_fd );
-		if( hdr.entrypoint >= 0x81000000 && hdr.entrypoint <= 0x81330000 )
-		{
-			gprintf("BootDolFromFat : entrypoint/BSS error: abort!\r\n");
-			fclose(fat_fd);
-			return -1;
-		}
-		else if ( hdr.entrypoint < 0x80000000 )
-		{
-			gprintf("BootDolFromFat : bogus entrypoint of %u detected\r\n",hdr.entrypoint);
-			fclose(fat_fd);
-			return -2;
-		}
-		
-		if(DVDCheckCover())
-		{
-			gprintf("BootDolFromFat : excecuting StopDisc Async...\r\n");
-			DVDStopDisc(true);
-		}
-		else
-		{
-			gprintf("BootDolFromFat : Skipping StopDisc -> no drive or disc in drive\r\n");
-		}
-		//Text Sections
-		for (s8 i = 0; i < 6; i++)
-		{
-			if( hdr.sizeText[i] && hdr.addressText[i] && hdr.offsetText[i] )
-			{
-				fseek( fat_fd, hdr.offsetText[i], SEEK_SET );
-				fread( (void*)(hdr.addressText[i]), sizeof( char ), hdr.sizeText[i], fat_fd );
-				DCFlushRange ((void *) hdr.addressText[i], hdr.sizeText[i]);
-				DCInvalidateRange( (void*)(hdr.addressText[i]), hdr.sizeText[i] );
-			}
-		}
-		// data sections
-		for (s8 i = 0; i <= 10; i++)
-		{
-			if( hdr.sizeData[i] && hdr.addressData[i] && hdr.offsetData[i] )
-			{
-				fseek( fat_fd, hdr.offsetData[i], SEEK_SET );
-				fread( (void*)(hdr.addressData[i]), sizeof( char ), hdr.sizeData[i], fat_fd );
-				DCFlushRange( (void*)(hdr.addressData[i]), hdr.sizeData[i] );
-			}
-		}
-		if( 
-			( hdr.addressBSS + hdr.sizeBSS < 0x80F00000 ||(hdr.addressBSS > 0x81500000 && hdr.addressBSS + hdr.sizeBSS < 0x817FFFFF) ) &&
-			hdr.addressBSS > 0x80003400 )
-		{
-			memset ((void *) hdr.addressBSS, 0, hdr.sizeBSS);
-			DCFlushRange((void *) hdr.addressBSS, hdr.sizeBSS);
-		}
-		if (args != NULL && args->argvMagic == ARGV_MAGIC)
-        {
-			void* new_argv = (void*)(hdr.entrypoint + 8);
-			memmove(new_argv, args, sizeof(__argv));
-			DCFlushRange(new_argv, sizeof(__argv));
-        }
-		entrypoint = (void (*)())(hdr.entrypoint);
-	}
-	fclose( fat_fd );
-	gprintf("BootDolFromFat : starting binary...\r\n");
-	for (int i = 0;i < WPAD_MAX_WIIMOTES ;i++)
-	{
-		if(WPAD_Probe(i,0) > 0)
-		{
-			if(WPAD_Probe(i,0) < 0)
-				continue;
-			WPAD_Flush(i);
-			WPAD_Disconnect(i);
-		}
-	}
-	ClearState();
-	Input_Shutdown();
-	ShutdownDevices();
-	if(DvdKilled() < 1)
-	{
-		gprintf("checking DVD drive...\r\n");
-		while(DvdKilled() < 1);
-	}
-
-	s8 bAHBPROT = 0;
-	s32 Ios_to_load = 0;
-	if(read32(0x0d800064) == 0xFFFFFFFF )
-		bAHBPROT = HW_AHBPROT_ENABLED;
-	if( !isIOSstub(58) )
-	{
-		Ios_to_load = 58;
-	}
-	else if( !isIOSstub(61) )
-	{
-		Ios_to_load = 61;
-	}
-	else if( !isIOSstub(IOS_GetPreferredVersion()) )
-	{
-		Ios_to_load = IOS_GetPreferredVersion();
-	}
-	else
-	{
-		PrintFormat( 1, TEXT_OFFSET("failed to reload ios for homebrew! ios is a stub!"), 208, "failed to reload ios for homebrew! ios is a stub!");
-		sleep(2);	
-	}
-
-	if(Ios_to_load > 2 && Ios_to_load < 255)
-	{
-		ReloadIos(Ios_to_load,&bAHBPROT);
-		system_state.ReloadedIOS = 1;
-	}
-
-	gprintf("IOS state : ios %d - ahbprot : %d \r\n",IOS_GetVersion(),(read32(0x0d800064) == 0xFFFFFFFF ));
-	gprintf("BootDolFromFat : Entrypoint: 0x%08X\r\n", (u32)(entrypoint) );
-
-	ISFS_Deinitialize();
-	ShutdownDevices();
-	USB_Deinitialize();
-	__IOS_ShutdownSubsystems();
-	VIDEO_Flush();
-	VIDEO_WaitVSync();
-	__exception_closeall();
-	ICSync();
-	entrypoint();
-	//it failed. FAIL!
-	__IOS_InitializeSubsystems();
-	PollDevices();
-	ISFS_Initialize();
-	Input_Init();
-	PAD_Init();
-	return -1;
-}
-s8 BootDolFromMem( u8 *dolstart , u8 HW_AHBPROT_ENABLED, struct __argv *args )
-{
-	if(dolstart == NULL)
+	if(binary == NULL)
 		return -1;
 
-	void	(*entrypoint)();
-	
-	Elf32_Ehdr ElfHdr;
+	void* loader_addr = NULL;
+	u8 ret = 1;
 
-	memcpy(&ElfHdr,dolstart,sizeof(Elf32_Ehdr));
-	
-	if( ElfHdr.e_ident[EI_MAG0] == 0x7F &&
-		ElfHdr.e_ident[EI_MAG1] == 'E' &&
-		ElfHdr.e_ident[EI_MAG2] == 'L' &&
-		ElfHdr.e_ident[EI_MAG3] == 'F' )
+	try
 	{
-
-		gdprintf("BootDolFromMem : ELF Found\r\n");
-		gdprintf("Type:      \t%04X\r\n", ElfHdr.e_type );
-		gdprintf("Machine:   \t%04X\r\n", ElfHdr.e_machine );
-		gdprintf("Version:  %08X\r\n", ElfHdr.e_version );
-		gdprintf("Entry:    %08X\r\n", ElfHdr.e_entry );
-		gdprintf("Flags:    %08X\r\n", ElfHdr.e_flags );
-		gdprintf("EHsize:    \t%04X\r\n\r\n", ElfHdr.e_ehsize );
-
-		gdprintf("PHoff:    %08X\r\n",	ElfHdr.e_phoff );
-		gdprintf("PHentsize: \t%04X\r\n",	ElfHdr.e_phentsize );
-		gdprintf("PHnum:     \t%04X\r\n\r\n",ElfHdr.e_phnum );
-
-		gdprintf("SHoff:    %08X\r\n",	ElfHdr.e_shoff );
-		gdprintf("SHentsize: \t%04X\r\n",	ElfHdr.e_shentsize );
-		gdprintf("SHnum:     \t%04X\r\n",	ElfHdr.e_shnum );
-		gdprintf("SHstrndx:  \t%04X\r\n\r\n",ElfHdr.e_shstrndx );
-		if( ( (ElfHdr.e_entry | 0x80000000) >= 0x81000000 ) && ( (ElfHdr.e_entry | 0x80000000) <= 0x81330000) )
-		{
-			gprintf("BootDolFromMem : ELF entrypoint error: abort!\r\n");
-			return -1;
-		}
 		//its an elf; lets start killing DVD :')
 		if(DVDCheckCover())
 		{
-			gprintf("BootDolFromMem : excecuting StopDisc Async...\r\n");
+			gprintf("BootDolFromMem : excecuting StopDisc Async...");
 			DVDStopDisc(true);
 		}
 		else
 		{
-			gprintf("BootDolFromMem : Skipping StopDisc -> no drive or disc in drive\r\n");
-		}
-		if( ElfHdr.e_phnum == 0 )
-		{
-			gdprintf("BootDolFromMem : Warning program header entries are zero!\r\n");
-		} 
-		else 
-		{
-			for( s32 i=0; i < ElfHdr.e_phnum; ++i )
-			{
-				Elf32_Phdr phdr;
-				ICInvalidateRange (&phdr ,sizeof( phdr ) );
-				memmove(&phdr,dolstart + (ElfHdr.e_phoff + sizeof( Elf32_Phdr ) * i) ,sizeof( phdr ) );
-				gdprintf("Type:%08X Offset:%08X VAdr:%08X PAdr:%08X FileSz:%08X\r\n", phdr.p_type, phdr.p_offset, phdr.p_vaddr, phdr.p_paddr, phdr.p_filesz );
-				ICInvalidateRange ((void*)(phdr.p_vaddr | 0x80000000),phdr.p_filesz);
-				if(phdr.p_type == PT_LOAD )
-					memmove((void*)(phdr.p_vaddr | 0x80000000), dolstart + phdr.p_offset , phdr.p_filesz);
-			}
+			gprintf("BootDolFromMem : Skipping StopDisc -> no drive or disc in drive");
 		}
 
-		//according to dhewg the section headers are totally un-needed (infact, they break a few elf loading)
-		//however, checking for the type does the trick to make them work :)
-		if( ElfHdr.e_shnum == 0 )
+		//prepare loader
+		void(*loader)(void* addr, void* parameter, u32 parameterCount, u8 isSystemMenu);
+		loader_addr = (void*)mem_align(32,loader_bin_size);
+		if(!loader_addr)
+			throw "failed to alloc the loader";
+
+		memcpy(loader_addr,loader_bin,loader_bin_size);	
+		DCFlushRange(loader_addr, loader_bin_size);
+		ICInvalidateRange(loader_addr, loader_bin_size);
+		loader = (void (*)(void*,void*,u32,u8))(loader_addr);
+
+
+		gprintf("BootDolFromMem : shutting down...");
+
+		ClearState();
+		Input_Shutdown();
+		ShutdownDevices();
+
+		if(DvdKilled() < 1)
 		{
-			gdprintf("BootDolFromMem : Warning section header entries are zero!\r\n");
-		} 
-		else 
-		{
-
-			for( s32 i=0; i < ElfHdr.e_shnum; ++i )
-			{
-
-				Elf32_Shdr shdr;
-				memmove(&shdr, dolstart + (ElfHdr.e_shoff + sizeof( Elf32_Shdr ) * i) ,sizeof( shdr ) );
-				DCFlushRangeNoSync(&shdr ,sizeof( shdr ) );
-
-				if( shdr.sh_type == SHT_NULL )
-					continue;
-
-				if( shdr.sh_type > SHT_GROUP )
-					gdprintf("Warning the type: %08X could be invalid!\r\n", shdr.sh_type );
-
-				if( shdr.sh_flags & ~0xF0000007 )
-					gdprintf("Warning the flag: %08X is invalid!\r\n", shdr.sh_flags );
-
-				gdprintf("Type:%08X Offset:%08X Name:%08X Off:%08X Size:%08X\r\n", shdr.sh_type, shdr.sh_offset, shdr.sh_name, shdr.sh_addr, shdr.sh_size );
-				if (shdr.sh_type == SHT_NOBITS)
-				{
-					memmove((void*)(shdr.sh_addr | 0x80000000), dolstart + shdr.sh_offset,shdr.sh_size);
-					DCFlushRangeNoSync((void*)(shdr.sh_addr | 0x80000000),shdr.sh_size);
-				}
-			}
+			gprintf("checking DVD drive...");
+			while(DvdKilled() < 1);
 		}
-		entrypoint = (void (*)())(ElfHdr.e_entry | 0x80000000);
-	}
-	else
-	{
-		gprintf("BootDolFromMem : DOL detected\r\n");
 
-		dolhdr *dolfile;
-		dolfile = (dolhdr *) dolstart;
-
-		//entrypoint & BSS checking
-		if( dolfile->entrypoint >= 0x80F00000 && dolfile->entrypoint <= 0x81330000 )
+		s8 bAHBPROT = 0;
+		s32 Ios_to_load = 0;
+		if(read32(0x0d800064) == 0xFFFFFFFF )
+			bAHBPROT = HW_AHBPROT_ENABLED;
+		if( !isIOSstub(58) )
 		{
-			gprintf("BootDolFromMem : entrypoint/BSS error: abort!\r\n");
-			return -1;
+			Ios_to_load = 58;
 		}
-		else if ( dolfile->entrypoint < 0x80000000 )
+		else if( !isIOSstub(61) )
 		{
-			gprintf("BootDolFromMem : bogus entrypoint detected\r\n");
-			return -2;
+			Ios_to_load = 61;
 		}
-		if( dolfile->addressBSS >= 0x90000000 )
+		else if( !isIOSstub(IOS_GetPreferredVersion()) )
 		{
-			//BSS is in mem2 which means its better to reload ios & then load app. i dont really get it but thats what tantric said
-			//currently unused cause this is done for wiimc. however reloading ios also looses ahbprot/dvd access...
-			
-			//place IOS reload here
-		}
-		//start killing DVD :')
-		if(DVDCheckCover())
-		{
-			gprintf("BootDolFromMem : excecuting StopDisc Async...\r\n");
-			DVDStopDisc(true);
+			Ios_to_load = IOS_GetPreferredVersion();
 		}
 		else
 		{
-			gprintf("BootDolFromMem : Skipping StopDisc -> no drive or disc in drive\r\n");
+			PrintFormat( 1, TEXT_OFFSET("failed to reload ios for homebrew! ios is a stub!"), 208, "failed to reload ios for homebrew! ios is a stub!");
+			sleep(2);	
 		}
 
-		for (s8 i = 0; i < 7; i++) {
-			if ((!dolfile->sizeText[i]) || (dolfile->addressText[i] < 0x100)) continue;
-			memmove ((void *) dolfile->addressText[i],dolstart+dolfile->offsetText[i],dolfile->sizeText[i]);
-			DCFlushRange ((void *) dolfile->addressText[i], dolfile->sizeText[i]);
-			DCInvalidateRange((void *) dolfile->addressText[i],dolfile->sizeText[i]);
-		}
-		gdprintf("Data Sections :\r\n");
-		for (s8 i = 0; i < 11; i++) {
-			if ((!dolfile->sizeData[i]) || (dolfile->offsetData[i] < 0x100)) continue;
-			memmove ((void *) dolfile->addressData[i],dolstart+dolfile->offsetData[i],dolfile->sizeData[i]);
-			DCFlushRange((void *) dolfile->offsetData[i],dolfile->sizeData[i]);
-			gdprintf("\t%08x\t\t%08x\t\t%08x\t\t\r\n", (dolfile->offsetData[i]), dolfile->addressData[i], dolfile->sizeData[i]);
-		}
-		if( 
-			( dolfile->addressBSS + dolfile->sizeBSS < 0x80F00000 ||(dolfile->addressBSS > 0x81500000 && dolfile->addressBSS + dolfile->sizeBSS < 0x817FFFFF) ) &&
-			dolfile->addressBSS > 0x80003400 )
+		if(Ios_to_load > 2 && Ios_to_load < 255)
 		{
-			memset ((void *) dolfile->addressBSS, 0, dolfile->sizeBSS);
-			DCFlushRange((void *) dolfile->addressBSS, dolfile->sizeBSS);
+			ReloadIos(Ios_to_load,&bAHBPROT);
+			system_state.ReloadedIOS = 1;
 		}
-		if (args != NULL && args->argvMagic == ARGV_MAGIC)
-        {
-			void* new_argv = (void*)(dolfile->entrypoint + 8);
-			memmove(new_argv, args, sizeof(__argv));
-			DCFlushRange(new_argv, sizeof(__argv));
-        }
-		entrypoint = (void (*)())(dolfile->entrypoint);
+		
+		gprintf("IOS state : ios %d - ahbprot : %d ",IOS_GetVersion(),(read32(0x0d800064) == 0xFFFFFFFF ));
+
+		ISFS_Deinitialize();
+		ShutdownDevices();
+		USB_Deinitialize();
+		__IOS_ShutdownSubsystems();
+		VIDEO_Flush();
+		VIDEO_WaitVSync();
+		__exception_closeall();
+		ICSync();
+
+		gprintf("BootDolFromMem : starting binary...");	
+		loader(binary,args,args != NULL,0);
+		
+		//alternate booting code. seems to be as good(or bad) as the above code
+		/*u32 level;
+		__STM_Close();
+		ISFS_Deinitialize();
+		ShutdownDevices();
+		USB_Deinitialize();
+		__IOS_ShutdownSubsystems();
+		SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
+		_CPU_ISR_Disable (level);
+		mtmsr(mfmsr() & ~0x8000);
+		mtmsr(mfmsr() | 0x2002);
+		ICSync();
+		entrypoint();
+		_CPU_ISR_Restore (level);*/
+
+		//it failed. FAIL!
+		__IOS_InitializeSubsystems();
+		PollDevices();
+		ISFS_Initialize();
+		Input_Init();
+		PAD_Init();
+		ret = -1;
+
 	}
-	gprintf("BootDolFromMem : starting binary...\r\n");
-	for (int i = 0;i < WPAD_MAX_WIIMOTES ;i++)
+	catch (const std::string& ex)
 	{
-		if(WPAD_Probe(i,0) > 0)
-		{
-			if(WPAD_Probe(i,0) < 0)
-				continue;
-			WPAD_Flush(i);
-			WPAD_Disconnect(i);
-		}
+		gprintf("BootDolFromMem Exception -> %s",ex.c_str());
+		ret = -7;
 	}
-	ClearState();
-	Input_Shutdown();
-	ShutdownDevices();
-
-	if(DvdKilled() < 1)
+	catch (char const* ex)
 	{
-		gprintf("checking DVD drive...\r\n");
-		while(DvdKilled() < 1);
+		gprintf("BootDolFromMem Exception -> %s",ex);
+		ret = -7;
 	}
-
-	s8 bAHBPROT = 0;
-	s32 Ios_to_load = 0;
-	if(read32(0x0d800064) == 0xFFFFFFFF )
-		bAHBPROT = HW_AHBPROT_ENABLED;
-	if( !isIOSstub(58) )
+	catch(...)
 	{
-		Ios_to_load = 58;
-	}
-	else if( !isIOSstub(61) )
-	{
-		Ios_to_load = 61;
-	}
-	else if( !isIOSstub(IOS_GetPreferredVersion()) )
-	{
-		Ios_to_load = IOS_GetPreferredVersion();
-	}
-	else
-	{
-		PrintFormat( 1, TEXT_OFFSET("failed to reload ios for homebrew! ios is a stub!"), 208, "failed to reload ios for homebrew! ios is a stub!");
-		sleep(2);	
+		gprintf("BootDolFromMem Exception was thrown");
+		ret = -7;
 	}
 
-	if(Ios_to_load > 2 && Ios_to_load < 255)
-	{
-		ReloadIos(Ios_to_load,&bAHBPROT);
-		system_state.ReloadedIOS = 1;
-	}
-	
-	gprintf("IOS state : ios %d - ahbprot : %d \r\n",IOS_GetVersion(),(read32(0x0d800064) == 0xFFFFFFFF ));
-	gprintf("BootDolFromMem : Entrypoint: 0x%08X\r\n", (u32)(entrypoint) );
+	if(loader_addr)
+		mem_free(loader_addr);
 
-	ISFS_Deinitialize();
-	ShutdownDevices();
-	USB_Deinitialize();
-	__IOS_ShutdownSubsystems();
-	VIDEO_Flush();
-    VIDEO_WaitVSync();
-    __exception_closeall();
-	ICSync();
-    entrypoint();
-
-
-
-	
-	//alternate booting code. seems to be as good(or bad) as the above code
-	/*u32 level;
-	__STM_Close();
-	ISFS_Deinitialize();
-	ShutdownDevices();
-	USB_Deinitialize();
-	__IOS_ShutdownSubsystems();
-	SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
-    _CPU_ISR_Disable (level);
-	mtmsr(mfmsr() & ~0x8000);
-	mtmsr(mfmsr() | 0x2002);
-	ICSync();
-    entrypoint();
-    _CPU_ISR_Restore (level);*/
-
-	//it failed. FAIL!
-	__IOS_InitializeSubsystems();
-	PollDevices();
-	ISFS_Initialize();
-	Input_Init();
-	PAD_Init();
-	return -1;
+	return ret;
 }
 
-s8 BootDolFromDir( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<std::string> &args_list)
+s8 BootDolFromFile( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<std::string> &args_list)
 {
-	if (GetMountedValue() == 0)
-	{
-		return -5;
-	}
+	struct __argv* args = NULL;
+	u8 *binary = NULL;
+	s8 ret = 1;
+	FILE* dol = NULL;
 
-	std::string _path;
-	_path.append(Dir);
-	//filename = _path.substr(_path.find_last_of("/\\") + 1);
-	gprintf("going to boot %s\r\n",_path.c_str());
-
-	struct __argv args;
-	bzero(&args, sizeof(args));
-	args.argvMagic = 0;
-	args.length = 0;
-	args.commandLine = NULL;
-	args.argc = 0;
-	args.argv = &args.commandLine;
-	args.endARGV = args.argv + 1;
-	
-	//calculate the char lenght of the arguments
-	args.length = _path.size() +1;//strlen(_path.c_str())+1;
-	if(args_list.size() > 0)
+	try
 	{
+		if (GetMountedValue() == 0)
+		{
+			return -5;
+		}
+
+		std::string _path;
+		_path.append(Dir);
+		gprintf("going to boot %s",_path.c_str());
+
+		struct __argv* args = (struct __argv*)mem_align(32,sizeof(__argv));
+		if(!args)
+			throw "arg malloc failed";
+
+		memset(args,0,sizeof(__argv));
+
+		args->argvMagic = 0;
+		args->length = 0;
+		args->commandLine = NULL;
+		args->argc = 0;
+		args->argv = &args->commandLine;
+		args->endARGV = args->argv + 1;
+		
+		//calculate the char lenght of the arguments
+		args->length = _path.size() +1;//strlen(_path.c_str())+1;
 		//loading args
 		for(u32 i = 0; i < args_list.size(); i++)
 		{
 			if(args_list[i].c_str())
-				args.length += strlen(args_list[i].c_str())+1;
+				args->length += strlen(args_list[i].c_str())+1;
 		}
-	}
 
-
-	//allocate memory for the arguments
-	args.commandLine = (char*) mem_malloc(args.length);
-	if(args.commandLine == NULL)
-	{
-		args.commandLine = 0;
-		args.length = 0;
-	}
-	else
-	{
-		//assign arguments and the rest
-		strcpy(&args.commandLine[0], _path.c_str());
-
-		//add the other arguments
-		args.argc = 1;
-
-		if(args_list.size() > 0)
+		//allocate memory for the arguments
+		args->commandLine = (char*) mem_malloc(args->length);
+		if(args->commandLine == NULL)
 		{
-			u32 pos = _path.size() +1;
-			for(u32 i = 0; i < args_list.size(); i++)
-			{
-				if(args_list[i].c_str())
-				{
-					strcpy(&args.commandLine[pos], args_list[i].c_str());
-					pos += strlen(args_list[i].c_str())+1;
-				}
-			}
-			args.argc += args_list.size();
+			args->commandLine = 0;
+			args->length = 0;
 		}
-		
-		args.commandLine[args.length - 1] = '\0';
-		args.argv = &args.commandLine;
-		args.endARGV = args.argv + 1;
-		args.argvMagic = ARGV_MAGIC; //everything is set so the magic is set so it becomes valid*/
-	}
-	FILE* dol;
-	dol = fopen(Dir,"rb");
-	s8 ret = 0;
-	if (dol)
-	{
-		gdprintf("booting from fat...\r\n");
-		ret = BootDolFromFat(dol,HW_AHBPROT_ENABLED,&args);
+		else
+		{
+			//assign arguments and the rest
+			strcpy(&args->commandLine[0], _path.c_str());
+
+			//add the other arguments
+			args->argc = 1;
+
+			if(args_list.size() > 0)
+			{
+				u32 pos = _path.size() +1;
+				for(u32 i = 0; i < args_list.size(); i++)
+				{
+					if(args_list[i].c_str())
+					{
+						strcpy(&args->commandLine[pos], args_list[i].c_str());
+						pos += strlen(args_list[i].c_str())+1;
+					}
+				}
+				args->argc += args_list.size();
+			}
+			
+			args->commandLine[args->length - 1] = '\0';
+			args->argv = &args->commandLine;
+			args->endARGV = args->argv + 1;
+			args->argvMagic = ARGV_MAGIC; //everything is set so the magic is set so it becomes valid*/
+		}
+		dol = fopen(Dir,"rb");	
+		if(!dol)
+			throw "failed to open file";
+
+		fseek( dol, 0, SEEK_END );
+		u32 size = ftell(dol);
+		fseek( dol, 0, 0);
+
+		u8 *binary = (u8*)mem_align( 32, ALIGN32(size) );
+		if(!binary)
+			throw "failed to alloc the binary";
+
+		memset( binary, 0, size );
+		fread( binary, sizeof( u8 ), size, dol );
 		fclose(dol);
+
+		BootDolFromMem(binary,HW_AHBPROT_ENABLED,args);
+		//we didn't boot, that ain't good
+		ret = -8;
 	}
-	else
+	catch (const std::string& ex)
 	{
-		fclose(dol);
-		ret = -6;
+		gprintf("BootDolFromFile Exception -> %s",ex.c_str());
+		ret = -7;
 	}
-	if(args.commandLine != NULL)
-		mem_free(args.commandLine);
+	catch (char const* ex)
+	{
+		gprintf("BootDolFromFile Exception -> %s",ex);
+		ret = -7;
+	}
+	catch(...)
+	{
+		gprintf("BootDolFromFile Exception was thrown");
+		ret = -7;
+	}
+	if(dol)
+		fclose(dol);
+	if(binary)
+		mem_free(binary);
+	if(args != NULL && args->commandLine != NULL)
+		mem_free(args->commandLine);
+	if(args)
+		mem_free(args);
+
 	return ret;
 }
 void BootMainSysMenu( u8 init )
 {
-	//memory block variables used within the function:
-	//ticket stuff:
-	char * buf = NULL;
-	fstats *status = NULL;
+	//Experimental offset/patch code to be used with the newly created loader
+	/*struct offset_patch {
+		u32 offset;
+		u32 patch_size;
+		u8 patch[];
+	};//ATTRIBUTE_ALIGN(32);
 
-	//TMDview stuff:
+	//gprintf("sizeof : 0x%08X & 0x%08X",sizeof(offset_patch),sizeof(u32));
+	//offset_patch *_patches = (offset_patch*)mem_align(32,(sizeof(offset_patch)+8)*10);
+	//memset(_patches,0,(sizeof(offset_patch)+8)*10);
+	//gprintf("memory loc vec : 0x%08X",_patches);
+	//offset_patch *patches = _patches;
+
+	std::vector<offset_patch> _patches;
+	offset_patch _patch;
+	_patch.offset = 0x80818283;
+	_patch.patch_size = 6;
+	_patch.patch[0] = 0x84;
+	_patch.patch[1] = 0x85;
+	_patch.patch[2] = 0x86;
+	_patch.patch[3] = 0x87;
+	_patch.patch[4] = 0x88;
+	_patch.patch[5] = 0x89;
+	_patches.push_back(_patch);
+
+	_patch.offset = 0x92939495;
+	_patch.patch_size = 8;
+	_patch.patch[0] = 0x96;
+	_patch.patch[1] = 0x97;
+	_patch.patch[2] = 0x98;
+	_patch.patch[3] = 0x99;
+	_patch.patch[4] = 0x10;
+	_patch.patch[5] = 0x11;
+	_patch.patch[6] = 0x12;
+	_patch.patch[7] = 0x13;
+	_patches.push_back(_patch);
+
+	gprintf("size : %d starting at 0x%08X",_patches.size(),&_patches[0]);
+	gprintf("size : %d starting at 0x%08X",_patches.size(),&_patches[1]);
+	offset_patch *patch = &_patches[0];
+	for(int i = 0;i < 3;)
+	{	gprintf("patch %d - 0x%08X",i,patch);
+		gprintf("offset  : 0x%08X",patch->offset);
+		gprintf("patch_size  : 0x%08X",patch->patch_size);
+		gprintf("patch pointing to : 0x%08X",(vu32*)patch->patch);
+		gprintf("patch2 pointing to : 0x%08X",(vu32*)(patch->patch+4));
+		gprintf("patch  : 0x%08X",*patch->patch);
+		gprintf("patch2  : 0x%08X",*(vu32*)(patch->patch+4));
+		i++;
+		patch = (offset_patch *)((((8 + patch->patch_size) + 4) & ~4) + (u32)patch);
+	}
+	gprintf("loldone\n");
+	return;*/
+
+	//TMD
 	const u64 TitleID=0x0000000100000002LL;
 	u32 tmd_size;
 	u8 tmd_buf[(sizeof(tmd_view) + MAX_NUM_TMD_CONTENTS*sizeof(tmd_view_content))] ATTRIBUTE_ALIGN(32);
 	tmd_view *rTMD = NULL;
-
-	//TMD:
 	signed_blob *TMD = NULL;
+
+	//ticket
+	s8 *ticket = NULL;
 
 	//boot file:
 	unsigned int fileID = 0;
 	char file[64] ATTRIBUTE_ALIGN(32);
-	
-	dolhdr *boot_hdr = NULL;
+	void* binary = NULL;
+	u32 bootfile_size = 0;
 
 	//hacks
 	u8* mem_block = NULL;
 	u32 max_address = 0;
 
-	//general:
-	s32 r = 0;
+	//loader
+	void* loader_addr = NULL;
+	void(*loader)(void* addr, void* parameter, u32 parameterCount, u8 isSystemMenu);
+
+	//general
+	s32 ret = 0;
 	s32 fd = 0;
-	void	(*entrypoint)();
 
-
-	if(init == 0)
+	try
 	{
-		//PollDevices();
-	}
-	//booting sys menu
-	
-	//expermintal code for getting the needed tmd info. no boot index is in the views but lunatik and i think last file = boot file
-	r = ES_GetTMDViewSize(TitleID, &tmd_size);
-	if(r<0)
-	{
-		gprintf("GetTMDViewSize error %d\r\n",r);
-		error = ERROR_SYSMENU_GETTMDSIZEFAILED;
-		goto free_and_return;
-	}
-	r = ES_GetTMDView(TitleID, tmd_buf, tmd_size);
-	if(r<0)
-	{
-		gprintf("GetTMDView error %d\r\n",r);
-		error = ERROR_SYSMENU_GETTMDFAILED;
-		goto free_and_return;
-	}
-	rTMD = (tmd_view *)tmd_buf;
-	gdprintf("ios version: %u\r\n",(u8)rTMD->sys_version);
-
-	//get main.dol filename
-	/*for(u32 z=0; z < rTMD->num_contents; ++z)
-	{
-		if( rTMD->contents[z].index == rTMD->num_contents )//rTMD->boot_index )
+		//expermintal code for getting the needed tmd info. no boot index is in the views but lunatik and i think last file = boot file
+		ret = ES_GetTMDViewSize(TitleID, &tmd_size);
+		if(ret < 0)
 		{
-			gdprintf("content[%i] id=%08X type=%u\r\n", z, content->cid, content->type | 0x8001 );
-			fileID = rTMD->contents[z].cid;
-			break;
+			error = ERROR_SYSMENU_GETTMDSIZEFAILED;
+			throw "GetTMDViewSize error " + std::to_string(ret);
 		}
-	}*/
-	fileID = rTMD->contents[rTMD->num_contents-1].cid;
-	gprintf("using %08X for booting\r\n",rTMD->contents[rTMD->num_contents-1].cid);
 
-	if( fileID == 0 )
-	{
-		error = ERROR_SYSMENU_BOOTNOTFOUND;
-		goto free_and_return;
-	}
+		ret = ES_GetTMDView(TitleID, tmd_buf, tmd_size);
+		if(ret<0)
+		{
+			error = ERROR_SYSMENU_GETTMDFAILED;
+			throw "GetTMDView error " + std::to_string(ret);
+		}
 
-	sprintf( file, "/title/00000001/00000002/content/%08x.app", fileID );
-	file[33] = '1'; // installing preloader renamed system menu so we change the app file to have the right name
+		rTMD = (tmd_view *)tmd_buf;
+		gdprintf("ios version: %u",(u8)rTMD->sys_version);
 
-	fd = ISFS_Open( file, 1 );
-	if( fd < 0 )
-	{
-		gprintf("error opening %08x.app! error %d\r\n",fileID,fd);
-		ISFS_Close( fd );
-		error = ERROR_SYSMENU_BOOTOPENFAILED;
-		goto free_and_return;
-	}
+		//get main.dol filename
+		/*for(u32 z=0; z < rTMD->num_contents; ++z)
+		{
+			if( rTMD->contents[z].index == rTMD->num_contents )//rTMD->boot_index )
+			{
+				gdprintf("content[%i] id=%08X type=%u", z, content->cid, content->type | 0x8001 );
+				fileID = rTMD->contents[z].cid;
+				break;
+			}
+		}*/
 
-	status = (fstats *)mem_align(32, ALIGN32(sizeof( fstats )) );
-	if( status == NULL )
-	{
-		ISFS_Close( fd );
-		error = ERROR_MALLOC;
-		goto free_and_return;
-	}
-	memset(status,0, sizeof( fstats ) );
-	r = ISFS_GetFileStats( fd, status);
-	if( r < 0 || status->file_length == 0)
-	{
-		ISFS_Close( fd );
-		error = ERROR_SYSMENU_BOOTGETSTATS;
-		mem_free(status);
-		goto free_and_return;
-	}
+		fileID = rTMD->contents[rTMD->num_contents-1].cid;
+		gprintf("using %08X for booting",rTMD->contents[rTMD->num_contents-1].cid);
 
-	mem_free(status);
-	boot_hdr = (dolhdr *)mem_align(32, ALIGN32(sizeof( dolhdr )) );
-	if(boot_hdr == NULL)
-	{
-		error = ERROR_MALLOC;
+		if( fileID == 0 )
+		{
+			error = ERROR_SYSMENU_BOOTNOTFOUND;
+			throw "boot file not found";
+		}
+
+		// installing priiloader renamed system menu so we change the app file to have the right name
+		fileID |= 0x10000000;
+		sprintf( file, "/title/00000001/00000002/content/%08x.app", fileID );
+
+		fd = ISFS_Open( file, ISFS_OPEN_READ );
+		if( fd < 0 )
+		{
+			error = ERROR_SYSMENU_BOOTOPENFAILED;
+			throw "error opening " + std::to_string(fileID) + ".app : errno " + std::to_string(fd);
+		}
+
+		STACK_ALIGN(fstats, status, sizeof(fstats), 32);
+		memset( status, 0, sizeof(fstats) );
+		ret = ISFS_GetFileStats( fd, status);
+		if( ret < 0 || status->file_length == 0)
+		{
+			error = ERROR_SYSMENU_BOOTGETSTATS;
+			throw "retrieving bootfile stats failed";
+		}
+		bootfile_size = status->file_length;
+
+		binary = mem_align(32, ALIGN32(bootfile_size) );
+		if(!binary)
+		{
+			error = ERROR_MALLOC;
+			throw "binary allocation failed";
+		}
+
+		if(ISFS_Read( fd, binary, bootfile_size) < (s32)bootfile_size)
+		{
+			error = ERROR_SYSMENU_BOOTREADFAILED;
+			throw "failed to read binary";
+		}
 		ISFS_Close(fd);
-		goto free_and_return;
-	}
-	memset( boot_hdr, 0, ALIGN32(sizeof( dolhdr )) );
-	
-	r = ISFS_Seek( fd, 0, SEEK_SET );
-	if ( r < 0)
-	{
-		gprintf("ISFS_Seek error %d(dolhdr)\r\n",r);
-		ISFS_Close(fd);
-		goto free_and_return;
-	}
-	r = ISFS_Read( fd, boot_hdr, sizeof(dolhdr) );
 
-	if( r < 0 || r != sizeof(dolhdr) )
-	{
-		gprintf("ISFS_Read error %d of dolhdr\r\n",r);
-		ISFS_Close( fd );
-		goto free_and_return;
-	}
-	if( boot_hdr->entrypoint != 0x3400 )
-	{
-		gprintf("Bogus Entrypoint detected!\r\n");
-		ISFS_Close( fd );
-		goto free_and_return;
-	}
+		gprintf("loading hacks");
+		LoadSystemHacks(true);
 
-	for (u8 i = 0; i < 6; i++)
-	{
-		if( boot_hdr->sizeText[i] && boot_hdr->addressText[i] && boot_hdr->offsetText[i] )
+		Input_Shutdown();
+
+		//Step 1 of IOS handling : Reloading IOS if needed;
+		if( !SGetSetting( SETTING_USESYSTEMMENUIOS ) )
 		{
-			ICInvalidateRange((void*)(boot_hdr->addressText[i]), boot_hdr->sizeText[i]);
-			gdprintf("\t%08x\t\t%08x\t\t%08x\t\t\r\n", (boot_hdr->offsetText[i]), boot_hdr->addressText[i], boot_hdr->sizeText[i]);
-			if( (((boot_hdr->addressText[i])&0xF0000000) != 0x80000000) || (boot_hdr->sizeText[i]>(10*1024*1024)) )
+			s32 ToLoadIOS = SGetSetting(SETTING_SYSTEMMENUIOS);
+			if ( ToLoadIOS != (u8)IOS_GetVersion() )
 			{
-				gprintf("bogus Text offset\r\n");
-				ISFS_Close( fd );
-				goto free_and_return;
-			}
-
-			r = ISFS_Seek( fd, boot_hdr->offsetText[i], SEEK_SET );
-			if ( r < 0)
-			{
-				gprintf("ISFS_Seek error %d(offsetText)\r\n");
-				ISFS_Close(fd);
-				goto free_and_return;
-			}
-			ISFS_Read( fd, (void*)(boot_hdr->addressText[i]), boot_hdr->sizeText[i] );
-
-			DCFlushRange((void*)(boot_hdr->addressText[i]), boot_hdr->sizeText[i]);
-		}
-	}
-	// data sections
-	for (u8 i = 0; i <= 10; i++)
-	{
-		if( boot_hdr->sizeData[i] && boot_hdr->addressData[i] && boot_hdr->offsetData[i] )
-		{
-			ICInvalidateRange((void*)(boot_hdr->addressData[i]), boot_hdr->sizeData[i]);
-			gdprintf("\t%08x\t\t%08x\t\t%08x\t\t\r\n", (boot_hdr->offsetData[i]), boot_hdr->addressData[i], boot_hdr->sizeData[i]);
-			if( (((boot_hdr->addressData[i])&0xF0000000) != 0x80000000) || (boot_hdr->sizeData[i]>(10*1024*1024)) )
-			{
-				gprintf("bogus Data offsets\r\n");
-				ISFS_Close(fd);
-				goto free_and_return;
-			}
-
-			r = ISFS_Seek( fd, boot_hdr->offsetData[i], SEEK_SET );
-			if ( r < 0)
-			{
-				gdprintf("ISFS_Seek error %d(offsetData)\r\n");
-				ISFS_Close(fd);
-				goto free_and_return;
-			}
-			r = ISFS_Read( fd, (void*)boot_hdr->addressData[i], boot_hdr->sizeData[i] );
-			if (r < 0)
-			{
-				gdprintf("ISFS_Read error %d(addressdata)\r\n",r);
-				ISFS_Close(fd);
-				goto free_and_return;
-			}
-			DCFlushRange((void*)boot_hdr->addressData[i], boot_hdr->sizeData[i]);
-		}
-
-	}
-	ISFS_Close(fd);
-	entrypoint = (void (*)())(boot_hdr->entrypoint);
-	gdprintf("entrypoint %08X\r\n", entrypoint );
-
-	gprintf("loading hacks\r\n");
-
-	LoadSystemHacks(true);
-
-	gprintf("loading hacks done\r\n");
-
-	for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {
-		if(WPAD_Probe(i,0) < 0)
-			continue;
-		WPAD_Flush(i);
-		WPAD_Disconnect(i);
-	}
-	Input_Shutdown();
-
-	//Step 1 of IOS handling : Reloading IOS if needed;
-	if( !SGetSetting( SETTING_USESYSTEMMENUIOS ) )
-	{
-		s32 ToLoadIOS = SGetSetting(SETTING_SYSTEMMENUIOS);
-		if ( ToLoadIOS != (u8)IOS_GetVersion() )
-		{
-			if ( !isIOSstub(ToLoadIOS) )
-			{
+				if ( isIOSstub(ToLoadIOS) )
+				{
+					Input_Init();
+					error=ERROR_SYSMENU_IOSSTUB;
+					throw "ios stub";
+				}
+				//manual IOS reload since we don't want to startup the whole IOS
 				__ES_Close();
 				__IOS_ShutdownSubsystems();
 				__ES_Init();
 				__IOS_LaunchNewIOS ( ToLoadIOS );
 				//why the hell the es needs 2 init's is beyond me... it just happens (see IOS_ReloadIOS in libogc's ios.c)
 				__ES_Init();
-				//gprintf("BootMainSysMenu : ios %d launched\r\n",IOS_GetVersion());
-				//__IOS_LaunchNewIOS ( (u8)rTMD->sys_version );
-				//__IOS_LaunchNewIOS ( 249 );
 				system_state.ReloadedIOS = 1;
 			}
+		}
+		/*
+		//technically if we want to use sys menu IOS but its not loaded we need to reload, but i fail to see why
+		else if ((u8)IOS_GetVersion() != (u8)rTMD->sys_version)
+		{
+			gprintf("Use system menu is ON, but IOS %d isn't loaded. reloading IOS...",(u8)rTMD->sys_version);
+			__ES_Close();
+			__IOS_ShutdownSubsystems();
+			__ES_Init();
+			__IOS_LaunchNewIOS ( (u8)rTMD->sys_version );
+			__ES_Init();
+
+			gprintf("launched ios %d for system menu",IOS_GetVersion());
+			system_state.ReloadedIOS = 1;
+		}*/
+
+		//Step 2 of IOS handling : ES_Identify if we are on a different ios or if we reloaded ios once already. note that the ES_Identify is only supported by ios > 20
+		if (((u8)IOS_GetVersion() != (u8)rTMD->sys_version) || (system_state.ReloadedIOS) )
+		{
+			if (system_state.ReloadedIOS)
+				gprintf("Forced into ES_Identify");
 			else
+				gprintf("Forcing ES_Identify");
+
+			//read ticket from FS
+			fd = ISFS_Open("/title/00000001/00000002/content/ticket", 1 );
+			if( fd < 0 )
 			{
-				Input_Init();
-				error=ERROR_SYSMENU_IOSSTUB;
-				goto free_and_return;
+				error = ERROR_SYSMENU_TIKNOTFOUND;
+				throw "failed to open ticket";
 			}
-		}
-	}
-	/*
-	//technically its needed... but i fail to see why...
-	else if ((u8)IOS_GetVersion() != (u8)rTMD->sys_version)
-	{
-		gprintf("Use system menu is ON, but IOS %d isn't loaded. reloading IOS...\r\n",(u8)rTMD->sys_version);
-		__ES_Close();
-		__IOS_ShutdownSubsystems();
-		__ES_Init();
-		__IOS_LaunchNewIOS ( (u8)rTMD->sys_version );
-		__IOS_InitializeSubsystems();
 
-		gprintf("launched ios %d for system menu\r\n",IOS_GetVersion());
-		system_state.ReloadedIOS = 1;
-	}*/
-	//Step 2 of IOS handling : ES_Identify if we are on a different ios or if we reloaded ios once already. note that the ES_Identify is only supported by ios > 20
-	if (((u8)IOS_GetVersion() != (u8)rTMD->sys_version) || (system_state.ReloadedIOS) )
-	{
-		if (system_state.ReloadedIOS)
-			gprintf("Forced into ES_Identify\r\n");
-		else
-			gprintf("Forcing ES_Identify\r\n",IOS_GetVersion(),(u8)rTMD->sys_version);
-		//read ticket from FS
-		fd = ISFS_Open("/title/00000001/00000002/content/ticket", 1 );
-		if( fd < 0 )
-		{
-			error = ERROR_SYSMENU_TIKNOTFOUND;
-			goto free_and_return;
-		}
+			//get size
+			memset( status, 0, sizeof(fstats) );
+			if( ISFS_GetFileStats( fd, status ) < 0 )
+			{
+				error = ERROR_SYSMENU_TIKSIZEGETFAILED;
+				throw "failed to get ticket size";
+			}
 
-		//get size
-		status = (fstats*)mem_align( 32, sizeof( fstats ) );
-		if(status == NULL)
-		{
+			//create buffer
+			ticket = (s8*)mem_align( 32, ALIGN32(status->file_length) );
+			if( ticket == NULL )
+			{
+				error = ERROR_MALLOC;
+				throw "failed to allocate ticket";
+			}
+			memset(ticket, 0, status->file_length );
+
+			//read file
+			ret = ISFS_Read( fd, ticket, status->file_length );
+			if( ret < 0 )
+			{
+				error = ERROR_SYSMENU_TIKREADFAILED;
+				throw "failed to read ticket -> errno " + std::to_string(ret);
+			}
 			ISFS_Close( fd );
-			error = ERROR_MALLOC;
-			goto free_and_return;
+
+			//get the real TMD. we didn't get the real TMD before. the views will fail to be used in identification
+			u32 tmd_size_temp;
+			ret = ES_GetStoredTMDSize(TitleID, &tmd_size_temp);
+			if(ret < 0)
+			{
+				error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
+				__IOS_InitializeSubsystems();
+				throw "ES_Identify: GetStoredTMDSize error " + std::to_string(ret);
+			}
+			TMD = (signed_blob *)mem_align( 32, ALIGN32(tmd_size_temp) );
+			if(TMD == NULL)
+			{
+				error = ERROR_MALLOC;
+				__IOS_InitializeSubsystems();
+				throw "ES_Identify: memalign TMD failure";
+			}
+			memset(TMD, 0, tmd_size_temp);
+
+			ret = ES_GetStoredTMD(TitleID, TMD, tmd_size_temp);
+			if(ret < 0)
+			{
+				error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
+				__IOS_InitializeSubsystems();
+				throw "ES_Identify: GetStoredTMD error " + std::to_string(ret);
+			}
+			//uncomment me
+			ret = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size_temp, (signed_blob *)ticket, status->file_length, 0);
+			if( ret < 0 )
+			{	
+				error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
+				__IOS_InitializeSubsystems();
+				throw "ES_Identify error " + std::to_string(ret);
+			}
+			if(TMD)
+				mem_free(TMD);
+			if(ticket)
+				mem_free(ticket);
 		}
-		r = ISFS_GetFileStats( fd, status );
-		if( r < 0 )
+
+		//ES_SetUID(TitleID);
+
+		gprintf("Hacks:%d",system_hacks.size());
+		mem_block = (u8*)binary;
+		max_address = (u32)(mem_block + bootfile_size);
+		
+		for(u32 i = 0;i < system_hacks.size();i++)
 		{
-			ISFS_Close( fd );
-			error = ERROR_SYSMENU_TIKSIZEGETFAILED;
-			goto free_and_return;
-		}
-
-		//create buffer
-		buf = (char*)mem_align( 32, ALIGN32(status->file_length) );
-		if( buf == NULL )
-		{
-			ISFS_Close( fd );
-			error = ERROR_MALLOC;
-			goto free_and_return;
-		}
-		memset(buf, 0, status->file_length );
-
-		//read file
-		r = ISFS_Read( fd, buf, status->file_length );
-		if( r < 0 )
-		{
-			gprintf("ES_Identify: R-err %d\r\n",r);
-			ISFS_Close( fd );
-			error = ERROR_SYSMENU_TIKREADFAILED;
-			goto free_and_return;
-		}
-
-		ISFS_Close( fd );
-		//get the real TMD. we didn't get the real TMD before. the views will fail to be used in identification
-		u32 tmd_size_temp;
-		r=ES_GetStoredTMDSize(TitleID, &tmd_size_temp);
-		if(r < 0)
-		{
-			error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
-			gprintf("ES_Identify: GetStoredTMDSize error %d\r\n",r);
-			__IOS_InitializeSubsystems();
-			goto free_and_return;
-		}
-		TMD = (signed_blob *)mem_align( 32, ALIGN32(tmd_size_temp) );
-		if(TMD == NULL)
-		{
-			gprintf("ES_Identify: memalign TMD failure\r\n");
-			error = ERROR_MALLOC;
-			__IOS_InitializeSubsystems();
-			goto free_and_return;
-		}
-		memset(TMD, 0, tmd_size_temp);
-
-		r=ES_GetStoredTMD(TitleID, TMD, tmd_size_temp);
-		if(r < 0)
-		{
-			error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
-			gprintf("ES_Identify: GetStoredTMD error %d\r\n",r);
-			__IOS_InitializeSubsystems();
-			goto free_and_return;
-		}
-		r = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size_temp, (signed_blob *)buf, status->file_length, 0);
-		if( r < 0 )
-		{	
-			error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
-			gprintf("ES_Identify error %d\r\n",r);
-			__IOS_InitializeSubsystems();
-			goto free_and_return;
-		}
-		if(TMD)
-			mem_free(TMD);
-	}
-
-	//ES_SetUID(TitleID);
-	if(status)
-		mem_free( status );
-	if(buf)
-		mem_free( buf );
-
-	*(vu32*)0x800000F8 = 0x0E7BE2C0;				// Bus Clock Speed
-	*(vu32*)0x800000FC = 0x2B73A840;				// CPU Clock Speed
-	*(vu32*)0x8000315C = 0x80800113;				// DI Legacy mode ?
-	DCFlushRange((void*)0x80000000,0x3400);
-
-	gprintf("Hacks:%d\r\n",system_hacks.size());
-	mem_block = (u8*)(*boot_hdr->addressData - *boot_hdr->offsetData);
-	max_address = (u32)(*boot_hdr->sizeData + *boot_hdr->addressData);
-	for(u32 i = 0;i < system_hacks.size();i++)
-	{
-		gprintf("testing %s\r\n",system_hacks[i].desc.c_str());
-		if(states_hash[i] != 1)
-			continue;
-
-		gprintf("applying %s\r\n",system_hacks[i].desc.c_str());
-		u32 add = 0;
-		for(u32 y = 0; y < system_hacks[i].patches.size();y++)
-		{
-			if(system_hacks[i].patches[y].patch.size() <= 0)
+			//gprintf("testing %s",system_hacks[i].desc.c_str());
+			if(states_hash[i] != 1)
 				continue;
 
-			//offset method
-			if(system_hacks[i].patches[y].offset > 0)
+			gprintf("applying %s",system_hacks[i].desc.c_str());
+			u32 add = 0;
+			u32 offsetSize = 0;
+			for(u32 y = 0; y < system_hacks[i].patches.size();y++)
 			{
-				u8* addr = (u8*)(system_hacks[i].patches[y].offset);
-				for(u32 z = 0;z < system_hacks[i].patches[y].patch.size(); z++)
+				if(system_hacks[i].patches[y].patch.size() <= 0)
+					continue;
+
+				//offset method				
+				if(system_hacks[i].patches[y].offset > 0)
 				{
-					addr[z] = system_hacks[i].patches[y].patch[z];
-					DCFlushRange(addr, 4);
+					offsetSize += system_hacks[i].patches[y].patch.size();
+					//u8* addr = (u8*)(system_hacks[i].patches[y].offset);
+
+					/*for(u32 z = 0;z < system_hacks[i].patches[y].patch.size(); z++)
+					{
+						//addr[z] = system_hacks[i].patches[y].patch[z];
+						//DCFlushRange(addr, 4);
+					}*/
+
+					continue;
 				}
-			}
-			//hash method
-			else if(system_hacks[i].patches[y].hash.size() > 0)
-			{
-				while( add + (u32)mem_block < max_address)
+				//hash method
+				else if(system_hacks[i].patches[y].hash.size() > 0)
 				{
-					u8 temp_hash[system_hacks[i].patches[y].hash.size()];
-					u8 temp_patch[system_hacks[i].patches[y].patch.size()];
-					for(u32 z = 0;z < system_hacks[i].patches[y].hash.size(); z++)
+					while( add + (u32)mem_block < max_address)
 					{
-						temp_hash[z] = system_hacks[i].patches[y].hash[z];
-					}
-					if ( !memcmp(mem_block+add, temp_hash ,sizeof(temp_hash)) )
-					{
-						gprintf("Found %s @ 0x%X, patching hash # %d...\r\n",system_hacks[i].desc.c_str(), add+(u32)mem_block, y+1);
-						for(u32 z = 0;z < system_hacks[i].patches[y].patch.size(); z++)
+						u8 temp_hash[system_hacks[i].patches[y].hash.size()];
+						u8 temp_patch[system_hacks[i].patches[y].patch.size()];
+						std::copy(system_hacks[i].patches[y].hash.begin(),system_hacks[i].patches[y].hash.end(),temp_hash);
+						if ( !memcmp(mem_block+add, temp_hash ,sizeof(temp_hash)) )
 						{
-							temp_patch[z] = system_hacks[i].patches[y].patch[z];
+							gprintf("Found %s @ 0x%X, patching hash # %d...",system_hacks[i].desc.c_str(), add, y+1);
+							std::copy(system_hacks[i].patches[y].patch.begin(),
+								system_hacks[i].patches[y].patch.end(),
+								temp_patch);
+							memcpy((u8*)mem_block+add,temp_patch,sizeof(temp_patch) );
+							DCFlushRange((u8 *)((add+(u32)mem_block) >> 5 << 5), (sizeof(temp_patch) >> 5 << 5) + 64);
+							break;
 						}
-						memcpy((u8*)mem_block+add,temp_patch,sizeof(temp_patch) );
-						DCFlushRange((u8 *)((add+(u32)mem_block) >> 5 << 5), (sizeof(temp_patch) >> 5 << 5) + 64);
-						break;
-					}
-					add++;
-				}//end hash while loop
-			}//end of hash or offset check
-		} //end for loop of all patches of hack[i]
-	} // end general hacks loop
+						add++;
+					}//end hash while loop
+				}//end of hash or offset check
+			} //end for loop of all patches of hack[i]
+		} // end general hacks loop*/
+
+		//prepare loader
+		loader_addr = (void*)mem_align(32,loader_bin_size);
+		if(!loader_addr)
+			throw "failed to alloc the loader";
+
+		memcpy(loader_addr,loader_bin,loader_bin_size);	
+		DCFlushRange(loader_addr, loader_bin_size);
+		ICInvalidateRange(loader_addr, loader_bin_size);
+		loader = (void (*)(void*,void*,u32,u8))(loader_addr);
+
+		ShutdownDevices();
+		USB_Deinitialize();
+		if(init == 1 || SGetSetting(SETTING_DUMPGECKOTEXT) != 0 )
+			Control_VI_Regs(2);
+		ISFS_Deinitialize();
+		__STM_Close();
+		__IPC_Reinitialize();
+		__IOS_ShutdownSubsystems();
+		__exception_closeall();
+		gprintf("launching sys menu...");
+		
+		//loader
+		loader(binary,NULL,0,1);
+
+		//oh ow, this ain't good
+		__IOS_InitializeSubsystems();
+		PollDevices();
+		gprintf("this ain't good");	
+		ISFS_Initialize();
+		Input_Init();
+	}
+	catch (const std::string& ex)
+	{
+		gprintf("BootMainSysMenu Exception -> %s",ex.c_str());
+	}
+	catch (char const* ex)
+	{
+		gprintf("BootMainSysMenu Exception -> %s",ex);
+	}
+	catch(...)
+	{
+		gprintf("BootMainSysMenu Exception was thrown");
+	}
+
+	if(ticket)
+		mem_free(ticket);
 	if(TMD)
 		mem_free(TMD);
-	if(status)
-		mem_free( status );
-	if(buf)
-		mem_free( buf );
-	if(boot_hdr)
-		mem_free(boot_hdr);
-
-	ShutdownDevices();
-	USB_Deinitialize();
-	if(init == 1 || SGetSetting(SETTING_DUMPGECKOTEXT) != 0 )
-		Control_VI_Regs(2);
-	ISFS_Deinitialize();
-	__STM_Close();
-	__IPC_Reinitialize();
-	__IOS_ShutdownSubsystems();
-	mtmsr(mfmsr() & ~0x8000);
-	mtmsr(mfmsr() | 0x2002);
-	ICSync();
-	_unstub_start();
-free_and_return:
-	if(TMD)
-		mem_free(TMD);
-	if(status)
-		mem_free( status );
-	if(buf)
-		mem_free( buf );
-	if(boot_hdr)
-		mem_free(boot_hdr);
-
-	Input_Init();
+	if(binary)
+		mem_free(binary);
+	if(fd > 0)
+		ISFS_Close( fd );
 
 	return;
 }
@@ -1980,7 +1622,7 @@ void InstallLoadDOL( void )
 		}
 		if(reload)
 		{
-			gprintf("loading binaries...\r\n");
+			gprintf("loading binaries...");
 			DevStat = GetMountedValue();
 			reload = 0;
 			dir = opendir ("fat:/apps/");
@@ -2014,7 +1656,7 @@ void InstallLoadDOL( void )
 					app_bin = fopen(filepath,"rb");
 					if(!app_bin)
 					{
-						gdprintf("failed to open meta.xml of %s\r\n",filename);
+						gdprintf("failed to open meta.xml of %s",filename);
 						temp.app_name = filename;
 						app_list.push_back(temp);
 						continue;
@@ -2028,7 +1670,7 @@ void InstallLoadDOL( void )
 					buf = (char*)mem_malloc(size+1);
 					if(!buf)
 					{
-						gdprintf("buf == NULL\r\n");
+						gdprintf("buf == NULL");
 						fclose(app_bin);
 						temp.app_name = filename;
 						app_list.push_back(temp);
@@ -2042,7 +1684,7 @@ void InstallLoadDOL( void )
 						fclose(app_bin);
 						temp.app_name = filename;
 						app_list.push_back(temp);
-						gdprintf("failed to read data error %d\r\n",ret);
+						gdprintf("failed to read data error %d",ret);
 					}
 					else
 					{
@@ -2102,7 +1744,7 @@ void InstallLoadDOL( void )
 					}
 					if(temp.app_name.size())
 					{
-						gdprintf("added %s to list\r\n",temp.app_name.c_str());
+						gdprintf("added %s to list",temp.app_name.c_str());
 						app_list.push_back(temp);
 						continue;
 					}
@@ -2110,7 +1752,7 @@ void InstallLoadDOL( void )
 					{
 						temp.app_name = filename;
 						app_list.push_back(temp);
-						gdprintf("no name found in xml D:<\r\n");
+						gdprintf("no name found in xml D:<");
 						continue;
 					}
 				}
@@ -2118,12 +1760,12 @@ void InstallLoadDOL( void )
 			}
 			else
 			{
-				gprintf("WARNING: could not open fat:/apps/ for binaries\r\n");
+				gprintf("WARNING: could not open fat:/apps/ for binaries");
 			}
 			dir = opendir ("fat:/");
 			if(dir == NULL)
 			{
-				gprintf("WARNING: could not open fat:/ for binaries\r\n");
+				gprintf("WARNING: could not open fat:/ for binaries");
 			}
 			else
 			{
@@ -2150,13 +1792,13 @@ void InstallLoadDOL( void )
 			{
 				if((GetMountedValue() & 2) && ToggleUSBOnlyMode() == 1)
 				{
-					gprintf("switching to USB only...also mounted == %d\r\n",GetMountedValue());
+					gprintf("switching to USB only...also mounted == %d",GetMountedValue());
 					reload = 1;
 					continue;
 				}
 				if(GetUsbOnlyMode() == 1)
 				{
-					gprintf("fixing usbonly mode...\r\n");
+					gprintf("fixing usbonly mode...");
 					ToggleUSBOnlyMode();
 				}
 				PrintFormat( 1, TEXT_OFFSET("Couldn't find any executable files"), 208, "Couldn't find any executable files");
@@ -2271,7 +1913,7 @@ void InstallLoadDOL( void )
 				if( ISFS_Write( fd, buf, sizeof( char ) * size ) != (signed)(sizeof( char ) * size) )
 				{
 					PrintFormat( 1, TEXT_OFFSET("Writing dol failed!"), 240, "Writing dol failed!");
-					gprintf("writing dol failure! error %d ( 0x%08X )\r\n",fd);
+					gprintf("writing dol failure! error %d ( 0x%08X )",fd);
 				}
 				else
 				{
@@ -2285,11 +1927,11 @@ void InstallLoadDOL( void )
 					for(u32 i = 0;i < app_list[cur_off].args.size();i++)
 					{
 						if(app_list[cur_off].args[i].c_str())
-							dol_settings->arg_cli_lenght += strlen(app_list[cur_off].args[i].c_str())+1;
+							dol_settings->arg_cli_length += strlen(app_list[cur_off].args[i].c_str())+1;
 					}
-					dol_settings->arg_cli_lenght += 1;
+					dol_settings->arg_cli_length += 1;
 
-					dol_settings->arg_command_line = (char*)mem_align(32,dol_settings->arg_cli_lenght+1);
+					dol_settings->arg_command_line = (char*)mem_align(32,dol_settings->arg_cli_length+1);
 					if(dol_settings->arg_command_line != NULL)
 					{
 						u32 pos = 0;
@@ -2301,7 +1943,7 @@ void InstallLoadDOL( void )
 								pos += strlen(app_list[cur_off].args[i].c_str())+1;
 							}
 						}
-						dol_settings->arg_command_line[dol_settings->arg_cli_lenght -1] = 0x00;
+						dol_settings->arg_command_line[dol_settings->arg_cli_length -1] = 0x00;
 						fd = ISFS_Open("/title/00000001/00000002/data/main.nfo", 1|2 );
 						if( fd >= 0 )	//delete old file
 						{
@@ -2325,12 +1967,12 @@ void InstallLoadDOL( void )
 						memset(null,0,1);
 						//write the ahbprot byte and arg count by all at once since ISFS_Write fails like that
 						ISFS_Write(fd,&dol_settings->HW_AHBPROT_bit,sizeof(s16));//s8(AHBPROT)+s8(argument count)+u32(arg lenght) = 6 bytes
-						if(&dol_settings->arg_cli_lenght != NULL && dol_settings->arg_cli_lenght > 0)
-							IOS_Write(fd,&dol_settings->arg_cli_lenght,sizeof(dol_settings->arg_cli_lenght));
+						if(&dol_settings->arg_cli_length != NULL && dol_settings->arg_cli_length > 0)
+							IOS_Write(fd,&dol_settings->arg_cli_length,sizeof(dol_settings->arg_cli_length));
 						//we use IOS_Write + 2 of the 3 checks of ISFS_Write cause ISFS_Write in libogc has an irritating check to see if the address is aligned by 32 
 						//(removed in libogc svn @ 22/07/2011)
-						if(dol_settings->arg_command_line != NULL && dol_settings->arg_cli_lenght > 0)
-							IOS_Write(fd,dol_settings->arg_command_line,dol_settings->arg_cli_lenght);
+						if(dol_settings->arg_command_line != NULL && dol_settings->arg_cli_length > 0)
+							IOS_Write(fd,dol_settings->arg_command_line,dol_settings->arg_cli_length);
 						ISFS_Close( fd );
 					}
 					PrintFormat( 0, ((rmode->viWidth /2)-((strlen("\"%s\" installed")+strlen(app_list[cur_off].app_name.c_str()))*13/2))>>1, 240, "\"%s\" installed", app_list[cur_off].app_name.c_str());
@@ -2384,8 +2026,8 @@ void InstallLoadDOL( void )
 		{
 			ClearScreen();
 			PrintFormat( 1, TEXT_OFFSET("Loading binary..."), 208, "Loading binary...");	
-			ret = BootDolFromDir(app_list[cur_off].app_path.c_str(),app_list[cur_off].HW_AHBPROT_ENABLED,app_list[cur_off].args);
-			gprintf("loading %s ret %d\r\n",app_list[cur_off].app_path.c_str(),ret);
+			ret = BootDolFromFile(app_list[cur_off].app_path.c_str(),app_list[cur_off].HW_AHBPROT_ENABLED,app_list[cur_off].args);
+			gprintf("loading %s ret %d",app_list[cur_off].app_path.c_str(),ret);
 			PrintFormat( 1, TEXT_OFFSET("failed to load binary"), 224, "failed to load binary");
 			sleep(3);
 			ClearScreen();
@@ -2447,497 +2089,164 @@ void InstallLoadDOL( void )
 }
 void AutoBootDol( void )
 {
+	const char* dol_path = "/title/00000001/00000002/data/main.bin\0";
+	const char* arg_path = "/title/00000001/00000002/data/main.nfo\0";
 	s32 fd = 0;
-	s32 r = 0;
-	s32 Ios_to_load = 0;
-	s8 failure = 0;
-	std::string dol_path = "/title/00000001/00000002/data/main.bin";
-
-	Elf32_Ehdr *ElfHdr = NULL;
-	dolhdr *hdr = NULL;
-
-	STACK_ALIGN(_dol_settings,dol_settings,sizeof(_dol_settings),32);
-	memset(dol_settings,0,sizeof(_dol_settings));
-
-	struct __argv argv;
-	bzero(&argv, sizeof(argv));
-	argv.argvMagic = 0;
-	argv.length = 0;
-	argv.commandLine = NULL;
-	argv.argc = 0;
-	argv.argv = &argv.commandLine;
-	argv.endARGV = argv.argv + 1;
-	
-	fd = ISFS_Open("/title/00000001/00000002/data/main.nfo", 1 );
-	if(fd >= 0)
+	u8* binary = NULL;
+	struct __argv *argv = NULL;
+	try
 	{
+		STACK_ALIGN(_dol_settings,dol_settings,sizeof(_dol_settings),32);
+		memset(dol_settings,0,sizeof(_dol_settings));
 		STACK_ALIGN(fstats,status,sizeof(fstats),32);
-		if (ISFS_GetFileStats(fd,status) >= 0 && status->file_length >= 2)
+		memset(status,0,sizeof(fstats));
+
+		try
 		{
+			fd = ISFS_Open(arg_path, ISFS_OPEN_READ );
+			if(fd < 0)
+				throw "failed to open argument file";
+
+			if (ISFS_GetFileStats(fd,status) < 0 || status->file_length < 2)
+				throw "failed to get argument file info or file to small";
+
 			//read the argument count,AHBPROT bit and arg lenght
-			r = ISFS_Read( fd, dol_settings, sizeof(s16)+sizeof(s32) );
-			if(r > 0)
+			if( ISFS_Read( fd, dol_settings, sizeof(_dol_settings)) < (s32)status->file_length)
+				throw "failed to read arguments file";
+
+			if(dol_settings->HW_AHBPROT_bit != 1 && dol_settings->HW_AHBPROT_bit != 0 )
 			{
-				if(dol_settings->HW_AHBPROT_bit != 1 && dol_settings->HW_AHBPROT_bit != 0 )
-				{
-					//invalid. fuck the file then
-					gprintf("invalid. %d\r\n",dol_settings->HW_AHBPROT_bit);
-					ISFS_Delete("/title/00000001/00000002/data/main.nfo");
-					ISFS_Close(fd);
-					failure = 1;
-				}
-				else
-				{
-
-					//NOTE : so far this code is broken.
-					//it looks like libogc dislikes the / in the NAND path...
-					//TODO : make a temp path which makes the / into \ (aka, string replace)
-					argv.length = dol_path.size()+1;
-
-					if(dol_settings->argument_count > 0)
-					{
-						argv.length += dol_settings->arg_cli_lenght;
-					}
-
-					argv.commandLine = (char*) mem_malloc(argv.length);
-					if (argv.commandLine != NULL)
-					{
-						memset(argv.commandLine,0,argv.length);
-
-						strncpy(argv.commandLine,dol_path.c_str(),dol_path.size());
-						argv.argc = 1;
-
-						STACK_ALIGN(char,pos,dol_settings->arg_cli_lenght,32);
-
-						memset(pos,0,dol_settings->arg_cli_lenght);
-						if(dol_settings->argument_count > 0)
-						{
-							r = ISFS_Read( fd, pos, dol_settings->arg_cli_lenght );
-							if(r <= 0)
-							{
-								gprintf("failed to read arguments ( %d )\r\n",r);
-								failure = 1;
-							}
-							else
-							{
-								memcpy(argv.commandLine+dol_path.size()+1,pos,dol_settings->arg_cli_lenght);
-							}
-							ISFS_Close(fd);
-							argv.argc += dol_settings->argument_count;
-						}
-						argv.commandLine[argv.length - 1] = '\0';
-						argv.argv = &argv.commandLine;
-						argv.endARGV = argv.argv + 1;
-						argv.argvMagic = ARGV_MAGIC; //everything is set so the magic is set so it becomes valid
-					}
-					else
-					{
-						gprintf("failed to allocate commandline!");
-						failure = 1;
-					}
-				}
+				ISFS_Close(fd);
+				ISFS_Delete("/title/00000001/00000002/data/main.nfo");
+				throw "invalid HW_AHBPROT bit";
 			}
-		}
-		else
-		{
-			gprintf("failed to get stats/file lenght");
-			failure = 1;
-		}
-	}
-	else
-		failure = 1;
 
-	if(failure != 0)
-	{
-		gprintf("something went wrong and wanted to bail out. setting arguments as defaults\r\n");
-		//ISFS_Delete("/title/00000001/00000002/data/main.nfo");
-		ISFS_Close(fd);
-		if(argv.commandLine)
-			mem_free(argv.commandLine);
-		if(argv.length != 0)
-			argv.length = 0;
-
-		//load in default arguments
-		argv.length = dol_path.size()+1;
-		argv.commandLine = (char*) mem_malloc(argv.length);
-		if (argv.commandLine != NULL)
-		{
-			strncpy(argv.commandLine,dol_path.c_str(),argv.length);
-			argv.commandLine[argv.length - 1] = '\0';
-			argv.argc = 1;
-			argv.argv = &argv.commandLine;
-			argv.endARGV = argv.argv + 1;
-			argv.argvMagic = ARGV_MAGIC; //everything is set so the magic is set so it becomes valid
-		}
-		else
-		{
-			gprintf("memory allocation fail...aboring arguments\r\n");
-			argv.length = 0;
-			argv.commandLine = NULL;
-		}
-		ISFS_Close(fd);
-		dol_settings->HW_AHBPROT_bit = 1;
-		dol_settings->argument_count = 1;
-	}
-//#ifdef DEBUG
-	gdprintf("argv says %d arguments while settings say %d\r\n",argv.argc,dol_settings->argument_count);
-	for(int i = 0;i < argv.length;i++)
-	{
-		if(argv.commandLine[i] == 0x00)
-		{
-			gprintf("[%d] = 0x00\r\n",i);
-		}
-		else
-			gprintf("[%d] = %c\r\n",i,argv.commandLine[i]);
-	}
-//#endif
-	failure = 0;
-	gprintf("starting reading dol...\r\n");
-
-	fd = ISFS_Open(dol_path.c_str(), 1 );
-	if( fd < 0 )
-	{
-		error = ERROR_BOOT_DOL_OPEN;
-		goto return_dol;
-	}
-
-	void	(*entrypoint)();
-
-	ElfHdr = (Elf32_Ehdr *)mem_align( 32, ALIGN32( sizeof( Elf32_Ehdr ) ) );
-	if( ElfHdr == NULL )
-	{
-		error = ERROR_MALLOC;
-		goto return_dol;
-	}
-
-	r = ISFS_Read( fd, ElfHdr, sizeof( Elf32_Ehdr ) );
-	if( r < 0 || r != sizeof( Elf32_Ehdr ) )
-	{
-		error = ERROR_BOOT_DOL_READ;
-		goto return_dol;
-	}
-
-	if( ElfHdr->e_ident[EI_MAG0] == 0x7F &&
-		ElfHdr->e_ident[EI_MAG1] == 'E' &&
-		ElfHdr->e_ident[EI_MAG2] == 'L' &&
-		ElfHdr->e_ident[EI_MAG3] == 'F' )
-	{
-		gdprintf("ELF Found\r\n");
-		gdprintf("Type:      \t%04X\r\n", ElfHdr->e_type );
-		gdprintf("Machine:   \t%04X\r\n", ElfHdr->e_machine );
-		gdprintf("Version:  %08X\r\n", ElfHdr->e_version );
-		gdprintf("Entry:    %08X\r\n", ElfHdr->e_entry );
-		gdprintf("Flags:    %08X\r\n", ElfHdr->e_flags );
-		gdprintf("EHsize:    \t%04X\r\n\r\n", ElfHdr->e_ehsize );
-
-		gdprintf("PHoff:    %08X\r\n",	ElfHdr->e_phoff );
-		gdprintf("PHentsize: \t%04X\r\n",	ElfHdr->e_phentsize );
-		gdprintf("PHnum:     \t%04X\r\n\r\n",ElfHdr->e_phnum );
-
-		gdprintf("SHoff:    %08X\r\n",	ElfHdr->e_shoff );
-		gdprintf("SHentsize: \t%04X\r\n",	ElfHdr->e_shentsize );
-		gdprintf("SHnum:     \t%04X\r\n",	ElfHdr->e_shnum );
-		gdprintf("SHstrndx:  \t%04X\r\n\r\n",ElfHdr->e_shstrndx );
-		
-		if( ( (ElfHdr->e_entry | 0x80000000) >= 0x81000000 ) && ( (ElfHdr->e_entry | 0x80000000) <= 0x81330000) )
-		{
-			gprintf("AutoBoot : ELF entrypoint error: abort!\r\n");
-			goto return_dol;
-		}
-		if( ElfHdr->e_phnum == 0 )
-			gdprintf("Warning program header entries are zero!\r\n");
-		else 
-		{
-			for( int i=0; i < ElfHdr->e_phnum; ++i )
-			{
-				r = ISFS_Seek( fd, ElfHdr->e_phoff + sizeof( Elf32_Phdr ) * i, SEEK_SET );
-				if( r < 0 )
-				{
-					error = ERROR_BOOT_DOL_SEEK;
-					mem_free(ElfHdr);
-					goto return_dol;
-				}
-
-				Elf32_Phdr *phdr = (Elf32_Phdr *)mem_align( 32, ALIGN32( sizeof( Elf32_Phdr ) ) );
-				if( phdr == NULL )
-				{
-					error = ERROR_MALLOC;
-					mem_free(ElfHdr);
-					goto return_dol;
-				}
-				memset(phdr,0,sizeof(Elf32_Phdr));
-				r = ISFS_Read( fd, phdr, sizeof( Elf32_Phdr ) );
-				if( r < 0 )
-				{
-					error = ERROR_BOOT_DOL_READ;
-					mem_free( phdr );
-					mem_free(ElfHdr);
-					goto return_dol;
-				}
-				gdprintf("Type:%08X Offset:%08X VAdr:%08X PAdr:%08X FileSz:%08X\r\n", phdr->p_type, phdr->p_offset, phdr->p_vaddr, phdr->p_paddr, phdr->p_filesz );
-				r = ISFS_Seek( fd, phdr->p_offset, 0 );
-				if( r < 0 )
-				{
-					error = ERROR_BOOT_DOL_SEEK;
-					mem_free( phdr );
-					mem_free(ElfHdr);
-					goto return_dol;
-				}
-
-				if(phdr->p_type == PT_LOAD && phdr->p_vaddr != 0)
-				{
-					r = ISFS_Read( fd, (void*)phdr->p_vaddr, phdr->p_filesz);
-					if( r < 0 )
-					{
-						gprintf("AutoBootDol : ISFS_Read(%d)read failed of the program section addr\r\n",r);
-						error = ERROR_BOOT_DOL_READ;
-						mem_free( phdr );
-						mem_free(ElfHdr);
-						goto return_dol;
-					}
-				}
-				mem_free( phdr );
-			}
-		}
-		if( ElfHdr->e_shnum == 0 )
-			gdprintf("Warning section header entries are zero!\r\n");
-		else 
-		{
-			Elf32_Shdr *shdr = (Elf32_Shdr *)mem_align( 32, ALIGN32( sizeof( Elf32_Shdr ) ) );
-			if( shdr == NULL )
+			argv = (__argv*)mem_align(32,sizeof(__argv));
+			if(!argv)
 			{
 				error = ERROR_MALLOC;
-				mem_free(ElfHdr);
-				goto return_dol;
+				throw "failed to allocate memory for the arguments";
 			}
-			memset(shdr,0,sizeof(Elf32_Shdr));
-			for( int i=0; i < ElfHdr->e_shnum; ++i )
+			memset(argv,0,sizeof(__argv));
+
+			argv->argvMagic = 0;
+			argv->commandLine = NULL;
+			argv->argc = 0;
+			argv->argv = &argv->commandLine;
+			argv->endARGV = argv->argv + 1;
+			argv->length = strlen(dol_path)+1;
+
+			if(dol_settings->argument_count > 0)
 			{
-				r = ISFS_Seek( fd, ElfHdr->e_shoff + sizeof( Elf32_Shdr ) * i, SEEK_SET );
-				if( r < 0 )
-				{
-					error = ERROR_BOOT_DOL_SEEK;
-					mem_free( shdr );
-					mem_free(ElfHdr);
-					goto return_dol;
-				}
-
-				r = ISFS_Read( fd, shdr, sizeof( Elf32_Shdr ) );
-				if( r < 0 )
-				{
-					error = ERROR_BOOT_DOL_READ;
-					mem_free( shdr );
-					mem_free(ElfHdr);
-					goto return_dol;
-				}
-
-				if( shdr->sh_type == 0 || shdr->sh_size == 0 )
-					continue;
-
-#ifdef DEBUG
-				if( shdr->sh_type > 17 )
-					gdprintf("Warning the type: %08X could be invalid!\r\n", shdr->sh_type );
-
-				if( shdr->sh_flags & ~0xF0000007 )
-					gdprintf("Warning the flag: %08X is invalid!\r\n", shdr->sh_flags );
-
-				gdprintf("Type:%08X Offset:%08X Name:%08X Off:%08X Size:%08X\r\n", shdr->sh_type, shdr->sh_offset, shdr->sh_name, shdr->sh_addr, shdr->sh_size );
-#endif
-				r = ISFS_Seek( fd, shdr->sh_offset, 0 );
-				if( r < 0 )
-				{
-					error = ERROR_BOOT_DOL_SEEK;
-					mem_free( shdr );
-					mem_free(ElfHdr);
-					goto return_dol;
-				}
-
-				
-				if (shdr->sh_type == SHT_NOBITS)
-				{
-					r = ISFS_Read( fd, (void*)(shdr->sh_addr | 0x80000000), shdr->sh_size);
-					if( r < 0 )
-					{
-						gprintf("AutoBootDol : ISFS_Read(%d) data header\r\n",r);
-						error = ERROR_BOOT_DOL_READ;
-						mem_free( shdr );
-						mem_free(ElfHdr);
-						goto return_dol;
-					}
-				}
-
+				argv->length += dol_settings->arg_cli_length;
 			}
-			mem_free( shdr );
+
+			argv->commandLine = (char*) mem_align(32,argv->length);
+			if(!argv->commandLine)
+				throw "failed to alloc memory for cli";
+			
+			memset(argv->commandLine,0,argv->length);
+
+			strncpy(argv->commandLine,dol_path,strlen(dol_path));
+			argv->argc = 1;
+
+			if(dol_settings->argument_count > 0)
+			{
+				ISFS_Seek(fd , sizeof(dol_settings)-1 ,SEEK_SET);
+				if(ISFS_Read( fd, argv->commandLine+strlen(dol_path)+1, dol_settings->arg_cli_length ) <= dol_settings->arg_cli_length)
+					throw "failed to read arguments";
+
+				ISFS_Close(fd);
+				argv->argc += dol_settings->argument_count;
+			}
+			//to make sure there is no overflow
+			argv->commandLine[argv->length-1] = '\0';
+			argv->argv = &argv->commandLine;
+			argv->endARGV = argv->argv + 1;
+			argv->argvMagic = ARGV_MAGIC; //everything is set so the magic is set so it becomes valid
+		}
+		catch (const std::string& ex)
+		{
+			gprintf("AutoBootDol Exception -> %s",ex.c_str());
+		}
+		catch (char const* ex)
+		{
+			gprintf("AutoBootDol Exception -> %s",ex);
+		}
+		catch(...)
+		{
+			gprintf("AutoBootDol Exception was thrown");
 		}
 
-		ISFS_Close( fd );
-		entrypoint = (void (*)())(ElfHdr->e_entry | 0x80000000);
-		mem_free(ElfHdr);
+		if(fd > 0)
+		{
+			ISFS_Close(fd);
+			fd = 0;
+		}
 
-	} else {
-		if(ElfHdr != NULL)
-			mem_free(ElfHdr);
-		//Dol
-		//read the header
-		hdr = (dolhdr *)mem_align(32, ALIGN32( sizeof( dolhdr ) ) );
-		if( hdr == NULL )
+		if(argv != NULL && argv->argvMagic != ARGV_MAGIC)
+		{
+			if(argv->commandLine != NULL)
+				mem_free(argv->commandLine);
+
+			//something went wrong, so undo everything
+			mem_free(argv);
+		}
+
+		//read the binary
+		fd = ISFS_Open(dol_path, ISFS_OPEN_READ );
+		if( fd < 0 )
+		{
+			error = ERROR_BOOT_DOL_OPEN;
+			throw "failed to open file";
+		}
+
+		memset(status,0,sizeof(fstats));
+		if(ISFS_GetFileStats(fd,status) < 0)
+		{
+			error = ERROR_BOOT_DOL_OPEN;
+			throw "failed to get stats of main.bin";
+		}
+
+		binary = (u8*)mem_align(32,status->file_length);
+		if(!binary)
 		{
 			error = ERROR_MALLOC;
-			goto return_dol;
+			throw "failed to allocate memory for binary";
 		}
 
-		s32 r = ISFS_Seek( fd, 0, 0);
-		if( r < 0 )
+		if(ISFS_Read( fd, binary, status->file_length) < (s32)status->file_length)
 		{
-			gprintf("AutoBootDol : ISFS_Seek(%d)\r\n", r);
-			error = ERROR_BOOT_DOL_SEEK;
-			goto return_dol;
-		}
-
-		r = ISFS_Read( fd, hdr, sizeof(dolhdr) );
-
-		if( r < 0 || r != sizeof(dolhdr) )
-		{
-			gprintf("AutoBootDol : ISFS_Read(%d)\r\n", r);
 			error = ERROR_BOOT_DOL_READ;
-			goto return_dol;
+			throw "failed to read binary";
 		}
-		if( hdr->entrypoint >= 0x81000000 && hdr->entrypoint <= 0x81330000 )
-		{
-			gprintf("BootDolFromFat : entrypoint/BSS error: abort!\r\n");
-			error = ERROR_BOOT_DOL_ENTRYPOINT;
-			goto return_dol;
-		}
+		ISFS_Close(fd);
 
-		if(DVDCheckCover())
-		{
-			gprintf("AutoBootDol : excecuting StopDisc Async...\r\n");
-			DVDStopDisc(true);
-		}
-		else
-		{
-			gprintf("AutoBootDol : Skipping StopDisc -> no drive or disc in drive\r\n");
-		}
-		gdprintf("\nText Sections:\r\n");
-		int i=0;
-		for (i = 0; i < 6; i++)
-		{
-			if( hdr->sizeText[i] && hdr->addressText[i] && hdr->offsetText[i] )
-			{
-				if(ISFS_Seek( fd, hdr->offsetText[i], SEEK_SET )<0)
-				{
-					error = ERROR_BOOT_DOL_SEEK;
-					goto return_dol;
-				}
-				if(ISFS_Read( fd, (void*)(hdr->addressText[i]), hdr->sizeText[i] )<0)
-				{
-					error = ERROR_BOOT_DOL_READ;
-					goto return_dol;
-				}
-				DCInvalidateRange( (void*)(hdr->addressText[i]), hdr->sizeText[i] );
-				gdprintf("\t%08x\t\t%08x\t\t%08x\t\t\r\n", (hdr->offsetText[i]), hdr->addressText[i], hdr->sizeText[i]);
-			}
-		}
-		gdprintf("\nData Sections:\r\n");
-		// data sections
-		for (i = 0; i <= 10; i++)
-		{
-			if( hdr->sizeData[i] && hdr->addressData[i] && hdr->offsetData[i] )
-			{
-				if(ISFS_Seek( fd, hdr->offsetData[i], SEEK_SET )<0)
-				{
-					error = ERROR_BOOT_DOL_SEEK;
-					goto return_dol;
-				}
-				if( ISFS_Read( fd, (void*)(hdr->addressData[i]), hdr->sizeData[i] )<0)
-				{
-					error = ERROR_BOOT_DOL_READ;
-					goto return_dol;
-				}
-
-				DCInvalidateRange( (void*)(hdr->addressData[i]), hdr->sizeData[i] );
-				gdprintf("\t%08x\t\t%08x\t\t%08x\t\t\r\n", (hdr->offsetData[i]), hdr->addressData[i], hdr->sizeData[i]);
-			}
-		}
-		if (dol_settings->argument_count > 0 && argv.argvMagic == ARGV_MAGIC)
-        {
-			void* new_argv = (void*)(hdr->entrypoint + 8);
-			memmove(new_argv, &argv, sizeof(__argv));
-			DCFlushRange(new_argv, sizeof(__argv));
-        }
-		entrypoint = (void (*)())(hdr->entrypoint);
-
+		//load it!
+		BootDolFromMem(binary,1,argv);
 	}
-	ISFS_Close(fd);
-	if( entrypoint == 0x00000000 )
+	catch (const std::string& ex)
 	{
-		error = ERROR_BOOT_DOL_ENTRYPOINT;
-		goto return_dol;
+		gprintf("AutoBootDol Exception -> %s",ex.c_str());
 	}
-	for(int i=0;i<WPAD_MAX_WIIMOTES;i++) {
-		if(WPAD_Probe(i,0) < 0)
-			continue;
-		WPAD_Flush(i);
-		WPAD_Disconnect(i);
-	}
-	if(DvdKilled() < 1)
+	catch (char const* ex)
 	{
-		gprintf("checking DVD drive...\r\n");
-		while(DvdKilled() < 1);
+		gprintf("AutoBootDol Exception -> %s",ex);
+	}
+	catch(...)
+	{
+		gprintf("AutoBootDol Exception was thrown");
 	}
 
-	gprintf("Entrypoint: %08X\r\n", (u32)(entrypoint) );
-	Input_Shutdown();
-	ClearState();
-	ISFS_Deinitialize();
-	ShutdownDevices();
-	USB_Deinitialize();
+	if(binary)
+		mem_free(binary);
+	if(argv != NULL && argv->commandLine != NULL)
+		mem_free(argv->commandLine);
+	if(argv)
+		mem_free(argv);
+	if(fd > 0)
+		ISFS_Close(fd);
 
-	if( !isIOSstub(58) )
-	{
-		Ios_to_load = 58;
-	}
-	else if( !isIOSstub(61) )
-	{
-		Ios_to_load = 61;
-	}
-	else if( !isIOSstub(IOS_GetPreferredVersion()) )
-	{
-		Ios_to_load = IOS_GetPreferredVersion();
-	}
-	else
-	{
-		PrintFormat( 1, TEXT_OFFSET("failed to reload ios for homebrew! ios is a stub!"), 208, "failed to reload ios for homebrew! ios is a stub!");
-		sleep(2);	
-	}
-
-	if(Ios_to_load > 2 && Ios_to_load < 255)
-	{
-		s8 bAHBPROT = dol_settings->HW_AHBPROT_bit;
-		ReloadIos(Ios_to_load,&bAHBPROT);
-		system_state.ReloadedIOS = 1;
-	}
-	__IOS_ShutdownSubsystems();
-	//slightly modified loading code from USBLOADER GX...
-	u32 level;
-	SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
-	_CPU_ISR_Disable (level);
-	mtmsr(mfmsr() & ~0x8000);
-	mtmsr(mfmsr() | 0x2002);
-	entrypoint();
-	_CPU_ISR_Restore (level);
-	//never gonna happen; but failsafe
-	Input_Init();
-	PAD_Init();
-	ISFS_Initialize();
-return_dol:
-	ISFS_Close(fd);
-	if(argv.commandLine != NULL)
-		mem_free(argv.commandLine);
-	if(hdr != NULL)
-		mem_free(hdr);
-	if(ElfHdr != NULL)
-		mem_free(ElfHdr);
 	return;
 }
 void CheckForUpdate()
@@ -2967,19 +2276,19 @@ void CheckForUpdate()
 		if (file_size < 0 && file_size > -4)
 		{
 			//errors connecting to server
-			gprintf("connection failure. error %d\r\n",file_size);
+			gprintf("connection failure. error %d",file_size);
 		}
 		else if (file_size == -7)
 		{
-			gprintf("CheckForUpdate : HTTP Error %s!\r\n",Get_Last_reply());
+			gprintf("CheckForUpdate : HTTP Error %s!",Get_Last_reply());
 		}
 		else if ( file_size < 0 )
 		{
-			gprintf("CheckForUpdate : GetHTTPFile error %d\r\n",file_size);
+			gprintf("CheckForUpdate : GetHTTPFile error %d",file_size);
 		}
 		else if (file_size != (s32)sizeof(UpdateStruct))
 		{
-			gprintf("CheckForUpdate : file_size != UpdateStruct\r\n");
+			gprintf("CheckForUpdate : file_size != UpdateStruct");
 		}
 		sleep(5);
 		mem_free(buffer);
@@ -3125,7 +2434,7 @@ void CheckForUpdate()
 	}
 //Download changelog and ask to proceed or not
 //------------------------------------------------------
-	gprintf("downloading changelog...\r\n");
+	gprintf("downloading changelog...");
 	if(DownloadedBeta)
 	{
 		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/changelog_beta.txt",Changelog,0);
@@ -3228,12 +2537,12 @@ void CheckForUpdate()
 	{
 		if(file_size < -9)
 			mem_free(Changelog);
-		gprintf("CheckForUpdate : failed to get changelog.error %d, HTTP reply %s\r\n",file_size,Get_Last_reply());
+		gprintf("CheckForUpdate : failed to get changelog.error %d, HTTP reply %s",file_size,Get_Last_reply());
 	}
 //The choice is made. lets download what the user wanted :)
 //--------------------------------------------------------------
 	ClearScreen();
-	gprintf("downloading %s\r\n",DownloadedBeta?"beta":"update");
+	gprintf("downloading %s",DownloadedBeta?"beta":"update");
 	if(DownloadedBeta)
 	{
 		PrintFormat( 1, TEXT_OFFSET("downloading   .   beta   ..."), 208, "downloading %d.%d beta %d...",UpdateFile.beta_version >> 8,UpdateFile.beta_version&0xFF, UpdateFile.beta_number);
@@ -3251,17 +2560,17 @@ void CheckForUpdate()
 		if (file_size < 0 && file_size > -4)
 		{
 			//errors connecting to server
-			gprintf("connection failure: error %d\r\n",file_size);
+			gprintf("connection failure: error %d",file_size);
 		}
 		else if (file_size == -7)
 		{
-			gprintf("HTTP Error %s!\r\n",Get_Last_reply());
+			gprintf("HTTP Error %s!",Get_Last_reply());
 		}
 		else
 		{
 			if(file_size < -9)
 				mem_free(Data);
-			gprintf("getting update error %d\r\n",file_size);
+			gprintf("getting update error %d",file_size);
 		}
 		PrintFormat( 1, TEXT_OFFSET("error getting file from server"), 224, "error getting file from server");
 		sleep(2);
@@ -3275,11 +2584,11 @@ void CheckForUpdate()
 		sha.Input(Data,file_size);
 		if (!sha.Result(FileHash))
 		{
-			gprintf("sha: could not compute Hash of Update!\r\nHash : 00 00 00 00 00\r\n");
+			gprintf("sha: could not compute Hash of Update!\r\nHash : 00 00 00 00 00");
 		}
 		else
 		{
-			gprintf( "Downloaded Update : %08X %08X %08X %08X %08X\r\n",
+			gprintf( "Downloaded Update : %08X %08X %08X %08X %08X",
 			FileHash[0],
 			FileHash[1],
 			FileHash[2],
@@ -3289,7 +2598,7 @@ void CheckForUpdate()
 		gprintf("Online : ");
 		if (!DownloadedBeta)
 		{
-			gprintf("%08X %08X %08X %08X %08X\r\n"
+			gprintf("%08X %08X %08X %08X %08X"
 					,UpdateFile.SHA1_Hash[0]
 					,UpdateFile.SHA1_Hash[1]
 					,UpdateFile.SHA1_Hash[2]
@@ -3298,7 +2607,7 @@ void CheckForUpdate()
 		}
 		else
 		{
-			gprintf("%08X %08X %08X %08X %08X\r\n"
+			gprintf("%08X %08X %08X %08X %08X"
 					,UpdateFile.beta_SHA1_Hash[0]
 					,UpdateFile.beta_SHA1_Hash[1]
 					,UpdateFile.beta_SHA1_Hash[2]
@@ -3321,11 +2630,11 @@ void CheckForUpdate()
 			UpdateFile.beta_SHA1_Hash[3] == FileHash[3] &&
 			UpdateFile.beta_SHA1_Hash[4] == FileHash[4] ) ) )
 		{
-			gprintf("Hash check complete. booting file...\r\n");
+			gprintf("Hash check complete. booting file...");
 		}
 		else
 		{
-			gprintf("File not the same : hash check failure!\r\n");
+			gprintf("File not the same : hash check failure!");
 			PrintFormat( 1, TEXT_OFFSET("Error Downloading Update"), 224, "Error Downloading Update");
 			sleep(5);
 			mem_free(Data);
@@ -3368,20 +2677,20 @@ void Autoboot_System( void )
 	switch( SGetSetting(SETTING_AUTBOOT) )
 	{
 		case AUTOBOOT_SYS:
-			gprintf("AutoBoot:System Menu\r\n");
+			gprintf("AutoBoot:System Menu");
 			BootMainSysMenu(0);
 			break;
 		case AUTOBOOT_HBC:
-			gprintf("AutoBoot:Homebrew Channel\r\n");
+			gprintf("AutoBoot:Homebrew Channel");
 			LoadHBC();
 			break;
 		case AUTOBOOT_BOOTMII_IOS:
-			gprintf("AutoBoot:BootMii IOS\r\n");
+			gprintf("AutoBoot:BootMii IOS");
 			LoadBootMii();
 			error=ERROR_BOOT_BOOTMII;
 			break;
 		case AUTOBOOT_FILE:
-			gprintf("AutoBoot:Installed File\r\n");
+			gprintf("AutoBoot:Installed File");
 			AutoBootDol();
 			break;
 		case AUTOBOOT_ERROR:
@@ -3423,10 +2732,10 @@ int main(int argc, char **argv)
 #ifdef DEBUG
 	InitGDBDebug();
 #endif
-	gprintf("priiloader\r\n");
-	gprintf("Built   : %s %s\r\n", __DATE__, __TIME__ );
-	gprintf("Version : %d.%d.%d (rev %s)\r\n", VERSION>>8, (VERSION&0xFF) / 10,(VERSION&0xFF) % 10,GIT_REV_STR);//VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
-	gprintf("Firmware: %d.%d.%d\r\n", *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143 );
+	gprintf("priiloader");
+	gprintf("Built   : %s %s", __DATE__, __TIME__ );
+	gprintf("Version : %d.%d.%d (rev %s)", VERSION>>8, (VERSION&0xFF) / 10,(VERSION&0xFF) % 10,GIT_REV_STR);//VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
+	gprintf("Firmware: %d.%d.%d", *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143 );
 
 	/**(vu32*)0x80000020 = 0x0D15EA5E;				// Magic word (how did the console boot?)
 	*(vu32*)0x800000F8 = 0x0E7BE2C0;				// Bus Clock Speed
@@ -3453,7 +2762,7 @@ int main(int argc, char **argv)
 
 	AddMem2Area (14*1024*1024, OTHER_AREA);
 	LoadHBCStub();
-	gprintf("\"Magic Priiloader word\": %x - %x\r\n",*(vu32*)MAGIC_WORD_ADDRESS_2 ,*(vu32*)MAGIC_WORD_ADDRESS_1);
+	gprintf("\"Magic Priiloader word\": %x - %x",*(vu32*)MAGIC_WORD_ADDRESS_2 ,*(vu32*)MAGIC_WORD_ADDRESS_1);
 	LoadSettings();
 	if(SGetSetting(SETTING_DUMPGECKOTEXT) == 1)
 	{
@@ -3462,11 +2771,11 @@ int main(int argc, char **argv)
 
 	SetDumpDebug(SGetSetting(SETTING_DUMPGECKOTEXT));
 	s16 Bootstate = CheckBootState();
-	gprintf("BootState:%d\r\n", Bootstate );
+	gprintf("BootState:%d", Bootstate );
 	memset(&system_state,0,sizeof(wii_state));
 	StateFlags flags;
 	flags = GetStateFlags();
-	gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u & checksum %u\r\n",flags.type,flags.discstate,flags.returnto,flags.flags,flags.checksum);
+	gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u & checksum %u",flags.type,flags.discstate,flags.returnto,flags.flags,flags.checksum);
 	s8 magicWord = CheckMagicWords();
 	
 	// before anything else, poll input devices such as keyboards to see if we should stop autoboot
@@ -3486,13 +2795,13 @@ int main(int argc, char **argv)
 		{
 			case TYPE_UNKNOWN: //255 or -1, only seen when shutting down from MIOS or booting dol from HBC. it is actually an invalid value
 				flags = GetStateFlags();
-				gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u\r\n",flags.type,flags.discstate,flags.returnto,flags.flags);
+				gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u",flags.type,flags.discstate,flags.returnto,flags.flags);
 				if( flags.flags == 130 ) //&& temp.discstate != 2)
 				{
 					//if the flag is 130, its probably shutdown from mios. in that case system menu 
 					//will handle it perfectly (and i quote from SM's OSreport : "Shutdown system from GC!")
 					//it seems to reboot into bootstate 5. but its safer to let SM handle it
-					gprintf("255:System Menu\r\n");
+					gprintf("255:System Menu");
 					BootMainSysMenu(0);
 				}
 				else
@@ -3507,17 +2816,17 @@ int main(int argc, char **argv)
 				//its not fully confirmed system menu does it(or ios while being standby) and if system menu does indeed clear it.
 				/*if(VerifyNandBootInfo())
 				{
-					gprintf("Verifty of NandBootInfo : 1\nbootstate changed to %d\r\n",CheckBootState());
+					gprintf("Verifty of NandBootInfo : 1\nbootstate changed to %d",CheckBootState());
 				}
 				else
 				{
-					gprintf("Verifty of NandBootInfo : 0\r\n");
+					gprintf("Verifty of NandBootInfo : 0");
 				}*/
 				if(SGetSetting(SETTING_SHUTDOWNTO) == SHUTDOWNTO_AUTOBOOT)
 				{
 					//a function asked for by Abraham Anderson. i understood his issue (emulators being easy to shutdown but not return to loader, making him want to shutdown to loader) 
 					//but still think its stupid. however, days of the wii are passed and i hope no idiot is going to screw his wii with this and then nag to me...
-					gprintf("booting autoboot instead of shutting down...\r\n");
+					gprintf("booting autoboot instead of shutting down...");
 					Autoboot_System();
 				}
 				else if(SGetSetting(SETTING_SHUTDOWNTO) == SHUTDOWNTO_NONE)
@@ -3556,7 +2865,7 @@ int main(int argc, char **argv)
 				switch( SGetSetting(SETTING_RETURNTO) )
 				{
 					case RETURNTO_SYSMENU:
-						gprintf("ReturnTo:System Menu\r\n");
+						gprintf("ReturnTo:System Menu");
 						BootMainSysMenu(0);
 					break;
 
@@ -3579,7 +2888,7 @@ int main(int argc, char **argv)
 				if( ClearState() < 0 )
 				{
 					error = ERROR_STATE_CLEAR;
-					gprintf("ClearState failure\r\n");
+					gprintf("ClearState failure");
 				}
 				break;
 
@@ -3589,24 +2898,24 @@ int main(int argc, char **argv)
 	//Plan B address : 0x93FFFFFA
 	if(magicWord == MAGIC_WORD_DACO)
  	{
-		gprintf("\"Magic Priiloader Word\" 'Daco' found!\r\n");
-		gprintf("clearing memory of the \"Magic Priiloader Word\"\r\n");
+		gprintf("\"Magic Priiloader Word\" 'Daco' found!");
+		gprintf("clearing memory of the \"Magic Priiloader Word\"");
 		ClearMagicWord();
 		
 	}
 	else if(magicWord == MAGIC_WORD_PUNE)
 	{
 		//detected the force for sys menu
-		gprintf("\"Magic Priiloader Word\" 'Pune' found!\r\n");
-		gprintf("clearing memory of the \"Magic Priiloader Word\" and starting system menu...\r\n");
+		gprintf("\"Magic Priiloader Word\" 'Pune' found!");
+		gprintf("clearing memory of the \"Magic Priiloader Word\" and starting system menu...");
 		ClearMagicWord();
 		BootMainSysMenu(0);
 	}
 	else if( magicWord == MAGIC_WORD_ABRA )
 	{
 		//detected the force for autoboot
-		gprintf("\"Magic Priiloader Word\" 'Abra' found!\r\n");
-		gprintf("clearing memory of the \"Magic Priiloader Word\" and starting Autorun setting...\r\n");
+		gprintf("\"Magic Priiloader Word\" 'Abra' found!");
+		gprintf("clearing memory of the \"Magic Priiloader Word\" and starting Autorun setting...");
 		ClearMagicWord();
 		Autoboot_System();
 	}
@@ -3616,7 +2925,7 @@ int main(int argc, char **argv)
 		 || ( SGetSetting(SETTING_SHUTDOWNTO) == SHUTDOWNTO_NONE && Bootstate == 5 ) ) 
 		 && error == 0 )
 	{
-		gprintf("Reset Button is held down\r\n");
+		gprintf("Reset Button is held down");
 	}
 	
 	r = (s32)PollDevices();
@@ -3639,14 +2948,14 @@ int main(int argc, char **argv)
 	}
 	_sync();
 #ifdef DEBUG
-	gdprintf("priiloader v%d.%d DEBUG (Sys:%d)(IOS:%d)(%s %s)\r\n", VERSION>>8, VERSION&0xFF, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
+	gdprintf("priiloader v%d.%d DEBUG (Sys:%d)(IOS:%d)(%s %s)", VERSION>>8, VERSION&0xFF, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
 #else
 	#if BETAVERSION > 0
-		gprintf("priiloader v%d.%d BETA %d (Sys:%d)(IOS:%d)(%s %s)\r\n", VERSION>>8, VERSION&0xFF,BETAVERSION,SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
+		gprintf("priiloader v%d.%d BETA %d (Sys:%d)(IOS:%d)(%s %s)", VERSION>>8, VERSION&0xFF,BETAVERSION,SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
 	#endif
 #endif
 	system_state.InMainMenu = 1;
-	//gprintf("ptr : 0x%08X data of ptr : 0x%08X size : %d\r\n",&system_state,*((u32*)&system_state),sizeof(system_state));
+	//gprintf("ptr : 0x%08X data of ptr : 0x%08X size : %d",&system_state,*((u32*)&system_state),sizeof(system_state));
 	while(1)
 	{
 		Input_ScanPads();

@@ -69,7 +69,6 @@ extern void *xfb;
 //---------------
 void InitVideo ( void );
 
-#define free_pointer(x) if(x != NULL) { free(x);x=NULL; }
 void Control_VI_Regs ( u8 mode );
 s8 InitNetwork();
 u8 GetUsbOnlyMode();
