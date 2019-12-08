@@ -61,13 +61,13 @@ s8 CheckTitleOnSD(u64 id)
 	{
 		//content.bin is there meaning its on SD
 		fclose(SDHandler);
-		gprintf("CheckTitleOnSD : title is saved on SD\r\n");
+		gprintf("CheckTitleOnSD : title is saved on SD");
 		return 1;
 	}
 	else
 	{
 		//title isn't on SD either. ow well...
-		gprintf("CheckTitleOnSD : content not found on NAND or SD for %08X\\%08X\r\n",(u32)(id >> 32),title_l);
+		gprintf("CheckTitleOnSD : content not found on NAND or SD for %08X\\%08X",(u32)(id >> 32),title_l);
 		return 0;
 	}
 }
@@ -102,20 +102,20 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
     char file[256] ATTRIBUTE_ALIGN(32);
 	memset(file,0,256);
     sprintf(file, "/title/%08lx/%08lx/content/%08lx.app", (u32)(id >> 32), (u32)(id & 0xFFFFFFFF), app);
-	gdprintf("GetTitleName : %s\r\n",file);
+	gdprintf("GetTitleName : %s",file);
 	u32 cnt ATTRIBUTE_ALIGN(32);
 	cnt = 0;
 	IMET *data = (IMET *)mem_align(32, ALIGN32( sizeof(IMET) ) );
 	if(data == NULL)
 	{
-		gprintf("GetTitleName : IMET header align failure\r\n");
+		gprintf("GetTitleName : IMET header align failure");
 		return -1;
 	}
 	memset(data,0,sizeof(IMET) );
 	r = ES_GetNumTicketViews(id, &cnt);
 	if(r < 0)
 	{
-		gprintf("GetTitleName : GetNumTicketViews error %d!\r\n",r);
+		gprintf("GetTitleName : GetNumTicketViews error %d!",r);
 		mem_free(data);
 		return -1;
 	}
@@ -128,7 +128,7 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 	r = ES_GetTicketViews(id, views, cnt);
 	if (r < 0)
 	{
-		gprintf("GetTitleName : GetTicketViews error %d \r\n",r);
+		gprintf("GetTitleName : GetTicketViews error %d ",r);
 		mem_free(data);
 		mem_free(views);
 		return -3;
@@ -147,7 +147,7 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 	else if(fh < 0)
 	{
 		//ES method failed. remove tikviews from memory and fall back on ISFS method
-		gprintf("GetTitleName : ES_OpenTitleContent error %d\r\n",fh);
+		gprintf("GetTitleName : ES_OpenTitleContent error %d",fh);
 		mem_free(views);
 		fh = ISFS_Open(file, ISFS_OPEN_READ);
 		// fuck failed. lets check SD & GTFO
@@ -159,13 +159,13 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 		else if (fh < 0)
 		{
 			mem_free(data);
-			gprintf("open %s error %d\r\n",file,fh);
+			gprintf("open %s error %d",file,fh);
 			return -5;
 		}
 		// read the completed IMET header
 		r = ISFS_Read(fh, data, sizeof(IMET));
 		if (r < 0) {
-			gprintf("IMET read error %d\r\n",r);
+			gprintf("IMET read error %d",r);
 			ISFS_Close(fh);
 			mem_free(data);
 			return -6;
@@ -177,7 +177,7 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 		//ES method
 		r = ES_ReadContent(fh,(u8*)data,sizeof(IMET));
 		if (r < 0) {
-			gprintf("GetTitleName : ES_ReadContent error %d\r\n",r);
+			gprintf("GetTitleName : ES_ReadContent error %d",r);
 			ES_CloseContent(fh);
 			mem_free(data);
 			mem_free(views);
@@ -221,22 +221,22 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 	}
 	else
 	{
-		gprintf("invalid IMET header for 0x%08x/0x%08x\r\n", (u32)(id >> 32), (u32)(id & 0xFFFFFFFF));
+		gprintf("invalid IMET header for 0x%08x/0x%08x", (u32)(id >> 32), (u32)(id & 0xFFFFFFFF));
 		return -9;
 	}
 	if(str[lang][0] != '\0')
 	{
-		gdprintf("GetTitleName : title %s\r\n",str[lang]);
+		gdprintf("GetTitleName : title %s",str[lang]);
 		snprintf(name,255, "%s", str[lang]);
 		if (return_unicode_name && str_unprocessed[lang][1] != '\0')
 		{
 			memcpy(_dst_uncode_name,&str_unprocessed[lang][0],83);
 		}
 		else if(return_unicode_name)
-			gprintf("WARNING : empty unprocessed string\r\n");
+			gprintf("WARNING : empty unprocessed string");
 	}
 	else
-		gprintf("GetTitleName: no name found\r\n");
+		gprintf("GetTitleName: no name found");
 	memset(str,0,10*84);
 	memset(str_unprocessed,0,10*84);
 	return 1;
@@ -249,24 +249,24 @@ s32 LoadListTitles( void )
 	ret = ES_GetNumTitles(&count);
 	if (ret < 0)
 	{
-		gprintf("GetNumTitles error %x\r\n",ret);
+		gprintf("GetNumTitles error %x",ret);
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the amount of installed titles!"))*13/2))>>1, 208+16, "Failed to get the amount of installed titles!");
 		sleep(3);
 		return ret;
 	}
 	if(count == 0)
 	{
-		gprintf("count == 0\r\n");
+		gprintf("count == 0");
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+32, "Failed to get the titles list!");
 		sleep(3);
 		return ret;
 	}
-	gdprintf("%u titles\r\n",count);
+	gdprintf("%u titles",count);
 
 	u64* title_list = (u64*)mem_align( 32, ALIGN32(sizeof(u64)*count) );
 	if(title_list == NULL)
 	{
-		gprintf("LoadListTitles : fail to memalign list\r\n");
+		gprintf("LoadListTitles : fail to memalign list");
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+32, "Failed to get the titles list!");
 		sleep(3);
 		return ret;
@@ -275,7 +275,7 @@ s32 LoadListTitles( void )
 	ret = ES_GetTitles(title_list, count);
 	if (ret < 0) {
 		mem_free(title_list);
-		gprintf("ES_GetTitles error %x\r\n",-ret);
+		gprintf("ES_GetTitles error %x",-ret);
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to get the titles list!"))*13/2))>>1, 208+32, "Failed to get the titles list!");
 		sleep(3);
 		return ret;
@@ -300,7 +300,7 @@ s32 LoadListTitles( void )
 				ret = ES_GetTMDViewSize(title_list[i], &tmd_size);
 				if(ret<0)
 				{
-					gprintf("WARNING : GetTMDViewSize error %d on title %x-%x\r\n",ret,(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
+					gprintf("WARNING : GetTMDViewSize error %d on title %x-%x",ret,(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
 					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMDSize error on 00000000-00000000!"))*13/2))>>1, 208+32, "WARNING : TMDSize error on %08X-%08X",(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
 					sleep(3);
 					if( !SGetSetting(SETTING_BLACKBACKGROUND))
@@ -325,7 +325,7 @@ s32 LoadListTitles( void )
 				ret = ES_GetTMDView(title_list[i], (u8*)rTMD, tmd_size);
 				if(ret<0)
 				{
-					gprintf("WARNING : GetTMDView error %d on title %x-%x\r\n",ret,(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
+					gprintf("WARNING : GetTMDView error %d on title %x-%x",ret,(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
 					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMD error on 00000000-00000000!"))*13/2))>>1, 208+32, "WARNING : TMD error on %08X-%08X!",(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
 					sleep(3);
 					if(rTMD)
@@ -355,9 +355,9 @@ s32 LoadListTitles( void )
 					temp.title_id = rTMD->title_id;
 					temp.name_ascii = temp_name;
 					temp.content_id = rTMD->contents[0].cid;
-					//gprintf("0x%02X%02X%02X%02X\r\n",temp.name_unicode[0],temp.name_unicode[1],temp.name_unicode[2],temp.name_unicode[3]);
+					//gprintf("0x%02X%02X%02X%02X",temp.name_unicode[0],temp.name_unicode[1],temp.name_unicode[2],temp.name_unicode[3]);
 					titles.push_back(temp);
-					gprintf("LoadListTitles : added %d , title id %08X/%08X(%s)\r\n",titles.size(),TITLE_UPPER(temp.title_id),TITLE_LOWER(temp.title_id),temp.name_ascii.c_str());
+					gprintf("LoadListTitles : added %d , title id %08X/%08X(%s)",titles.size(),TITLE_UPPER(temp.title_id),TITLE_LOWER(temp.title_id),temp.name_ascii.c_str());
 				}
 				if(rTMD)
 				{
@@ -484,22 +484,22 @@ s32 LoadListTitles( void )
 #ifdef USE_DVD_ASYNC
 			if(DVDCheckCover())
 			{
-				gprintf("LoadListTitles : excecuting StopDisc Async...\r\n");
+				gprintf("LoadListTitles : excecuting StopDisc Async...");
 				DVDStopDisc(true);
 			}
 			else
 			{
-				gprintf("LoadListTitles : Skipping StopDisc -> no drive or disc in drive\r\n");
+				gprintf("LoadListTitles : Skipping StopDisc -> no drive or disc in drive");
 			}
 #else
 			if(DVDCheckCover())
 			{
-				gprintf("LoadListTitles : excecuting StopDisc...\r\n");
+				gprintf("LoadListTitles : excecuting StopDisc...");
 				DVDStopDisc(false);
 			}
 			else
 			{
-				gprintf("LoadListTitles : Skipping StopDisc -> no drive or disc in drive\r\n");
+				gprintf("LoadListTitles : Skipping StopDisc -> no drive or disc in drive");
 			}
 #endif
 			
@@ -508,12 +508,12 @@ s32 LoadListTitles( void )
 
 			if (ES_GetNumTicketViews(titles[cur_off].title_id, &cnt) < 0)
 			{
-				gprintf("GetNumTicketViews failure\r\n");
+				gprintf("GetNumTicketViews failure");
 				goto failure;
 			}
 			if (ES_GetTicketViews(titles[cur_off].title_id, views, cnt) < 0 )
 			{
-				gprintf("ES_GetTicketViews failure!\r\n");
+				gprintf("ES_GetTicketViews failure!");
 				goto failure;
 			}
 			if(wcslen((wchar_t*)titles[cur_off].name_unicode))
@@ -524,11 +524,11 @@ s32 LoadListTitles( void )
 				std::string id;
 				id.push_back(titles[cur_off].title_id & 0xFFFFFFFF);
 				ret = Playlog_Update(id.c_str(), titles[cur_off].name_unicode);
-				gdprintf("play_rec ret = %d\r\n",ret);
+				gdprintf("play_rec ret = %d",ret);
 			}
 			else
 			{
-				gprintf("no title name to use in play_rec\r\n");
+				gprintf("no title name to use in play_rec");
 			}
 			net_wc24cleanup();
 			ClearState();
@@ -537,7 +537,7 @@ s32 LoadListTitles( void )
 			ShutdownDevices();
 
 #ifdef USE_DVD_ASYNC
-			gdprintf("waiting for drive to stop...\r\n");
+			gdprintf("waiting for drive to stop...");
 			while(DvdKilled() < 1);
 #endif
 			VIDEO_SetBlack(1);
@@ -585,7 +585,7 @@ failure:
 					title_ID[4]='\0';
 					PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "(%d)%s(%s)                              ",i+1,titles[i].name_ascii.c_str(), title_ID);
 				}
-				//gprintf("lolid : %s - %x & %x \r\n",title_ID,titles[i].title_id,(titles[i].title_id & 0x00000000FFFFFFFF) << 32);			
+				//gprintf("lolid : %s - %x & %x ",title_ID,titles[i].title_id,(titles[i].title_id & 0x00000000FFFFFFFF) << 32);			
 			}
 			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("A(A) Load Title       "))*13/2))>>1, rmode->viHeight-32, "A(A) Load Title");
 			redraw = false;

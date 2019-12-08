@@ -22,18 +22,18 @@ bool isIOSstub(u8 ios_number)
 	if (!tmd_size)
 	{
 		//getting size failed. invalid or fake tmd for sure!
-		gdprintf("isIOSstub : ES_GetTMDViewSize fail,ios %d\r\n",ios_number);
+		gdprintf("isIOSstub : ES_GetTMDViewSize fail,ios %d",ios_number);
 		return true;
 	}
 	ios_tmd = (tmd_view *)mem_align( 32, ALIGN32(tmd_size) );
 	if(!ios_tmd)
 	{
-		gdprintf("isIOSstub : TMD alloc failure\r\n");
+		gdprintf("isIOSstub : TMD alloc failure");
 		return true;
 	}
 	memset(ios_tmd , 0, tmd_size);
 	ES_GetTMDView(0x0000000100000000ULL | ios_number, (u8*)ios_tmd , tmd_size);
-	gdprintf("isIOSstub : IOS %d is rev %d(0x%x) with tmd size of %u and %u contents\r\n",ios_number,ios_tmd->title_version,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
+	gdprintf("isIOSstub : IOS %d is rev %d(0x%x) with tmd size of %u and %u contents",ios_number,ios_tmd->title_version,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
 	/*Stubs have a few things in common:
 	- title version : it is mostly 65280 , or even better : in hex the last 2 digits are 0. 
 		example : IOS 60 rev 6400 = 0x1900 = 00 = stub
@@ -53,12 +53,12 @@ bool isIOSstub(u8 ios_number)
 		}
 		else
 		{
-			gdprintf("isIOSstub : %d != stub\r\n",ios_number);
+			gdprintf("isIOSstub : %d != stub",ios_number);
 			mem_free(ios_tmd);
 			return false;
 		}
 	}
-	gdprintf("isIOSstub : %d != stub\r\n",ios_number);
+	gdprintf("isIOSstub : %d != stub",ios_number);
 	mem_free(ios_tmd);
 	return false;
 }
