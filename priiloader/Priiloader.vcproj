@@ -161,10 +161,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\source\unstub.S"
-				>
-			</File>
-			<File
 				RelativePath=".\source\usbstorage.c"
 				>
 			</File>
@@ -176,10 +172,6 @@
 			>
 			<File
 				RelativePath=".\include\dvd.h"
-				>
-			</File>
-			<File
-				RelativePath=".\include\elf.h"
 				>
 			</File>
 			<File
@@ -268,6 +260,18 @@
 			</File>
 			<File
 				RelativePath=".\data\stub.bin"
+				>
+			</File>
+		</Filter>
+		<Filter
+			Name="loader"
+			>
+			<File
+				RelativePath=".\loader\executables.h"
+				>
+			</File>
+			<File
+				RelativePath=".\loader\loader.c"
 				>
 			</File>
 		</Filter>

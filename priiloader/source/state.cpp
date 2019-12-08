@@ -190,7 +190,7 @@ s32 SetNandBootInfo(void)
 	if(ret < 0)
 	{
 		ISFS_Close(fd);
-		gprintf("SetNandBootInfo : ISFS_Write returned %d\r\n",ret);
+		gprintf("SetNandBootInfo : ISFS_Write returned %d",ret);
 		return -2;
 	}
 	ISFS_Close(fd);

@@ -43,13 +43,13 @@ s32 nand_file_handler = -1;
 
 void _showError(const char* errorMsg, ...)
 {
-	char astr[2048];
-	memset(astr, 0, 2048);
+	char astr[1024];
+	memset(astr, 0, 1024);
 
 	va_list ap;
 	va_start(ap, errorMsg);
 
-	vsnprintf(astr, 2047, errorMsg, ap);
+	vsnprintf(astr, 1024, errorMsg, ap);
 
 	va_end(ap);
 
@@ -66,7 +66,7 @@ bool GetLine(bool reading_nand, std::string& line)
 		//Read untill a newline is found		
 		if (reading_nand)
 		{
-			u32 read_count = 0;
+			/*u32 read_count = 0;
 			u32 file_pos = 0;
 			const u16 max_loop = 1000;
 			const u32 block_size = 32;
@@ -88,7 +88,7 @@ bool GetLine(bool reading_nand, std::string& line)
 						)
 					)
 				)
-			{						
+			{		
 				read_count++;
 				//are we dealing with a potential overflow?
 				if (read_count > max_loop)
@@ -117,12 +117,12 @@ bool GetLine(bool reading_nand, std::string& line)
 				s32 ret = ISFS_Read(nand_file_handler, (void*)addr, block_size);
 				if (ret < 0)
 				{
-					throw "Error reading from NAND";
+					throw "Error reading from NAND (" + std::to_string(ret) + ")";
 				}
 
 				if(strlen(buf) > block_size*max_loop)
 				{
-					throw "buf has overflown its max size during loop";
+					throw "buf has overflown";
 				}
 			}
 
@@ -152,11 +152,10 @@ bool GetLine(bool reading_nand, std::string& line)
 			}
 			if(cut_string.front() == '\r')
 				cut_string = cut_string.substr(1, cut_string.length() - 1);
-
 			line = cut_string;
-			
+
 			//seek file back correctly
-			ISFS_Seek(nand_file_handler, file_pos, SEEK_SET);
+			ISFS_Seek(nand_file_handler, file_pos, SEEK_SET);*/
 		}
 		else
 		{
@@ -174,40 +173,27 @@ bool GetLine(bool reading_nand, std::string& line)
 	}
 	catch (char const* ex)
 	{
-		if (buf)
-			mem_free(buf);
-
-		gprintf("GetLine Exception was thrown : %s\r\n",ex);
-
-		line = "";
-		return false;
+		gprintf("GetLine Exception : %s",ex);
 	}
 	catch (const std::string& ex)
 	{
-		if (buf)
-			mem_free(buf);
-
-		gprintf("GetLine Exception was thrown : %s\r\n",ex);
-
-		line = "";
-		return false;
+		gprintf("GetLine Exception : %s",ex);
 	}
 	catch(...)
-	{
-		if (buf)
-			mem_free(buf);
-		
-		gprintf("GetLine General Exception thrown\r\n");
-
-		line = "";
-		return false;
+	{	
+		gprintf("GetLine General Exception");
 	}
+
+	if (buf)
+		mem_free(buf);
+	line = "";
+	return false;
 }
 bool _processLine(system_hack& hack, std::string &line)
 {
 	try
 	{
-		gprintf("processing line : %s\r\n", line.c_str());
+		gdprintf("processing %s",line.c_str());
 		if(line.front() == '[' && line.back() == ']')
 		{
 			line = line.substr(1,line.length()-2);
@@ -228,7 +214,6 @@ bool _processLine(system_hack& hack, std::string &line)
 			hack.patches.push_back(system_patch());
 		}
 		temp_patch = &hack.patches.back();
-		gprintf("address of temp_patch : 0x%08X\r\n",(u32)temp_patch);
 
 		while(value.length() > 0)
 		{
@@ -253,12 +238,12 @@ bool _processLine(system_hack& hack, std::string &line)
 		}
 
 		if(type.length() <= 0 || values.size() <= 0)
-			throw "failed to split line into type and values";
+			throw "failed to split line";
 
 		if(type == "amount")
 		{
 			//not needed line, but we used to have it. we do nothing with it though...
-			hack.amount = strtoul(values.front().c_str(),NULL, 10);
+			//hack.amount = strtoul(values.front().c_str(),NULL, 10);
 		}
 		else if(type == "maxversion")
 		{
@@ -278,7 +263,7 @@ bool _processLine(system_hack& hack, std::string &line)
 			{				
 				value = values.at(i);
 				if(value.length() < 4 || value.length() > 10 || value.find("0x") != 0 )
-					throw "Invalid patch value : " + value;
+					throw "Invalid patch : " + value;
 
 				value = value.substr(2);
 
@@ -293,7 +278,6 @@ bool _processLine(system_hack& hack, std::string &line)
 				while(value.size() > 0)
 				{
 					std::string str_patch;
-					u8 patch;
 					if(value.size() > 2)
 					{
 						str_patch = "0x" + value.substr(0,2);
@@ -304,10 +288,7 @@ bool _processLine(system_hack& hack, std::string &line)
 						str_patch = value;
 						value.clear();
 					}
-					patch = strtoul(str_patch.c_str(),NULL, 16);
-					gprintf("converted to 0x%02X\r\n",patch);
-					temp_patch->patch.push_back(patch);
-					gprintf("pushed\r\n");
+					temp_patch->patch.push_back(strtoul(str_patch.c_str(),NULL, 16));
 				}
 			}
 		}
@@ -321,7 +302,7 @@ bool _processLine(system_hack& hack, std::string &line)
 			{				
 				value = values.at(i);
 				if(value.length() < 4 || value.length() > 10 || value.find("0x") != 0)
-					throw "Invalid hash value : " + value;
+					throw "Invalid hash : " + value;
 				value = value.substr(2);
 
 				//start new patch if we already have one
@@ -335,7 +316,6 @@ bool _processLine(system_hack& hack, std::string &line)
 				while(value.size() > 0)
 				{
 					std::string str_hash;
-					u8 hash;
 					if(value.size() > 2)
 					{
 						str_hash = "0x" + value.substr(0,2);
@@ -346,10 +326,7 @@ bool _processLine(system_hack& hack, std::string &line)
 						str_hash = value;
 						value.clear();
 					}
-					hash = strtoul(str_hash.c_str(),NULL, 16);
-					gprintf("converted to 0x%02X\r\n",hash);
-					temp_patch->hash.push_back(hash);
-					gprintf("pushed\r\n");
+					temp_patch->hash.push_back(strtoul(str_hash.c_str(),NULL, 16));
 					str_hash.clear();
 				}
 			}
@@ -359,7 +336,7 @@ bool _processLine(system_hack& hack, std::string &line)
 			//process offset
 			//example : offset=0x81000000
 			if(values.front().size() != 10)
-				throw "Invalid offset value : " + value;
+				throw "Invalid offset : " + values.front().size();
 
 			//save the old patch and start a new one.
 			if(temp_patch->patch.size() > 0 && ( temp_patch->hash.size() > 0 || temp_patch->offset != 0 ))
@@ -373,34 +350,27 @@ bool _processLine(system_hack& hack, std::string &line)
 		}
 		else
 		{
-			throw "unknown line type : " + type;
+			throw "unknown type : " + type;
 		}
 		return true;
 	}
 	catch (const std::string& ex)
 	{
-		gprintf("_processLine Exception -> %s\r\n",ex.c_str());
-		if(line.length() > 0)
-			gprintf("line : %s\r\n",line.c_str());
-
-		return false;
+		gprintf("_processLine Exception: %s",ex.c_str());
 	}
 	catch (char const* ex)
 	{
-		gprintf("_processLine Exception -> %s\r\n",ex);
-		if(line.length() > 0)
-			gprintf("line : %s\r\n",line.c_str());
-
-		return false;
+		gprintf("_processLine Exception: %s",ex);
 	}
 	catch(...)
 	{
-		gprintf("_processLine General Exception : invalid line to process\r\n");		
-		if(line.length() > 0)
-			gprintf("line : %s\r\n",line.c_str());
-
-		return false;
+		gprintf("_processLine General Exception: invalid line");		
 	}	
+
+	if(line.length() > 0)
+		gprintf("line : %s",line.c_str());
+
+	return false;
 }
 bool _addOrRejectHack(system_hack& hack)
 {
@@ -415,17 +385,17 @@ bool _addOrRejectHack(system_hack& hack)
 			hack.patches.back().patch.size() > 0
 			)
 		{
-			gdprintf("loaded %s (v%d - v%d)\r\n",hack.desc.c_str(),hack.min_version,hack.max_version);
+			gdprintf("loaded %s (v%d - v%d)",hack.desc.c_str(),hack.min_version,hack.max_version);
 			system_hacks.push_back(hack);
 			return true;
 		}
 
-		gdprintf("dropping hack %s\r\n",hack.desc.c_str());
+		gdprintf("dropping hack %s",hack.desc.c_str());
 		return false;
 	}
 	catch(...)
 	{
-		gprintf("General _addOrRejectHack exception thrown\r\n");
+		gprintf("General _addOrRejectHack exception thrown");
 		return false;
 	}
 }
@@ -434,19 +404,19 @@ s8 LoadSystemHacks(bool load_nand)
 	u32 file_size = 0;
 
 	//system_hacks already loaded
-	if (system_hacks.size()) 
+	if (system_hacks.size() || states_hash.size()) 
 	{
 		system_hacks.clear();
 		states_hash.clear();
 	}
 
 	//clear any possible open handlers
-	if (load_nand && nand_file_handler >= 0)
+	if (nand_file_handler >= 0)
 	{
 		ISFS_Close(nand_file_handler);
 		nand_file_handler = -1;
 	}
-	else if (!load_nand && sd_file_handler != NULL)
+	else if (sd_file_handler != NULL)
 	{
 		if(sd_file_handler->is_open())
 			sd_file_handler->close();
@@ -462,7 +432,7 @@ s8 LoadSystemHacks(bool load_nand)
 		if (!sd_file_handler || !sd_file_handler->is_open())
 		{
 			sd_file_handler = NULL;
-			gprintf("fopen error : strerror %s\r\n", strerror(errno));
+			gprintf("fopen error : %s", strerror(errno));
 		}
 		else
 		{
@@ -480,7 +450,7 @@ s8 LoadSystemHacks(bool load_nand)
 		nand_file_handler = ISFS_Open("/title/00000001/00000002/data/hackshas.ini", 1);
 		if (nand_file_handler < 0)
 		{
-			gprintf("LoadHacks : hacks_hash.ini not on FAT or Nand. ISFS_Open error %d\r\n", nand_file_handler);
+			gprintf("LoadHacks : hacks_hash.ini not on FAT or Nand. ISFS_Open error %d", nand_file_handler);
 			return 0;
 		}
 
@@ -512,7 +482,6 @@ s8 LoadSystemHacks(bool load_nand)
 	//Process File
 	std::string line;
 	system_hack new_hack;
-	gprintf("going into loop\r\n");
 
 	while (GetLine(load_nand,line))
 	{
@@ -532,7 +501,7 @@ s8 LoadSystemHacks(bool load_nand)
 		if(line.front() == '[' && line.back() == ']')
 		{
 			_addOrRejectHack(new_hack);
-			new_hack.amount = 0;
+			//new_hack.amount = 0;
 			new_hack.desc.clear();
 			new_hack.max_version = 0;
 			new_hack.min_version = 0;
@@ -569,53 +538,67 @@ s8 LoadSystemHacks(bool load_nand)
 		if(ISFS_GetFileStats( nand_file_handler, status)<0)
 			return 0;
 
-		u8 *fbuf = (u8 *)mem_align( 32, ALIGN32(status->file_length) );
-		if( fbuf == NULL )
+		//if the file is not the same size as the loaded hacks, we ignore the file
+		if(status->file_length == system_hacks.size())
 		{
-			error = ERROR_MALLOC;
-			return 0;
-		}
-		memset( fbuf, 0, status->file_length );
+			u8 *fbuf = (u8 *)mem_align( 32, ALIGN32(status->file_length) );
+			if( fbuf == NULL )
+			{
+				error = ERROR_MALLOC;
+				return 0;
+			}
+			memset( fbuf, 0, status->file_length );
 
-		if(ISFS_Read( nand_file_handler, fbuf, status->file_length )<0)
-		{
+			if(ISFS_Read( nand_file_handler, fbuf, status->file_length )< (s32)status->file_length )
+			{
+				ISFS_Close( nand_file_handler );
+				mem_free(fbuf);
+				return 0;
+			}
+			ISFS_Close( nand_file_handler );
+			nand_file_handler = -1;
+
+			for(u32 i = 0;i < status->file_length;i++)
+			{
+				states_hash.push_back(fbuf[i]);
+			}		
+
 			mem_free(fbuf);
-			return 0;
 		}
-		ISFS_Close( nand_file_handler );
-		nand_file_handler = -1;
-
-		for(u32 i = 0;i < status->file_length;i++)
-		{
-			states_hash.push_back(fbuf[i]);
-		}		
-
-		mem_free(fbuf);
 	}
 
-	if (nand_file_handler < 0 || states_hash.size() != system_hacks.size())
+	//the hack sizes don't match. reset the states
+	if(states_hash.size() != system_hacks.size())
 	{
+		states_hash.clear();
+		while(states_hash.size() != system_hacks.size())
+		{
+			states_hash.push_back(0);
+		}
+	}
+	
+	//if an actual ISFS error was given -> recreate
+	if (nand_file_handler < -1)
+	{
+		//delete file if it exists
+		ISFS_Delete("/title/00000001/00000002/data/hacksh_s.ini");
+
 		//file not found or not correct size - create a new one
 		nand_file_handler = ISFS_CreateFile("/title/00000001/00000002/data/hacksh_s.ini", 0, 3, 3, 3);
 		if(nand_file_handler < 0 )
 		{		
-			gprintf("LoadHacks : hacksh_s(states) could not be created. ISFS_CreateFile error %d\r\n", nand_file_handler);
+			gprintf("LoadHacks : hacksh_s(states) could not be created. ISFS_CreateFile error %d", nand_file_handler);
 			return 0;
 		}
 
 		nand_file_handler = ISFS_Open("/title/00000001/00000002/data/hacksh_s.ini", 1|2 );
 		if( nand_file_handler < 0 )
 		{
-			gprintf("LoadHacks : hacksh_s(states) could not be loaded. ISFS_Open error %d\r\n", nand_file_handler);
+			gprintf("LoadHacks : hacksh_s(states) could not be loaded. ISFS_Open error %d", nand_file_handler);
 			return 0;
 		}
 
-		states_hash.clear();
-		while(states_hash.size() != system_hacks.size())
-			states_hash.push_back(0);
-
-		ISFS_Write( nand_file_handler, &states_hash[0], sizeof( u32 ) * system_hacks.size() );
-
+		ISFS_Write( nand_file_handler, &states_hash[0], sizeof( u8 ) * system_hacks.size() );
 		ISFS_Close(nand_file_handler);
 		nand_file_handler = -1;
 	}	

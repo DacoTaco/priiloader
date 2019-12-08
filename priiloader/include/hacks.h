@@ -34,9 +34,8 @@ struct system_patch {
 
 struct system_hack {
 	std::string desc;
-	unsigned int max_version = 0;
-	unsigned int min_version = 0;
-	unsigned int amount = 0;
+	u16 max_version = 0;
+	u16 min_version = 0;
 	std::vector< system_patch > patches;
 }ATTRIBUTE_ALIGN(32);
 

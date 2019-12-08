@@ -27,5 +27,5 @@ wiki
 *.*
 /Shared/gitrev.h
 /priiloader/data/certs.bin
-/Installer/data/priiloader.app
 /priiloader/data/loader.bin
+/Installer/data/priiloader.app

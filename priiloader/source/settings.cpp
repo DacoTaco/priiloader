@@ -70,21 +70,21 @@ u32 GetSysMenuVersion( void )
 	s32 r = ES_GetTMDViewSize(TitleID, &tmd_size);
 	if(r<0)
 	{
-		gprintf("SysMenuVersion : GetTMDViewSize error %d\r\n",r);
+		gprintf("SysMenuVersion : GetTMDViewSize error %d",r);
 		return 0;
 	}
 
 	tmd_view *rTMD = (tmd_view*)mem_align( 32, ALIGN32(tmd_size) );
 	if( rTMD == NULL )
 	{
-		gdprintf("SysMenuVersion : memalign failure\r\n");
+		gdprintf("SysMenuVersion : memalign failure");
 		return 0;
 	}
 	memset(rTMD,0, tmd_size );
 	r = ES_GetTMDView(TitleID, (u8*)rTMD, tmd_size);
 	if(r<0)
 	{
-		gprintf("SysMenuVersion : GetTMDView error %d\r\n",r);
+		gprintf("SysMenuVersion : GetTMDView error %d",r);
 		mem_free( rTMD );
 		return 0;
 	}	
@@ -105,21 +105,21 @@ u32 GetSysMenuIOS( void )
 	s32 r = ES_GetTMDViewSize(TitleID, &tmd_size);
 	if(r<0)
 	{
-		gprintf("GetSysMenuIOS : GetTMDViewSize error %d\r\n",r);
+		gprintf("GetSysMenuIOS : GetTMDViewSize error %d",r);
 		return 0;
 	}
 
 	tmd_view *rTMD = (tmd_view*)mem_align( 32, ALIGN32(tmd_size) );
 	if( rTMD == NULL )
 	{
-		gdprintf("GetSysMenuIOS : memalign failure\r\n");
+		gdprintf("GetSysMenuIOS : memalign failure");
 		return 0;
 	}
 	memset(rTMD,0, tmd_size );
 	r = ES_GetTMDView(TitleID, (u8*)rTMD, tmd_size);
 	if(r<0)
 	{
-		gprintf("GetSysMenuIOS : GetTMDView error %d\r\n",r);
+		gprintf("GetSysMenuIOS : GetTMDView error %d",r);
 		mem_free( rTMD );
 		return 0;
 	}
@@ -194,29 +194,21 @@ void LoadSettings( void )
 		//file not found create a new one
 		Create_Settings_File();
 		return; // settings was created from scratch. no need to do it all over
-		//ISFS_Seek( fd, 0, 0 );
 	}
-	STACK_ALIGN(fstats,status,sizeof(fstats),32);//fstats *status = (fstats*)mem_align(32,ALIGN32(sizeof(fstats)) );
+
+	STACK_ALIGN(fstats,status,sizeof(fstats),32);
 	memset(status,0,sizeof(fstats));
 	ISFS_GetFileStats(fd,status);
 	if ( status->file_length != sizeof(Settings) )
 	{
 		ISFS_Close(fd);
-		gprintf("LoadSettings : status->file_length != struct size , resetting...\r\n");
+		gprintf("LoadSettings : status->file_length != struct size , resetting...");
 		//recreate settings file
 		ISFS_Delete("/title/00000001/00000002/data/loader.ini");
 		Create_Settings_File();
-		/*if(status)
-		{
-			mem_free(status);
-		}*/
 		return;
-		//ISFS_Seek( fd, 0, 0 );
 	}
-	/*if(status)
-	{
-		mem_free(status);
-	}*/
+
 	if(ISFS_Read( fd, settings, sizeof( Settings ) )<0)
 	{
 		ISFS_Close( fd );
