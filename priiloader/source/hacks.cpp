@@ -26,7 +26,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <string.h>
 #include <vector>
 #include <unistd.h>
-#include <fstream>
 
 #include "gecko.h"
 #include "hacks.h"
@@ -35,10 +34,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "font.h"
 #include "mem2_manager.h"
 
+#define BLOCK_SIZE ALIGN32(32)
+
 std::vector<system_hack> system_hacks;
 std::vector<u8> states_hash;
 
-std::ifstream* sd_file_handler = NULL;
+u32 file_size = 0;
+FILE* sd_file_handler = NULL;
 s32 nand_file_handler = -1;
 
 void _showError(const char* errorMsg, ...)
@@ -58,116 +60,130 @@ void _showError(const char* errorMsg, ...)
 	return;
 }
 
+//we use our own GetLine instead of ifstream because ifstream would increase priiloader's size with 300KB...
+//and eventhough not perfect, this works fine too
 bool GetLine(bool reading_nand, std::string& line)
 {
 	char* buf = NULL;	
+	std::string read_line;
+	u32 read_count = 0;
+	u32 file_pos = 0;
+	const u16 max_loop = 500;
+
+	//Read untill a newline is found
 	try
 	{
-		//Read untill a newline is found		
+		//get current file position
 		if (reading_nand)
-		{
-			/*u32 read_count = 0;
-			u32 file_pos = 0;
-			const u16 max_loop = 1000;
-			const u32 block_size = 32;
-
-			//get current file position
+		{	
 			STACK_ALIGN(fstats, status, sizeof(fstats), 32);
 			ISFS_GetFileStats(nand_file_handler, status);
 			file_pos = status->file_pos;
+		}
+		else
+		{
+			file_pos = ftell(sd_file_handler);
+		}
 
-			//read untill we have a newline or reach EOF
-			while (
-					file_pos < status->file_length &&
-					( 
-						buf == NULL || 
-						(
-							file_pos+strnlen(buf,block_size*max_loop) < status->file_length &&
-							strstr(buf, "\n") == NULL && 
-							strstr(buf, "\r") == NULL
-						)
+		//read untill we have a newline or reach EOF
+		while (
+				file_pos < file_size &&
+				( 
+					buf == NULL || 
+					(
+						file_pos+strnlen(buf,BLOCK_SIZE*max_loop) < file_size &&
+						strstr(buf, "\n") == NULL && 
+						strstr(buf, "\r") == NULL
 					)
 				)
-			{		
-				read_count++;
-				//are we dealing with a potential overflow?
-				if (read_count > max_loop)
-				{
-					error = ERROR_MALLOC;
-					throw "line to long";
-				}
+			)
+		{		
+			read_count++;
+			//are we dealing with a potential overflow?
+			if (read_count > max_loop)
+			{
+				error = ERROR_MALLOC;
+				throw "line to long";
+			}
 
-				if (buf)
-					buf = (char*)mem_realloc(buf, ALIGN32(block_size*read_count));
-				else
-					buf = (char*)mem_align(32, block_size*read_count);
+			if (buf)
+				buf = (char*)mem_realloc(buf, ALIGN32(BLOCK_SIZE*read_count));
+			else
+				buf = (char*)mem_align(32, BLOCK_SIZE*read_count);
 
-				if (!buf)
-				{
-					error = ERROR_MALLOC;
-					throw "error allocating buffer";
-				}
-				
-				u32 addr = (u32)buf;
-				if (read_count > 1)
-					addr += block_size*(read_count - 1);
-				else
-					memset(buf, 0, block_size*read_count);
+			if (!buf)
+			{
+				error = ERROR_MALLOC;
+				throw "error allocating buffer";
+			}
+			
+			u32 addr = (u32)buf;
+			if (read_count > 1)
+				addr += BLOCK_SIZE*(read_count - 1);
+			else
+				memset(buf, 0, BLOCK_SIZE*read_count);
 
-				s32 ret = ISFS_Read(nand_file_handler, (void*)addr, block_size);
+			s32 ret = 0;
+			if (reading_nand)
+			{	
+				ret = ISFS_Read(nand_file_handler, (void*)addr, BLOCK_SIZE);
 				if (ret < 0)
 				{
 					throw "Error reading from NAND (" + std::to_string(ret) + ")";
 				}
-
-				if(strlen(buf) > block_size*max_loop)
+			}
+			else
+			{
+				ret = fread( (void*)addr, sizeof( char ), BLOCK_SIZE, sd_file_handler );
+				if(ret < 0)
 				{
-					throw "buf has overflown";
+					throw "Error reading from SD (" + std::to_string(ret) + ")";
 				}
 			}
 
-			//nothing was read
-			if(!buf)
+			if(strlen(buf) > BLOCK_SIZE*max_loop)
 			{
-				line = "";
-				return false;
+				throw "buf has overflown";
 			}
+		}
 
-			std::string read_line(buf);
-			mem_free(buf);
+		//nothing was read
+		if(!buf)
+		{
+			line = "";
+			return false;
+		}
 
-			//find the newline and split the string
-			std::string cut_string = read_line.substr(0,read_line.find("\n"));
-			if(cut_string.length() == 0)
-				std::string cut_string = read_line.substr(0,read_line.find("\r"));
+		read_line.assign(buf);
+		mem_free(buf);
 
-			//set the new file position untill after the \r\n, \r or \n
-			file_pos += cut_string.length();
+		//find the newline and split the string
+		std::string cut_string = read_line.substr(0,read_line.find("\n"));
+		if(cut_string.length() == 0)
+			std::string cut_string = read_line.substr(0,read_line.find("\r"));
 
-			//cut off any carriage returns
-			if(cut_string.back() == '\r')
-			{
-				cut_string = cut_string.substr(0, cut_string.length() - 1);
-				file_pos++;
-			}
-			if(cut_string.front() == '\r')
-				cut_string = cut_string.substr(1, cut_string.length() - 1);
-			line = cut_string;
+		//set the new file position untill after the \r\n, \r or \n
+		file_pos += cut_string.size();
 
-			//seek file back correctly
-			ISFS_Seek(nand_file_handler, file_pos, SEEK_SET);*/
+		//cut off any carriage returns
+		if(cut_string.back() == '\r')
+		{
+			cut_string = cut_string.substr(0, cut_string.length() - 1);
+			file_pos++;
+		}
+		if(cut_string.front() == '\r')
+			cut_string = cut_string.substr(1, cut_string.length() - 1);
+
+		line = cut_string;
+
+		//seek file back correctly
+		if (reading_nand)
+		{	
+			ISFS_Seek(nand_file_handler, file_pos, SEEK_SET);
 		}
 		else
 		{
-			//SD is so much easier... xD
-			std::string read_line;
-			std::getline(*sd_file_handler, read_line);
-			if (read_line.back() == '\r')
-				read_line = read_line.substr(0, read_line.length() - 1);
-			if (read_line.front() == '\r')
-				read_line = read_line.substr(0, read_line.length() - 1);
-
-			line = read_line;
+			fseek( sd_file_handler, file_pos, SEEK_SET);
 		}
 		return line.length() > 0;
 	}
@@ -206,7 +222,6 @@ bool _processLine(system_hack& hack, std::string &line)
 
 		std::string type = line.substr(0,line.find("="));
 		std::string value = line.substr(line.find("=")+1);
-		std::vector<std::string> values;
 		system_patch* temp_patch;
 
 		if(hack.patches.size() <= 0)
@@ -215,29 +230,7 @@ bool _processLine(system_hack& hack, std::string &line)
 		}
 		temp_patch = &hack.patches.back();
 
-		while(value.length() > 0)
-		{
-			std::string newValue;
-			if(value.find(",") != std::string::npos)
-			{
-				newValue = value.substr(0,value.find(","));
-				while(newValue.find(" ") != std::string::npos)
-					newValue = newValue.replace(newValue.find(" "),1,"");
-
-				value = value.substr(value.find(",")+1);
-			}
-			else
-			{
-				newValue = value;
-				while(newValue.find(" ") != std::string::npos)
-					newValue = newValue.replace(newValue.find(" "),1,"");
-
-				value.clear();
-			}			
-			values.push_back(newValue);				
-		}
-
-		if(type.length() <= 0 || values.size() <= 0)
+		if(type.length() <= 0 || value.size() <= 0)
 			throw "failed to split line";
 
 		if(type == "amount")
@@ -247,87 +240,74 @@ bool _processLine(system_hack& hack, std::string &line)
 		}
 		else if(type == "maxversion")
 		{
-			hack.max_version = strtoul(values.front().c_str(),NULL, 10);
+			hack.max_version = strtoul(value.c_str(),NULL, 10);
 			return true;
 		}
 		else if(type == "minversion")
 		{
-			hack.min_version = strtoul(values.front().c_str(),NULL, 10);
+			hack.min_version = strtoul(value.c_str(),NULL, 10);
 			return true;
 		}
-		else if(type == "patch")
+		else if(type == "patch" || type == "hash")
 		{
-			//process patch
-			//example : patch=0x38000001,0x2c000000,0x900DA5D8,0x38000032
-			for(u32 i = 0;i < values.size();i++)
-			{				
-				value = values.at(i);
-				if(value.length() < 4 || value.length() > 10 || value.find("0x") != 0 )
-					throw "Invalid patch : " + value;
-
-				value = value.substr(2);
-
-				//start new patch if we already have one
-				if(i == 0 && temp_patch->patch.size() != 0 && 
-					( temp_patch->hash.size() > 0 || temp_patch->offset != 0 ))
-				{
-					hack.patches.push_back(system_patch());
-					temp_patch = &hack.patches.back();
-				}
-				
-				while(value.size() > 0)
-				{
-					std::string str_patch;
-					if(value.size() > 2)
-					{
-						str_patch = "0x" + value.substr(0,2);
-						value = value.substr(2);
-					}
-					else
-					{
-						str_patch = value;
-						value.clear();
-					}
-					temp_patch->patch.push_back(strtoul(str_patch.c_str(),NULL, 16));
-				}
-			}
-		}
-		else if(type == "hash")
-		{
-			//process hash
-			//example : hash=0x38000000,0x2c000000,0x40820010,0x38000036,0x900da9c8,0x480017
+			//process patch or hash
+			// patch example : patch=0x38000001,0x2c000000,0x900DA5D8,0x38000032
+			//  hash example : hash=0x38000000,0x2c000000,0x40820010,0x38000036,0x900da9c8,0x480017
 			//should get in the struct as 0x380000002c0000004082001038000036900da9c8480017
 
-			for(u32 i = 0;i < values.size();i++)
-			{				
-				value = values.at(i);
-				if(value.length() < 4 || value.length() > 10 || value.find("0x") != 0)
-					throw "Invalid hash : " + value;
-				value = value.substr(2);
+			//start new patch if the last patch is already a complete one
+			if(temp_patch->patch.size() > 0 && 
+				( temp_patch->hash.size() > 0 || temp_patch->offset != 0 ))
+			{
+				hack.patches.push_back(system_patch());
+				temp_patch = &hack.patches.back();
+			}
 
-				//start new patch if we already have one
-				if(i == 0 && temp_patch->patch.size() > 0 &&
-					( temp_patch->hash.size() > 0 || temp_patch->offset != 0 ))
+			//split the value string into seperate bits
+			while(value.length() > 0)
+			{			
+				std::string segment;
+				if(value.find(",") != std::string::npos)
 				{
-					hack.patches.push_back(system_patch());
-					temp_patch = &hack.patches.back();
+					segment = value.substr(0,value.find(","));
+					value = value.substr(value.find(",")+1);
 				}
-				
-				while(value.size() > 0)
+				else
 				{
-					std::string str_hash;
-					if(value.size() > 2)
+					segment = value;
+					value.clear();
+				}			
+
+				while(segment.find(" ") != std::string::npos)
+						segment = segment.replace(segment.find(" "),1,"");	
+
+				if(segment.length() < 4 || segment.length() > 10 || segment.find("0x") != 0 )
+					throw "Invalid " + type + " : " + segment;
+
+				//cut off the '0x'
+				segment = segment.substr(2);
+
+				while(segment.size() > 0)
+				{
+					std::string subSegment;
+					if(segment.size() > 2)
 					{
-						str_hash = "0x" + value.substr(0,2);
-						value = value.substr(2);
+						subSegment = segment.substr(0,2);
+						segment = segment.substr(2);
 					}
 					else
 					{
-						str_hash = value;
-						value.clear();
+						subSegment = segment;
+						segment.clear();
 					}
-					temp_patch->hash.push_back(strtoul(str_hash.c_str(),NULL, 16));
-					str_hash.clear();
+
+					if(subSegment.substr(2) != "0x")
+						subSegment.insert(0,"0x");
+
+					if(type == "patch")
+						temp_patch->patch.push_back(strtoul(subSegment.c_str(),NULL, 16));
+					else if(type == "hash")
+						temp_patch->hash.push_back(strtoul(subSegment.c_str(),NULL, 16));					
 				}
 			}
 		}
@@ -335,8 +315,8 @@ bool _processLine(system_hack& hack, std::string &line)
 		{
 			//process offset
 			//example : offset=0x81000000
-			if(values.front().size() != 10)
-				throw "Invalid offset : " + values.front().size();
+			if(value.size() != 10)
+				throw "Invalid offset : " + value.size();
 
 			//save the old patch and start a new one.
 			if(temp_patch->patch.size() > 0 && ( temp_patch->hash.size() > 0 || temp_patch->offset != 0 ))
@@ -345,7 +325,7 @@ bool _processLine(system_hack& hack, std::string &line)
 				temp_patch = &hack.patches.back();
 			}
 
-			u32 offset = strtoul(values.front().c_str(),NULL, 16);
+			u32 offset = strtoul(value.c_str(),NULL, 16);
 			temp_patch->offset = offset;
 		}
 		else
@@ -401,8 +381,6 @@ bool _addOrRejectHack(system_hack& hack)
 }
 s8 LoadSystemHacks(bool load_nand)
 {
-	u32 file_size = 0;
-
 	//system_hacks already loaded
 	if (system_hacks.size() || states_hash.size()) 
 	{
@@ -418,29 +396,26 @@ s8 LoadSystemHacks(bool load_nand)
 	}
 	else if (sd_file_handler != NULL)
 	{
-		if(sd_file_handler->is_open())
-			sd_file_handler->close();
+		if(sd_file_handler)
+			fclose(sd_file_handler);
 
-		delete sd_file_handler;
 		sd_file_handler = NULL;
 	}
 
 	//read the hacks file size
 	if (!load_nand)
 	{
-		sd_file_handler = new std::ifstream("fat:/apps/priiloader/hacks_hash.ini");
-		if (!sd_file_handler || !sd_file_handler->is_open())
+		sd_file_handler = fopen("fat:/apps/priiloader/hacks_hash.ini","r");
+		if(!sd_file_handler)
 		{
-			sd_file_handler = NULL;
 			gprintf("fopen error : %s", strerror(errno));
 		}
 		else
 		{
-			sd_file_handler->seekg(0, std::ios::end);
-			file_size = sd_file_handler->tellg();
-
-			sd_file_handler->seekg(0, std::ios::beg);
-		}		
+			fseek( sd_file_handler, 0, SEEK_END );
+			file_size = ftell(sd_file_handler);
+			fseek( sd_file_handler, 0, SEEK_SET);
+		}
 	}
 
 	//no file opened from FAT device, so lets open the nand file
@@ -471,8 +446,8 @@ s8 LoadSystemHacks(bool load_nand)
 		}			
 		else
 		{
-			sd_file_handler->close();
-			delete sd_file_handler;
+			if(sd_file_handler)
+				fclose(sd_file_handler);
 			sd_file_handler = NULL;
 		}
 
@@ -522,8 +497,8 @@ s8 LoadSystemHacks(bool load_nand)
 	}
 	else
 	{
-		sd_file_handler->close();
-		delete sd_file_handler;
+		if(sd_file_handler)
+			fclose(sd_file_handler);
 		sd_file_handler = NULL;
 	}
 
@@ -536,7 +511,10 @@ s8 LoadSystemHacks(bool load_nand)
 		memset( status, 0, sizeof(fstats) );
 
 		if(ISFS_GetFileStats( nand_file_handler, status)<0)
+		{
+			ISFS_Close( nand_file_handler );
 			return 0;
+		}
 
 		//if the file is not the same size as the loaded hacks, we ignore the file
 		if(status->file_length == system_hacks.size())
@@ -545,6 +523,7 @@ s8 LoadSystemHacks(bool load_nand)
 			if( fbuf == NULL )
 			{
 				error = ERROR_MALLOC;
+				ISFS_Close( nand_file_handler );
 				return 0;
 			}
 			memset( fbuf, 0, status->file_length );

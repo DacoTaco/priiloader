@@ -24,6 +24,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <ogc/machine/processor.h>
 #include <gctypes.h>
 #include "executables.h"
+#include "patches.h"
 
 #ifndef MAX_ADDRESS
 #define MAX_ADDRESS 0x817FFEFF
@@ -37,37 +38,37 @@ void startSysMenu(void);
 u32 _loadApplication(void* binary, void* parameter);
 u32 _loadSystemMenu(void* binary, void* parameter, u32 parameterCount);
 
-//this --MUST-- be the first code in this file.
-//when run, we will jump to addr 0 of the compiled code. if this is on top, this will be the code run
-void _start(void* binary, void* parameter, u32 parameterCount, u8 isSystemMenu)
+/*this --MUST-- be the first code in this file.
+when run, we will jump to addr 0 of the compiled code. if this is on top, this will be the code run
+Also, the arguments are stored in argument registers r3,r4,r5 & r6. 
+we stay off them, so by the time we enter the main code, the arguments should still be valid*/
+asm(R"(.globl _start
+_start:
+#set stack address
+#we do this by retrieving the address we jumped to from ctr and adding the stack start address to it, followed by its size
+#i am using r18 as buffer, since it looked to be unused at the time.
+	mr		18,1
+	mfctr	1
+	addi	1,1,__crt0stack@l
+	addi	1,1,0x100
+	addi	1,1,-0x0C
+#save current stack data
+	stw		0,0(1)
+	stw		18,4(1)
+	mflr	18
+	stw		18,8(1)
+	isync
+	bl _boot
+#restore stack data and return
+	lwz 0,0(1)
+	lwz 18,8(1)
+	mtlr 18
+	lwz 18,4(1)
+	mr	1,18
+	blr
+	)");
+void _boot(void* binary, void* parameter, u32 parameterCount, u8 isSystemMenu)
 {
-	/*this would make the loader fully stand alone (stack pointer in mem2)
-	and capable of loading any dol in mem1
-	however, this somehow breaks loading system menu (and dols/elfs)
-	if i can figure out why, i'll need to rewrite _start in asm and 
-	1) load the arguments (into some registers or something)
-	2) change r1/r31 to the new stack address
-	3) save arguments to the new stack
-	3) do our magic of moving the dol around
-	4) ??? (unknown magic atm)
-	5) PROFIT !!! (dol loaded)
-	this is test code and must under no reason be used!! */
-
-	/*u32 s;
-	#define STACK_PTR_PREV *(vu32*)0x93FFFFE0
-	asm volatile("lwz %0,0(31) ; sync" : "=r"(s));
-	STACK_PTR_PREV = s;
-	asm(R"(
-		lis		1,0x93F00000@h
-		ori		1,1,0x93F00000@l
-		stwu 1,-0(1)
-		stw 31,44(1)
-		mr 31,1)");
-	u32 prev_stack = s;
-	u32 test = 0xDEAD;
-	test = 0xBEEF;
-	*(vu32*)0x817FFFF0 = 0x01;*/
-
 	if(binary == NULL || (parameter == NULL && parameterCount > 0))
 		return;
 
@@ -75,6 +76,7 @@ void _start(void* binary, void* parameter, u32 parameterCount, u8 isSystemMenu)
 	if(!ep)
 		return;
 
+	//nintendo related pokes. TT/f0f claims these make official dols work
 	*(vu32*)0x800000F8 = 0x0E7BE2C0;				// Bus Clock Speed
 	*(vu32*)0x800000FC = 0x2B73A840;				// CPU Clock Speed
 	*(vu32*)0x8000315C = 0x80800113;				// DI Legacy mode ?
@@ -91,8 +93,7 @@ void _start(void* binary, void* parameter, u32 parameterCount, u8 isSystemMenu)
 		entrypoint = (void (*)())(ep);
 		asm("isync");
 		entrypoint();
-	}
-	
+	}	
 	return;
 }
 
@@ -185,8 +186,8 @@ u32 _loadApplication(void* binary, void* parameter)
 
 		//copy over arguments, but only if the dol is meant to have them
 		//devkitpro dol's have room in them to have the argument struct copied over them
-		//others, not so much (like compressed dols)
-		if (*(vu32*)(dolfile->entrypoint + 8 | 0x80000000) == 0x00 && args != NULL && args->argvMagic == ARGV_MAGIC)
+		//some others, not so much (like some bad compressed dols)
+		if (args != NULL && args->argvMagic == ARGV_MAGIC && *(vu32*)(dolfile->entrypoint + 8 | 0x80000000) == 0x00 )
         {
 			void* new_argv = (void*)(dolfile->entrypoint + 8);
 			_memcpy(new_argv, args, sizeof(struct __argv));
@@ -204,7 +205,18 @@ u32 _loadSystemMenu(void* binary, void* parameter, u32 parameterCount)
 	if(entrypoint != 0x80003400)
 		return 0;
 
-	/* offset patches will go here*/
+	/* apply offset patches*/
+	if(parameter != NULL && parameterCount > 0)
+	{
+		offset_patch *patch = parameter;
+		for(u32 i = 0;i < parameterCount;i++)
+		{	
+			_memcpy((void*)patch->offset,patch->patch,patch->patch_size);
+			DCFlushRange((void*)patch->offset, patch->patch_size);
+			ICInvalidateRange((void*)patch->offset, patch->patch_size);
+			patch = (offset_patch *)((8 + patch->patch_size) + (u32)patch);
+		}
+	}
 
 	return entrypoint;
 }
@@ -279,3 +291,8 @@ ICInvalidateRange:
 	sync
 	isync
 	blr)");
+
+//our stack!
+asm(R"(
+__crt0stack:
+	.space 0x100)");
