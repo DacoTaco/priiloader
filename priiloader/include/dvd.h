@@ -31,6 +31,7 @@ typedef struct DVD_status {
 } DVD_status;
 
 //variables
+extern DVD_status DVD_state;
 
 //functions
 #ifdef __cplusplus

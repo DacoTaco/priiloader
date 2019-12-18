@@ -274,6 +274,10 @@
 				RelativePath=".\loader\loader.c"
 				>
 			</File>
+			<File
+				RelativePath=".\loader\patches.h"
+				>
+			</File>
 		</Filter>
 		<File
 			RelativePath=".\Makefile"

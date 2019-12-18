@@ -28,12 +28,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "mem2_manager.h"
 #include "dvd.h"
 
-static s8 async_called = 0;
-static u8 *inbuf = 0;
-static u8 *outbuf = 0;
-static s32 di_fd = 0;
+s8 async_called = 0;
+u8 *inbuf = 0;
+u8 *outbuf = 0;
+s32 di_fd = 0;
 DVD_status DVD_state;
-static vu32* const __diReg = (u32*)0xCD806000;
+const vu32* __diReg = (u32*)0xCD806000;
 static s32 SetDriveState (s32 result,void *usrdata)
 {
 	if (result != 0)
