@@ -47,6 +47,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //Project files
 #include "Input.h"
 #include "../../Shared/gitrev.h"
+#include "../loader/patches.h"
 #include "Global.h"
 #include "settings.h"
 #include "state.h"
@@ -68,17 +69,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "certs_bin.h"
 #include "loader_bin.h"
 
-typedef struct {
-	unsigned int offsetText[7];
-	unsigned int offsetData[11];
-	unsigned int addressText[7];
-	unsigned int addressData[11];
-	unsigned int sizeText[7];
-	unsigned int sizeData[11];
-	unsigned int addressBSS;
-	unsigned int sizeBSS;
-	unsigned int entrypoint;
-} dolhdr;
 typedef struct _dol_settings 
 {
 	s8 HW_AHBPROT_bit;
@@ -86,6 +76,7 @@ typedef struct _dol_settings
 	s32 arg_cli_length;
 	char* arg_command_line;
 }__attribute((packed))_dol_settings;
+
 typedef struct {
 	std::string app_name;
 	std::string app_path;
@@ -97,8 +88,6 @@ extern "C"
 {
 	extern void __exception_closeall();
 }
-
-extern DVD_status DVD_state;
 
 //overwrite the weak variable in libogc that enables malloc to use mem2. this disables it
 u32 MALLOC_MEM2 = 0;
@@ -180,7 +169,8 @@ void SysHackHashSettings( void )
 			if( cur_off == DispCount)
 			{
 				//first try to open the file on the SD card/USB, if we found it copy it, other wise skip
-				s16 fail = 0;
+				s8 fail = 0;
+				s32 ret;
 				FILE *in = NULL;
 				if (GetMountedValue() != 0)
 				{
@@ -213,14 +203,16 @@ void SysHackHashSettings( void )
 					{
 						//File already exists, delete and recreate!
 						ISFS_Close( fd );
-						if(ISFS_Delete("/title/00000001/00000002/data/hackshas.ini") <0)
+						ret = ISFS_Delete("/title/00000001/00000002/data/hackshas.ini");
+						if( ret <0)
 						{
 							fail=1;
 							mem_free(buf);
 							goto handle_hacks_fail;
 						}
 					}
-					if(ISFS_CreateFile("/title/00000001/00000002/data/hackshas.ini", 0, 3, 3, 3)<0)
+					ret = ISFS_CreateFile("/title/00000001/00000002/data/hackshas.ini", 0, 3, 3, 3);
+					if(ret < 0)
 					{
 						fail=2;
 						mem_free(buf);
@@ -229,13 +221,14 @@ void SysHackHashSettings( void )
 					fd = ISFS_Open("/title/00000001/00000002/data/hackshas.ini", 1|2 );
 					if( fd < 0 )
 					{
+						ret = fd;
 						fail=3;
 						ISFS_Close( fd );
 						mem_free(buf);
 						goto handle_hacks_fail;
 					}
-
-					if(ISFS_Write( fd, buf, size )<0)
+					ret = ISFS_Write( fd, buf, size );
+					if( ret < 0)
 					{
 						fail = 4;
 						ISFS_Close( fd );
@@ -248,23 +241,25 @@ void SysHackHashSettings( void )
 handle_hacks_fail:
 				if(fail > 0)
 				{
-					gprintf("hacks_hash.ini save error %d",fail);
+					gprintf("hacks_hash.ini save error %d(%d)",ret,fail);
 				}
 				
+				ret = 0;
 				s32 fd = ISFS_Open("/title/00000001/00000002/data/hacksh_s.ini", 1|2 );
 
 				if( fd >= 0 )
 				{
 					//File already exists, delete and recreate!
 					ISFS_Close( fd );
-					if(ISFS_Delete("/title/00000001/00000002/data/hacksh_s.ini")<0)
+					ret = ISFS_Delete("/title/00000001/00000002/data/hacksh_s.ini");
+					if(ret <0)
 					{
 						fail = 5;
 						goto handle_hacks_s_fail;
 					}
 				}
-
-				if(ISFS_CreateFile("/title/00000001/00000002/data/hacksh_s.ini", 0, 3, 3, 3)<0)
+				ret = ISFS_CreateFile("/title/00000001/00000002/data/hacksh_s.ini", 0, 3, 3, 3);
+				if(ret < 0)
 				{
 					fail = 6;
 					goto handle_hacks_s_fail;
@@ -272,10 +267,12 @@ handle_hacks_fail:
 				fd = ISFS_Open("/title/00000001/00000002/data/hacksh_s.ini", 1|2 );
 				if( fd < 0 )
 				{
+					ret = fd;
 					fail=7;
 					goto handle_hacks_s_fail;
 				}
-				if(ISFS_Write( fd, &states_hash[0], states_hash.size() )<0)
+				ret = ISFS_Write( fd, &states_hash[0], states_hash.size() );
+				if(ret <0)
 				{
 					fail = 8;
 					ISFS_Close(fd);
@@ -286,7 +283,7 @@ handle_hacks_fail:
 handle_hacks_s_fail:
 				if(fail > 0)
 				{
-					gprintf("hacksh_s.ini save error %d",fail);
+					gprintf("hacksh_s.ini save error %d(%d)",ret,fail);
 				}
 
 				if( fail > 0 )
@@ -1020,9 +1017,9 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		VIDEO_Flush();
 		VIDEO_WaitVSync();
 		__exception_closeall();
-		ICSync();
 
 		gprintf("BootDolFromMem : starting binary...");	
+		ICSync();
 		loader(binary,args,args != NULL,0);
 		
 		//alternate booting code. seems to be as good(or bad) as the above code
@@ -1041,6 +1038,7 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		_CPU_ISR_Restore (level);*/
 
 		//it failed. FAIL!
+		gprintf("this ain't good");
 		__IOS_InitializeSubsystems();
 		PollDevices();
 		ISFS_Initialize();
@@ -1193,60 +1191,6 @@ s8 BootDolFromFile( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<st
 }
 void BootMainSysMenu( u8 init )
 {
-	//Experimental offset/patch code to be used with the newly created loader
-	/*struct offset_patch {
-		u32 offset;
-		u32 patch_size;
-		u8 patch[];
-	};//ATTRIBUTE_ALIGN(32);
-
-	//gprintf("sizeof : 0x%08X & 0x%08X",sizeof(offset_patch),sizeof(u32));
-	//offset_patch *_patches = (offset_patch*)mem_align(32,(sizeof(offset_patch)+8)*10);
-	//memset(_patches,0,(sizeof(offset_patch)+8)*10);
-	//gprintf("memory loc vec : 0x%08X",_patches);
-	//offset_patch *patches = _patches;
-
-	std::vector<offset_patch> _patches;
-	offset_patch _patch;
-	_patch.offset = 0x80818283;
-	_patch.patch_size = 6;
-	_patch.patch[0] = 0x84;
-	_patch.patch[1] = 0x85;
-	_patch.patch[2] = 0x86;
-	_patch.patch[3] = 0x87;
-	_patch.patch[4] = 0x88;
-	_patch.patch[5] = 0x89;
-	_patches.push_back(_patch);
-
-	_patch.offset = 0x92939495;
-	_patch.patch_size = 8;
-	_patch.patch[0] = 0x96;
-	_patch.patch[1] = 0x97;
-	_patch.patch[2] = 0x98;
-	_patch.patch[3] = 0x99;
-	_patch.patch[4] = 0x10;
-	_patch.patch[5] = 0x11;
-	_patch.patch[6] = 0x12;
-	_patch.patch[7] = 0x13;
-	_patches.push_back(_patch);
-
-	gprintf("size : %d starting at 0x%08X",_patches.size(),&_patches[0]);
-	gprintf("size : %d starting at 0x%08X",_patches.size(),&_patches[1]);
-	offset_patch *patch = &_patches[0];
-	for(int i = 0;i < 3;)
-	{	gprintf("patch %d - 0x%08X",i,patch);
-		gprintf("offset  : 0x%08X",patch->offset);
-		gprintf("patch_size  : 0x%08X",patch->patch_size);
-		gprintf("patch pointing to : 0x%08X",(vu32*)patch->patch);
-		gprintf("patch2 pointing to : 0x%08X",(vu32*)(patch->patch+4));
-		gprintf("patch  : 0x%08X",*patch->patch);
-		gprintf("patch2  : 0x%08X",*(vu32*)(patch->patch+4));
-		i++;
-		patch = (offset_patch *)((((8 + patch->patch_size) + 4) & ~4) + (u32)patch);
-	}
-	gprintf("loldone\n");
-	return;*/
-
 	//TMD
 	const u64 TitleID=0x0000000100000002LL;
 	u32 tmd_size;
@@ -1478,33 +1422,53 @@ void BootMainSysMenu( u8 init )
 		gprintf("Hacks:%d",system_hacks.size());
 		mem_block = (u8*)binary;
 		max_address = (u32)(mem_block + bootfile_size);
+		u32 size = 0;
+		u32 patch_cnt = 0;
+		u8* patch_ptr = NULL;
 		
 		for(u32 i = 0;i < system_hacks.size();i++)
 		{
-			//gprintf("testing %s",system_hacks[i].desc.c_str());
 			if(states_hash[i] != 1)
 				continue;
 
 			gprintf("applying %s",system_hacks[i].desc.c_str());
 			u32 add = 0;
-			u32 offsetSize = 0;
 			for(u32 y = 0; y < system_hacks[i].patches.size();y++)
 			{
 				if(system_hacks[i].patches[y].patch.size() <= 0)
 					continue;
 
-				//offset method				
+				//offset method		
+				//we copy these to mem2 for the loader to apply
 				if(system_hacks[i].patches[y].offset > 0)
 				{
-					offsetSize += system_hacks[i].patches[y].patch.size();
-					//u8* addr = (u8*)(system_hacks[i].patches[y].offset);
-
-					/*for(u32 z = 0;z < system_hacks[i].patches[y].patch.size(); z++)
+					if(patch_ptr == NULL)
 					{
-						//addr[z] = system_hacks[i].patches[y].patch[z];
-						//DCFlushRange(addr, 4);
-					}*/
+						patch_ptr = (u8*)mem_align(32,system_hacks[i].patches[y].patch.size());
+					}
+					else
+					{
+						patch_ptr = (u8*)mem_realloc(patch_ptr,ALIGN32(size+system_hacks[i].patches[y].patch.size()));
+					}
 
+					if(patch_ptr == NULL)
+					{
+						gprintf("failed to malloc memory for offset 0x%08X",system_hacks[i].patches[y].offset);
+						continue;
+					}
+
+					offset_patch* patch = (offset_patch*)(patch_ptr + size);
+					size += 8 + system_hacks[i].patches[y].patch.size();
+
+					patch->offset = system_hacks[i].patches[y].offset;
+					patch->patch_size = system_hacks[i].patches[y].patch.size();
+					for(u32 z = 0;z < system_hacks[i].patches[y].patch.size(); z++)
+					{
+						patch->patch[z] = system_hacks[i].patches[y].patch[z];
+					}
+					DCFlushRange(patch, system_hacks[i].patches[y].patch.size()+8);
+					patch_cnt++;
+					gprintf("added offset to list 0x%08X",patch->offset);
 					continue;
 				}
 				//hash method
@@ -1543,22 +1507,27 @@ void BootMainSysMenu( u8 init )
 
 		ShutdownDevices();
 		USB_Deinitialize();
+
+		//reset video
 		if(init == 1 || SGetSetting(SETTING_DUMPGECKOTEXT) != 0 )
 			Control_VI_Regs(2);
 		ISFS_Deinitialize();
 		__STM_Close();
 		__IPC_Reinitialize();
 		__IOS_ShutdownSubsystems();
-		__exception_closeall();
-		gprintf("launching sys menu...");
+		__exception_closeall();		
+		gprintf("launching sys menu... 0x%08X",loader_addr);
 		
 		//loader
-		loader(binary,NULL,0,1);
+		ICSync();
+		loader(binary,patch_ptr,patch_cnt,1);
 
 		//oh ow, this ain't good
 		__IOS_InitializeSubsystems();
 		PollDevices();
 		gprintf("this ain't good");	
+		mem_free(patch_ptr);
+		mem_free(loader_addr);
 		ISFS_Initialize();
 		Input_Init();
 	}
@@ -2836,6 +2805,7 @@ int main(int argc, char **argv)
 					ShutdownDevices();
 					USB_Deinitialize();
 					*(vu32*)0xCD8000C0 &= ~0x20;
+					//shutdown VI
 					Control_VI_Regs(0);
 					while(DvdKilled() < 1);
 					if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
@@ -3119,6 +3089,7 @@ int main(int argc, char **argv)
 			*(vu32*)0xCD8000C0 &= ~0x20;
 			ClearState();
 			VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
+			//shutdown VI
 			Control_VI_Regs(0);
 			DVDStopDisc(false);
 			for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {

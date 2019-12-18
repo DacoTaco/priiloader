@@ -18,7 +18,8 @@ include $(DEVKITPPC)/wii_rules
 TARGET		:=	$(notdir $(CURDIR))
 BUILD		:=	build
 SOURCES		:=	source
-DATA		:=	data  
+LDR_SOURCES	:=	loader
+DATA		:=	data
 INCLUDES	:=  include
 ENTRYPOINT	:=	0x81100000
 
@@ -62,6 +63,9 @@ export DEPSDIR	:=	$(CURDIR)/$(BUILD)
 CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
 CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
 SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.S)))
+LDRFILES	:=	$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.c)) \
+				$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.cpp)) \
+				$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.S))
 BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.*)))
 
 #---------------------------------------------------------------------------------
@@ -105,13 +109,20 @@ OPENDOLBOOT := "OpenDolBoot.exe"
 endif
 
 #build order
-all: build run
+all: $(BUILD) run
 
 #actual build script
-build: pre_build loader build_priiloader post_build
+$(BUILD):
+	@make --no-print-directory -f $(CURDIR)/Makefile loader 
+	@make --no-print-directory -f $(CURDIR)/Makefile build_priiloader 
+	@make --no-print-directory -f $(CURDIR)/Makefile post_build
 
 pre_build:
-ifeq ($(wildcard ./data/certs.bin),)
+	@echo
+	@echo -----------------------------------------------
+	@echo preparing compilation of priiloader...
+	@echo
+ifeq ($(wildcard $(DATA)/certs.bin),)
 	@echo "wii-cert is missing (certs.bin)."
 	@echo "please add the Wii XS3 certificate in the data directory"
 	@echo "This file can be found in /sys/cert.sys in your Wii NAND"
@@ -134,6 +145,13 @@ ifeq ($(wildcard ./$(OPENDOLBOOT)),)
 	@g++ ../tools/OpenDolBoot/source/OpenDolBoot.cpp -o $(OPENDOLBOOT)
 endif
 
+ifeq ($(wildcard $(DATA)/loader.bin),)
+	@echo "loader is missing (loader.bin)."
+	@echo "please run 'make clean' followed by 'make' to recompile priiloader"
+	@echo
+	@exit 1
+endif
+
 ifeq ($(wildcard ../.git/.),)
 	@echo
 	@echo
@@ -151,34 +169,36 @@ else
 	@echo "Using 0x$(shell git describe --always --long) as revision, \"0x$(shell git describe --always --long --dirty)\" as revision string"
 endif
 
-ifeq ($(wildcard ./$(BUILD)),)
-	@mkdir $(BUILD)
-endif
+#test if the build dir exists, make it if its not
+	@test -d $(BUILD) || mkdir $(BUILD)
 
-loader: 
-	@[ -d $@ ] || mkdir -p $@
+loader: $(DATA)/loader.bin
+$(DATA)/loader.bin: $(LDRFILES)
 	@echo -----------------------------------------------
 	@echo compiling the loader...
 	@echo -----------------------------------------------
 	@echo 
+#test if the build dir exists, make it if its not
+	@test -d $(BUILD) || mkdir $(BUILD)
 #the generated ASM by the following command has no purpose but for debugging needs.
 	@echo generating loader.s
-	@$(CC) -iquote include -I build -I$(LIBOGC_INC) -DMAX_ADDRESS=$(ENTRYPOINT) -S loader\loader.c -o build\loader.s
+	@$(CC) --static -iquote include -I $(BUILD) -I$(LIBOGC_INC) -S loader/loader.c -o $(BUILD)/loader.s
 #these ones however do the actual compiling & converting to binary
 	@echo loader.c
-	@$(CC) -iquote include -I build -I$(LIBOGC_INC) -DMAX_ADDRESS=$(ENTRYPOINT) -c loader\loader.c -o build\loader.o
+	@$(CC) --static -iquote include -I $(BUILD) -I$(LIBOGC_INC) -c loader/loader.c -o $(BUILD)/loader.o
 	@echo linking loader.bin	
-	@$(PREFIX)ld build\loader.o -o data\loader.bin --oformat=binary --entry=_start
+	@$(PREFIX)ld $(BUILD)/loader.o -o $(DATA)/loader.bin --oformat=binary --entry=_start --static
 	
-build_priiloader:	
+build_priiloader: pre_build loader
+	@echo
 	@echo -----------------------------------------------
-	@echo compiling priiloader...
-	@echo -----------------------------------------------
+	@echo compiling priiloader...	
 	@echo 
-	@make --no-print-directory -C build -f $(CURDIR)/Makefile
+	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
-post_build: 
-#create the .app for the wii
+post_build:
+	@echo -----------------------------------------------
+	@echo creating priiloader.app for installer
 ifeq ($(UNAME),Linux)
 		@echo
 		@./OpenDolBoot $(OUTPUT).dol ../Installer/data/priiloader.app
@@ -190,12 +210,14 @@ endif
 #---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
-	@rm -fr $(BUILD) $(OUTPUT).elf $(OUTPUT).dol
+	@rm -fr $(BUILD) $(OUTPUT).elf $(OUTPUT).dol $(DATA)/loader.bin
 
 #---------------------------------------------------------------------------------
 run:
 #send elf to the wii
 ifneq ($(WIILOAD),)
+	@echo -----------------------------------------------
+	@echo loading $(TARGET).elf
 	wiiload $(TARGET).elf
 else
 	@echo "wiiload variable not set. skipping sending to homebrew channel (wiiload)"
