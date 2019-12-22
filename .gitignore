@@ -2,6 +2,7 @@ build
 branches
 old_Shared
 wiki
+*.*
 
 # But not these files...
 !.gitignore
@@ -16,7 +17,6 @@ wiki
 !*.ini
 !*.sln
 !*.exe
-!*.txt
 !*.bat
 !*.dll
 !*.MD
@@ -24,7 +24,6 @@ wiki
 !template.latex
 
 # But do ignore these:
-*.*
 /Shared/gitrev.h
 /priiloader/data/certs.bin
 /priiloader/data/loader.bin
