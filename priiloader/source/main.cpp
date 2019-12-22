@@ -152,6 +152,7 @@ void SysHackHashSettings( void )
 
 	u16 cur_off=0;
 	s32 menu_off=0;
+	s32 fd = 0;
 	bool redraw=true;
 	while(1)
 	{
@@ -198,7 +199,7 @@ void SysHackHashSettings( void )
 
 					fclose(in);
 
-					s32 fd = ISFS_Open("/title/00000001/00000002/data/hackshas.ini", 1|2 );
+					fd = ISFS_Open("/title/00000001/00000002/data/hackshas.ini", 1|2 );
 					if( fd >= 0 )
 					{
 						//File already exists, delete and recreate!
@@ -245,7 +246,7 @@ handle_hacks_fail:
 				}
 				
 				ret = 0;
-				s32 fd = ISFS_Open("/title/00000001/00000002/data/hacksh_s.ini", 1|2 );
+				fd = ISFS_Open("/title/00000001/00000002/data/hacksh_s.ini", 1|2 );
 
 				if( fd >= 0 )
 				{
@@ -1018,11 +1019,11 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		VIDEO_WaitVSync();
 		__exception_closeall();
 
-		gprintf("BootDolFromMem : starting binary...");	
+		gprintf("BootDolFromMem : starting binary... 0x%08X",loader_addr);	
 		ICSync();
 		loader(binary,args,args != NULL,0);
 		
-		//alternate booting code. seems to be as good(or bad) as the above code
+		//old alternate booting code. i prefer the loader xD
 		/*u32 level;
 		__STM_Close();
 		ISFS_Deinitialize();
@@ -1557,7 +1558,9 @@ void BootMainSysMenu( u8 init )
 }
 void InstallLoadDOL( void )
 {
-	char filename[MAXPATHLEN/2],filepath[MAXPATHLEN];
+	char filename[NAME_MAX+1],filepath[MAXPATHLEN+NAME_MAX+1];
+	memset(filename,0,NAME_MAX+1);
+	memset(filepath,0,MAXPATHLEN+NAME_MAX+1);
 	std::vector<Binary_struct> app_list;
 	DIR* dir;
 	s8 reload = 1;
@@ -1600,7 +1603,7 @@ void InstallLoadDOL( void )
 				//get all files names
 				while( readdir(dir) != NULL )
 				{
-					strncpy(filename,dir->fileData.d_name,NAME_MAX+1);
+					strncpy(filename,dir->fileData.d_name,NAME_MAX);
 					if(strncmp(filename,".",1) == 0 || strncmp(filename,"..",2) == 0 )
 					{
 						//we dont want the root or the dirup stuff. so lets filter them
@@ -1740,7 +1743,7 @@ void InstallLoadDOL( void )
 			{
 				while( readdir(dir) != NULL )
 				{
-					strncpy(filename,dir->fileData.d_name,NAME_MAX+1);
+					strncpy(filename,dir->fileData.d_name,NAME_MAX);
 					if( (strstr( filename, ".dol") != NULL) ||
 						(strstr( filename, ".DOL") != NULL) ||
 						(strstr( filename, ".elf") != NULL) ||

@@ -1,8 +1,9 @@
 /*
 
-priiloader/preloader 0.30 - A tool which allows to change the default boot up sequence on the Wii console
+priiloader - A tool which allows to change the default boot up sequence on the Wii console
+Executable Loader - Loads any executable who has been loaded into memory
 
-Copyright (C) 2008-2019  crediar
+Copyright (C) 2008-2019  DacoTaco
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License

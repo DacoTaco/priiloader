@@ -91,7 +91,7 @@ void HandleSTMEvent(u32 event)
 	gettimeofday(&press, NULL);	
 
 	//after the 2 second of being init, we wont accept input
-	if(_time_init.tv_sec+2 >= press.tv_sec)
+	if(_time_init.tv_sec+5 >= press.tv_sec)
 		return;
 
 	//only accept input every +/- 200ms
