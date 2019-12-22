@@ -48,6 +48,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "Input.h"
 #include "../../Shared/gitrev.h"
 #include "../loader/patches.h"
+#include "../loader/loader.h"
 #include "Global.h"
 #include "settings.h"
 #include "state.h"
@@ -152,6 +153,7 @@ void SysHackHashSettings( void )
 
 	u16 cur_off=0;
 	s32 menu_off=0;
+	s32 fd = 0;
 	bool redraw=true;
 	while(1)
 	{
@@ -198,7 +200,7 @@ void SysHackHashSettings( void )
 
 					fclose(in);
 
-					s32 fd = ISFS_Open("/title/00000001/00000002/data/hackshas.ini", 1|2 );
+					fd = ISFS_Open("/title/00000001/00000002/data/hackshas.ini", 1|2 );
 					if( fd >= 0 )
 					{
 						//File already exists, delete and recreate!
@@ -245,7 +247,7 @@ handle_hacks_fail:
 				}
 				
 				ret = 0;
-				s32 fd = ISFS_Open("/title/00000001/00000002/data/hacksh_s.ini", 1|2 );
+				fd = ISFS_Open("/title/00000001/00000002/data/hacksh_s.ini", 1|2 );
 
 				if( fd >= 0 )
 				{
@@ -957,7 +959,6 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		}
 
 		//prepare loader
-		void(*loader)(void* addr, void* parameter, u32 parameterCount, u8 isSystemMenu);
 		loader_addr = (void*)mem_align(32,loader_bin_size);
 		if(!loader_addr)
 			throw "failed to alloc the loader";
@@ -965,7 +966,7 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		memcpy(loader_addr,loader_bin,loader_bin_size);	
 		DCFlushRange(loader_addr, loader_bin_size);
 		ICInvalidateRange(loader_addr, loader_bin_size);
-		loader = (void (*)(void*,void*,u32,u8))(loader_addr);
+		SET_LOADER_ADDRESS(loader_addr);
 
 
 		gprintf("BootDolFromMem : shutting down...");
@@ -1018,11 +1019,11 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		VIDEO_WaitVSync();
 		__exception_closeall();
 
-		gprintf("BootDolFromMem : starting binary...");	
+		gprintf("BootDolFromMem : starting binary... 0x%08X",loader_addr);	
 		ICSync();
 		loader(binary,args,args != NULL,0);
 		
-		//alternate booting code. seems to be as good(or bad) as the above code
+		//old alternate booting code. i prefer the loader xD
 		/*u32 level;
 		__STM_Close();
 		ISFS_Deinitialize();
@@ -1087,7 +1088,7 @@ s8 BootDolFromFile( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<st
 		_path.append(Dir);
 		gprintf("going to boot %s",_path.c_str());
 
-		struct __argv* args = (struct __argv*)mem_align(32,sizeof(__argv));
+		args = (struct __argv*)mem_align(32,sizeof(__argv));
 		if(!args)
 			throw "arg malloc failed";
 
@@ -1101,12 +1102,12 @@ s8 BootDolFromFile( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<st
 		args->endARGV = args->argv + 1;
 		
 		//calculate the char lenght of the arguments
-		args->length = _path.size() +1;//strlen(_path.c_str())+1;
+		args->length = _path.size() +1;
 		//loading args
 		for(u32 i = 0; i < args_list.size(); i++)
 		{
 			if(args_list[i].c_str())
-				args->length += strlen(args_list[i].c_str())+1;
+				args->length += strnlen(args_list[i].c_str(),128)+1;
 		}
 
 		//allocate memory for the arguments
@@ -1151,7 +1152,7 @@ s8 BootDolFromFile( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<st
 		u32 size = ftell(dol);
 		fseek( dol, 0, 0);
 
-		u8 *binary = (u8*)mem_align( 32, ALIGN32(size) );
+		binary = (u8*)mem_align( 32, ALIGN32(size) );
 		if(!binary)
 			throw "failed to alloc the binary";
 
@@ -1178,8 +1179,9 @@ s8 BootDolFromFile( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<st
 		gprintf("BootDolFromFile Exception was thrown");
 		ret = -7;
 	}
+
 	if(dol)
-		fclose(dol);
+		fclose(dol);	
 	if(binary)
 		mem_free(binary);
 	if(args != NULL && args->commandLine != NULL)
@@ -1202,8 +1204,6 @@ void BootMainSysMenu( u8 init )
 	s8 *ticket = NULL;
 
 	//boot file:
-	unsigned int fileID = 0;
-	char file[64] ATTRIBUTE_ALIGN(32);
 	void* binary = NULL;
 	u32 bootfile_size = 0;
 
@@ -1213,7 +1213,6 @@ void BootMainSysMenu( u8 init )
 
 	//loader
 	void* loader_addr = NULL;
-	void(*loader)(void* addr, void* parameter, u32 parameterCount, u8 isSystemMenu);
 
 	//general
 	s32 ret = 0;
@@ -1250,8 +1249,9 @@ void BootMainSysMenu( u8 init )
 			}
 		}*/
 
-		fileID = rTMD->contents[rTMD->num_contents-1].cid;
-		gprintf("using %08X for booting",rTMD->contents[rTMD->num_contents-1].cid);
+		char file[64] ATTRIBUTE_ALIGN(32);
+		u32 fileID = rTMD->contents[rTMD->num_contents-1].cid;
+		gprintf("using %08X for booting",fileID);
 
 		if( fileID == 0 )
 		{
@@ -1503,7 +1503,7 @@ void BootMainSysMenu( u8 init )
 		memcpy(loader_addr,loader_bin,loader_bin_size);	
 		DCFlushRange(loader_addr, loader_bin_size);
 		ICInvalidateRange(loader_addr, loader_bin_size);
-		loader = (void (*)(void*,void*,u32,u8))(loader_addr);
+		SET_LOADER_ADDRESS(loader_addr);
 
 		ShutdownDevices();
 		USB_Deinitialize();
@@ -1557,7 +1557,9 @@ void BootMainSysMenu( u8 init )
 }
 void InstallLoadDOL( void )
 {
-	char filename[MAXPATHLEN/2],filepath[MAXPATHLEN];
+	char filename[NAME_MAX+1],filepath[MAXPATHLEN+NAME_MAX+1];
+	memset(filename,0,NAME_MAX+1);
+	memset(filepath,0,MAXPATHLEN+NAME_MAX+1);
 	std::vector<Binary_struct> app_list;
 	DIR* dir;
 	s8 reload = 1;
@@ -1600,7 +1602,7 @@ void InstallLoadDOL( void )
 				//get all files names
 				while( readdir(dir) != NULL )
 				{
-					strncpy(filename,dir->fileData.d_name,NAME_MAX+1);
+					strncpy(filename,dir->fileData.d_name,NAME_MAX);
 					if(strncmp(filename,".",1) == 0 || strncmp(filename,"..",2) == 0 )
 					{
 						//we dont want the root or the dirup stuff. so lets filter them
@@ -1740,7 +1742,7 @@ void InstallLoadDOL( void )
 			{
 				while( readdir(dir) != NULL )
 				{
-					strncpy(filename,dir->fileData.d_name,NAME_MAX+1);
+					strncpy(filename,dir->fileData.d_name,NAME_MAX);
 					if( (strstr( filename, ".dol") != NULL) ||
 						(strstr( filename, ".DOL") != NULL) ||
 						(strstr( filename, ".elf") != NULL) ||
@@ -1896,7 +1898,7 @@ void InstallLoadDOL( void )
 					for(u32 i = 0;i < app_list[cur_off].args.size();i++)
 					{
 						if(app_list[cur_off].args[i].c_str())
-							dol_settings->arg_cli_length += strlen(app_list[cur_off].args[i].c_str())+1;
+							dol_settings->arg_cli_length += strnlen(app_list[cur_off].args[i].c_str(),128)+1;
 					}
 					dol_settings->arg_cli_length += 1;
 
@@ -2058,13 +2060,14 @@ void InstallLoadDOL( void )
 }
 void AutoBootDol( void )
 {
-	const char* dol_path = "/title/00000001/00000002/data/main.bin\0";
-	const char* arg_path = "/title/00000001/00000002/data/main.nfo\0";
 	s32 fd = 0;
 	u8* binary = NULL;
 	struct __argv *argv = NULL;
 	try
 	{
+		const char* dol_path = "/title/00000001/00000002/data/main.bin\0";
+		const char* arg_path = "/title/00000001/00000002/data/main.nfo\0";
+
 		STACK_ALIGN(_dol_settings,dol_settings,sizeof(_dol_settings),32);
 		memset(dol_settings,0,sizeof(_dol_settings));
 		STACK_ALIGN(fstats,status,sizeof(fstats),32);
@@ -2103,7 +2106,7 @@ void AutoBootDol( void )
 			argv->argc = 0;
 			argv->argv = &argv->commandLine;
 			argv->endARGV = argv->argv + 1;
-			argv->length = strlen(dol_path)+1;
+			argv->length = strnlen(dol_path,48)+1;
 
 			if(dol_settings->argument_count > 0)
 			{
@@ -2116,13 +2119,13 @@ void AutoBootDol( void )
 			
 			memset(argv->commandLine,0,argv->length);
 
-			strncpy(argv->commandLine,dol_path,strlen(dol_path));
+			strncpy(argv->commandLine,dol_path,argv->length-1);
 			argv->argc = 1;
 
 			if(dol_settings->argument_count > 0)
 			{
 				ISFS_Seek(fd , sizeof(dol_settings)-1 ,SEEK_SET);
-				if(ISFS_Read( fd, argv->commandLine+strlen(dol_path)+1, dol_settings->arg_cli_length ) <= dol_settings->arg_cli_length)
+				if(ISFS_Read( fd, argv->commandLine+strnlen(dol_path,48)+1, dol_settings->arg_cli_length ) <= dol_settings->arg_cli_length)
 					throw "failed to read arguments";
 
 				ISFS_Close(fd);
@@ -2925,6 +2928,7 @@ int main(int argc, char **argv)
 	#endif
 #endif
 	system_state.InMainMenu = 1;
+	//gprintf("ptr of video : 0x%08X - 0x%08X",xfb,rmode);
 	//gprintf("ptr : 0x%08X data of ptr : 0x%08X size : %d",&system_state,*((u32*)&system_state),sizeof(system_state));
 	while(1)
 	{

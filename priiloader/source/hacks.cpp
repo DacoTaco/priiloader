@@ -1,8 +1,8 @@
 /*
 
-priiloader/preloader 0.30 - A tool which allows to change the default boot up sequence on the Wii console
+priiloader - A tool which allows to change the default boot up sequence on the Wii console
 
-Copyright (C) 2008-2019  crediar
+Copyright (C) 2008-2019  DacoTaco
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -55,7 +55,7 @@ void _showError(const char* errorMsg, ...)
 
 	va_end(ap);
 
-	PrintString(1, ((640 / 2) - ((strlen(astr)) * 13 / 2)) >> 1, 208, astr);
+	PrintString(1, ((640 / 2) - ((strnlen(astr,1024)) * 13 / 2)) >> 1, 208, astr);
 	sleep(5);
 	return;
 }
@@ -66,9 +66,9 @@ bool GetLine(bool reading_nand, std::string& line)
 {
 	char* buf = NULL;	
 	std::string read_line;
-	u32 read_count = 0;
+	u32 read_cnt = 0;
 	u32 file_pos = 0;
-	const u16 max_loop = 500;
+	const u16 max_size = 0x2000;
 
 	//Read untill a newline is found
 	try
@@ -85,63 +85,47 @@ bool GetLine(bool reading_nand, std::string& line)
 			file_pos = ftell(sd_file_handler);
 		}
 
+		buf = (char*)mem_align(32,max_size+1);
+		if (!buf)
+		{
+			error = ERROR_MALLOC;
+			throw "error allocating buffer";
+		}
+		memset(buf,0,max_size+1);
+
 		//read untill we have a newline or reach EOF
 		while (
 				file_pos < file_size &&
-				( 
-					buf == NULL || 
-					(
-						file_pos+strnlen(buf,BLOCK_SIZE*max_loop) < file_size &&
-						strstr(buf, "\n") == NULL && 
-						strstr(buf, "\r") == NULL
-					)
-				)
+				file_pos+strnlen(buf,max_size) < file_size &&
+				strstr(buf, "\n") == NULL && 
+				strstr(buf, "\r") == NULL
 			)
-		{		
-			read_count++;
+		{	
 			//are we dealing with a potential overflow?
-			if (read_count > max_loop)
+			if (read_cnt > max_size)
 			{
 				error = ERROR_MALLOC;
 				throw "line to long";
 			}
 
-			if (buf)
-				buf = (char*)mem_realloc(buf, ALIGN32(BLOCK_SIZE*read_count));
-			else
-				buf = (char*)mem_align(32, BLOCK_SIZE*read_count);
-
-			if (!buf)
-			{
-				error = ERROR_MALLOC;
-				throw "error allocating buffer";
-			}
-			
-			u32 addr = (u32)buf;
-			if (read_count > 1)
-				addr += BLOCK_SIZE*(read_count - 1);
-			else
-				memset(buf, 0, BLOCK_SIZE*read_count);
-
+			u32 addr = read_cnt + (u32)buf;
 			s32 ret = 0;
-			if (reading_nand)
-			{	
-				ret = ISFS_Read(nand_file_handler, (void*)addr, BLOCK_SIZE);
-				if (ret < 0)
-				{
-					throw "Error reading from NAND (" + std::to_string(ret) + ")";
-				}
-			}
-			else
-			{
-				ret = fread( (void*)addr, sizeof( char ), BLOCK_SIZE, sd_file_handler );
-				if(ret < 0)
-				{
-					throw "Error reading from SD (" + std::to_string(ret) + ")";
-				}
-			}
 
-			if(strlen(buf) > BLOCK_SIZE*max_loop)
+			if (reading_nand)
+				ret = ISFS_Read(nand_file_handler, (void*)addr, BLOCK_SIZE);
+			else
+				ret = fread( (void*)addr, sizeof( char ), BLOCK_SIZE, sd_file_handler );
+
+			if(ret <= 0)
+			{
+				std::string err = "Error reading from ";
+				err.append(reading_nand?"NAND":"SD");
+				err.append(" (" + std::to_string(ret) + ")");
+				throw err;
+			}
+			read_cnt += ret;
+
+			if(strnlen(buf,max_size+1) >= max_size)
 			{
 				throw "buf has overflown";
 			}
@@ -154,7 +138,7 @@ bool GetLine(bool reading_nand, std::string& line)
 			return false;
 		}
 
-		read_line.assign(buf);
+		read_line = std::string(buf);
 		mem_free(buf);
 
 		//find the newline and split the string
@@ -163,14 +147,11 @@ bool GetLine(bool reading_nand, std::string& line)
 			std::string cut_string = read_line.substr(0,read_line.find("\r"));
 
 		//set the new file position untill after the \r\n, \r or \n
-		file_pos += cut_string.size();
+		file_pos += cut_string.size()+1;
 
 		//cut off any carriage returns
 		if(cut_string.back() == '\r')
-		{
 			cut_string = cut_string.substr(0, cut_string.length() - 1);
-			file_pos++;
-		}
 		if(cut_string.front() == '\r')
 			cut_string = cut_string.substr(1, cut_string.length() - 1);
 
@@ -230,7 +211,7 @@ bool _processLine(system_hack& hack, std::string &line)
 		}
 		temp_patch = &hack.patches.back();
 
-		if(type.length() <= 0 || value.size() <= 0)
+		if(type.length() == 0 || value.size() == 0)
 			throw "failed to split line";
 
 		if(type == "amount")
@@ -256,8 +237,13 @@ bool _processLine(system_hack& hack, std::string &line)
 			//should get in the struct as 0x380000002c0000004082001038000036900da9c8480017
 
 			//start new patch if the last patch is already a complete one
-			if(temp_patch->patch.size() > 0 && 
-				( temp_patch->hash.size() > 0 || temp_patch->offset != 0 ))
+			if(	type == "hash" && 
+				temp_patch->patch.size() > 0 && 
+				(
+					temp_patch->hash.size() > 0 || 
+					temp_patch->offset != 0 
+				)
+			  )
 			{
 				hack.patches.push_back(system_patch());
 				temp_patch = &hack.patches.back();
@@ -394,18 +380,16 @@ s8 LoadSystemHacks(bool load_nand)
 		ISFS_Close(nand_file_handler);
 		nand_file_handler = -1;
 	}
-	else if (sd_file_handler != NULL)
+	if (sd_file_handler != NULL)
 	{
-		if(sd_file_handler)
-			fclose(sd_file_handler);
-
+		fclose(sd_file_handler);
 		sd_file_handler = NULL;
 	}
 
 	//read the hacks file size
 	if (!load_nand)
 	{
-		sd_file_handler = fopen("fat:/apps/priiloader/hacks_hash.ini","r");
+		sd_file_handler = fopen("fat:/apps/priiloader/hacks_hash.ini","rb");
 		if(!sd_file_handler)
 		{
 			gprintf("fopen error : %s", strerror(errno));
@@ -534,8 +518,6 @@ s8 LoadSystemHacks(bool load_nand)
 				mem_free(fbuf);
 				return 0;
 			}
-			ISFS_Close( nand_file_handler );
-			nand_file_handler = -1;
 
 			for(u32 i = 0;i < status->file_length;i++)
 			{
@@ -543,6 +525,16 @@ s8 LoadSystemHacks(bool load_nand)
 			}		
 
 			mem_free(fbuf);
+
+			//Set all system_hacks for system menu > max_version || sysver < min_version to 0
+			unsigned int sysver = GetSysMenuVersion();
+			for( u32 i=0; i < system_hacks.size(); ++i)
+			{
+				if( system_hacks[i].max_version < sysver || system_hacks[i].min_version > sysver)
+				{
+					states_hash[i] = 0;
+				}
+			}
 		}
 	}
 
@@ -578,19 +570,11 @@ s8 LoadSystemHacks(bool load_nand)
 		}
 
 		ISFS_Write( nand_file_handler, &states_hash[0], sizeof( u8 ) * system_hacks.size() );
-		ISFS_Close(nand_file_handler);
-		nand_file_handler = -1;
 	}	
 
-	//Set all system_hacks for system menu > max_version || sysver < min_version to 0
-	unsigned int sysver = GetSysMenuVersion();
-	for( u32 i=0; i < system_hacks.size(); ++i)
-	{
-		if( system_hacks[i].max_version < sysver || system_hacks[i].min_version > sysver)
-		{
-			states_hash[i] = 0;
-		}
-	}
+	if(nand_file_handler >= 0)
+		ISFS_Close( nand_file_handler );
+	nand_file_handler = -1;
 
 	return 1;
 }

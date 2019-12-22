@@ -160,10 +160,6 @@
 				RelativePath=".\source\titles.cpp"
 				>
 			</File>
-			<File
-				RelativePath=".\source\usbstorage.c"
-				>
-			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
@@ -239,10 +235,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\include\usbstorage.h"
-				>
-			</File>
-			<File
 				RelativePath=".\include\version.h"
 				>
 			</File>
@@ -272,6 +264,10 @@
 			</File>
 			<File
 				RelativePath=".\loader\loader.c"
+				>
+			</File>
+			<File
+				RelativePath=".\loader\loader.h"
 				>
 			</File>
 			<File

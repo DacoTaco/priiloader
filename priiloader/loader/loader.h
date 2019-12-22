@@ -21,13 +21,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 */
 
-#ifndef _PATCHES_H_
-#define _PATCHES_H_
+#ifndef _LOADER_H_
+#define _LOADER_H_
 
-typedef struct {
-	u32 offset;
-	u32 patch_size;
-	u8 patch[];
-} offset_patch;
+//NOTE : if we change the _boot parameters, we need to change the loader & set loader address parameters as well
+void _boot(void* binary, void* parameter, u32 parameterCount, u8 isSystemMenu); 
+void(*loader)(void* addr, void* parameter, u32 parameterCount, u8 isSystemMenu);
+#define SET_LOADER_ADDRESS(x) loader = (void (*)(void*,void*,u32,u8))(x)
+
 
 #endif

@@ -21,7 +21,7 @@ SOURCES		:=	source
 LDR_SOURCES	:=	loader
 DATA		:=	data
 INCLUDES	:=  include
-ENTRYPOINT	:=	0x81100000
+ENTRYPOINT	:=	0x81000000
 
 #---------------------------------------------------------------------------------
 # options for code generation
