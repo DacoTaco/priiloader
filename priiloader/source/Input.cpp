@@ -22,14 +22,68 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include <gccore.h>
 #include <wiiuse/wpad.h>
+#include <wiikeyboard/keyboard.h>
 #include <sys/time.h>
+#include <sys/unistd.h>
 
 #include "Input.h"
 
 s8 _input_init = 0;
 u32 _STM_input_pressed = 0;
+u32 _kbd_pressed = 0;
 struct timeval _last_press;
 struct timeval _time_init;
+static lwp_t kbd_handle = LWP_THREAD_NULL;
+static volatile bool kbd_should_quit = false;
+
+void HandleKBDEvent(char sym) {
+	switch (sym) {
+		case 0x84:
+			_kbd_pressed |= INPUT_BUTTON_UP;
+			break;
+		case 0x85:
+			_kbd_pressed |= INPUT_BUTTON_DOWN;
+			break;
+		case 0x86:
+			_kbd_pressed |= INPUT_BUTTON_LEFT;
+			break;
+		case 0x87:
+			_kbd_pressed |= INPUT_BUTTON_RIGHT;
+			break;
+		case 0x0d: // Enter
+			_kbd_pressed |= INPUT_BUTTON_A;
+			break;
+		case 0x1b:
+			_kbd_pressed |= INPUT_BUTTON_B;
+			break;
+		case 'x':
+		case 'X':
+			_kbd_pressed |= INPUT_BUTTON_X;
+			break;
+		case 'y':
+		case 'Y':
+			_kbd_pressed |= INPUT_BUTTON_Y;
+			break;
+		case ' ':
+			_kbd_pressed |= INPUT_BUTTON_START;
+			break;
+		default:
+			break;
+	}
+}
+
+void *kbd_thread (void *arg) {
+	keyboard_event event;
+	while (!kbd_should_quit) {
+		if (KEYBOARD_GetEvent(&event)) {
+			if (event.type == KEYBOARD_PRESSED) {
+				HandleKBDEvent(event.symbol);
+			}
+		}
+	}
+	
+	return NULL;
+}
 
 void HandleSTMEvent(u32 event)
 {
@@ -72,19 +126,39 @@ s8 Input_Init( void )
 	gettimeofday(&_time_init, NULL);
 
 	STM_RegisterEventHandler(HandleSTMEvent);
+	r |= KEYBOARD_Init(HandleKBDEvent);
+	// Even if the thread fails to start, we shouldn't call KEYBOARD_Deinit because
+	// it's broken and calling it twice will crash and it's already called in Input_Shutdown
+	kbd_should_quit = false;
+	LWP_CreateThread(	&kbd_handle,
+							kbd_thread,
+							NULL,
+							NULL,
+							16*1024,
+							50);
 
 	_input_init = 1;
 	return r;
 }
 void Input_Shutdown( void )
 {
+	if (_input_init != 1)
+		return;
+	
 	WPAD_Shutdown();
+	kbd_should_quit = true;
+	if (kbd_handle != LWP_THREAD_NULL) {
+		LWP_JoinThread(kbd_handle, NULL);
+		kbd_handle = LWP_THREAD_NULL;
+	}
+	KEYBOARD_Deinit();
 	_input_init = 0;
 }
 u32 Input_ScanPads( void )
 {
 	WPAD_ScanPads();
 	PAD_ScanPads();
+	usleep(1000); // Give the keyboard thread a chance to run
 	return 1;
 }
 u32 Input_ButtonsDown( bool _overrideSTM )
@@ -97,6 +171,11 @@ u32 Input_ButtonsDown( bool _overrideSTM )
 		else
 			pressed = _STM_input_pressed | INPUT_BUTTON_STM;
 		_STM_input_pressed = 0;
+	}
+	else if (_kbd_pressed != 0)
+	{
+		pressed |= _kbd_pressed;
+		_kbd_pressed = 0;
 	}
 	else
 	{

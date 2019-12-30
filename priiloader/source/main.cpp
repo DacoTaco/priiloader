@@ -3519,8 +3519,18 @@ int main(int argc, char **argv)
 	flags = GetStateFlags();
 	gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u & checksum %u\n",flags.type,flags.discstate,flags.returnto,flags.flags,flags.checksum);
 	s8 magicWord = CheckMagicWords();
+	
+	// before anything else, poll input devices such as keyboards to see if we should stop autoboot
+	r = Input_Init();
+	gprintf("Input_Init():%d\n", r );
+	
+	WPAD_SetPowerButtonCallback(HandleWiiMoteEvent);
+	
+	usleep(500000); // Give keyboard stack enough time to detect a keyboard and poll it. (0.5s delay)
+	Input_ScanPads();
+	
 	//Check reset button state
-	if( (((*(vu32*)0xCC003000)>>16)&1) == 1 && magicWord == 0) //if( ((*(vu32*)0xCC003000)>>16)&1 && !CheckMagicWords())
+	if(((Input_ButtonsDown() & INPUT_BUTTON_B) == 0) && (((*(vu32*)0xCC003000)>>16)&1) == 1 && magicWord == 0) //if( ((*(vu32*)0xCC003000)>>16)&1 && !CheckMagicWords())
 	{
 		//Check autoboot settings
 		switch( Bootstate )
@@ -3659,19 +3669,14 @@ int main(int argc, char **argv)
 	{
 		gprintf("Reset Button is held down\n");
 	}
+	
+	r = (s32)PollDevices();
+	gprintf("FAT_Init():%d\n", r );
 
 	//init video first so we can see crashes :)
 	InitVideo();
   	if( SGetSetting(SETTING_PASSCHECKPRII) )
  		password_check();
-
-	r = (s32)PollDevices();
-	gprintf("FAT_Init():%d\n", r );
-
-	r = Input_Init();
-	gprintf("Input_Init():%d\n", r );
-
-	WPAD_SetPowerButtonCallback(HandleWiiMoteEvent);
 
 	ClearScreen();
 
