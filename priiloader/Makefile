@@ -105,9 +105,18 @@ $(BUILD):
 #pre-checks
 ifeq ($(wildcard ./data/certs.bin),)
 	@echo "wii-cert is missing (certs.bin)."
-	@echo "please add your wii's certificate in the data directory"
+	@echo "please add the Wii XS3 certificate in the data directory"
+	@echo "This file can be found in /sys/cert.sys in your Wii NAND"
+	@echo "just copy it to /data/ and rename it to certs.bin"
 	@echo
-	@echo
+	@exit 1
+endif
+
+ifneq ($(shell md5sum data/certs.bin | cut -d\  -f1),7ff50e2733f7a6be1677b6f6c9b625dd)
+	@echo "Looks like your certs.bin is invalid. "
+	@echo "It's supposed to have the MD5 checksum 7ff50e2733f7a6be1677b6f6c9b625dd"
+	@echo "Please grab a new copy of the cert.sys from your Wii NAND"
+	@echo 
 	@exit 1
 endif
 
@@ -121,15 +130,12 @@ ifeq ($(wildcard ../.git/.),)
 	@echo
 	@echo
 	@echo '#define GIT_REV 0x'$(NUMBER) > ../Shared/gitrev.h
-	@echo '#define GIT_REV_STR "0x'$(NUMBER)'-dirty"' >> ../Shared/gitrev.h
-else ifeq ($(UNAME),Linux) 
-	@echo LINUX CURRENTLY UNSUPPORTED. PLEASE HELP ME MAKE A SCRIPT FOR LINUX
-	@exit 1
+	@echo '#define GIT_REV_STR "0x'$(NUMBER)'-no-git"' >> ../Shared/gitrev.h
+	@echo 'Using 0x'$(NUMBER)' as revision, '0x'$(NUMBER)'-no-git as revision string'
 else
-#../Shared/SubWCRev.exe "../." "../Shared/svnrev_template.h" "../Shared/svnrev.h"
-#this exe just calls the bat file. starting bat from makefile was... eug
-#	-> system("call cmd /c ..\\Shared\\make_git.bat");
-		@../Shared/GitVersion.exe
+	@echo "#define GIT_REV 0x$(shell git describe --always --long)" > ../Shared/gitrev.h
+	@echo "#define GIT_REV_STR \"0x$(shell git describe --always --long --dirty)\"" >> ../Shared/gitrev.h
+	@echo "Using 0x$(shell git describe --always --long) as revision, \"0x$(shell git describe --always --long --dirty)\" as revision string"
 endif
 #build
 	@[ -d $@ ] || mkdir -p $@
