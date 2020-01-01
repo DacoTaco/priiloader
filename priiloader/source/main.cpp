@@ -127,18 +127,33 @@ void SysHackHashSettings( void )
 		return;
 	}
 
-//Count hacks for current sys version
-	u32 HackCount=0;
 	u32 SysVersion=GetSysMenuVersion();
+	struct hack_index{
+		std::string desc;
+		u32 index;
+	};
+	std::vector<hack_index> _hacks;
+	s16 cur_off=0;
+	u16 max_pos = 0;
+	u16 min_pos = 0;
+	s32 fd = 0;
+	bool redraw=true;
+
+	//loop hacks file and see which one we show
 	for( unsigned int i=0; i<system_hacks.size(); ++i)
 	{
 		if( system_hacks[i].max_version >= SysVersion && system_hacks[i].min_version <= SysVersion)
 		{
-			HackCount++;
+			hack_index hack;
+			hack.desc.assign(system_hacks[i].desc,0,39);
+			while(hack.desc.size() < 40)
+				hack.desc += " ";
+			hack.index = i;
+			_hacks.push_back(hack);
 		}
 	}
 
-	if( HackCount == 0 )
+	if( _hacks.size() == 0 )
 	{
 		PrintFormat( 1, TEXT_OFFSET("Couldn't find any hacks for"), 208, "Couldn't find any hacks for");
 		PrintFormat( 1, TEXT_OFFSET("System Menu version:vxxx"), 228, "System Menu version:v%d", SysVersion );
@@ -146,15 +161,19 @@ void SysHackHashSettings( void )
 		return;
 	}
 
-	u32 DispCount=HackCount;
+	if( rmode->viTVMode == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
+	{
+		//ye, those tv's want a special treatment again >_>
+		max_pos = 14;
+	}
+	else
+	{
+		max_pos = 19;
+	}
 
-	if( DispCount > 25 )
-		DispCount = 25;
+	if( _hacks.size() < max_pos )
+		max_pos = _hacks.size()-1;
 
-	u16 cur_off=0;
-	s32 menu_off=0;
-	s32 fd = 0;
-	bool redraw=true;
 	while(1)
 	{
 		Input_ScanPads();
@@ -168,7 +187,7 @@ void SysHackHashSettings( void )
 
 		if ( pressed & INPUT_BUTTON_A )
 		{
-			if( cur_off == DispCount)
+			if( (u16)cur_off == _hacks.size())
 			{
 				//first try to open the file on the SD card/USB, if we found it copy it, other wise skip
 				s8 fail = 0;
@@ -289,9 +308,9 @@ handle_hacks_s_fail:
 				}
 
 				if( fail > 0 )
-					PrintFormat( 0, 118, rmode->viHeight-48, "saving failed");
+					PrintFormat( 0, 118, 64+(max_pos+5)*16, "saving failed");
 				else
-					PrintFormat( 0, 118, rmode->viHeight-48, "settings saved");
+					PrintFormat( 0, 118, 64+(max_pos+5)*16, "settings saved");
 			} 
 			else 
 			{
@@ -302,7 +321,7 @@ handle_hacks_s_fail:
 				{
 					if( system_hacks[i].max_version >= SysVersion && system_hacks[i].min_version <= SysVersion)
 					{
-						if( cur_off+menu_off == j++)
+						if( cur_off == j++)
 							break;
 					}
 				}
@@ -319,82 +338,66 @@ handle_hacks_s_fail:
 		if ( pressed & INPUT_BUTTON_DOWN )
 		{
 			cur_off++;
-
-			if( cur_off > DispCount )
-			{
-				cur_off--;
-				menu_off++;
-			}
-
-			if( cur_off+menu_off > (s32)HackCount )
+			if ((u16)cur_off > _hacks.size())
 			{
 				cur_off = 0;
-				menu_off= 0;
+				min_pos = 0;
+			}
+			else if (cur_off > (max_pos + min_pos) && (u16) cur_off != _hacks.size())
+			{
+				min_pos = cur_off - max_pos;
 			}
 			
-			redraw=true;
-		} else if ( pressed & INPUT_BUTTON_UP )
+			redraw = true;
+
+		} 
+		else if ( pressed & INPUT_BUTTON_UP )
 		{
-			if( cur_off == 0 )
+			cur_off--;
+			if (cur_off < 0)
 			{
-				if( menu_off > 0 )
-				{
-					cur_off++;
-					menu_off--;
-
-				} else {
-
-					//if( DispCount < 20 )
-					//{
-						cur_off=DispCount;
-						menu_off=(HackCount-DispCount);
-
-					//} else {
-
-					//	cur_off=DispCount;
-					//	menu_off=(HackCount-DispCount)-1;
-
-					//}
-				}
+				cur_off = _hacks.size();
+				min_pos = _hacks.size() - max_pos - 1;
 			}
-			else
-				cur_off--;
-	
-			redraw=true;
+			else if (cur_off < min_pos)
+			{
+				min_pos = cur_off;
+			}
+			
+			redraw = true;
 		}
 		if( redraw )
 		{
-			//printf("\x1b[2;0HHackCount:%d DispCount:%d cur_off:%d menu_off:%d Hacks:%d   ", HackCount, DispCount, cur_off, menu_off, system_hacks.size() );
-			u32 j=0;
-			u32 skip=menu_off;
+			//printf("\x1b[2;0H_hacks:%d Hacks:%d cur_off:%u min_pos:%u max_pos:%u", _hacks.size(), system_hacks.size(), cur_off, min_pos, max_pos  );
 
-			for( u32 i=0; i<system_hacks.size(); ++i)
+			if(_hacks.size() -1 > max_pos && (min_pos != (s32)_hacks.size() - max_pos - 1) )
+				PrintFormat( 0,TEXT_OFFSET("-----More-----"),64+(max_pos+2)*16,"-----More-----");
+			else
+				PrintFormat( 0,TEXT_OFFSET("               "),64+(max_pos+2)*16,"               ");
+			
+			if(min_pos > 0 )
+				PrintFormat( 0,TEXT_OFFSET("-----Less-----"),64,"-----Less-----");
+			else
+				PrintFormat( 0,TEXT_OFFSET("               "),64,"               ");
+
+			u8 j = 0;
+			for( s32 i=min_pos; i <= (min_pos + max_pos); ++i)
 			{
-				if( system_hacks[i].max_version >= SysVersion && system_hacks[i].min_version <= SysVersion)
-				{
-					if( skip > 0 )
-					{
-						skip--;
-					} else {
-						
-						PrintFormat( cur_off==j, 16, 48+j*16, "%s", system_hacks[i].desc.c_str() );
+				PrintFormat( (u16)cur_off==i, 16, 64+(j+1)*16, "%s", _hacks[i].desc.c_str() );
 
-						if( states_hash[i] )
-						{
-							PrintFormat( cur_off==j, 256, 48+j*16, "enabled ");
-						}
-						else
-						{
-							PrintFormat( cur_off==j, 256, 48+j*16, "disabled");
-						}
-						j++;
-					}
+				if( states_hash[_hacks[i].index] )
+				{
+					PrintFormat( (u16)cur_off==i, 256, 64+(j+1)*16, "enabled ");
 				}
-				if( j >= 25 ) 
-					break;
+				else
+				{
+					PrintFormat( (u16)cur_off==i, 256, 64+(j+1)*16, "disabled");
+				}
+				j++;
 			}
-			PrintFormat( cur_off==(signed)DispCount, 118, rmode->viHeight-64, "save settings");
-			PrintFormat( 0, 103, rmode->viHeight-48, "                            ");
+
+			PrintFormat( (u32)cur_off==_hacks.size(), 118, 64+(max_pos+4)*16, "save settings");
+			PrintFormat( 0, 103, 64+(max_pos+5)*16, "                            ");
 
 			redraw = false;
 		}
