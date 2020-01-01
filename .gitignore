@@ -4,7 +4,6 @@ branches
 old_Shared
 wiki
 
-
 # But not these files...
 !.gitignore
 !*.c
@@ -24,8 +23,7 @@ wiki
 !*MakeFile
 !template.latex
 
-# Ignore everything
+# But do ignore these:
 
-# etc...
-
-# ...even if they are in subdirectories
+/Shared/gitrev.h
+/priiloader/data/certs.bin
