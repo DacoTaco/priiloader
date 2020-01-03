@@ -96,6 +96,12 @@ export OUTPUT	:=	$(CURDIR)/$(TARGET)
 #lets see what OS we are on
 UNAME := $(shell uname)
 NUMBER := $(shell bash -c 'echo $$RANDOM')
+#build OpenDolBoot
+ifeq ($(UNAME),Linux)
+OPENDOLBOOT := "OpenDolBoot"
+else
+OPENDOLBOOT := "OpenDolBoot.exe"
+endif
 
 #build order
 all: $(BUILD) run
@@ -112,12 +118,18 @@ ifeq ($(wildcard ./data/certs.bin),)
 	@exit 1
 endif
 
-ifneq ($(shell md5sum data/certs.bin | cut -d\  -f1),7ff50e2733f7a6be1677b6f6c9b625dd)
+ifeq ($(CI_BUILD),)
+ifneq ($(shell md5sum $(DATA)/certs.bin | cut -d\  -f1),7ff50e2733f7a6be1677b6f6c9b625dd)
 	@echo "Looks like your certs.bin is invalid. "
 	@echo "It's supposed to have the MD5 checksum 7ff50e2733f7a6be1677b6f6c9b625dd"
 	@echo "Please grab a new copy of the cert.sys from your Wii NAND"
 	@echo 
 	@exit 1
+endif
+endif
+
+ifeq ($(wildcard ./$(OPENDOLBOOT)),)
+	@g++ ../tools/OpenDolBoot/source/OpenDolBoot.cpp -o $(OPENDOLBOOT)
 endif
 
 #pre-build
