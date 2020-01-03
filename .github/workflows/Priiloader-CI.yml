@@ -1,0 +1,29 @@
+name: Priiloader-CI
+
+on: [push]
+
+jobs:
+  Linux:
+    name: Linux
+    runs-on: ubuntu-latest
+
+    container:
+      image: docker://devkitpro/devkitppc
+      options: --cpus 2
+    
+    steps:
+#i don't like it that we need to apt-get this, but otherwise we can't build OpenDolBoot? :/
+      - name: Installing essentials
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+      - name: Checkout
+        uses: actions/checkout@v1
+      
+      - name: Pre-Build
+        run: echo "1" > ./priiloader/data/certs.bin
+
+      - name: Build
+        run: |
+          export CI_BUILD=1
+          make
