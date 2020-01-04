@@ -32,6 +32,7 @@ s8 _input_init = 0;
 u32 _STM_input_pressed = 0;
 u32 _kbd_pressed = 0;
 struct timeval _last_press;
+bool wait_for_first_RESET_press = true; 
 struct timeval _time_init;
 static lwp_t kbd_handle = LWP_THREAD_NULL;
 static volatile bool kbd_should_quit = false;
@@ -90,8 +91,8 @@ void HandleSTMEvent(u32 event)
 	struct timeval press;
 	gettimeofday(&press, NULL);	
 
-	//after the 2 second of being init, we wont accept input
-	if(_time_init.tv_sec+5 >= press.tv_sec)
+	//after the 1 second of being init, we wont accept input
+	if(_time_init.tv_sec+1 >= press.tv_sec)
 		return;
 
 	//only accept input every +/- 200ms
@@ -104,10 +105,16 @@ void HandleSTMEvent(u32 event)
 	{
 		case STM_EVENT_POWER:
 			_STM_input_pressed = INPUT_BUTTON_DOWN;
+			wait_for_first_RESET_press = false;
 			break;
 		case STM_EVENT_RESET:
-			_STM_input_pressed = INPUT_BUTTON_A;
-			break;
+			if (wait_for_first_RESET_press) {
+				wait_for_first_RESET_press = false; 
+				_STM_input_pressed = 0; 
+			}
+			else {
+				_STM_input_pressed = INPUT_BUTTON_A;
+			}
 		default:
 			_STM_input_pressed = 0;
 			break;
