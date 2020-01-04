@@ -19,8 +19,7 @@ It is an application that is loaded prior to the Wii System Menu, which allows i
   * Hacks can either be added with their offset, or with a hash value to allow for version-agnostic patches
   * Added option to require a password at boot
   * Fixed lot and lots of bugs
-
-> & much much more
+  * much much more
 
 
 # What do I need to install Priiloader? #
