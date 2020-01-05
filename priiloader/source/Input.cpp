@@ -85,13 +85,14 @@ void *kbd_thread (void *arg) {
 	return NULL;
 }
 
+//the STM event is triggered when the buttons are pressed, or released.
 void HandleSTMEvent(u32 event)
 {
 	struct timeval press;
 	gettimeofday(&press, NULL);	
 
-	//after the 2 second of being init, we wont accept input
-	if(_time_init.tv_sec+5 >= press.tv_sec)
+	//after the 1 second of being init, we wont accept input
+	if(_time_init.tv_sec+1 >= press.tv_sec)
 		return;
 
 	//only accept input every +/- 200ms
@@ -106,7 +107,8 @@ void HandleSTMEvent(u32 event)
 			_STM_input_pressed = INPUT_BUTTON_DOWN;
 			break;
 		case STM_EVENT_RESET:
-			_STM_input_pressed = INPUT_BUTTON_A;
+			//only send press when the button is pressed, not unpressed
+			_STM_input_pressed = (RESET_UNPRESSED == 0)?INPUT_BUTTON_A:0;
 			break;
 		default:
 			_STM_input_pressed = 0;
@@ -114,14 +116,12 @@ void HandleSTMEvent(u32 event)
 	}
 	return;
 }
-
 s8 Input_Init( void ) 
 {
 	if(_input_init != 0)
 		return 1;
 
-	s8 r;
-	r = PAD_Init();
+	s8 r = PAD_Init();
 	r |= WPAD_Init();
 	gettimeofday(&_time_init, NULL);
 
@@ -175,6 +175,7 @@ u32 Input_ScanPads( void )
 u32 Input_ButtonsDown( bool _overrideSTM )
 {
 	u32 pressed = 0;
+
 	if(_STM_input_pressed != 0)
 	{
 		if(_overrideSTM)
