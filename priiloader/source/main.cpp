@@ -2763,7 +2763,7 @@ int main(int argc, char **argv)
 	Input_ScanPads();
 	
 	//Check reset button state
-	if(((Input_ButtonsDown() & INPUT_BUTTON_B) == 0) && (((*(vu32*)0xCC003000)>>16)&1) == 1 && magicWord == 0) //if( ((*(vu32*)0xCC003000)>>16)&1 && !CheckMagicWords())
+	if(((Input_ButtonsDown() & INPUT_BUTTON_B) == 0) && RESET_UNPRESSED == 1 && magicWord == 0)
 	{
 		//Check autoboot settings
 		switch( Bootstate )

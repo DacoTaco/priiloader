@@ -38,6 +38,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define INPUT_BUTTON_START			0x00001000
 #define INPUT_BUTTON_STM			0x10000000
 
+#define RESET_UNPRESSED (((*(vu32*)0xCC003000)>>16)&1)
+
 s8 Input_Init( void );
 void Input_Shutdown( void );
 u32 Input_ScanPads( void );
