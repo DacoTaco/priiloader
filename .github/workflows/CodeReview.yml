@@ -1,0 +1,18 @@
+name: Priiloader-CodeReview
+
+on: [push]
+
+jobs:
+  Linux:
+    name: Linux
+    runs-on: ubuntu-latest
+    
+    steps:
+#i don't like it that we need to apt-get this, but otherwise we can't build OpenDolBoot? :/
+      - name: Installing essentials
+        run: sudo apt-get install cppcheck
+      - name: Checkout
+        uses: actions/checkout@v1
+      
+      - name: Source Review
+        run: cppcheck . -v --std=c99 --std=c++11 --error-exitcode=1 --enable=warning,performance,portability,information,style --suppress=unusedFunction -UDEBUG_MEM2_LEVEL
