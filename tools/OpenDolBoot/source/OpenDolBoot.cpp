@@ -1,260 +1,301 @@
-// OpenDolBoot.cpp : Defines the entry point for the console application.
-//
+/*
+OpenDolBoot - An utiltiy to make a dol binary into a title bootable binary on the Wii/vWii
 
+Copyright (c) 2020 DacoTaco
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+*/
+
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string>
+#include <vector>
 #include "../include/OpenDolBoot.h"
 
-
-int main(int argc, char **argv)
+void _ShowHelp()
 {
-	printf("DacoTaco's OpenDolboot : C/C++ Version %s\n\n",VERSION);
-	char* InputFile = 0;
-	char ShowInfo = false;
-	char* Nand_Use_File = 0;
-	char* OutputFile = 0;
-	if ( argc < 2 || (strcmp(argv[1],"-h") == 0 || strcmp(argv[1],"-H") == 0 || argc == 1))
-	{
-		Display_Parameters();
-		exit(0);
-	}
-	else if(argc < 3)
-	{
-		Display_Parameters();
-		printf("\n\nnot enough parameters given\n");
-		exit(0);
-	}
-	else if( strncmp(argv[1],"-x",1) == 0 )
-	{
-		Display_Parameters();
-		printf("\n\nno input dol given\n");
-		exit(0);
-	}
-	for (int i = 2; i < argc; i++)
-	{
-#ifdef DEBUG
-		printf("parameter %d of %d : %s\n",i,argc,argv[i]);
-#endif
-		if (strcmp(argv[i],"-h") == 0 || strcmp(argv[i],"-H") == 0 || argc == 1)
-		{
-			Display_Parameters();
-			exit(0);
-		}
-		if (strcmp(argv[i],"-i") == 0 || strcmp(argv[i],"-I") == 0)
-		{
-			ShowInfo = true;
-		}
-		else if (strcmp(argv[i],"-n") == 0 || strcmp(argv[i],"-N") == 0)
-		{
-			if(i+1 >= argc)
-			{
-				printf("no filename for nand code given\n");
-				exit(0);
-			}
-			else if(strncmp(argv[i+1],"-x",1) == 0 )
-			{
-				printf("parameter given instead of filename for nand code!\n");
-				exit(0);
-			}
-			else
-			{
-				i++;
-				Nand_Use_File = argv[i];
-#ifdef DEBUG
-				printf("using nand file %s\n",Nand_Use_File);
-#endif
-			}
-		}
-	}
-	if (Nand_Use_File != NULL)
-	{
-		if(ShowInfo == false && (  strncmp(argv[argc-1],"-x",1) == 0 || strcmp(argv[argc-1],Nand_Use_File) == 0 || strcmp(argv[argc-1],argv[1]) == 0 ) )
-		{
-			Display_Parameters();
-			printf("\n\nno output app given\n");
-			exit(0);
-		}
-	}
-	else if( ShowInfo == false && (  strncmp(argv[argc-1],"-x",1) == 0  || strcmp(argv[argc-1],argv[1]) == 0 ) )
-	{
-		Display_Parameters();
-		printf("\n\nno output app given\n");
-		exit(0);
-	}
-	if(!ShowInfo)
-	{
-		OutputFile = argv[argc-1];
-	}
-	InputFile = argv[1];
-	dolhdr DolHeader;
-	FILE* Dol;
-	printf("opening dol...\n");
-	Dol = fopen(InputFile,"rb");
-	if(!Dol)
-	{
-		printf("failed to open %s\n",InputFile);
-		exit(0);
-	}
-	printf("opened\nreading data Dol info (header and data)...\n");
-	long DolSize;
-	char* DolFile;
-	// obtain file size:
-	fseek (Dol , 0 , SEEK_END);
-	DolSize = ftell (Dol) - sizeof(dolhdr);
-#ifdef DEBUG
-	printf("detected file size : %d-0x%x\n",(int)DolSize,(int)DolSize);
-#endif
-	rewind (Dol);
-	size_t result = fread(&DolHeader,1,sizeof(dolhdr),Dol);
-	if (result != sizeof(dolhdr)) 
-	{
-		printf("error reading dol header.Reading error: %d bytes of %d read\n",result,sizeof(dolhdr)); 
-		exit(0);
-	}
-	// allocate memory to contain the whole file:
-	DolFile = (char*) malloc (DolSize);//Allocate memory to contain the whole file + the nand shit
-	if (DolFile == NULL) 
-	{
-		printf("Memory error");
-		exit(0);
-	}
-	memset(DolFile,0,DolSize);
-	//copy the file into the buffer:
-	result = fread(DolFile,1,DolSize,Dol);
-	if (result != DolSize) 
-	{
-		printf("error reading Dol Data.Reading error: %d bytes of %d read\n",result,(int)DolSize); 
-		exit(0);
-	}
-#ifdef DEBUG
-	printf("done reading %d bytes into memory\n",(int)DolSize);
-#else
-	printf("done reading data\n");
-#endif
-
-	if (ShowInfo)
-	{
-		printf("\n\n");
-		printf("entrypoint: %08X\tBSS Address : %08X\tBSS Size: %08X\n\n", (unsigned int)SwapEndian(DolHeader.entrypoint) , (unsigned int)SwapEndian(DolHeader.addressBSS) , (unsigned int)SwapEndian(DolHeader.sizeBSS) );
-		printf("Displaying Text info:\n");
-		for(int i = 0;i < 6;i++)
-		{
-			if(DolHeader.sizeText[i] && DolHeader.addressText[i] && DolHeader.offsetText[i])
-			{
-				//valid info. swap and display
-				printf("offset : %08x\taddress : %08x\tsize : %08x\t\t\n", (unsigned int)SwapEndian(DolHeader.offsetText[i]), (unsigned int)SwapEndian(DolHeader.addressText[i]), (unsigned int)SwapEndian(DolHeader.sizeText[i]));
-			}
-		}
-		printf("\nDisplaying Data Info:\n");
-		for(int i = 0;i <= 10;i++)
-		{
-			if(DolHeader.sizeData[i] && DolHeader.addressData[i] && DolHeader.offsetData[i])
-			{
-				//valid info. swap and display
-				printf("offset : %08x\taddress : %08x\tsize : %08x\t\t\n", (unsigned int)SwapEndian(DolHeader.offsetData[i]), (unsigned int)SwapEndian(DolHeader.addressData[i]), (unsigned int)SwapEndian(DolHeader.sizeData[i]));
-			}
-		}
-		sleep(5);
-		exit(0);
-	}
-	printf("starting nand loader injection...\n");
-	FILE* nboot_fd = NULL;
-	Nandcode nboot;
-	long nbootSize;
-	if (Nand_Use_File != NULL)
-	{
-#ifdef DEBUG
-		printf("opening & putting the nboot in memory...");
-#endif
-		nboot_fd = fopen(Nand_Use_File,"rb");
-		if(!nboot_fd)
-		{
-		  printf("failed to open %s\n",Nand_Use_File);
-		  exit(0);
-		}
-		fseek (nboot_fd , 0 , SEEK_END);
-		nbootSize = ftell (nboot_fd);
-		rewind (nboot_fd);
-		if( nbootSize != 1296)
-		{
-		  printf("\nnboot.bin isn't the correct size!\n");
-		  exit(0);
-		}
-		result = fread(&nboot,1,nbootSize,nboot_fd);
-		if (result != nbootSize)
-		{
-		  printf("\nreading error: %d & %d",result,(int)nbootSize);
-		  exit(0);
-		}
-		fclose(nboot_fd);
-#ifdef DEBUG
-		printf("Done\n");
-#endif
-	}
-	else
-	{
-		memcpy((void*)&nboot,_nboot, _nboot_size);
-		nbootSize = _nboot_size;
-	}
-
-	printf("checking & editing data before saving...");
-	if(DolHeader.sizeText[1] && DolHeader.addressText[1] && DolHeader.offsetText[1])
-	{
-		//o ow, text2 is already full. lets quit before we brick ppl
-		printf("\n\nText2 already contains data! quiting out of failsafe...\n");
-		exit(0);
-	}
-	if (nboot.entrypoint_dol != DolHeader.entrypoint)
-	{
-		printf("\n\ndifferent nboot to dol entrypoint detected! Changing\n\t0x%08X\tto\t0x%08X\n",(unsigned int)SwapEndian(nboot.entrypoint_dol),(unsigned int)SwapEndian(DolHeader.entrypoint));
-		nboot.entrypoint_dol = DolHeader.entrypoint;
-
-	}
-	int nbootOffset = ftell (Dol);
-	int padding = nbootOffset%16;
-#ifdef DEBUG
-	printf("dol is at offset 0x%08X\n",nbootOffset);
-#endif
-	if (padding)
-	{
-		printf("\n\nneeded to add %d bytes of padding at the end of the dol\n",padding);
-		//add the padding to the offset or its bogus
-		DolHeader.offsetText[1] = SwapEndian(nbootOffset + 0x10 + padding);
-		exit(0);
-	}
-	else
-	{
-		DolHeader.offsetText[1] = SwapEndian(nbootOffset + 0x10);
-	}
-	DolHeader.sizeText[1] = SwapEndian(nbootSize-0x10);
-	DolHeader.addressText[1] = SwapEndian(0x80003400);
-
-	printf("done!\n\nSaving to output.app...\n");
-	//done! lets save this fucker! :D
-	FILE* output = fopen(OutputFile,"wb+");
-	if(!output)
-	{
-		printf("failed to create new file for writing!\n");
-		exit(0);
-	}
-	fwrite(&DolHeader,1,sizeof(dolhdr),output);
-	fwrite(DolFile,1,DolSize,output);
-	if (padding)
-	{
-		printf("adding padding...\n");
-		fwrite(0,1,padding,output);
-	}
-	fwrite(&nboot,1,nbootSize,output);
-	fclose(output);
-	printf("DONE! check %s to verify data!\n",OutputFile);
-	if(DolFile)
-		free(DolFile);
-	return 0;
-}
-
-void Display_Parameters ( void )
-{
-	printf("OpenDolBoot Input_Dol_filename [-i] [-n nandcode_filename] [-h] Output_App_filename \n\n");
+	printf("OpenDolBoot Input_Dol_filename [-i] [-n Nandcode_filename] [-h] Output_App_filename \n\n");
 	printf("parameters:\n");
-	printf("-i : display info about the dol file and exit (no other parameters are required when using -i\n");
+	printf("-i : display info about the dol file and exit (no other parameters are required when using -i)\n");
 	printf("-n : use the following nand code and not the default nboot.bin\n");
 	printf("-h : display this message\n");
+	exit(0);
+}
+int writeFile(file_info* info)
+{
+	if(info == NULL)
+		return -1;
+
+	FILE* file;
+	file = fopen(info->filename.c_str(),"wb+");
+	if(!file)
+		return -2;
+
+	fwrite(info->data,1,info->file_size,file);
+	fclose(file);
+	return 1;
+}
+int readFile(std::string filename, file_info* info)
+{
+	if(filename.size() == 0 || info == NULL)
+		return -1;
+	
+	FILE* file;
+	unsigned char* data = NULL;
+	unsigned int size = 0;
+#ifdef DEBUG
+	printf("reading %s ...\n",filename.c_str());
+#endif
+	file = fopen(filename.c_str(),"rb");
+	if(!file)
+		return -2;
+
+	fseek(file , 0 , SEEK_END);
+	size = ftell(file);
+	rewind(file);
+
+	// allocate memory to contain the whole file:
+	data = (unsigned char*) malloc (size);
+	if (data == NULL) 
+	{
+		printf("Memory error");
+		return -3;
+	}
+	memset(data,0,size);
+	//copy the file into the buffer:
+	if (fread(data,1,size,file) != size) 
+	{
+		return -4;
+	}
+	fclose(file);	
+	info->filename = filename;
+	info->data = data;
+	info->file_size = size;
+	
+	return 1;
+}
+int main(int argc, char **argv)
+{
+	printf("DacoTaco's OpenDolboot : Version %s\n\n",VERSION);
+	if(argc < 3)
+	{
+		_ShowHelp();
+	}
+	std::string inputFile = "";
+	std::string outputFile = "";
+	std::string nandCodeFile = "";
+	std::vector<std::string> argumentList;
+	bool showInfo = false;
+	//load arguments except for the first, which is just the executable path
+	for(int i = 1; i < argc;i++)
+	{
+		argumentList.push_back(argv[i]);
+	}	
+
+	std::string prev_arg = "";
+	for(unsigned int i = 0; i < argumentList.size();i++)
+	{
+		std::string argument = argumentList[i];
+		if(argument[0] == '-')
+		{
+			if(argument == "-i")
+				showInfo = true;
+			else if(argument == "-h") // -h / help
+			{
+				_ShowHelp();
+			}
+			else if(argument != "-n") //all unknown arguments
+			{
+				printf("unknown arg '%s'\n",argument.c_str());
+				_ShowHelp();
+			}
+		}
+		else if(prev_arg == "-n")
+		{
+			if(nandCodeFile.size() > 0)
+				_ShowHelp();
+
+			nandCodeFile = argument;	
+		}
+		else if(inputFile.size() == 0)
+		{
+			inputFile = argument;
+		}
+		else if(showInfo == false && outputFile.size() == 0)
+		{
+			outputFile = argument;
+		}
+		else //there was an unexpected parameter
+		{
+			printf("unexpected arg '%s'\n",argument.c_str());
+			_ShowHelp();
+		}	
+
+		prev_arg = argument;
+	}
+
+	if(inputFile.size() == 0 || (showInfo == false && outputFile.size() == 0))
+		_ShowHelp();
+
+	printf("input : %s\n",inputFile.c_str());
+	if(!showInfo)
+	{
+		printf("output : %s\n",outputFile.c_str());
+		if(nandCodeFile.size() > 0)
+			printf("using nandcode file : %s\n",nandCodeFile.c_str());	
+	}
+
+	//get input file info
+	dolhdr* inputHeader;
+	dolhdr* outputHeader;
+	file_info input_file;
+	file_info output_file;
+	if(readFile(inputFile,&input_file) < 0)
+	{
+		printf("failed to read input file\n");
+		return 1;
+	}
+	inputHeader = (dolhdr*)input_file.data;
+
+	if(showInfo)
+	{
+		printf("\n\n");
+		printf("Entrypoint: 0x%08X\nBSS Address : 0x%08X\nBSS Size: 0x%08X\n\n", (unsigned int)SwapEndian(inputHeader->entrypoint) , (unsigned int)SwapEndian(inputHeader->addressBSS) , (unsigned int)SwapEndian(inputHeader->sizeBSS) );
+		printf("Text Sections:\n");
+		for(int i = 0;i < 6;i++)
+		{
+			if(inputHeader->sizeText[i] && inputHeader->addressText[i] && inputHeader->offsetText[i])
+			{
+				//valid info. swap and display
+				printf("offset : 0x%08X\taddress : 0x%08X\tsize : 0x%08X\n", (unsigned int)SwapEndian(inputHeader->offsetText[i]), (unsigned int)SwapEndian(inputHeader->addressText[i]), (unsigned int)SwapEndian(inputHeader->sizeText[i]));
+			}
+		}
+		printf("\nData Sections:\n");
+		for(int i = 0;i <= 10;i++)
+		{
+			if(inputHeader->sizeData[i] && inputHeader->addressData[i] && inputHeader->offsetData[i])
+			{
+				//valid info. swap and display
+				printf("offset : 0x%08X\taddress : 0x%08X\tsize : 0x%08X\n", (unsigned int)SwapEndian(inputHeader->offsetData[i]), (unsigned int)SwapEndian(inputHeader->addressData[i]), (unsigned int)SwapEndian(inputHeader->sizeData[i]));
+			}
+		}
+		free(input_file.data);
+		return 0;
+	}
+
+	file_info nand_info;
+	if(nandCodeFile.size() > 0)
+	{
+		if(readFile(nandCodeFile,&nand_info) < 0)
+		{
+			printf("failed to read nand file\n");
+			free(input_file.data);
+			return 1;
+		}
+	}
+	else
+	{
+		nand_info.filename = "internal";
+		nand_info.file_size = _nboot_size;
+		nand_info.data = (unsigned char*)_nboot;
+	}
+
+#ifdef DEBUG
+	printf("doing insanity checks...\n");
+#endif
+
+	if(inputHeader->sizeText[1] && inputHeader->addressText[1] && inputHeader->offsetText[1])
+	{
+		//o ow, text2 is already full. lets quit before we brick ppl
+		printf("Text2 already contains data! quiting out of failsafe...\n");
+		free(input_file.data);
+		return 1;
+	}
+	if(nandCodeFile.size() == 0)
+	{
+		Nandcode* nboot = (Nandcode*)nand_info.data;
+		if (SwapEndian16(nboot->upper_entrypoint) != ( SwapEndian(inputHeader->entrypoint) >> 16) || SwapEndian16(nboot->lower_entrypoint) != ( SwapEndian(inputHeader->entrypoint) & 0x0000FFFF ))
+		{
+			printf("different nboot to dol entrypoint detected! Changing\n\t0x%04X%04X\tto\t0x%04X%04X\n",
+				SwapEndian16(nboot->upper_entrypoint),SwapEndian16(nboot->lower_entrypoint),
+				SwapEndian(inputHeader->entrypoint) >> 16,SwapEndian(inputHeader->entrypoint)& 0x0000FFFF);
+			nboot->upper_entrypoint = (unsigned short)(SwapEndian(inputHeader->entrypoint) >> 16);
+			nboot->lower_entrypoint = (unsigned short)(SwapEndian(inputHeader->entrypoint) & 0x0000FFFF);
+		}
+	}
+
+	//set & allocate new file data
+	output_file.file_size = input_file.file_size + nand_info.file_size;
+	output_file.filename = outputFile;
+	output_file.data = (unsigned char*)malloc(output_file.file_size);
+	if(output_file.data == NULL)
+	{
+		printf("failed to alloc output file\n");
+		free(input_file.data);
+		return 1;
+	}
+	memset(output_file.data,0,output_file.file_size);
+	outputHeader = (dolhdr*)output_file.data;
+	memcpy(outputHeader,inputHeader,sizeof(dolhdr));
+
+
+	//set dolheader data
+	outputHeader->addressText[0] = SwapEndian(0x80003400);
+	outputHeader->offsetText[0] = SwapEndian(0x00000100);
+	outputHeader->sizeText[0] = SwapEndian(nand_info.file_size);
+	for(int i = 0;i < 5;i++)
+	{
+		if(inputHeader->sizeText[i] && inputHeader->addressText[i] && inputHeader->offsetText[i])
+		{
+			//valid info. move it over
+			printf("moving text section #%d...\n",i);
+			outputHeader->addressText[i+1] = inputHeader->addressText[i];
+			outputHeader->sizeText[i+1] = inputHeader->sizeText[i];
+			outputHeader->offsetText[i+1] = inputHeader->offsetText[i] + SwapEndian(nand_info.file_size);
+		}
+	}
+
+	for(int i = 0;i <= 10;i++)
+	{
+		if(inputHeader->sizeData[i] && inputHeader->addressData[i] && inputHeader->offsetData[i])
+		{
+			//valid info. move it over
+			printf("moving data section #%d...\n",i);
+			outputHeader->addressData[i] = inputHeader->addressData[i];
+			outputHeader->sizeData[i] = inputHeader->sizeData[i];
+			outputHeader->offsetData[i] = inputHeader->offsetData[i] + SwapEndian(nand_info.file_size);
+		}
+	}
+	printf("copying binary data...\n");
+	memcpy(output_file.data + 0x100,nand_info.data,nand_info.file_size);
+	memcpy(	output_file.data + SwapEndian(outputHeader->offsetText[1]),
+			input_file.data + SwapEndian(inputHeader->offsetText[0]),
+			input_file.file_size - sizeof(dolhdr));
+
+
+	if(writeFile(&output_file))
+	{
+		printf("Done! check %s to verify!\n",output_file.filename.c_str());
+	}
+	else
+	{
+		printf("failed to write new data to %s\n",output_file.filename.c_str());
+	}
+
+	free(input_file.data);
+	free(output_file.data);
+	return 0;
 }
