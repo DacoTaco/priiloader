@@ -234,9 +234,12 @@ bool CompareSha1Hash(u8 *Data1,u32 Data1_Size,u8 *Data2,u32 Data2_Size)
 		gprintf("Data1 or Data2 size == NULL\r\n");
 		return false;
 	}
+	
+	// set _D1 and _D2 to different initial values
 	unsigned int FileHash_D1[5];
 	unsigned int FileHash_D2[5];
-	memset(FileHash_D2,0xFF,5); // set FileHash_D2 to different value so that if something goes wrong; the check fails
+	memset(FileHash_D1,0x00,sizeof(unsigned int)*5);
+	memset(FileHash_D2,0xFF,sizeof(unsigned int)*5); 
 	SHA1 sha; // SHA-1 class
 	sha.Reset();
 	sha.Input(Data1,Data1_Size);
@@ -249,7 +252,7 @@ bool CompareSha1Hash(u8 *Data1,u32 Data1_Size,u8 *Data2,u32 Data2_Size)
 	sha.Input(Data2,Data2_Size);
 	if (!sha.Result(FileHash_D2))
 	{
-		gprintf("could not compute Hash of D1!\r\n");
+		gprintf("could not compute Hash of D2!\r\n");
 		return false;
 	}
 	sha.Reset();
@@ -394,10 +397,11 @@ s32 nand_copy(const char *source, const char *destination,Nand_Permissions src_p
 	u8 *buffer = NULL;
 	STACK_ALIGN(fstats,status,sizeof(fstats),32);
 	s32 file_handler, ret;
+	//place different data in D2 so that if something goes wrong later on, the comparison will fail
 	unsigned int FileHash_D1[5];
-	memset(FileHash_D1,0,5);
 	unsigned int FileHash_D2[5];
-	memset(FileHash_D2,0xFF,5); //place different data in D2 so that if something goes wrong later on, the comparison will fail
+	memset(FileHash_D1,0x00,sizeof(unsigned int)*5);
+	memset(FileHash_D2,0xFF,sizeof(unsigned int)*5); 
 	SHA1 sha;
 	sha.Reset();
 
