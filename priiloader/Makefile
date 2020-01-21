@@ -65,7 +65,8 @@ CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
 SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.S)))
 LDRFILES	:=	$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.c)) \
 				$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.cpp)) \
-				$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.S))
+				$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.S)) \
+				$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.h))
 BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.*)))
 
 #---------------------------------------------------------------------------------

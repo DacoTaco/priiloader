@@ -66,7 +66,8 @@ _start:
 	mr	1,18
 	blr
 	)");
-void _boot(void* binary, void* parameter, u32 parameterCount, u8 isSystemMenu)
+//NOTE : see loader.h about this function's definition & signature
+void _boot _LDR_PARAMETERS
 {
 	if(binary == NULL || (parameter == NULL && parameterCount > 0))
 		return;
