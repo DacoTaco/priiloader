@@ -25,6 +25,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define MAGIC_WORD_DACO 1
 #define MAGIC_WORD_PUNE 2
 #define MAGIC_WORD_ABRA 3
+#define ARGUMENT_NAND_PATH "/title/00000001/00000002/data/main.nfo"
+#define BINARY_NAND_PATH "/title/00000001/00000002/data/main.bin"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -818,7 +820,6 @@ void SetSettings( void )
 				if ( pressed & INPUT_BUTTON_A )
 				{
 					goto _exit;
-					break;
 				}
 				break;
 			} 
@@ -1228,14 +1229,14 @@ void BootMainSysMenu( u8 init )
 		if(ret < 0)
 		{
 			error = ERROR_SYSMENU_GETTMDSIZEFAILED;
-			throw "GetTMDViewSize error " + std::to_string(ret);
+			throw ("GetTMDViewSize error " + std::to_string(ret));
 		}
 
 		ret = ES_GetTMDView(TitleID, tmd_buf, tmd_size);
 		if(ret<0)
 		{
 			error = ERROR_SYSMENU_GETTMDFAILED;
-			throw "GetTMDView error " + std::to_string(ret);
+			throw ("GetTMDView error " + std::to_string(ret));
 		}
 
 		rTMD = (tmd_view *)tmd_buf;
@@ -1377,7 +1378,7 @@ void BootMainSysMenu( u8 init )
 			if( ret < 0 )
 			{
 				error = ERROR_SYSMENU_TIKREADFAILED;
-				throw "failed to read ticket -> errno " + std::to_string(ret);
+				throw ("failed to read ticket -> errno " + std::to_string(ret));
 			}
 			ISFS_Close( fd );
 
@@ -1388,7 +1389,7 @@ void BootMainSysMenu( u8 init )
 			{
 				error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
 				__IOS_InitializeSubsystems();
-				throw "ES_Identify: GetStoredTMDSize error " + std::to_string(ret);
+				throw ("ES_Identify: GetStoredTMDSize error " + std::to_string(ret));
 			}
 			TMD = (signed_blob *)mem_align( 32, ALIGN32(tmd_size_temp) );
 			if(TMD == NULL)
@@ -1404,7 +1405,7 @@ void BootMainSysMenu( u8 init )
 			{
 				error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
 				__IOS_InitializeSubsystems();
-				throw "ES_Identify: GetStoredTMD error " + std::to_string(ret);
+				throw ("ES_Identify: GetStoredTMD error " + std::to_string(ret));
 			}
 			//uncomment me
 			ret = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size_temp, (signed_blob *)ticket, status->file_length, 0);
@@ -1412,7 +1413,7 @@ void BootMainSysMenu( u8 init )
 			{	
 				error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
 				__IOS_InitializeSubsystems();
-				throw "ES_Identify error " + std::to_string(ret);
+				throw ("ES_Identify error " + std::to_string(ret));
 			}
 			if(TMD)
 				mem_free(TMD);
@@ -1671,13 +1672,12 @@ void InstallLoadDOL( void )
 							tag_start = strstr(buf,"<ahb_access/>");
 						if(tag_start != NULL)
 							temp.HW_AHBPROT_ENABLED = 1;
-						tag_start = 0;
 						tag_start = strstr(buf,"<name>");
 						if(tag_start != NULL)
 						{
 							tag_start += 6;
 							tag_end = strstr(tag_start,"</name>");
-							if(tag_start != NULL && tag_end != NULL)
+							if(tag_end != NULL)
 							{
 								char _temp[tag_end - tag_start+1];
 								memset(_temp,0,sizeof(_temp));
@@ -1686,7 +1686,6 @@ void InstallLoadDOL( void )
 							}
 						}
 						tag_end = 0;
-						tag_start = 0;
 						tag_start = strstr(buf,"<arguments>");
 						if(tag_start != NULL)
 						{
@@ -1694,12 +1693,11 @@ void InstallLoadDOL( void )
 							if(tag_start != NULL && tag_end != NULL)
 							{
 								char* arg_start = strstr(buf,"<arg>");
-								char* arg_end = 0;
 								while(arg_start != NULL)
 								{
 									//arguments!
 									arg_start+= 5;
-									arg_end = strstr(arg_start,"</arg>");
+									char* arg_end = strstr(arg_start,"</arg>");
 									if(arg_end == NULL)
 									{
 										//oh-ow. no ending. lets bail out
@@ -1872,17 +1870,17 @@ void InstallLoadDOL( void )
 				fclose( dol );
 
 				//Check if there is already a main.dol installed
-				s32 fd = ISFS_Open("/title/00000001/00000002/data/main.bin", 1|2 );
+				s32 fd = ISFS_Open(BINARY_NAND_PATH, 1|2 );
 
 				if( fd >= 0 )	//delete old file
 				{
 					ISFS_Close( fd );
-					ISFS_Delete("/title/00000001/00000002/data/main.bin");
+					ISFS_Delete(BINARY_NAND_PATH);
 				}
 
 				//file not found create a new one
-				ISFS_CreateFile("/title/00000001/00000002/data/main.bin", 0, 3, 3, 3);
-				fd = ISFS_Open("/title/00000001/00000002/data/main.bin", 1|2 );
+				ISFS_CreateFile(BINARY_NAND_PATH, 0, 3, 3, 3);
+				fd = ISFS_Open(BINARY_NAND_PATH, 1|2 );
 
 				if( ISFS_Write( fd, buf, sizeof( char ) * size ) != (signed)(sizeof( char ) * size) )
 				{
@@ -1918,14 +1916,14 @@ void InstallLoadDOL( void )
 							}
 						}
 						dol_settings->arg_command_line[dol_settings->arg_cli_length -1] = 0x00;
-						fd = ISFS_Open("/title/00000001/00000002/data/main.nfo", 1|2 );
+						fd = ISFS_Open(ARGUMENT_NAND_PATH, 1|2 );
 						if( fd >= 0 )	//delete old file
 						{
 							ISFS_Close( fd );
-							ISFS_Delete("/title/00000001/00000002/data/main.nfo");
+							ISFS_Delete(ARGUMENT_NAND_PATH);
 						}
-						ISFS_CreateFile("/title/00000001/00000002/data/main.nfo", 0, 3, 3, 3);
-						fd = ISFS_Open("/title/00000001/00000002/data/main.nfo", 1|2 );
+						ISFS_CreateFile(ARGUMENT_NAND_PATH, 0, 3, 3, 3);
+						fd = ISFS_Open(ARGUMENT_NAND_PATH, 1|2 );
 					}
 					else
 					{
@@ -1969,17 +1967,17 @@ void InstallLoadDOL( void )
 
 			PrintFormat( 0, TEXT_OFFSET("Deleting installed File..."), 208, "Deleting installed File...");
 
-			ISFS_Delete("/title/00000001/00000002/data/main.nfo");
+			ISFS_Delete(ARGUMENT_NAND_PATH);
 
 			//Check if there is already a main.dol installed
-			s32 fd = ISFS_Open("/title/00000001/00000002/data/main.bin", 1|2 );
+			s32 fd = ISFS_Open(BINARY_NAND_PATH, 1|2 );
 
 			if( fd >= 0 )	//delete old file
 			{
 				ISFS_Close( fd );
-				ISFS_Delete("/title/00000001/00000002/data/main.bin");
+				ISFS_Delete(BINARY_NAND_PATH);
 
-				fd = ISFS_Open("/title/00000001/00000002/data/main.bin", 1|2 );
+				fd = ISFS_Open(BINARY_NAND_PATH, 1|2 );
 
 				if( fd >= 0 )	//file not delete
 					PrintFormat( 0, TEXT_OFFSET("Failed"), 240, "Failed");
@@ -2068,9 +2066,6 @@ void AutoBootDol( void )
 	struct __argv *argv = NULL;
 	try
 	{
-		const char* dol_path = "/title/00000001/00000002/data/main.bin\0";
-		const char* arg_path = "/title/00000001/00000002/data/main.nfo\0";
-
 		STACK_ALIGN(_dol_settings,dol_settings,sizeof(_dol_settings),32);
 		memset(dol_settings,0,sizeof(_dol_settings));
 		STACK_ALIGN(fstats,status,sizeof(fstats),32);
@@ -2078,7 +2073,7 @@ void AutoBootDol( void )
 
 		try
 		{
-			fd = ISFS_Open(arg_path, ISFS_OPEN_READ );
+			fd = ISFS_Open(ARGUMENT_NAND_PATH, ISFS_OPEN_READ );
 			if(fd < 0)
 				throw "failed to open argument file";
 
@@ -2092,7 +2087,7 @@ void AutoBootDol( void )
 			if(dol_settings->HW_AHBPROT_bit != 1 && dol_settings->HW_AHBPROT_bit != 0 )
 			{
 				ISFS_Close(fd);
-				ISFS_Delete("/title/00000001/00000002/data/main.nfo");
+				ISFS_Delete(ARGUMENT_NAND_PATH);
 				throw "invalid HW_AHBPROT bit";
 			}
 
@@ -2109,7 +2104,7 @@ void AutoBootDol( void )
 			argv->argc = 0;
 			argv->argv = &argv->commandLine;
 			argv->endARGV = argv->argv + 1;
-			argv->length = strnlen(dol_path,48)+1;
+			argv->length = strnlen(BINARY_NAND_PATH,48)+1;
 
 			if(dol_settings->argument_count > 0)
 			{
@@ -2122,13 +2117,13 @@ void AutoBootDol( void )
 			
 			memset(argv->commandLine,0,argv->length);
 
-			strncpy(argv->commandLine,dol_path,argv->length-1);
+			strncpy(argv->commandLine,BINARY_NAND_PATH,argv->length-1);
 			argv->argc = 1;
 
 			if(dol_settings->argument_count > 0)
 			{
 				ISFS_Seek(fd , sizeof(dol_settings)-1 ,SEEK_SET);
-				if(ISFS_Read( fd, argv->commandLine+strnlen(dol_path,48)+1, dol_settings->arg_cli_length ) <= dol_settings->arg_cli_length)
+				if(ISFS_Read( fd, argv->commandLine+strnlen(BINARY_NAND_PATH,48)+1, dol_settings->arg_cli_length ) <= dol_settings->arg_cli_length)
 					throw "failed to read arguments";
 
 				ISFS_Close(fd);
@@ -2169,7 +2164,7 @@ void AutoBootDol( void )
 		}
 
 		//read the binary
-		fd = ISFS_Open(dol_path, ISFS_OPEN_READ );
+		fd = ISFS_Open(BINARY_NAND_PATH, ISFS_OPEN_READ );
 		if( fd < 0 )
 		{
 			error = ERROR_BOOT_DOL_OPEN;

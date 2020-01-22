@@ -78,8 +78,8 @@ class SHA1
         unsigned Length_Low;                // Message length in bits
         unsigned Length_High;               // Message length in bits
 
-        unsigned char Message_Block[64];    // 512-bit message blocks
-        int Message_Block_Index;            // Index into message block array
+        unsigned char Message_Block[64] = {0x00000000}; // 512-bit message blocks
+		int Message_Block_Index;            // Index into message block array
 
         bool Computed;                      // Is the digest computed?
         bool Corrupted;                     // Is the message digest corruped?

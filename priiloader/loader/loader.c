@@ -35,8 +35,7 @@ void DCFlushRange(void *startaddress,u32 len);
 void ICInvalidateRange(void* addr, u32 size);
 void _memcpy(void* dst, void* src, u32 len);
 void _memset(void* src, u32 data, u32 len);
-u32 _loadApplication(void* binary, void* parameter);
-u32 _loadSystemMenu(void* binary, void* parameter, u32 parameterCount);
+u32 _loadApplication(u32* binary, void* parameter);
 
 /*this --MUST-- be the first code in this file.
 when run, we will jump to addr 0 of the compiled code. if this is on top, this will be the code run
@@ -122,7 +121,7 @@ asm(R"(isync
 	return;
 }
 
-u32 _loadApplication(void* binary, void* parameter)
+u32 _loadApplication(u32* binary, void* parameter)
 {
 	Elf32_Ehdr *ElfHdr = (Elf32_Ehdr *)binary;
 	struct __argv *args = (struct __argv *)parameter;
@@ -139,7 +138,7 @@ u32 _loadApplication(void* binary, void* parameter)
 
 		for( s32 i=0; i < ElfHdr->e_phnum; ++i )
 		{
-			Elf32_Phdr* phdr = binary + (ElfHdr->e_phoff + sizeof( Elf32_Phdr ) * i);
+			Elf32_Phdr* phdr = (Elf32_Phdr*)binary + (ElfHdr->e_phoff + sizeof( Elf32_Phdr ) * i);
 			ICInvalidateRange ((void*)(phdr->p_vaddr | 0x80000000),phdr->p_filesz);
 			if(phdr->p_type != PT_LOAD )
 				continue;
@@ -150,7 +149,7 @@ u32 _loadApplication(void* binary, void* parameter)
 		//however, checking for the type does the trick to make them work :)
 		for( s32 i=0; i < ElfHdr->e_shnum; ++i )
 		{
-			Elf32_Shdr *shdr = binary + (ElfHdr->e_shoff + sizeof( Elf32_Shdr ) * i);
+			Elf32_Shdr *shdr = (Elf32_Shdr*)binary + (ElfHdr->e_shoff + sizeof( Elf32_Shdr ) * i);
 
 			//useless check
 			//if( shdr->sh_type == SHT_NULL )

@@ -67,8 +67,7 @@ void gprintf( const char *str, ... )
 	}
 	if (DumpDebug > 0 && GetMountedValue() > 0)
 	{
-		FILE* fd = NULL;
-		fd = fopen("fat:/prii.log","ab");
+		FILE* fd = fopen("fat:/prii.log","ab");
 		if(fd != NULL)
 		{
 			//0x0D0A = \r\n
@@ -95,8 +94,7 @@ void SetDumpDebug( u8 value )
 	if (DumpDebug > 0 && GetMountedValue() > 0)
 	{
 		//create file, or re-open and add lining
-		FILE* fd = NULL;
-		fd = fopen("fat:/prii.log","ab");
+		FILE* fd = fopen("fat:/prii.log","ab");
 		if(fd != NULL)
 		{
 			char str[] = "--------gecko_output_enabled------\r\n\0";

@@ -19,6 +19,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 */
 //Note by DacoTaco : yes this isn't the prettiest HTTP Parser alive but it does the job better then loads of http parsers so stop complaining :)
+#include <algorithm>
+#include <cctype>
+#include <string>
 #include "HTTP_Parser.h"
 #include "../../Shared/gitrev.h"
 static char HTTP_Reply[4];
@@ -93,7 +96,7 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int* external_socke
 			{
 				strncpy(HTTP_Reply,&buffer[9],3);
 				HTTP_Reply[3] = '\0';
-				char location[256];
+				std::string location;
 				char* phost = NULL;
 				char host_new[256];
 				char file_new[256];
@@ -132,9 +135,18 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int* external_socke
 										break;
 								}
 							}
-							if( !memcmp( buffer, "Location: ", 10 ) )
+							std::string header(buffer);
+							std::transform(header.begin(), header.end(), header.begin(), ::tolower);							
+							if(header.compare(0,strlen("location: "),"location: "))
 							{
-								sscanf( buffer , "Location: %s\x0D\x0A", location );
+								location = header.substr(	header.find("location: "),
+																		header.size() - header.find("location: "));
+								int start = strlen("location: ");
+								int end = location.npos;
+								if(location.compare(0,2,"\r\n"))
+									end = location.find("\r\n") - start;
+
+								location = location.substr(start,end);
 							}
 							else
 							{
@@ -142,7 +154,6 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int* external_socke
 								net_close(socket);
 								ret = -88;
 								goto return_ret;
-								break;
 							}
 							//we got the url. close everything and start all over
 							net_close(socket);
@@ -152,9 +163,9 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int* external_socke
 							memset(host_new,0,256);
 							memset(file_new,0,256);
 							//extract host & file from url
-							if( !memcmp( location, "http://", 7 ) )
+							if( location.compare(0,7,"http://"))
 							{
-								sscanf( location , "http://%s", buffer );
+								strncpy(buffer,location.c_str(),1023);
 							}
 							else
 							{

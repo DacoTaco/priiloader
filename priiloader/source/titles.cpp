@@ -53,8 +53,7 @@ s8 CheckTitleOnSD(u64 id)
 			title_ID[f] = '.';
 	}
 	title_ID[4]='\0';
-	char file[256] ATTRIBUTE_ALIGN(32);
-	memset(file,0,256);
+	char file[64] ATTRIBUTE_ALIGN(32);
 	sprintf(file, "fat:/private/wii/title/%s/content.bin", title_ID);
 	FILE* SDHandler = fopen(file,"rb");
 	if (SDHandler)
@@ -99,8 +98,7 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 	{
 		return_unicode_name = 1;
 	}
-    char file[256] ATTRIBUTE_ALIGN(32);
-	memset(file,0,256);
+    char file[64] ATTRIBUTE_ALIGN(32);
     sprintf(file, "/title/%08lx/%08lx/content/%08lx.app", (u32)(id >> 32), (u32)(id & 0xFFFFFFFF), app);
 	gdprintf("GetTitleName : %s",file);
 	u32 cnt ATTRIBUTE_ALIGN(32);
@@ -328,10 +326,7 @@ s32 LoadListTitles( void )
 					gprintf("WARNING : GetTMDView error %d on title %x-%x",ret,(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
 					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMD error on 00000000-00000000!"))*13/2))>>1, 208+32, "WARNING : TMD error on %08X-%08X!",(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
 					sleep(3);
-					if(rTMD)
-					{
-						mem_free(rTMD);
-					}
+					mem_free(rTMD);
 					if( !SGetSetting(SETTING_BLACKBACKGROUND))
 						VIDEO_ClearFrameBuffer( rmode, xfb, 0xFF80FF80);
 					else
@@ -376,7 +371,7 @@ s32 LoadListTitles( void )
 	}
 	mem_free(title_list);
 	//done detecting titles. lets list them
-	if(titles.size() <= 0)
+	if(titles.size() == 0)
 	{
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("ERROR : No VC/Wiiware channels found"))*13/2))>>1, 208+32, "ERROR : No VC/Wiiware channels found");
 		sleep(3);
