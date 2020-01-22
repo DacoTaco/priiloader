@@ -89,10 +89,8 @@ u32 GetSysMenuVersion( void )
 		return 0;
 	}	
 	u32 version = rTMD->title_version;
-	if(rTMD)
-	{
-		mem_free(rTMD);
-	}
+
+	mem_free(rTMD);
 	return version;
 }
 
@@ -124,10 +122,8 @@ u32 GetSysMenuIOS( void )
 		return 0;
 	}
 	u8 IOS = rTMD->title_version;
-	if(rTMD)
-	{
-		mem_free(rTMD);
-	}
+
+	mem_free(rTMD);
 	return IOS;
 }
 

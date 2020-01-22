@@ -144,7 +144,7 @@ bool GetLine(bool reading_nand, std::string& line)
 		//find the newline and split the string
 		std::string cut_string = read_line.substr(0,read_line.find("\n"));
 		if(cut_string.length() == 0)
-			std::string cut_string = read_line.substr(0,read_line.find("\r"));
+			cut_string = read_line.substr(0,read_line.find("\r"));
 
 		//set the new file position untill after the \r\n, \r or \n
 		file_pos += cut_string.size()+1;
@@ -267,7 +267,7 @@ bool _processLine(system_hack& hack, std::string &line)
 				while(segment.find(" ") != std::string::npos)
 						segment = segment.replace(segment.find(" "),1,"");	
 
-				if(segment.length() < 4 || segment.length() > 10 || segment.find("0x") != 0 )
+				if(segment.length() < 4 || segment.length() > 10 || segment.compare(0,2,"0x"))
 					throw "Invalid " + type + " : " + segment;
 
 				//cut off the '0x'
@@ -302,7 +302,7 @@ bool _processLine(system_hack& hack, std::string &line)
 			//process offset
 			//example : offset=0x81000000
 			if(value.size() != 10)
-				throw "Invalid offset : " + value.size();
+				throw ("Invalid offset : " + std::to_string(value.size()));
 
 			//save the old patch and start a new one.
 			if(temp_patch->patch.size() > 0 && ( temp_patch->hash.size() > 0 || temp_patch->offset != 0 ))

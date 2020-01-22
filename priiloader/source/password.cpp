@@ -281,12 +281,15 @@ void password_check( void )
 		return;
 	}
 	fstats *cpstatus = (fstats *)mem_align( 32, sizeof( fstats ) );
+	if(cpstatus == NULL)
+	{
+		error = ERROR_MALLOC;
+		return;
+	}
 	ISFS_GetFileStats( cpfd, cpstatus);
 	cpsize = cpstatus->file_length;
-	if( cpstatus )
-	{
-		mem_free( cpstatus );
-	}
+	mem_free( cpstatus );
+
 	cpbuf = (char*)mem_align( 32, ALIGN32(cpsize) );
 	if( cpbuf == NULL )
 	{
@@ -347,8 +350,10 @@ void password_check( void )
 	sprintf(path, "fat:/%s", file);
 	f = fopen(path,"rb");
 	if(f != NULL)
+	{
 		filecheck = 0; 
-	fclose(f);
+		fclose(f);
+	}
 
  	if(filecheck != 0)
 	{
@@ -551,7 +556,7 @@ void password_check( void )
 				fclose(f);
 				break; 
 			}
-			fclose(f);
+
 			if(passcheck == 0)
 				break;
 			else

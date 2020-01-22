@@ -72,12 +72,15 @@ int readFile(std::string filename, file_info* info)
 	if (data == NULL) 
 	{
 		printf("Memory error");
+		fclose(file);
 		return -3;
 	}
 	memset(data,0,size);
 	//copy the file into the buffer:
 	if (fread(data,1,size,file) != size) 
 	{
+		fclose(file);
+		free(data);
 		return -4;
 	}
 	fclose(file);	

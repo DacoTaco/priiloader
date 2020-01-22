@@ -179,15 +179,14 @@ void abort_pre_init(const char* msg, ...)
 	va_start( args, msg );
 	strcpy( text + vsnprintf( text,4095,msg,args ),""); 
 	va_end( args );
-	printf("\x1b[%u;%dm", 36, 1);
+	printf("\x1b[%d;%dm", 36, 1);
 	gprintf("%s, aborting mission...\r\n", text);
 	printf("%s\nPress A to exit back to loader...\r\n",text);
 	UserYesNoStop();
 	printf("exitting...\r\n");
-	printf("\x1b[%u;%dm", 37, 1);
+	printf("\x1b[%d;%dm", 37, 1);
 	VIDEO_WaitVSync();
 	exit(0);
-	return;
 }
 void abort(const char* msg, ...)
 {
@@ -196,15 +195,14 @@ void abort(const char* msg, ...)
 	va_start( args, msg );
 	strcpy( text + vsnprintf( text,4095,msg,args ),""); 
 	va_end( args );
-	printf("\x1b[%u;%dm", 36, 1);
+	printf("\x1b[%d;%dm", 36, 1);
 	gprintf("%s, aborting mission...\r\n", text);
 	printf("%s\nPress A to exit back to loader...\r\n",text);
 	UserYesNoStop();
 	printf("exitting...\r\n");
-	printf("\x1b[%u;%dm", 37, 1);
+	printf("\x1b[%d;%dm", 37, 1);
 	VIDEO_WaitVSync();
 	exit(0);
-	return;
 }
 
 bool CheckvWii (void) {
@@ -281,19 +279,19 @@ s32 nand_copy(const char *destination,u8* Buf_To_Write_to_Copy, u32 buf_size,Nan
 	//extract filename from destination
 	char temp_dest[ISFS_MAXPATH];
 	memset(temp_dest,0,ISFS_MAXPATH);
-	char *ptemp = NULL;
-	ptemp = strstr(destination,"/");
+	char *ptemp = strstr(destination,"/");
 	while(ptemp != NULL && strstr(ptemp+1,"/") != NULL)
 	{
 		ptemp = strstr(ptemp+1,"/");
 	}
+	if(ptemp == NULL)
+		return -1;
 	if(ptemp[0] == '/')
 	{
 		ptemp = ptemp+1;
 	}
 
 	//create temp path
-	memset(temp_dest,0,ISFS_MAXPATH);
 	sprintf(temp_dest,"/tmp/%s",ptemp);
 	ISFS_Delete(temp_dest);
 
@@ -408,20 +406,23 @@ s32 nand_copy(const char *source, const char *destination,Nand_Permissions src_p
 	//variables - temp dir & SHA1 check
 	char temp_dest[ISFS_MAXPATH];
 	memset(temp_dest,0,ISFS_MAXPATH);
-	char *ptemp = NULL;
+	char *ptemp = strstr(destination,"/");
 	u8 temp = 0;
 
 	//get temp filename
-	ptemp = strstr(destination,"/");
 	while(ptemp != NULL && strstr(ptemp+1,"/") != NULL)
 	{
 		ptemp = strstr(ptemp+1,"/");
+	}
+	if(ptemp == NULL)
+	{
+		gprintf("failed to compile destination path\r\n");
+		return -1;
 	}
 	if(ptemp[0] == '/')
 	{
 		ptemp = ptemp+1;
 	}
-	memset(temp_dest,0,ISFS_MAXPATH);
 	sprintf(temp_dest,"/tmp/%s",ptemp);
 
 	//get data into pointer from original file
@@ -574,27 +575,27 @@ void proccess_delete_ret( s32 ret )
 {
 	if(ret == -106)
 	{
-		printf("\x1b[%u;%dm", 32, 1);
+		printf("\x1b[%d;%dm", 32, 1);
 		printf("Not found\r\n");
-		printf("\x1b[%u;%dm", 37, 1);
+		printf("\x1b[%d;%dm", 37, 1);
 	}
 	else if(ret == -102)
 	{
-		printf("\x1b[%u;%dm", 33, 1);
+		printf("\x1b[%d;%dm", 33, 1);
 		printf("Error deleting file: access denied\r\n");
-		printf("\x1b[%u;%dm", 37, 1);
+		printf("\x1b[%d;%dm", 37, 1);
 	}
 	else if (ret < 0)
 	{
-		printf("\x1b[%u;%dm", 33, 1);
+		printf("\x1b[%d;%dm", 33, 1);
 		printf("Error deleting file. error %ld\r\n",ret);
-		printf("\x1b[%u;%dm", 37, 1);
+		printf("\x1b[%d;%dm", 37, 1);
 	}
 	else
 	{
-		printf("\x1b[%u;%dm", 32, 1);
+		printf("\x1b[%d;%dm", 32, 1);
 		printf("Deleted\r\n");
-		printf("\x1b[%u;%dm", 37, 1);
+		printf("\x1b[%d;%dm", 37, 1);
 	}
 	return;
 }
@@ -657,21 +658,18 @@ void Delete_Priiloader_Files( u8 mode )
 		gprintf("hacks_s.ini : %d\r\n",ret);
 		printf("Hacks_s.ini : ");
 		proccess_delete_ret(ret);
-		memset(file_path,0,ISFS_MAXPATH);
 
 		sprintf(file_path, "/title/%08lx/%08lx/data/hacks.ini",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
 		ret = ISFS_Delete(file_path);
 		gprintf("hacks.ini : %d\r\n",ret);
 		printf("Hacks.ini : ");
 		proccess_delete_ret(ret);
-		memset(file_path,0,ISFS_MAXPATH);
 
 		sprintf(file_path, "/title/%08lx/%08lx/data/hacksh_s.ini",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
 		ret = ISFS_Delete(file_path);
 		gprintf("hacksh_s.ini : %d\r\n",ret);
 		printf("Hacksh_s.ini : ");
 		proccess_delete_ret(ret);
-		memset(file_path,0,ISFS_MAXPATH);
 
 		sprintf(file_path, "/title/%08lx/%08lx/data/hackshas.ini",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
 		ret = ISFS_Delete(file_path);
@@ -706,16 +704,16 @@ s8 PatchTMD( u8 delete_mode )
 	u8 *TMD_chk = NULL;
 	s32 fd = 0;
 	s32 r = 0;
-#ifdef _DEBUG
+#ifdef DEBUG
 	gprintf("Path : %s\r\n",TMD_Path);
 #endif
 	r = ISFS_GetAttr(TMD_Path, &Perm.owner, &Perm.group, &Perm.attributes, &Perm.ownerperm, &Perm.groupperm, &Perm.otherperm);
 	if(r < 0 )
 	{
 		//attribute getting failed. returning to default
-		printf("\x1b[%u;%dm", 33, 1);
+		printf("\x1b[%d;%dm", 33, 1);
 		printf("\nWARNING : failed to get file's permissions. using defaults\r\n");
-		printf("\x1b[%u;%dm", 37, 1);
+		printf("\x1b[%d;%dm", 37, 1);
 		gprintf("permission failure on desination! error %d\r\n",r);
 		gprintf("writing with max permissions\r\n");
 		Perm.ownerperm = 3;
@@ -771,12 +769,12 @@ s8 PatchTMD( u8 delete_mode )
 			if(r == -80)
 			{
 				//checksum issues
-				printf("\x1b[%u;%dm", 33, 1);
+				printf("\x1b[%d;%dm", 33, 1);
 				printf("\nWARNING!!\nInstaller could not calculate the Checksum when restoring the TMD back!\r\n");
 				printf("the TMD however was copied...\r\n");
 				printf("Do you want to Continue ?\r\n");
 				printf("A = Yes       B = No\n  ");
-				printf("\x1b[%u;%dm", 37, 1);
+				printf("\x1b[%d;%dm", 37, 1);
 				if(!UserYesNoStop())
 				{
 					nand_copy(TMD_Path,TMD_Path2,Perm);
@@ -785,9 +783,9 @@ s8 PatchTMD( u8 delete_mode )
 			}
 			else
 			{
-				printf("\x1b[%u;%dm", 33, 1);
+				printf("\x1b[%d;%dm", 33, 1);
 				printf("UNABLE TO RESTORE THE SYSTEM MENU TMD!!!\n\nTHIS COULD BRICK THE WII SO PLEASE REINSTALL SYSTEM MENU\nWHEN RETURNING TO THE HOMEBREW CHANNEL!!!\n\r\n");
-				printf("\x1b[%u;%dm", 37, 1);
+				printf("\x1b[%d;%dm", 37, 1);
 				printf("press A to return to the homebrew channel\r\n");
 				nand_copy(TMD_Path,TMD_Path2,Perm);
 				UserYesNoStop();
@@ -922,12 +920,12 @@ _return:
 	}
 	if (r < 0)
 	{
-		printf("\x1b[%u;%dm", 33, 1);
+		printf("\x1b[%d;%dm", 33, 1);
 		printf("\nWARNING!!\nInstaller couldn't Patch the system menu TMD.\r\n");
 		printf("Priiloader could still end up being installed but could end up working differently\r\n");
 		printf("Do you want the Continue ?\r\n");
 		printf("A = Yes       B = No\n  ");
-		printf("\x1b[%u;%dm", 37, 1);
+		printf("\x1b[%d;%dm", 37, 1);
 		if(!UserYesNoStop())
 		{
 			fd = ISFS_Open(TMD_Path2,ISFS_OPEN_RW);
@@ -960,12 +958,12 @@ _checkreturn:
 		free(TMD_chk);
 		TMD_chk = NULL;
 	}
-	printf("\x1b[%u;%dm", 33, 1);
+	printf("\x1b[%d;%dm", 33, 1);
 	printf("\nWARNING!!\n  Installer could not calculate the Checksum for the TMD!");
 	printf("\nbut Patch write was successfull.\r\n");
 	printf("Do you want the Continue ?\r\n");
 	printf("A = Yes       B = No\n  ");
-	printf("\x1b[%u;%dm", 37, 1);
+	printf("\x1b[%d;%dm", 37, 1);
 	if(!UserYesNoStop())
 	{
 		printf("reverting changes...\r\n");
@@ -1090,12 +1088,12 @@ s8 WritePriiloader( bool priiloader_found )
 			if (ret == -80)
 			{
 				//checksum issues
-				printf("\x1b[%u;%dm", 33, 1);
+				printf("\x1b[%d;%dm", 33, 1);
 				printf("\nWARNING!!\n  Installer could not calculate the Checksum for the System menu app");
 				printf("\nbut Copy was successfull.\r\n");
 				printf("Do you want the Continue ?\r\n");
 				printf("A = Yes       B = No\n  ");
-				printf("\x1b[%u;%dm", 37, 1);
+				printf("\x1b[%d;%dm", 37, 1);
 				if(!UserYesNoStop())
 				{
 					printf("reverting changes...\r\n");
@@ -1127,17 +1125,20 @@ s8 WritePriiloader( bool priiloader_found )
 
 	char temp_dest[ISFS_MAXPATH];
 	memset(temp_dest,0,ISFS_MAXPATH);
-	char *ptemp = NULL;
-	ptemp = strstr(original_app,"/");
+	char *ptemp = strstr(original_app,"/");
 	while(ptemp != NULL && strstr(ptemp+1,"/") != NULL)
 	{
 		ptemp = strstr(ptemp+1,"/");
+	}
+	if(ptemp == NULL)
+	{
+		gprintf("error WritePriiloader: failed to compile tmp filepath \r\n",fd);
+		abort("\nFailed to compile tmp filepath");
 	}
 	if(ptemp[0] == '/')
 	{
 		ptemp = ptemp+1;
 	}
-	memset(temp_dest,0,ISFS_MAXPATH);
 	sprintf(temp_dest,"/tmp/%s",ptemp);
 	ISFS_Delete(temp_dest);
 	ret = ISFS_CreateFile(temp_dest,SysPerm.attributes,SysPerm.ownerperm,SysPerm.groupperm,SysPerm.otherperm);
@@ -1324,12 +1325,12 @@ s8 RemovePriiloader ( void )
 		if(ret == -80)
 		{
 			//checksum issues
-			printf("\x1b[%u;%dm", 33, 1);
+			printf("\x1b[%d;%dm", 33, 1);
 			printf("\nWARNING!!\n  Installer could not calculate the Checksum when coping the System menu app\r\n");
 			printf("back! the app however was copied...\r\n");
 			printf("Do you want to Continue ?\r\n");
 			printf("A = Yes       B = No\n  ");
-			printf("\x1b[%u;%dm", 37, 1);
+			printf("\x1b[%d;%dm", 37, 1);
 			if(!UserYesNoStop())
 			{
 				printf("reverting changes...\r\n");
@@ -1886,9 +1887,9 @@ else
 			fflush(stdout);
 			printf("IOS %ld rev %ld\r\n\r\n\r\n",IOS_GetVersion(),IOS_GetRevision());
 #ifdef BETA
-			printf("\x1b[%u;%dm", 33, 1);
+			printf("\x1b[%d;%dm", 33, 1);
 			printf("\nWARNING : ");
-			printf("\x1b[%u;%dm", 37, 1);
+			printf("\x1b[%d;%dm", 37, 1);
 			printf("this is a beta version. are you SURE you want to install this?\nA to confirm, Home/Start to abort\r\n");
 			sleepx(1);
 			if(!UserYesNoStop())
