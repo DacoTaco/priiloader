@@ -60,6 +60,17 @@ void _showError(const char* errorMsg, ...)
 	return;
 }
 
+std::string trim(const std::string& str)
+{
+    size_t first = str.find_first_not_of(' ');
+    if (std::string::npos == first)
+    {
+        return str;
+    }
+    size_t last = str.find_last_not_of(' ');
+    return str.substr(first, (last - first + 1));
+}
+
 //we use our own GetLine instead of ifstream because ifstream would increase priiloader's size with 300KB...
 //and eventhough not perfect, this works fine too
 bool GetLine(bool reading_nand, std::string& line)
@@ -190,7 +201,19 @@ bool _processLine(system_hack& hack, std::string &line)
 {
 	try
 	{
-		gdprintf("processing %s",line.c_str());
+		gdprintf("processing '%s'",line.c_str());
+
+		//if the line has a comment we will strip everything after the comment character
+		if(line.find("#") != std::string::npos)
+		{
+			line = line.substr(0,line.find("#"));
+		}
+
+		//trim all trailing spaces. if we end up with an empty line we just return
+		line = trim(line);
+		if(line.size() == 0) 
+			return true;
+
 		if(line.front() == '[' && line.back() == ']')
 		{
 			line = line.substr(1,line.length()-2);
