@@ -267,7 +267,7 @@ int main(int argc, char **argv)
 			printf("moving text section #%d...\n",i);
 			outputHeader->addressText[i+1] = inputHeader->addressText[i];
 			outputHeader->sizeText[i+1] = inputHeader->sizeText[i];
-			outputHeader->offsetText[i+1] = inputHeader->offsetText[i] + SwapEndian(nand_info.file_size);
+			outputHeader->offsetText[i+1] = SwapEndian(SwapEndian(inputHeader->offsetText[i]) + nand_info.file_size);
 		}
 	}
 
@@ -279,7 +279,7 @@ int main(int argc, char **argv)
 			printf("moving data section #%d...\n",i);
 			outputHeader->addressData[i] = inputHeader->addressData[i];
 			outputHeader->sizeData[i] = inputHeader->sizeData[i];
-			outputHeader->offsetData[i] = inputHeader->offsetData[i] + SwapEndian(nand_info.file_size);
+			outputHeader->offsetData[i] = SwapEndian(SwapEndian(inputHeader->offsetData[i]) + nand_info.file_size);
 		}
 	}
 	printf("copying binary data...\n");
