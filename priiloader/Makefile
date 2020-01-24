@@ -142,9 +142,7 @@ ifneq ($(shell md5sum $(DATA)/certs.bin | cut -d\  -f1),7ff50e2733f7a6be1677b6f6
 endif
 endif
 
-ifeq ($(wildcard ./$(OPENDOLBOOT)),)
-	@g++ ../tools/OpenDolBoot/source/OpenDolBoot.cpp -o $(OPENDOLBOOT)
-endif
+	@test -s $(OPENDOLBOOT) || echo Building $(OPENDOLBOOT) ...; g++ ../tools/OpenDolBoot/source/OpenDolBoot.cpp -o $(OPENDOLBOOT);
 
 ifeq ($(wildcard $(DATA)/loader.bin),)
 	@echo "loader is missing (loader.bin)."
