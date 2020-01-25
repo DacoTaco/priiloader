@@ -2318,13 +2318,12 @@ void CheckForUpdate()
 			}
 			if (SGetSetting(SETTING_SHOWBETAUPDATES))
 			{
-				
 				if ( BetaUpdates )
 				{
-					if( (UpdateFile.version&0xFF) % 10 == 0 )
+					if( (UpdateFile.beta_version&0xFF) % 10 == 0 )
 					{
 						//PrintFormat( cur_off==1, 16, 64+(16*2), "Update to %d.%d beta %d",UpdateFile.beta_version >> 8,UpdateFile.beta_version&0xFF, UpdateFile.beta_number);
-						PrintFormat( cur_off==1, 16, 64+(16*2), "Update to %d.%d beta %d",UpdateFile.beta_version >> 8,UpdateFile.beta_version&0xFF, UpdateFile.beta_number);
+						PrintFormat( cur_off==1, 16, 64+(16*2), "Update to %d.%d beta %d",UpdateFile.beta_version >> 8,(UpdateFile.beta_version&0xFF) / 10 , UpdateFile.beta_number);
 					}
 					else
 					{
