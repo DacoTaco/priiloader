@@ -144,7 +144,8 @@ void SysHackHashSettings( void )
 	//loop hacks file and see which one we show
 	for( unsigned int i=0; i<system_hacks.size(); ++i)
 	{
-		if( system_hacks[i].max_version >= SysVersion && system_hacks[i].min_version <= SysVersion)
+		if( system_hacks[i].max_version >= SysVersion && system_hacks[i].min_version <= SysVersion
+				&& system_hacks[i].masterID.length() == 0)
 		{
 			hack_index hack;
 			hack.desc.assign(system_hacks[i].desc,0,39);
@@ -321,7 +322,8 @@ handle_hacks_s_fail:
 				u32 i = 0;
 				for(i=0; i<system_hacks.size(); ++i)
 				{
-					if( system_hacks[i].max_version >= SysVersion && system_hacks[i].min_version <= SysVersion)
+					if( system_hacks[i].max_version >= SysVersion && system_hacks[i].min_version <= SysVersion
+							&& system_hacks[i].masterID.length() == 0)
 					{
 						if( cur_off == j++)
 							break;
@@ -1429,6 +1431,37 @@ void BootMainSysMenu( u8 init )
 		u32 size = 0;
 		u32 patch_cnt = 0;
 		u8* patch_ptr = NULL;
+		
+		// Force enable the required master hack: 
+		for(u32 i = 0;i < system_hacks.size();i++)
+		{
+			if (system_hacks[i].requiredMasterID.length() > 0 && states_hash[i] == 1) 
+			{
+				u32 found_requirement = 0; 
+				
+				// If the hack has a requirement and is enabled, 
+				// find and activate the requirement as well
+				for (u32 j = 0; j < system_hacks.size(); j++) 
+				{
+					if (system_hacks[i].requiredMasterID.compare(system_hacks[j].masterID) == 0) 
+					{
+						// Found hack that provides the requirement
+						// Make sure it's compatible
+						u32 sysver = GetSysMenuVersion(); 
+						if (system_hacks[j].min_version <= sysver &&
+							sysver <= system_hacks[j].max_version) {
+							// enable
+							found_requirement = 1; 
+							states_hash[j] = 1; 
+						}
+					}
+				}
+				
+				// didn't find requirement, disable hack
+				if (found_requirement == 0) states_hash[i] = 0; 
+				
+			}
+		}
 		
 		for(u32 i = 0;i < system_hacks.size();i++)
 		{
