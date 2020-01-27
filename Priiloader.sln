@@ -8,6 +8,19 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Installer", "Installer\Inst
 		{5F442C2A-5700-4F90-87E6-BEC5C54BF00C} = {5F442C2A-5700-4F90-87E6-BEC5C54BF00C}
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{D3AEE970-3B5A-46B0-87B8-0F4787810DA8}"
+	ProjectSection(SolutionItems) = preProject
+		Makefile = Makefile
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Shared", "Shared", "{75BAEBBB-0014-491A-A700-D46CD0A29045}"
+	ProjectSection(SolutionItems) = preProject
+		Shared\gitrev.h = Shared\gitrev.h
+		Shared\sha1.cpp = Shared\sha1.cpp
+		Shared\sha1.h = Shared\sha1.h
+		Shared\version.h = Shared\version.h
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -32,5 +45,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{75BAEBBB-0014-491A-A700-D46CD0A29045} = {D3AEE970-3B5A-46B0-87B8-0F4787810DA8}
 	EndGlobalSection
 EndGlobal

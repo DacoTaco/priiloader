@@ -48,7 +48,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 //Project files
 #include "Input.h"
-#include "../../Shared/gitrev.h"
+#include "gitrev.h"
 #include "../loader/patches.h"
 #include "../loader/loader.h"
 #include "Global.h"

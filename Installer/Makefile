@@ -17,9 +17,9 @@ include $(DEVKITPPC)/wii_rules
 #---------------------------------------------------------------------------------
 TARGET		:=	$(notdir $(CURDIR))
 BUILD		:=	build
-SOURCES		:=	source
+SOURCES		:=	source ../Shared
 DATA		:=	data  
-INCLUDES	:=	include
+INCLUDES	:=	include ../Shared
 
 #---------------------------------------------------------------------------------
 # MS Visual Studio Style Fix

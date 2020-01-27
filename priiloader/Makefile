@@ -17,10 +17,10 @@ include $(DEVKITPPC)/wii_rules
 #---------------------------------------------------------------------------------
 TARGET		:=	$(notdir $(CURDIR))
 BUILD		:=	build
-SOURCES		:=	source
+SOURCES		:=	source ../Shared
 LDR_SOURCES	:=	loader
 DATA		:=	data
-INCLUDES	:=  include
+INCLUDES	:=  include ../Shared
 ENTRYPOINT	:=	0x81000000
 
 #---------------------------------------------------------------------------------

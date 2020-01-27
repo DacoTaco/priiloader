@@ -149,10 +149,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\source\sha1.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\source\state.cpp"
 				>
 			</File>
@@ -223,19 +219,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\include\sha1.h"
-				>
-			</File>
-			<File
 				RelativePath=".\include\state.h"
 				>
 			</File>
 			<File
 				RelativePath=".\include\titles.h"
-				>
-			</File>
-			<File
-				RelativePath=".\include\version.h"
 				>
 			</File>
 			<File
