@@ -49,8 +49,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "sha1.h"
 
 //rev version
-#include "../../Shared/gitrev.h"
-#include "../../priiloader/include/version.h"
+#include "gitrev.h"
+#include "version.h"
 
 // Bin Files
 
