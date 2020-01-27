@@ -1,8 +1,8 @@
 all:
-	@cd priiloader && $(MAKE) all
-	@cd Installer && $(MAKE) all
+	$(MAKE) -C priiloader all
+	$(MAKE) -C Installer all
 
 clean:
-	@cd priiloader && $(MAKE) clean
-	@cd Installer && $(MAKE) clean
+	$(MAKE) -C priiloader clean
+	$(MAKE) -C Installer clean
 	 
