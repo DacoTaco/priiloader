@@ -99,7 +99,7 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 		return_unicode_name = 1;
 	}
     char file[64] ATTRIBUTE_ALIGN(32);
-    sprintf(file, "/title/%08lx/%08lx/content/%08lx.app", (u32)(id >> 32), (u32)(id & 0xFFFFFFFF), app);
+    sprintf(file, "/title/%08x/%08x/content/%08x.app", (u32)(id >> 32), (u32)(id & 0xFFFFFFFF), app);
 	gdprintf("GetTitleName : %s",file);
 	u32 cnt ATTRIBUTE_ALIGN(32);
 	cnt = 0;

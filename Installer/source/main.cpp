@@ -299,7 +299,7 @@ s32 nand_copy(const char *destination,u8* Buf_To_Write_to_Copy, u32 buf_size,Nan
 	ret = ISFS_CreateFile(temp_dest,src_perm.attributes,src_perm.ownerperm,src_perm.groupperm,src_perm.otherperm);
 	if (ret != ISFS_OK) 
 	{
-		printf("Failed to create file %s. ret = %lu\r\n",temp_dest,ret);
+		printf("Failed to create file %s. ret = %u\r\n",temp_dest,ret);
 		gprintf("Failed to create file %s. ret = %d\r\n",temp_dest,ret);
 		return ret;
 	}
@@ -588,7 +588,7 @@ void proccess_delete_ret( s32 ret )
 	else if (ret < 0)
 	{
 		printf("\x1b[%d;%dm", 33, 1);
-		printf("Error deleting file. error %ld\r\n",ret);
+		printf("Error deleting file. error %d\r\n",ret);
 		printf("\x1b[%d;%dm", 37, 1);
 	}
 	else
@@ -624,7 +624,7 @@ void Delete_Priiloader_Files( u8 mode )
 	memset(file_path,0,ISFS_MAXPATH);
 	if(password)
 	{
-		sprintf(file_path, "/title/%08lx/%08lx/data/password.txt",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
+		sprintf(file_path, "/title/%08x/%08x/data/password.txt",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
 		ret = ISFS_Delete(file_path);
 		gprintf("password.txt : %d\r\n",ret);
 		printf("password file : ");
@@ -633,7 +633,7 @@ void Delete_Priiloader_Files( u8 mode )
 	}
 	if(settings)
 	{
-		sprintf(file_path, "/title/%08lx/%08lx/data/loader.ini",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
+		sprintf(file_path, "/title/%08x/%08x/data/loader.ini",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
 		ret = ISFS_Delete(file_path);
 		gprintf("loader.ini : %d\r\n",ret);
 		printf("Settings file : ");
@@ -644,7 +644,7 @@ void Delete_Priiloader_Files( u8 mode )
 	//way when installing again later...
 	if(ticket)
 	{
-		sprintf(file_path, "/title/%08lx/%08lx/content/ticket",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
+		sprintf(file_path, "/title/%08x/%08x/content/ticket",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
 		ret = ISFS_Delete(file_path);
 		gprintf("ticket : %d\r\n",ret);
 		printf("Ticket : ");
@@ -653,25 +653,25 @@ void Delete_Priiloader_Files( u8 mode )
 	}
 	if(hacks)
 	{
-		sprintf(file_path, "/title/%08lx/%08lx/data/hacks_s.ini",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
+		sprintf(file_path, "/title/%08x/%08x/data/hacks_s.ini",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
 		ret = ISFS_Delete(file_path);
 		gprintf("hacks_s.ini : %d\r\n",ret);
 		printf("Hacks_s.ini : ");
 		proccess_delete_ret(ret);
 
-		sprintf(file_path, "/title/%08lx/%08lx/data/hacks.ini",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
+		sprintf(file_path, "/title/%08x/%08x/data/hacks.ini",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
 		ret = ISFS_Delete(file_path);
 		gprintf("hacks.ini : %d\r\n",ret);
 		printf("Hacks.ini : ");
 		proccess_delete_ret(ret);
 
-		sprintf(file_path, "/title/%08lx/%08lx/data/hacksh_s.ini",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
+		sprintf(file_path, "/title/%08x/%08x/data/hacksh_s.ini",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
 		ret = ISFS_Delete(file_path);
 		gprintf("hacksh_s.ini : %d\r\n",ret);
 		printf("Hacksh_s.ini : ");
 		proccess_delete_ret(ret);
 
-		sprintf(file_path, "/title/%08lx/%08lx/data/hackshas.ini",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
+		sprintf(file_path, "/title/%08x/%08x/data/hackshas.ini",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
 		ret = ISFS_Delete(file_path);
 		gprintf("hacks_hash : %d\r\n",ret);
 		printf("system_hacks : ");
@@ -681,10 +681,10 @@ void Delete_Priiloader_Files( u8 mode )
 	}
 	if(main_bin)
 	{
-		sprintf(file_path, "/title/%08lx/%08lx/data/main.nfo",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
+		sprintf(file_path, "/title/%08x/%08x/data/main.nfo",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
 		ret = ISFS_Delete(file_path);
 		gprintf("main.nfo : %d\r\n",ret);
-		sprintf(file_path, "/title/%08lx/%08lx/data/main.bin",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
+		sprintf(file_path, "/title/%08x/%08x/data/main.bin",(u32)(title_id >> 32),(u32) (title_id & 0xFFFFFFFF));
 		ret = ISFS_Delete(file_path);
 		gprintf("main.bin : %d\r\n",ret);
 		printf("main.bin : ");
@@ -753,7 +753,7 @@ s8 PatchTMD( u8 delete_mode )
 			if ( r < 0)
 			{
 				gprintf("Failure making TMD backup.error %d\r\n",r);
-				printf("TMD backup/Patching Failure : error %ld",r);
+				printf("TMD backup/Patching Failure : error %d",r);
 				goto _return;
 			}
 		}
@@ -837,7 +837,7 @@ s8 PatchTMD( u8 delete_mode )
 			if ( r < 0)
 			{
 				gprintf("TMD bCheck : Failure making TMD backup.error %d\r\n",r);
-				printf("TMD backup/Patching Failure : error %ld",r);
+				printf("TMD backup/Patching Failure : error %d",r);
 				goto _return;
 			}
 		}
@@ -983,8 +983,8 @@ s8 CopyTicket ( )
 	char TIK_Path_org[64];
 	memset(TIK_Path_dest,0,64);
 	memset(TIK_Path_org,0,64);
-	sprintf(TIK_Path_dest, "/title/%08lx/%08lx/content/ticket",TITLE_UPPER(title_id),TITLE_LOWER(title_id));
-	sprintf(TIK_Path_org, "/ticket/%08lx/%08lx.tik",TITLE_UPPER(title_id),TITLE_LOWER(title_id));
+	sprintf(TIK_Path_dest, "/title/%08x/%08x/content/ticket",TITLE_UPPER(title_id),TITLE_LOWER(title_id));
+	sprintf(TIK_Path_org, "/ticket/%08x/%08x.tik",TITLE_UPPER(title_id),TITLE_LOWER(title_id));
 	gprintf("Checking for copy ticket...\r\n");
 	fd = ISFS_Open(TIK_Path_dest,ISFS_OPEN_READ);
 	if (fd >= 0)
@@ -1426,7 +1426,7 @@ s8 PatchIos( s8 AHBPROT_only )
 			while((u32)mem_block < 0x93FFFFFF)
 			{
 				u32 address = (u32)mem_block;
-				
+
 				if (AHBPROT_only == 0 && !memcmp(mem_block, setuid_old , sizeof(setuid_old)))
 				{
 					gprintf("Found SetUID @ 0x%X, patching...\r\n", address);
@@ -1660,7 +1660,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	printf("\r\nIOS %ld rev %ld\r\n\r\n",IOS_GetVersion(),IOS_GetRevision());
+	printf("\r\nIOS %d rev %d\r\n\r\n",IOS_GetVersion(),IOS_GetRevision());
 if( (VERSION&0xFF) % 10 == 0 )
 {
 #if BETAVERSION > 0
@@ -1796,8 +1796,8 @@ else
 	ret = 0;
 	memset(TMD_Path,0,64);
 	memset(TMD_Path2,0,64);
-	sprintf(TMD_Path, "/title/%08lx/%08lx/content/title.tmd",TITLE_UPPER(title_id),TITLE_LOWER(title_id));
-	sprintf(TMD_Path2, "/title/%08lx/%08lx/content/title_or.tmd",TITLE_UPPER(title_id),TITLE_LOWER(title_id));
+	sprintf(TMD_Path, "/title/%08x/%08x/content/title.tmd",TITLE_UPPER(title_id),TITLE_LOWER(title_id));
+	sprintf(TMD_Path2, "/title/%08x/%08x/content/title_or.tmd",TITLE_UPPER(title_id),TITLE_LOWER(title_id));
 	fd = ES_GetStoredTMDSize(title_id,&tmd_size);
 	if (fd < 0)
 	{
@@ -1837,8 +1837,8 @@ else
 
 	memset(original_app,0,64);
 	memset(copy_app,0,64);
-	sprintf(original_app, "/title/%08lx/%08lx/content/%08lx.app",TITLE_UPPER(title_id),TITLE_LOWER(title_id),id);
-	sprintf(copy_app, "/title/%08lx/%08lx/content/%08lx.app",TITLE_UPPER(title_id),TITLE_LOWER(title_id),id);
+	sprintf(original_app, "/title/%08x/%08x/content/%08x.app",TITLE_UPPER(title_id),TITLE_LOWER(title_id),id);
+	sprintf(copy_app, "/title/%08x/%08x/content/%08x.app",TITLE_UPPER(title_id),TITLE_LOWER(title_id),id);
 	copy_app[33] = '1';
 	gprintf("%s &\n%s \r\n",original_app,copy_app);
 
@@ -1885,7 +1885,7 @@ else
 			//install Priiloader
 			printf("\x1b[2J");
 			fflush(stdout);
-			printf("IOS %ld rev %ld\r\n\r\n\r\n",IOS_GetVersion(),IOS_GetRevision());
+			printf("IOS %d rev %d\r\n\r\n\r\n",IOS_GetVersion(),IOS_GetRevision());
 #ifdef BETA
 			printf("\x1b[%d;%dm", 33, 1);
 			printf("\nWARNING : ");
@@ -1923,7 +1923,7 @@ else
 		{
 			printf("\x1b[2J");
 			fflush(stdout);
-			printf("IOS %ld rev %ld\n\n\r\n",IOS_GetVersion(),IOS_GetRevision());
+			printf("IOS %d rev %d\n\n\r\n",IOS_GetVersion(),IOS_GetRevision());
 			printf("Checking for Priiloader...\r\n");
 			fd = ISFS_Open(copy_app,ISFS_OPEN_RW);
 			if (fd < 0)

@@ -43,13 +43,14 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int* external_socke
 		//reset last reply
 		memset(HTTP_Reply,0,4);
 	}
-	char buffer[1024];
+	const int buffer_size = 1024;
+	char buffer[buffer_size];
 	s32 bytes_read = 0;
 	s32 bytes_send = 0;
 	int file_size = 0;
 	int socket = 0;
 	s32 ret = 0;
-	char URL_Request[512];
+	char URL_Request[buffer_size / 2];
 	//example : "GET /daco/version.dat HTTP/1.0\r\nHost: www.dacotaco.com\r\nUser-Agent: DacoTacoIsGod/version\r\n\r\n\0"
 	sprintf( URL_Request, "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: Priiloader/%s(Nintendo Wii) DacoTacoIsGod/1.0 \r\n\r\n", file,host,GIT_REV_STR );
 	if(external_socket_to_use == 0 || *external_socket_to_use == 0)
@@ -98,8 +99,8 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int* external_socke
 				HTTP_Reply[3] = '\0';
 				std::string location;
 				char* phost = NULL;
-				char host_new[256];
-				char file_new[256];
+				char host_new[buffer_size];
+				char file_new[buffer_size];
 				//process the HTTP reply. full list @ http://en.wikipedia.org/wiki/List_of_HTTP_status_codes
 				switch(atoi(HTTP_Reply))
 				{
@@ -116,7 +117,7 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int* external_socke
 						{
 							//first lets get the new link.
 							//HTTP/1.1 301 Moved Permanently..Location: http://www.google.com/..Content-Type: 
-							memset( buffer, '\0', 1024 );
+							memset( buffer, '\0', buffer_size );
 							for( i = 0;i < 265;)
 							{
 								n = net_recv(socket,(char*)&buffer[i],1, 0);
@@ -157,15 +158,15 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int* external_socke
 							}
 							//we got the url. close everything and start all over
 							net_close(socket);
-							memset( buffer, '\0', 1024 );
+							memset( buffer, '\0', buffer_size );
 							bytes_send = 0;
 							bytes_read = 0;
-							memset(host_new,0,256);
-							memset(file_new,0,256);
+							memset(host_new,0,buffer_size);
+							memset(file_new,0,buffer_size);
 							//extract host & file from url
 							if( location.compare(0,7,"http://"))
 							{
-								strncpy(buffer,location.c_str(),1023);
+								strncpy(buffer,location.c_str(),buffer_size-1);
 							}
 							else
 							{
@@ -178,12 +179,12 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int* external_socke
 							if(phost != NULL)
 							{
 								strncpy(host_new,buffer,phost-buffer);
-								strncpy(file_new,&buffer[phost-buffer],strlen(&buffer[phost-buffer]));
+								memcpy(file_new,&buffer[phost-buffer],buffer_size-strnlen(host_new,buffer_size));
 							}
 							else
 							{
 								strncpy(file_new,"/\0",2);
-								strncpy(host_new,buffer,strlen(buffer));
+								memcpy(host_new,buffer,strlen(buffer));
 							}
 							gprintf("new host & file : %s & %s",host_new,file_new);
 							redirects++;
