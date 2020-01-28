@@ -977,7 +977,6 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 
 		ClearState();
 		Input_Shutdown();
-		ShutdownDevices();
 
 		if(DvdKilled() < 1)
 		{
@@ -1609,7 +1608,8 @@ void InstallLoadDOL( void )
 				//get all files names
 				while( readdir(dir) != NULL )
 				{
-					strncpy(filename,dir->fileData.d_name,NAME_MAX);
+					memset(filename,0,NAME_MAX);
+					strncpy(filename,dir->fileData.d_name, strnlen(dir->fileData.d_name,NAME_MAX-1 ));
 					if(strncmp(filename,".",1) == 0 || strncmp(filename,"..",2) == 0 )
 					{
 						//we dont want the root or the dirup stuff. so lets filter them
@@ -1746,7 +1746,8 @@ void InstallLoadDOL( void )
 			{
 				while( readdir(dir) != NULL )
 				{
-					strncpy(filename,dir->fileData.d_name,NAME_MAX);
+					memset(filename,0,NAME_MAX);
+					strncpy(filename,dir->fileData.d_name,strnlen(dir->fileData.d_name,NAME_MAX-1 ));
 					if( (strstr( filename, ".dol") != NULL) ||
 						(strstr( filename, ".DOL") != NULL) ||
 						(strstr( filename, ".elf") != NULL) ||
@@ -2018,7 +2019,7 @@ void InstallLoadDOL( void )
 				{
 					for(s8 i = min_pos; i<=(min_pos + max_pos); i++ )
 					{
-						PrintFormat( 0, 16, 64+(i-min_pos+1)*16, "                                        ");
+						PrintFormat( 0, 16, 64+(i-min_pos+1)*16, "                                                            ");
 						PrintFormat( 0,TEXT_OFFSET("               "),64+(max_pos+2)*16,"               ");
 						PrintFormat( 0,TEXT_OFFSET("               "),64,"               ");
 					}
@@ -2041,7 +2042,7 @@ void InstallLoadDOL( void )
 				{
 					for(s8 i = min_pos; i<=(min_pos + max_pos); i++ )
 					{
-						PrintFormat( 0, 16, 64+(i-min_pos+1)*16, "                                        ");
+						PrintFormat( 0, 16, 64+(i-min_pos+1)*16, "                                                            ");
 						PrintFormat( 0,TEXT_OFFSET("               "),64+(max_pos+2)*16,"               ");
 						PrintFormat( 0,TEXT_OFFSET("               "),64,"               ");
 					}
