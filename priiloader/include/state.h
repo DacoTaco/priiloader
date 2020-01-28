@@ -61,7 +61,7 @@ typedef struct {
 
 typedef struct wii_state {
 	s8 Shutdown:2;
-	s8 BootSysMenu:2;
+	s8 Init:2;
 	s8 ReloadedIOS:2;
 	s8 InMainMenu:2;
 } wii_state;

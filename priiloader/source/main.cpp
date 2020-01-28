@@ -1019,8 +1019,11 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		ShutdownDevices();
 		USB_Deinitialize();
 		__IOS_ShutdownSubsystems();
-		VIDEO_Flush();
-		VIDEO_WaitVSync();
+		if(system_state.Init)
+		{
+			VIDEO_Flush();
+			VIDEO_WaitVSync();
+		}
 		__exception_closeall();
 
 		gprintf("BootDolFromMem : starting binary... 0x%08X",loader_addr);	
@@ -1195,7 +1198,7 @@ s8 BootDolFromFile( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<st
 
 	return ret;
 }
-void BootMainSysMenu( u8 init )
+void BootMainSysMenu( void )
 {
 	//TMD
 	const u64 TitleID=0x0000000100000002LL;
@@ -1513,7 +1516,7 @@ void BootMainSysMenu( u8 init )
 		USB_Deinitialize();
 
 		//reset video
-		if(init == 1)
+		if(system_state.Init)
 			Control_VI_Regs(2);
 		ISFS_Deinitialize();
 		__STM_Close();
@@ -2647,7 +2650,7 @@ void Autoboot_System( void )
 	{
 		case AUTOBOOT_SYS:
 			gprintf("AutoBoot:System Menu");
-			BootMainSysMenu(0);
+			BootMainSysMenu();
 			break;
 		case AUTOBOOT_HBC:
 			gprintf("AutoBoot:Homebrew Channel");
@@ -2771,7 +2774,7 @@ int main(int argc, char **argv)
 					//will handle it perfectly (and i quote from SM's OSreport : "Shutdown system from GC!")
 					//it seems to reboot into bootstate 5. but its safer to let SM handle it
 					gprintf("255:System Menu");
-					BootMainSysMenu(0);
+					BootMainSysMenu();
 				}
 				else
 				{
@@ -2836,7 +2839,7 @@ int main(int argc, char **argv)
 				{
 					case RETURNTO_SYSMENU:
 						gprintf("ReturnTo:System Menu");
-						BootMainSysMenu(0);
+						BootMainSysMenu();
 					break;
 
 					case RETURNTO_AUTOBOOT:
@@ -2879,7 +2882,7 @@ int main(int argc, char **argv)
 		gprintf("\"Magic Priiloader Word\" 'Pune' found!");
 		gprintf("clearing memory of the \"Magic Priiloader Word\" and starting system menu...");
 		ClearMagicWord();
-		BootMainSysMenu(0);
+		BootMainSysMenu();
 	}
 	else if( magicWord == MAGIC_WORD_ABRA )
 	{
@@ -2898,6 +2901,7 @@ int main(int argc, char **argv)
 		gprintf("Reset Button is held down");
 	}
 	
+	system_state.Init = 1;
 	r = (s32)PollDevices();
 	gprintf("FAT_Init():%d", r );
 
@@ -2943,7 +2947,7 @@ int main(int argc, char **argv)
 			switch(cur_off)
 			{
 				case 0:
-					BootMainSysMenu(1);
+					BootMainSysMenu();
 					if(!error)
 						error=ERROR_SYSMENU_GENERAL;
 					break;
@@ -3093,12 +3097,6 @@ int main(int argc, char **argv)
 			//shutdown VI
 			Control_VI_Regs(0);
 			DVDStopDisc(false);
-			for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {
-				if(WPAD_Probe(i,0) < 0)
-					continue;
-				WPAD_Flush(i);
-				WPAD_Disconnect(i);
-			}
 			Input_Shutdown();
 			ShutdownDevices();
 			USB_Deinitialize();
@@ -3126,20 +3124,6 @@ int main(int argc, char **argv)
 
 		}
 
-		//boot system menu
-		if(system_state.BootSysMenu)
-		{
-			if ( !SGetSetting(SETTING_USESYSTEMMENUIOS) )
-			{
-				settings->UseSystemMenuIOS = true;
-			}
-			ClearScreen();
-			BootMainSysMenu(1);
-			if(!error)
-				error=ERROR_SYSMENU_GENERAL;
-			system_state.BootSysMenu = 0;
-			redraw=true;
-		}
 		//check Mounted Devices
 		PollDevices();
 		
