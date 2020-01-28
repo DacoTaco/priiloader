@@ -239,12 +239,6 @@ void LoadBootMii( void )
 	}
 	fclose(BootmiiFile);*/
 	u8 currentIOS = IOS_GetVersion();
-	for(u8 i=0;i<WPAD_MAX_WIIMOTES;i++) {
-		if(WPAD_Probe(i,0) < 0)
-			continue;
-		WPAD_Flush(i);
-		WPAD_Disconnect(i);
-	}
 	Input_Shutdown();
 	IOS_ReloadIOS(254);
 	//launching bootmii failed. lets wait a bit for the launch(it could be delayed) and then load the other ios back
