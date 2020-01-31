@@ -1616,10 +1616,10 @@ int main(int argc, char **argv)
 	s8 ios_patched = 0;
 	init_states wii_state;
 	s32 ret = 0;
-	s32 isDolphinFD = -1; 
+	s32 dolphinFd = -1; 
 	
-	isDolphinFD = IOS_Open("/dev/dolphin", IPC_OPEN_NONE); 
-	if (isDolphinFD >= 0) IOS_Close(isDolphinFD);
+	dolphinFd = IOS_Open("/dev/dolphin", IPC_OPEN_NONE); 
+	if (dolphinFd >= 0) IOS_Close(dolphinFd);
 
 	CheckForGecko();
 	VIDEO_Init();
@@ -1697,29 +1697,28 @@ else
 		abort_pre_init("\r\n");
 	}
 
-	if (isDolphinFD >= 0) {
-		gprintf("This is Dolphin (>= 5.0-11186). We don't need AHBPROT\r\n");
-	}
-	else {
-		//patch and reload IOS so we don't end up with possible shit from the loading application ( looking at you HBC! >_< )
-		if(read32(0x0d800064) == 0xFFFFFFFF)
+	//patch and reload IOS so we don't end up with possible shit from the loading application ( looking at you HBC! >_< )
+	//we don't need it in dolphin though
+	if (dolphinFd >= 0)
+		gprintf("Dolphin detected. We don't need AHBPROT\r\n");
+	else if(read32(0x0d800064) == 0xFFFFFFFF)
+	{
+		ios_patched = PatchIos(1);
+		if(ios_patched > 0)
 		{
-			ios_patched = PatchIos(1);
-			if(ios_patched > 0)
-			{
-				gprintf("reloading ios...\r\n");
-				IOS_ReloadIOS(IOS_GetVersion());
-			}
-			else
-			{
-				printf("\x1b[2J");
-				fflush(stdout);
-				abort_pre_init("\r\n\r\nfailed to do AHBPROT magic: error %d\r\n",ios_patched);
-			}
+			gprintf("reloading ios...\r\n");
+			IOS_ReloadIOS(IOS_GetVersion());
+		}
+		else
+		{
+			printf("\x1b[2J");
+			fflush(stdout);
+			abort_pre_init("\r\n\r\nfailed to do AHBPROT magic: error %d\r\n",ios_patched);
 		}
 	}
+
 	memset(&wii_state,0,sizeof(init_states));
-	if(read32(0x0d800064) == 0xFFFFFFFF || isDolphinFD >= 0)
+	if(read32(0x0d800064) == 0xFFFFFFFF || dolphinFd >= 0)
 	{
 		wii_state.AHBPROT = 1;
 	}
@@ -1727,7 +1726,7 @@ else
 	{
 		wii_state.AHBPROT = 0;
 	}
-	if(wii_state.AHBPROT && isDolphinFD < 0)
+	if(wii_state.AHBPROT && dolphinFd < 0)
 	{
 		ios_patched = PatchIos(0);	
 	}
@@ -1849,7 +1848,7 @@ else
 	sprintf(original_app, "/title/%08x/%08x/content/%08x.app",TITLE_UPPER(title_id),TITLE_LOWER(title_id),id);
 	sprintf(copy_app, "/title/%08x/%08x/content/%08x.app",TITLE_UPPER(title_id),TITLE_LOWER(title_id),id);
 	copy_app[33] = '1';
-	gprintf("%s &\n%s \r\n",original_app,copy_app);
+	gprintf("%s &\r\n%s \r\n",original_app,copy_app);
 
 	WPAD_Init();
 	PAD_Init();
