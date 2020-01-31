@@ -35,7 +35,7 @@ struct system_patch {
 struct system_hack {
 	std::string desc;
 	std::string masterID;
-	std::string requiredMasterID;
+	std::string requiredID;
 	u16 max_version = 0;
 	u16 min_version = 0;
 	std::vector< system_patch > patches;
@@ -45,5 +45,6 @@ extern std::vector<system_hack> system_hacks;
 extern std::vector<u8> states_hash;
 
 s8 LoadSystemHacks( bool Force_Load_Nand );
+s32 GetMasterHackIndexByID(const std::string& ID );
 
 #endif
