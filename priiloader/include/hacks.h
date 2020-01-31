@@ -34,6 +34,8 @@ struct system_patch {
 
 struct system_hack {
 	std::string desc;
+	std::string masterID;
+	std::string requiredMasterID;
 	u16 max_version = 0;
 	u16 min_version = 0;
 	std::vector< system_patch > patches;
