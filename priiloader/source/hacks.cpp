@@ -26,6 +26,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <string.h>
 #include <vector>
 #include <unistd.h>
+#include <algorithm>
 
 #include "gecko.h"
 #include "hacks.h"
@@ -43,6 +44,21 @@ u32 file_size = 0;
 FILE* sd_file_handler = NULL;
 s32 nand_file_handler = -1;
 
+s32 GetMasterHackIndexByID(const std::string& ID )
+{
+	s32 index = -1;
+	u32 sysver = GetSysMenuVersion();
+	auto it = std::find_if(system_hacks.begin(), system_hacks.end(), [&](const system_hack& obj) 
+		{
+			return obj.masterID == ID && 
+			obj.max_version >= sysver &&
+			obj.min_version <= sysver;
+		});
+	// if we have an iterator , then we will retrieve the index of the iterator
+	if (it != system_hacks.end())  
+		index = std::distance(system_hacks.begin(), it);
+	return index;
+}
 void _showError(const char* errorMsg, ...)
 {
 	char astr[1024];
@@ -64,9 +80,8 @@ std::string trim(const std::string& str)
 {
     size_t first = str.find_first_not_of("\t ");
     if (std::string::npos == first)
-    {
         return str;
-    }
+
     size_t last = str.find_last_not_of("\t ");
     return str.substr(first, (last - first + 1));
 }
@@ -251,7 +266,7 @@ bool _processLine(system_hack& hack, std::string &line)
 		}
 		else if(type == "require")
 		{
-			hack.requiredMasterID = value;
+			hack.requiredID = value;
 			return true; 
 		}
 		else if(type == "maxversion")
@@ -378,50 +393,23 @@ bool _addOrRejectHack(system_hack& hack)
 	try
 	{
 		if(
-			hack.min_version != 0 &&
-			hack.max_version != 0 &&
+			hack.min_version > 0 &&
+			hack.max_version > 0 &&
 			hack.desc.length() > 0 &&
 			hack.patches.size() > 0 &&
 			( hack.patches.back().hash.size() > 0 || hack.patches.back().offset > 0) && 
-			hack.patches.back().patch.size() > 0
+			hack.patches.back().patch.size() > 0 &&
+			( hack.requiredID.size() == 0 || GetMasterHackIndexByID(hack.requiredID) >= 0 )
 			)
-		{
-			
-			// Normal hack checks successful. 
-			// Now check if this is a sub hack, and if so, if the required master 
-			// hack is already loaded. 
-			
-			unsigned int ver = GetSysMenuVersion();
-			
-			if (hack.requiredMasterID.size() > 0) {
-				// this is a sub hack
-				bool found = false; 
-				for (unsigned int i = 0; i < system_hacks.size(); i++) {
-					if (hack.requiredMasterID.compare(system_hacks[i].masterID) == 0) {
-						// Found required master. Make sure it is compatible ...
-						if (system_hacks[i].max_version >= ver && 
-							system_hacks[i].min_version <= ver) {
-							found = true; 
-							break; 
-						}
-					}
-				}
-				
-				if (!found) {
-					// Didn't find the related master hack for this sub hack
-					gdprintf("didn't find required master hack '%s' for sub hack '%s'", 
-						hack.requiredMasterID.c_str(), hack.desc.c_str());
-						 
-					return false; 
-				}
-			}
-			
+		{			
 			gdprintf("loaded %s (v%d - v%d)",hack.desc.c_str(),hack.min_version,hack.max_version);
 			system_hacks.push_back(hack);
 			return true;
 		}
 
 		gdprintf("dropping invalid hack %s",hack.desc.c_str());
+		if( hack.requiredID.size() != 0 && GetMasterHackIndexByID(hack.requiredID) < 0 )
+			gdprintf("did not find ID");
 		return false;
 	}
 	catch(...)
@@ -528,7 +516,7 @@ s8 LoadSystemHacks(bool load_nand)
 			//new_hack.amount = 0;
 			new_hack.desc.clear();
 			new_hack.masterID.clear(); 
-			new_hack.requiredMasterID.clear(); 
+			new_hack.requiredID.clear(); 
 			new_hack.max_version = 0;
 			new_hack.min_version = 0;
 			new_hack.patches.clear();
@@ -593,22 +581,17 @@ s8 LoadSystemHacks(bool load_nand)
 
 			mem_free(fbuf);
 
-			
-			unsigned int sysver = GetSysMenuVersion();
-			
-			// Make sure that all master hacks are disabled in the state array. 
-			// That way, when all sub-hacks are disabled, the master hack will 
-			// be disabled as well. Then, in the next loop, if a sub hack is 
-			// selected, the master hack will be enabled again. 
-			
-			// Also, disable hacks that aren't compatible with this version
-			// of the system menu. 
+			/*	Disable all hacks that are either not for this version 
+				-OR- 
+				master hacks (as they will be re-enabled later if needed)*/
+			u32 sysver = GetSysMenuVersion();
 			for( u32 i=0; i < system_hacks.size(); ++i)
 			{
 				
 				if (system_hacks[i].masterID.length() > 0 || 
-					(system_hacks[i].max_version < sysver || system_hacks[i].min_version > sysver)	) {
-					// Master hack or wrong version -> disable
+					system_hacks[i].max_version < sysver || 
+					system_hacks[i].min_version > sysver)	
+				{
 					states_hash[i] = 0; 
 				}			
 			}

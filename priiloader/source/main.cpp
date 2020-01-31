@@ -1434,35 +1434,20 @@ void BootMainSysMenu( void )
 		u32 patch_cnt = 0;
 		u8* patch_ptr = NULL;
 		
-		// Force enable the required master hack: 
+		// Loop over sub-hacks to see which to enable and which's master to enable
 		for(u32 i = 0;i < system_hacks.size();i++)
 		{
-			if (system_hacks[i].requiredMasterID.length() > 0 && states_hash[i] == 1) 
-			{
-				u32 found_requirement = 0; 
-				
-				// If the hack has a requirement and is enabled, 
-				// find and activate the requirement as well
-				for (u32 j = 0; j < system_hacks.size(); j++) 
-				{
-					if (system_hacks[i].requiredMasterID.compare(system_hacks[j].masterID) == 0) 
-					{
-						// Found hack that provides the requirement
-						// Make sure it's compatible
-						u32 sysver = GetSysMenuVersion(); 
-						if (system_hacks[j].min_version <= sysver &&
-							sysver <= system_hacks[j].max_version) {
-							// enable
-							found_requirement = 1; 
-							states_hash[j] = 1; 
-						}
-					}
-				}
-				
-				// didn't find requirement, disable hack
-				if (found_requirement == 0) states_hash[i] = 0; 
-				
-			}
+			if (system_hacks[i].requiredID.length() == 0 || states_hash[i] == 0)
+				continue;
+
+			s32 masterIndex = GetMasterHackIndexByID(system_hacks[i].requiredID);
+
+			//did we find the hack?
+			//if so, enable it. else , disable the sub hack
+			if ( masterIndex >= 0 )
+				states_hash[masterIndex] = 1;
+			else
+				states_hash[i] = 0;
 		}
 		
 		for(u32 i = 0;i < system_hacks.size();i++)

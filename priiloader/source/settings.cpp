@@ -32,6 +32,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "mem2_manager.h"
 
 Settings *settings=NULL;
+static s32 sysver = -1;
 
 static u32 Create_Settings_File( void )
 {
@@ -64,6 +65,9 @@ static u32 Create_Settings_File( void )
 }
 u32 GetSysMenuVersion( void )
 {
+	if(sysver >= 0)
+		return sysver;
+
 	//Get sysversion from TMD
 	u64 TitleID = 0x0000000100000002LL;
 	u32 tmd_size;
@@ -88,10 +92,10 @@ u32 GetSysMenuVersion( void )
 		mem_free( rTMD );
 		return 0;
 	}	
-	u32 version = rTMD->title_version;
+	sysver = rTMD->title_version;
 
 	mem_free(rTMD);
-	return version;
+	return sysver;
 }
 
 u32 GetSysMenuIOS( void )
