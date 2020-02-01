@@ -22,6 +22,7 @@
 			ConfigurationType="0"
 			CharacterSet="2"
 			WholeProgramOptimization="1"
+			BuildLogFile="BuildLog.htm"
 			>
 			<Tool
 				Name="VCNMakeTool"
