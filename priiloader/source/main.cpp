@@ -1532,10 +1532,12 @@ void BootMainSysMenu( void )
 		ShutdownDevices();
 		USB_Deinitialize();
 
-		//reset video
-		if(system_state.Init)
-			Control_VI_Regs(2);
 		ISFS_Deinitialize();
+		if(system_state.Init)
+		{
+			VIDEO_Flush();
+			VIDEO_WaitVSync();
+		}
 		__STM_Close();
 		__IPC_Reinitialize();
 		__IOS_ShutdownSubsystems();
@@ -2771,7 +2773,7 @@ int main(int argc, char **argv)
 	
 	// before anything else, poll input devices such as keyboards to see if we should stop autoboot
 	r = Input_Init();
-	gprintf("Input_Init():%d\n", r );
+	gprintf("Input_Init():%d", r );
 	
 	WPAD_SetPowerButtonCallback(HandleWiiMoteEvent);
 	
@@ -2827,8 +2829,6 @@ int main(int argc, char **argv)
 					ShutdownDevices();
 					USB_Deinitialize();
 					*(vu32*)0xCD8000C0 &= ~0x20;
-					//shutdown VI
-					Control_VI_Regs(0);
 					while(DvdKilled() < 1);
 					if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
 					{
@@ -3113,8 +3113,6 @@ int main(int argc, char **argv)
 			*(vu32*)0xCD8000C0 &= ~0x20;
 			ClearState();
 			VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
-			//shutdown VI
-			Control_VI_Regs(0);
 			DVDStopDisc(false);
 			Input_Shutdown();
 			ShutdownDevices();

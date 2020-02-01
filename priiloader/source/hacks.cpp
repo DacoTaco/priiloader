@@ -32,7 +32,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "hacks.h"
 #include "settings.h"
 #include "error.h"
-#include "font.h"
 #include "mem2_manager.h"
 
 #define BLOCK_SIZE ALIGN32(32)
@@ -58,22 +57,6 @@ s32 GetMasterHackIndexByID(const std::string& ID )
 	if (it != system_hacks.end())  
 		index = std::distance(system_hacks.begin(), it);
 	return index;
-}
-void _showError(const char* errorMsg, ...)
-{
-	char astr[1024];
-	memset(astr, 0, 1024);
-
-	va_list ap;
-	va_start(ap, errorMsg);
-
-	vsnprintf(astr, 1024, errorMsg, ap);
-
-	va_end(ap);
-
-	PrintString(1, ((640 / 2) - ((strnlen(astr,1024)) * 13 / 2)) >> 1, 208, astr);
-	sleep(5);
-	return;
 }
 
 std::string trim(const std::string& str)
@@ -474,7 +457,7 @@ s8 LoadSystemHacks(bool load_nand)
 	if (file_size == 0)
 	{
 		if (!load_nand)
-			_showError("Error \"hacks_hash.ini\" is 0 byte!");
+			gprintf("Error \"hacks_hash.ini\" is 0 byte!");
 
 		if (load_nand)
 		{
