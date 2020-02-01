@@ -66,7 +66,7 @@ SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.S)))
 LDRFILES	:=	$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.c)) \
 				$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.cpp)) \
 				$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.S)) \
-				$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.h))
+				$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.s))
 BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.*)))
 
 #---------------------------------------------------------------------------------
@@ -179,14 +179,15 @@ $(DATA)/loader.bin: $(LDRFILES)
 	@echo 
 #test if the build dir exists, make it if its not
 	@test -d $(BUILD) || mkdir $(BUILD)
-#the generated ASM by the following command has no purpose but for debugging needs.
-	@echo generating loader.s
-	@$(CC) --static -iquote include -I $(BUILD) -I$(LIBOGC_INC) -S loader/loader.c -o $(BUILD)/loader.s
-#these ones however do the actual compiling & converting to binary
-	@echo loader.c
-	@$(CC) --static -iquote include -I $(BUILD) -I$(LIBOGC_INC) -c loader/loader.c -o $(BUILD)/loader.o
+#actual build : 
+#we generate the asm (if needed) for debugging purposes
+#the rest is for actual compilation
+	@$(foreach src, $^, \
+		echo $(notdir $(src)); \
+		$(CC) --static -iquote include -I $(BUILD) -Iloader -O2 -fno-asynchronous-unwind-tables -I$(LIBOGC_INC) -S $(src) -o $(BUILD)/$(basename $(notdir $(src))).s ; \
+		$(CC) --static -iquote include -I $(BUILD) -Iloader -O2 -fno-asynchronous-unwind-tables -I$(LIBOGC_INC) -c $(src) -o $(BUILD)/$(basename $(notdir $(src))).o ;	)
 	@echo linking loader.bin	
-	@$(PREFIX)ld $(BUILD)/loader.o -o $@ --oformat=binary --entry=_start --static
+	@$(PREFIX)ld $(foreach src, $^, $(BUILD)/$(basename $(notdir $(src))).o) -o $@ --oformat=binary --entry=_start -Map=$(BUILD)/loader.map	
 	
 build_priiloader: pre_build loader
 	@echo

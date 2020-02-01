@@ -1,5 +1,4 @@
 /*
-
 priiloader - A tool which allows to change the default boot up sequence on the Wii console
 Executable Loader - Loads any executable who has been loaded into memory
 
@@ -17,8 +16,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-
-
 */
 
 #include <ogc/machine/processor.h>
@@ -37,34 +34,6 @@ void _memcpy(void* dst, void* src, u32 len);
 void _memset(void* src, u32 data, u32 len);
 u32 _loadApplication(u8* binary, void* parameter);
 
-/*this --MUST-- be the first code in this file.
-when run, we will jump to addr 0 of the compiled code. if this is on top, this will be the code run
-Also, the arguments are stored in argument registers r3,r4,r5 & r6. 
-we stay off them, so by the time we enter the main code, the arguments should still be valid*/
-asm(R"(.globl _start
-_start:
-#set stack address
-#we do this by retrieving the address we jumped to from ctr and adding the stack start address to it, followed by its size (minus the bytes needed as buffer)
-#i am using r18 as buffer, since it looked to be unused at the time.
-	mr		18,1
-	mfctr	1
-	addi	1,1,__crt0stack@l
-	addi	1,1,0xF4
-#save current stack data
-	stw		0,0(1)
-	stw		18,4(1)
-	mflr	18
-	stw		18,8(1)
-	isync
-	bl _boot
-#restore stack data and return
-	lwz 0,0(1)
-	lwz 18,8(1)
-	mtlr 18
-	lwz 18,4(1)
-	mr	1,18
-	blr
-	)");
 //NOTE : see loader.h about this function's definition & signature
 void _boot _LDR_PARAMETERS
 {
@@ -285,8 +254,3 @@ ICInvalidateRange:
 	sync
 	isync
 	blr)");
-
-//our stack!
-asm(R"(
-__crt0stack:
-	.space 0x100)");

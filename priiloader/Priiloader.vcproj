@@ -248,6 +248,14 @@
 			Name="loader"
 			>
 			<File
+				RelativePath=".\loader\_stack.s"
+				>
+			</File>
+			<File
+				RelativePath=".\loader\_startup.s"
+				>
+			</File>
+			<File
 				RelativePath=".\loader\executables.h"
 				>
 			</File>
