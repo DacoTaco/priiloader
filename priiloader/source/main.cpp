@@ -1201,33 +1201,24 @@ s8 BootDolFromFile( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<st
 }
 void BootMainSysMenu( void )
 {
-	//TMD
+	//boot info
 	const u64 TitleID=0x0000000100000002LL;
 	u32 tmd_size;
 	u8 tmd_buf[(sizeof(tmd_view) + MAX_NUM_TMD_CONTENTS*sizeof(tmd_view_content))] ATTRIBUTE_ALIGN(32);
 	tmd_view *rTMD = NULL;
-	signed_blob *TMD = NULL;
-
-	//ticket
-	s8 *ticket = NULL;
+	signed_blob* TMD = NULL;
+	s8* ticket = NULL;
 
 	//boot file:
 	void* binary = NULL;
 	u32 bootfile_size = 0;
 
-	//hacks
-	u8* mem_block = NULL;
-	u32 max_address = 0;
-
-	//loader
-	void* loader_addr = NULL;
-
 	//general
 	s32 ret = 0;
 	s32 fd = 0;
-
 	try
 	{
+
 		//expermintal code for getting the needed tmd info. no boot index is in the views but lunatik and i think last file = boot file
 		ret = ES_GetTMDViewSize(TitleID, &tmd_size);
 		if(ret < 0)
@@ -1428,8 +1419,8 @@ void BootMainSysMenu( void )
 		//ES_SetUID(TitleID);
 
 		gprintf("Hacks:%d",system_hacks.size());
-		mem_block = (u8*)binary;
-		max_address = (u32)(mem_block + bootfile_size);
+		u8* mem_block = (u8*)binary;
+		u32 max_address = (u32)(mem_block + bootfile_size);
 		u32 size = 0;
 		u32 patch_cnt = 0;
 		u8* patch_ptr = NULL;
@@ -1520,7 +1511,7 @@ void BootMainSysMenu( void )
 		} // end general hacks loop*/
 
 		//prepare loader
-		loader_addr = (void*)mem_align(32,loader_bin_size);
+		void* loader_addr = (void*)mem_align(32,loader_bin_size);
 		if(!loader_addr)
 			throw "failed to alloc the loader";
 
