@@ -21,8 +21,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential
+          sudo apt-get install -y cppcheck
       - name: Checkout
         uses: actions/checkout@v1
+        
+      - name: Source Review
+        run: cppcheck . -v --std=c99 --std=c++11 --error-exitcode=1 --enable=warning,performance,portability,information,style --suppress=unusedFunction -UDEBUG_MEM2_LEVEL
       
       - name: Pre-Build
         run: echo "1" > ./priiloader/data/certs.bin
