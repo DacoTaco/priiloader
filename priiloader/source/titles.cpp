@@ -528,7 +528,7 @@ s32 LoadListTitles( void )
 			net_wc24cleanup();
 			ClearState();
 			SetNandBootInfo();
-			WPAD_Shutdown();
+			Input_Shutdown();
 			ShutdownDevices();
 
 #ifdef USE_DVD_ASYNC
@@ -543,6 +543,7 @@ failure:
 			VIDEO_SetBlack(0);
 			VIDEO_Flush();
 			VIDEO_WaitVSync();
+			Input_Init();
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to Load Title!"))*13/2))>>1, 224, "Failed to Load Title!");
 			while(DvdKilled() < 1);
 			sleep(3);
