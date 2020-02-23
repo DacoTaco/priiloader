@@ -189,6 +189,7 @@ void LoadHBC( void )
 	Input_Shutdown();
 	ES_LaunchTitle(TitleID, &views[0]);
 	//well that went wrong
+	Input_Init();
 	error = ERROR_BOOT_HBC;
 	mem_free(views);
 	return;
