@@ -148,7 +148,7 @@ s32 DetectHBC(title_info* title)
 		//we have found the latest, supported HBC. no need to proceed checking
 		if(ret >= HBC_Titles_Size-1)
 		{
-			gprintf("latest HBC detected. ret = %d,Titles_Size = %d",ret,HBC_Titles_Size);
+			gprintf("latest HBC detected. ret = %d",ret);
 			break;
 		}
 	}

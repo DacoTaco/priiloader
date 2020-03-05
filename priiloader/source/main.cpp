@@ -1402,7 +1402,7 @@ void BootMainSysMenu( void )
 				__IOS_InitializeSubsystems();
 				throw ("ES_Identify: GetStoredTMD error " + std::to_string(ret));
 			}
-			//uncomment me
+
 			ret = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size_temp, (signed_blob *)ticket, status->file_length, 0);
 			if( ret < 0 )
 			{	
@@ -1458,13 +1458,9 @@ void BootMainSysMenu( void )
 				if(system_hacks[i].patches[y].offset > 0)
 				{
 					if(patch_ptr == NULL)
-					{
 						patch_ptr = (u8*)mem_align(32,system_hacks[i].patches[y].patch.size());
-					}
 					else
-					{
 						patch_ptr = (u8*)mem_realloc(patch_ptr,ALIGN32(size+system_hacks[i].patches[y].patch.size()));
-					}
 
 					if(patch_ptr == NULL)
 					{

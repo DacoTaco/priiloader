@@ -67,6 +67,8 @@ LDRFILES	:=	$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.c)) \
 				$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.cpp)) \
 				$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.S)) \
 				$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.s))
+LDR			:=	$(foreach file, $(LDRFILES), $(file)) \
+				$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.h))
 BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.*)))
 
 #---------------------------------------------------------------------------------
@@ -172,7 +174,7 @@ endif
 	@test -d $(BUILD) || mkdir $(BUILD)
 
 loader: $(DATA)/loader.bin
-$(DATA)/loader.bin: $(LDRFILES)
+$(DATA)/loader.bin: $(LDR)
 	@echo -----------------------------------------------
 	@echo compiling the loader...
 	@echo -----------------------------------------------
@@ -182,12 +184,11 @@ $(DATA)/loader.bin: $(LDRFILES)
 #actual build : 
 #we generate the asm (if needed) for debugging purposes
 #the rest is for actual compilation
-	@$(foreach src, $^, \
+	@$(foreach src, $(LDRFILES), \
 		echo $(notdir $(src)); \
-		$(CC) --static -iquote include -I $(BUILD) -Iloader -O2 -fno-asynchronous-unwind-tables -I$(LIBOGC_INC) -S $(src) -o $(BUILD)/$(basename $(notdir $(src))).s ; \
-		$(CC) --static -iquote include -I $(BUILD) -Iloader -O2 -fno-asynchronous-unwind-tables -I$(LIBOGC_INC) -c $(src) -o $(BUILD)/$(basename $(notdir $(src))).o ;	)
-	@echo linking loader.bin	
-	@$(PREFIX)ld $(foreach src, $^, $(BUILD)/$(basename $(notdir $(src))).o) -o $@ --oformat=binary --entry=_start -Map=$(BUILD)/loader.map	
+		$(CC) --static -iquote include -I $(BUILD) -Iloader -O2 -fno-asynchronous-unwind-tables -I$(LIBOGC_INC) -S $(src) -o $(BUILD)/$(basename $(notdir $(src))).s ; )
+	@echo building $@ ...	
+	@$(CC) $(foreach src, $(LDRFILES), $(src)) --static -iquote include -I $(BUILD) -Iloader -O2 -fno-asynchronous-unwind-tables -I$(LIBOGC_INC) -nostartfiles -nodefaultlibs -Wl,-Map,$(BUILD)/loader.map -Wl,--entry=_start -Wl,--oformat=binary -o $@
 	
 build_priiloader: pre_build loader
 	@echo

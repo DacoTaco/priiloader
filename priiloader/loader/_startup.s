@@ -4,7 +4,7 @@
 #	Also, the arguments are stored in argument registers r3,r4,r5 & r6. 
 #	we stay off them, so by the time we enter the main code, _boot, the arguments should still be valid
 
-.section	".text.startup"
+.section	.text.startup
 .globl _start
 _start:
 #set stack address
