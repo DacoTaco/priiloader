@@ -1218,7 +1218,6 @@ void BootMainSysMenu( void )
 	s32 fd = 0;
 	try
 	{
-
 		//expermintal code for getting the needed tmd info. no boot index is in the views but lunatik and i think last file = boot file
 		ret = ES_GetTMDViewSize(TitleID, &tmd_size);
 		if(ret < 0)
@@ -2092,7 +2091,7 @@ void AutoBootDol( void )
 				throw "failed to get argument file info or file to small";
 
 			//read the argument count,AHBPROT bit and arg lenght
-			if( ISFS_Read( fd, dol_settings, sizeof(_dol_settings)) < (s32)status->file_length)
+			if( ISFS_Read( fd, dol_settings, sizeof(_dol_settings)) < (s32)sizeof(_dol_settings))
 				throw "failed to read arguments file";
 
 			if(dol_settings->HW_AHBPROT_bit != 1 && dol_settings->HW_AHBPROT_bit != 0 )
@@ -2133,11 +2132,17 @@ void AutoBootDol( void )
 
 			if(dol_settings->argument_count > 0)
 			{
-				ISFS_Seek(fd , sizeof(dol_settings)-1 ,SEEK_SET);
-				if(ISFS_Read( fd, argv->commandLine+strnlen(BINARY_NAND_PATH,48)+1, dol_settings->arg_cli_length ) <= dol_settings->arg_cli_length)
-					throw "failed to read arguments";
+				STACK_ALIGN(char,arguments,dol_settings->arg_cli_length,32);
+				if(!arguments)
+					throw "failed to allocate arguments";
 
+				memset(arguments,0,dol_settings->arg_cli_length);
+				ISFS_Seek(fd , ((u32)&dol_settings->arg_command_line) - (u32)(dol_settings) ,SEEK_SET);
+				if( ISFS_Read( fd, arguments, dol_settings->arg_cli_length ) < dol_settings->arg_cli_length)
+					throw "failed to read arguments";
 				ISFS_Close(fd);
+
+				memcpy(argv->commandLine+strnlen(BINARY_NAND_PATH,48)+1,arguments,dol_settings->arg_cli_length);
 				argv->argc += dol_settings->argument_count;
 			}
 			//to make sure there is no overflow
@@ -2149,14 +2154,17 @@ void AutoBootDol( void )
 		catch (const std::string& ex)
 		{
 			gprintf("AutoBootDol Exception -> %s",ex.c_str());
+			memset(dol_settings,0,sizeof(_dol_settings));
 		}
 		catch (char const* ex)
 		{
 			gprintf("AutoBootDol Exception -> %s",ex);
+			memset(dol_settings,0,sizeof(_dol_settings));
 		}
 		catch(...)
 		{
 			gprintf("AutoBootDol Exception was thrown");
+			memset(dol_settings,0,sizeof(_dol_settings));
 		}
 
 		if(fd > 0)
@@ -2204,7 +2212,7 @@ void AutoBootDol( void )
 		ISFS_Close(fd);
 
 		//load it!
-		BootDolFromMem(binary,1,argv);
+		BootDolFromMem(binary,dol_settings->HW_AHBPROT_bit,argv);
 	}
 	catch (const std::string& ex)
 	{
