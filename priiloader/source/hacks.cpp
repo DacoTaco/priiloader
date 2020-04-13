@@ -105,25 +105,23 @@ bool GetLine(bool reading_nand, std::string& line)
 		//read untill we have a newline or reach EOF
 		while (
 				file_pos < file_size &&
-				file_pos+strnlen(buf,max_size) < file_size &&
+				file_pos+read_cnt < file_size &&
 				strstr(buf, "\n") == NULL && 
 				strstr(buf, "\r") == NULL
 			)
 		{	
 			//are we dealing with a potential overflow?
 			if (read_cnt > max_size)
-			{
-				error = ERROR_MALLOC;
 				throw "line to long";
-			}
 
 			u32 addr = read_cnt + (u32)buf;
+			u32 len = (file_pos+BLOCK_SIZE < file_size) ? BLOCK_SIZE : file_size-(file_pos+read_cnt);
 			s32 ret = 0;
 
 			if (reading_nand)
-				ret = ISFS_Read(nand_file_handler, (void*)addr, BLOCK_SIZE);
+				ret = ISFS_Read(nand_file_handler, (void*)addr, len );
 			else
-				ret = fread( (void*)addr, sizeof( char ), BLOCK_SIZE, sd_file_handler );
+				ret = fread( (void*)addr, sizeof( char ), len, sd_file_handler );
 
 			if(ret <= 0)
 			{
@@ -135,9 +133,7 @@ bool GetLine(bool reading_nand, std::string& line)
 			read_cnt += ret;
 
 			if(strnlen(buf,max_size+1) >= max_size)
-			{
 				throw "buf has overflown";
-			}
 		}
 
 		//nothing was read
