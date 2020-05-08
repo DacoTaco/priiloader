@@ -188,7 +188,6 @@ u32 Input_ButtonsDown( bool _overrideSTM )
 	}
 	else
 	{
-		pressed = 0;
 		pressed |= (PAD_ButtonsDown(0) | PAD_ButtonsDown(1) | PAD_ButtonsDown(2) | PAD_ButtonsDown(3));
 		
 		u32 WPAD_Pressed = (WPAD_ButtonsDown(0) | WPAD_ButtonsDown(1) | WPAD_ButtonsDown(2) | WPAD_ButtonsDown(3));
