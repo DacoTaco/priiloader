@@ -49,8 +49,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //Project files
 #include "Input.h"
 #include "gitrev.h"
-#include "../loader/patches.h"
-#include "../loader/loader.h"
+#include "patches.h"
+#include "loader.h"
 #include "Global.h"
 #include "settings.h"
 #include "state.h"
@@ -1296,6 +1296,7 @@ void BootMainSysMenu( void )
 		LoadSystemHacks(true);
 
 		Input_Shutdown();
+		gprintf("input shutdown");
 
 		//Step 1 of IOS handling : Reloading IOS if needed;
 		if( !SGetSetting( SETTING_USESYSTEMMENUIOS ) )
@@ -1564,6 +1565,7 @@ void BootMainSysMenu( void )
 		mem_free(binary);
 	if(fd > 0)
 		ISFS_Close( fd );
+	Input_Init();
 
 	return;
 }
@@ -2772,7 +2774,8 @@ int main(int argc, char **argv)
 	
 	WPAD_SetPowerButtonCallback(HandleWiiMoteEvent);
 	
-	usleep(500000); // Give keyboard stack enough time to detect a keyboard and poll it. (0.5s delay)
+	//Give keyboard stack enough time to detect a keyboard and poll it. (~0.2s delay)
+	usleep(500000);
 	Input_ScanPads();
 	
 	//Check reset button state

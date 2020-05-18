@@ -18,9 +18,9 @@ include $(DEVKITPPC)/wii_rules
 TARGET		:=	$(notdir $(CURDIR))
 BUILD		:=	build
 SOURCES		:=	source ../Shared
-LDR_SOURCES	:=	loader
+LOADER		:=  ../loader
 DATA		:=	data
-INCLUDES	:=  include ../Shared
+INCLUDES	:=  include ../Shared $(LOADER)/include
 ENTRYPOINT	:=	0x81000000
 
 #---------------------------------------------------------------------------------
@@ -63,13 +63,7 @@ export DEPSDIR	:=	$(CURDIR)/$(BUILD)
 CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
 CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
 SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.S)))
-LDRFILES	:=	$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.c)) \
-				$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.cpp)) \
-				$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.S)) \
-				$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.s))
-LDR			:=	$(foreach file, $(LDRFILES), $(file)) \
-				$(foreach dir,$(LDR_SOURCES),$(wildcard $(dir)/*.h))
-BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.*)))
+BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.*))) loader.bin
 
 #---------------------------------------------------------------------------------
 # use CXX for linking C++ projects, CC for standard C
@@ -99,7 +93,7 @@ export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib) \
 					-L$(LIBOGC_LIB)
 
 export OUTPUT	:=	$(CURDIR)/$(TARGET)
-.PHONY: build clean pre_build loader build_priiloader post_build
+.PHONY: build clean pre_build post_build
 #---------------------------------------------------------------------------------
 #lets see what OS we are on
 UNAME := $(shell uname)
@@ -115,9 +109,13 @@ endif
 all: $(BUILD) run
 
 #actual build script
-$(BUILD):
-	@make --no-print-directory -f $(CURDIR)/Makefile loader 
-	@make --no-print-directory -f $(CURDIR)/Makefile build_priiloader 
+$(BUILD): pre_build
+	@echo
+	@echo -----------------------------------------------
+	@echo compiling priiloader...	
+	@echo 
+	@[ -d $@ ] || mkdir -p $@
+	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 	@make --no-print-directory -f $(CURDIR)/Makefile post_build
 
 pre_build:
@@ -146,9 +144,9 @@ endif
 
 	@test -s $(OPENDOLBOOT) || echo Building $(OPENDOLBOOT) ...; g++ ../tools/OpenDolBoot/source/OpenDolBoot.cpp -o $(OPENDOLBOOT);
 
-ifeq ($(wildcard $(DATA)/loader.bin),)
+ifeq ($(wildcard $(LOADER)/loader.bin),)
 	@echo "loader is missing (loader.bin)."
-	@echo "please run 'make clean' followed by 'make' to recompile priiloader"
+	@echo "please run 'make clean' followed by 'make' in the root directory to rebuild priiloader"
 	@echo
 	@exit 1
 endif
@@ -169,33 +167,6 @@ else
 	@echo "#define GIT_REV_STR \"0x$(shell git describe --always --long --dirty)\"" >> ../Shared/gitrev.h
 	@echo "Using 0x$(shell git describe --always --long) as revision, \"0x$(shell git describe --always --long --dirty)\" as revision string"
 endif
-
-#test if the build dir exists, make it if its not
-	@test -d $(BUILD) || mkdir $(BUILD)
-
-loader: $(DATA)/loader.bin
-$(DATA)/loader.bin: $(LDR)
-	@echo -----------------------------------------------
-	@echo compiling the loader...
-	@echo -----------------------------------------------
-	@echo 
-#test if the build dir exists, make it if its not
-	@test -d $(BUILD) || mkdir $(BUILD)
-#actual build : 
-#we generate the asm (if needed) for debugging purposes
-#the rest is for actual compilation
-	@$(foreach src, $(LDRFILES), \
-		echo $(notdir $(src)); \
-		$(CC) --static -iquote include -I $(BUILD) -Iloader -O2 -fno-asynchronous-unwind-tables -I$(LIBOGC_INC) -S $(src) -o $(BUILD)/$(basename $(notdir $(src))).s ; )
-	@echo building $@ ...	
-	@$(CC) $(foreach src, $(LDRFILES), $(src)) --static -iquote include -I $(BUILD) -Iloader -O2 -fno-asynchronous-unwind-tables -I$(LIBOGC_INC) -nostartfiles -nodefaultlibs -Wl,-Map,$(BUILD)/loader.map -Wl,--entry=_start -Wl,--oformat=binary -o $@
-	
-build_priiloader: pre_build loader
-	@echo
-	@echo -----------------------------------------------
-	@echo compiling priiloader...	
-	@echo 
-	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
 post_build:
 	@echo -----------------------------------------------
@@ -236,21 +207,25 @@ $(OUTPUT).dol: $(OUTPUT).elf
 $(OUTPUT).elf: $(OFILES)
 
 #---------------------------------------------------------------------------------
+# This rule links in the loader project
+#---------------------------------------------------------------------------------
+loader: loader.bin.o
+loader.bin.o : $(LOADER)/loader.bin
+	@echo $(notdir $<)
+	$(bin2o)
+
+#---------------------------------------------------------------------------------
 # This rule links in binary data with the .bin,tik & tmd extension
 #---------------------------------------------------------------------------------
 %.bin.o	:	%.bin
 #---------------------------------------------------------------------------------
 	@echo $(notdir $<)
 	$(bin2o)
-	
--include $(DEPENDS)
 
 %.tik.o	:	%.tik
 #---------------------------------------------------------------------------------
 	@echo $(notdir $<)
 	$(bin2o)
-
--include $(DEPENDS)
 
 %.tmd.o	:	%.tmd
 #---------------------------------------------------------------------------------

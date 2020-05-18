@@ -2,6 +2,9 @@
 Microsoft Visual Studio Solution File, Format Version 10.00
 # Visual Studio 2008
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Priiloader", "priiloader\priiloader.vcproj", "{5F442C2A-5700-4F90-87E6-BEC5C54BF00C}"
+	ProjectSection(ProjectDependencies) = postProject
+		{342ADF49-53FA-44E2-83FD-920558E06D7E} = {342ADF49-53FA-44E2-83FD-920558E06D7E}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Installer", "Installer\Installer.vcproj", "{E0E7DAF2-AE44-4DAF-AB23-38162FD44F00}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -20,6 +23,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Shared", "Shared", "{75BAEB
 		Shared\sha1.h = Shared\sha1.h
 		Shared\version.h = Shared\version.h
 	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "loader", "loader\loader.vcproj", "{342ADF49-53FA-44E2-83FD-920558E06D7E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -42,6 +47,13 @@ Global
 		{E0E7DAF2-AE44-4DAF-AB23-38162FD44F00}.Priiloader only|Win32.ActiveCfg = Priiloader only|Win32
 		{E0E7DAF2-AE44-4DAF-AB23-38162FD44F00}.Release|Win32.ActiveCfg = Release|Win32
 		{E0E7DAF2-AE44-4DAF-AB23-38162FD44F00}.Release|Win32.Build.0 = Release|Win32
+		{342ADF49-53FA-44E2-83FD-920558E06D7E}.Debug|Win32.ActiveCfg = Debug|Win32
+		{342ADF49-53FA-44E2-83FD-920558E06D7E}.Debug|Win32.Build.0 = Debug|Win32
+		{342ADF49-53FA-44E2-83FD-920558E06D7E}.Installer Only|Win32.ActiveCfg = Release|Win32
+		{342ADF49-53FA-44E2-83FD-920558E06D7E}.Priiloader only|Win32.ActiveCfg = Release|Win32
+		{342ADF49-53FA-44E2-83FD-920558E06D7E}.Priiloader only|Win32.Build.0 = Release|Win32
+		{342ADF49-53FA-44E2-83FD-920558E06D7E}.Release|Win32.ActiveCfg = Release|Win32
+		{342ADF49-53FA-44E2-83FD-920558E06D7E}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

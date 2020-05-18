@@ -244,34 +244,6 @@
 				>
 			</File>
 		</Filter>
-		<Filter
-			Name="loader"
-			>
-			<File
-				RelativePath=".\loader\_stack.s"
-				>
-			</File>
-			<File
-				RelativePath=".\loader\_startup.s"
-				>
-			</File>
-			<File
-				RelativePath=".\loader\executables.h"
-				>
-			</File>
-			<File
-				RelativePath=".\loader\loader.c"
-				>
-			</File>
-			<File
-				RelativePath=".\loader\loader.h"
-				>
-			</File>
-			<File
-				RelativePath=".\loader\patches.h"
-				>
-			</File>
-		</Filter>
 		<File
 			RelativePath=".\Makefile"
 			>
