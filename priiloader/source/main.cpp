@@ -1417,7 +1417,7 @@ void BootMainSysMenu( void )
 			{
 				error = ERROR_SYSMENU_ESDIVERFIY_FAILED;
 				__IOS_InitializeSubsystems();
-				throw "ES_Identify: ISFS_GetFileStats error " + std::to_string(ret);
+				throw ("ES_Identify: ISFS_GetFileStats error " + std::to_string(ret));
 			}
 
 			STACK_ALIGN(u32, certificate, certStats->file_length, 32);
@@ -1427,7 +1427,7 @@ void BootMainSysMenu( void )
 			{
 				error = ERROR_SYSMENU_ESDIVERFIY_FAILED;
 				__IOS_InitializeSubsystems();
-				throw "ES_Identify: ISFS_Read error " + std::to_string(ret);
+				throw ("ES_Identify: ISFS_Read error " + std::to_string(ret));
 			}
 
 			ret = ES_Identify( (signed_blob *)certificate, certStats->file_length, (signed_blob *)TMD, tmd_size_temp, (signed_blob *)ticket, status->file_length, 0);
