@@ -22,8 +22,6 @@
 //Bin include
 #include "stub_bin.h"
 
-//variables
-
 //The known HBC titles
 
 const title_info HBC_Titles[] = {
@@ -187,6 +185,7 @@ void LoadHBC( void )
 	ES_GetTicketViews(TitleID, views, cnt);
 	ClearState();
 	Input_Shutdown();
+	gprintf("starting HBC");
 	ES_LaunchTitle(TitleID, &views[0]);
 	//well that went wrong
 	Input_Init();

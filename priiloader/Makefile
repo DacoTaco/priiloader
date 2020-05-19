@@ -123,25 +123,6 @@ pre_build:
 	@echo -----------------------------------------------
 	@echo preparing compilation of priiloader...
 	@echo
-ifeq ($(wildcard $(DATA)/certs.bin),)
-	@echo "wii-cert is missing (certs.bin)."
-	@echo "please add the Wii XS3 certificate in the data directory"
-	@echo "This file can be found in /sys/cert.sys in your Wii NAND"
-	@echo "just copy it to /data/ and rename it to certs.bin"
-	@echo
-	@exit 1
-endif
-
-ifeq ($(CI_BUILD),)
-ifneq ($(shell md5sum $(DATA)/certs.bin | cut -d\  -f1),7ff50e2733f7a6be1677b6f6c9b625dd)
-	@echo "Looks like your certs.bin is invalid. "
-	@echo "It's supposed to have the MD5 checksum 7ff50e2733f7a6be1677b6f6c9b625dd"
-	@echo "Please grab a new copy of the cert.sys from your Wii NAND"
-	@echo 
-	@exit 1
-endif
-endif
-
 	@test -s $(OPENDOLBOOT) || echo Building $(OPENDOLBOOT) ...; g++ ../tools/OpenDolBoot/source/OpenDolBoot.cpp -o $(OPENDOLBOOT);
 
 ifeq ($(wildcard $(LOADER)/loader.bin),)

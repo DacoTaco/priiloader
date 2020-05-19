@@ -69,7 +69,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 //Bin includes
-#include "certs_bin.h"
 #include "loader_bin.h"
 
 typedef struct _dol_settings 
@@ -1398,12 +1397,40 @@ void BootMainSysMenu( void )
 			ret = ES_GetStoredTMD(TitleID, TMD, tmd_size_temp);
 			if(ret < 0)
 			{
-				error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
+				error = ERROR_SYSMENU_ESDIVERFIY_FAILED;
 				__IOS_InitializeSubsystems();
 				throw ("ES_Identify: GetStoredTMD error " + std::to_string(ret));
 			}
 
-			ret = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)TMD, tmd_size_temp, (signed_blob *)ticket, status->file_length, 0);
+			s32 fd = ISFS_Open("/sys/cert.sys",ISFS_OPEN_READ);
+			if(fd < 0 )
+			{
+				error = ERROR_SYSMENU_ESDIVERFIY_FAILED;
+				__IOS_InitializeSubsystems();
+				throw ("ES_Identify: ISFS_Open error " + std::to_string(ret));
+			}
+
+			STACK_ALIGN(fstats, certStats, sizeof(fstats), 32);
+			memset( certStats, 0, sizeof(fstats) );
+			ret = ISFS_GetFileStats( fd, certStats);
+			if( ret < 0 || certStats->file_length == 0)
+			{
+				error = ERROR_SYSMENU_ESDIVERFIY_FAILED;
+				__IOS_InitializeSubsystems();
+				throw "ES_Identify: ISFS_GetFileStats error " + std::to_string(ret);
+			}
+
+			STACK_ALIGN(u32, certificate, certStats->file_length, 32);
+			memset( certificate, 0, certStats->file_length );
+			ret = ISFS_Read(fd, certificate, certStats->file_length);
+			if(ret < 0 || (u32)ret < certStats->file_length)
+			{
+				error = ERROR_SYSMENU_ESDIVERFIY_FAILED;
+				__IOS_InitializeSubsystems();
+				throw "ES_Identify: ISFS_Read error " + std::to_string(ret);
+			}
+
+			ret = ES_Identify( (signed_blob *)certificate, certStats->file_length, (signed_blob *)TMD, tmd_size_temp, (signed_blob *)ticket, status->file_length, 0);
 			if( ret < 0 )
 			{	
 				error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
