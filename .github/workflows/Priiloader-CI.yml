@@ -27,11 +27,7 @@ jobs:
         
       - name: Source Review
         run: cppcheck . -v --std=c99 --std=c++11 --error-exitcode=1 --enable=warning,performance,portability,information,style --suppress=unusedFunction -UDEBUG_MEM2_LEVEL
-      
-      - name: Pre-Build
-        run: echo "1" > ./priiloader/data/certs.bin
 
       - name: Build
         run: |
-          export CI_BUILD=1
           make
