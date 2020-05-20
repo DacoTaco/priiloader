@@ -48,9 +48,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 //Project files
 #include "Input.h"
-#include "gitrev.h"
-#include "patches.h"
-#include "loader.h"
+#include "Shared/gitrev.h"
+#include "Shared/sha1.h"
+#include "loader/include/patches.h"
+#include "loader/include/loader.h"
 #include "Global.h"
 #include "settings.h"
 #include "state.h"
@@ -59,7 +60,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "font.h"
 #include "gecko.h"
 #include "password.h"
-#include "sha1.h"
 #include "HTTP_Parser.h"
 #include "dvd.h"
 #include "titles.h"

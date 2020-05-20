@@ -24,7 +24,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define _SETTINGS_H_
 
 #include "Global.h"
-#include "version.h"
+#include "Shared/version.h"
 
 typedef struct {
 	u8 autoboot;
