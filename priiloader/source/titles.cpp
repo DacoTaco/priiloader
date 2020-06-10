@@ -70,34 +70,30 @@ s8 CheckTitleOnSD(u64 id)
 		return 0;
 	}
 }
-s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
-	s32 r;
-    int lang = 1; //CONF_GetLanguage();
+s8 GetTitleName(u64 id, u32 app, char* name, u8* _dst_uncode_name) 
+{	
     /*
-    languages:
-    enum {
-	CONF_LANG_JAPANESE = 0,
-	CONF_LANG_ENGLISH,
-	CONF_LANG_GERMAN,
-	CONF_LANG_FRENCH,
-	CONF_LANG_SPANISH,
-	CONF_LANG_ITALIAN,
-	CONF_LANG_DUTCH,
-	CONF_LANG_SIMP_CHINESE,
-	CONF_LANG_TRAD_CHINESE,
-	CONF_LANG_KOREAN
-	};
-	cause we dont support unicode stuff in font.cpp we will force to use english then(1)
+		languages:
+		enum {
+			CONF_LANG_JAPANESE = 0,
+			CONF_LANG_ENGLISH,
+			CONF_LANG_GERMAN,
+			CONF_LANG_FRENCH,
+			CONF_LANG_SPANISH,
+			CONF_LANG_ITALIAN,
+			CONF_LANG_DUTCH,
+			CONF_LANG_SIMP_CHINESE,
+			CONF_LANG_TRAD_CHINESE,
+			CONF_LANG_KOREAN
+		};
+		cause we dont support unicode stuff in font.cpp we will force to use english then(1)
+		but what we should be doing otherwise : 
+		int lang = CONF_GetLanguage();
     */
-	u8 return_unicode_name = 0;
-	if(_dst_uncode_name == NULL)
-	{
-		return_unicode_name = 0;
-	}
-	else
-	{
-		return_unicode_name = 1;
-	}
+	int lang = 1;
+	s32 r;
+	u8 return_unicode_name = (_dst_uncode_name == NULL)? 0 : 1;
+
     char file[64] ATTRIBUTE_ALIGN(32);
     sprintf(file, "/title/%08x/%08x/content/%08x.app", (u32)(id >> 32), (u32)(id & 0xFFFFFFFF), app);
 	gdprintf("GetTitleName : %s",file);
@@ -225,7 +221,7 @@ s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name) {
 	if(str[lang][0] != '\0')
 	{
 		gdprintf("GetTitleName : title %s",str[lang]);
-		snprintf(name,255, "%s", str[lang]);
+		memcpy(name, str[lang], strnlen(str[lang],255));
 		if (return_unicode_name && str_unprocessed[lang][1] != '\0')
 		{
 			memcpy(_dst_uncode_name,&str_unprocessed[lang][0],83);

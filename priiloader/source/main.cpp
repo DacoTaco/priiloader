@@ -1028,7 +1028,7 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 
 		gprintf("BootDolFromMem : starting binary... 0x%08X",loader_addr);	
 		ICSync();
-		loader(binary,args,args != NULL,0);
+		loader(binary, args, args != NULL, 0);
 		
 		//old alternate booting code. i prefer the loader xD
 		/*u32 level;
@@ -1560,12 +1560,12 @@ void BootMainSysMenu( void )
 		
 		//loader
 		ICSync();
-		loader(binary,patch_ptr,patch_cnt,1);
+		loader(binary, patch_ptr, patch_cnt, 1);
+		gprintf("this ain't good");
 
 		//oh ow, this ain't good
 		__IOS_InitializeSubsystems();
 		PollDevices();
-		gprintf("this ain't good");	
 		mem_free(patch_ptr);
 		mem_free(loader_addr);
 		ISFS_Initialize();
@@ -1644,7 +1644,7 @@ void InstallLoadDOL( void )
 				while( readdir(dir) != NULL )
 				{
 					memset(filename,0,NAME_MAX);
-					strncpy(filename,dir->fileData.d_name, strnlen(dir->fileData.d_name,NAME_MAX-1 ));
+					memcpy(filename, dir->fileData.d_name, strnlen(dir->fileData.d_name,NAME_MAX) );
 					if(strncmp(filename,".",1) == 0 || strncmp(filename,"..",2) == 0 )
 					{
 						//we dont want the root or the dirup stuff. so lets filter them
@@ -1782,7 +1782,7 @@ void InstallLoadDOL( void )
 				while( readdir(dir) != NULL )
 				{
 					memset(filename,0,NAME_MAX);
-					strncpy(filename,dir->fileData.d_name,strnlen(dir->fileData.d_name,NAME_MAX-1 ));
+					memcpy(filename, dir->fileData.d_name, strnlen(dir->fileData.d_name,NAME_MAX) );
 					if( (strstr( filename, ".dol") != NULL) ||
 						(strstr( filename, ".DOL") != NULL) ||
 						(strstr( filename, ".elf") != NULL) ||

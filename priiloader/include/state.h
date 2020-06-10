@@ -44,7 +44,7 @@ typedef struct {
 	u8 discstate;
 	u8 returnto;
 	u32 unknown[6];
-} __attribute__((packed)) StateFlags;
+} __attribute__((packed, aligned(4))) StateFlags;
 
 typedef struct {
        u32 checksum;
@@ -57,7 +57,7 @@ typedef struct {
        u32 unknown[2];
        u64 launcher;
        u8 argbuf[0x1000];
-} __attribute__((packed)) NANDBootInfo;
+} __attribute__((packed, aligned(4))) NANDBootInfo;
 
 typedef struct wii_state {
 	s8 Shutdown:2;
