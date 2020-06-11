@@ -1,6 +1,6 @@
 #this is our stack!
-#we are abusing the .fini section so it gets placed after the text section by the linker
-.section	.fini
+#we are using the .sdata2 section for this. this is behind the text section where it belongs
+.section	.sdata2
 .globl __stack
 __stack:
 	.space 0x100

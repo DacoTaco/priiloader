@@ -84,7 +84,7 @@ typedef struct
 	u8 ownerperm;
 	u8 groupperm;
 	u8 otherperm;
-} __attribute__((packed, aligned(32))) Nand_Permissions;
+} Nand_Permissions;
 
 typedef struct init_states {
 	s8 AHBPROT;
@@ -1859,7 +1859,7 @@ else
 	if( (ios_patched < 1) && (IOS_GetVersion() != 36 ) )
 		printf("  Hold Down (B) with any above options to use IOS36\r\n\t");
 	printf("\tPress (HOME/Start) to chicken out and quit the installer!\r\n\r\n\t");
-	printf("\t\t\t\t\tEnjoy! DacoTaco & BadUncle\r\n");
+	printf("\t\t\t\t\tEnjoy! DacoTaco \r\n");
 	while(1)
 	{
 		WPAD_ScanPads();
