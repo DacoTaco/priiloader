@@ -1,7 +1,7 @@
 all:
-	$(MAKE) -C loader all
-	$(MAKE) -C priiloader all
-	$(MAKE) -C Installer all
+	$(MAKE) -C loader
+	$(MAKE) -C priiloader
+	$(MAKE) -C Installer
 
 clean:
 	$(MAKE) -C loader clean

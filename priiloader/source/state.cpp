@@ -172,20 +172,24 @@ s8 VerifyNandBootInfo ( void )
 	else
 		return 0;
 }
+
 s32 SetNandBootInfo(void)
 {
-	static NANDBootInfo BootInfo ATTRIBUTE_ALIGN(32);
+	u64 launcher ATTRIBUTE_ALIGN(32) = 0;
+	if(ES_GetTitleID(&launcher) < 0)
+		launcher = 0x0000000100000002LL;
+
+	NANDBootInfo BootInfo ATTRIBUTE_ALIGN(32);
 	memset(&BootInfo,0,sizeof(NANDBootInfo));
 	BootInfo.apptype = 0x80;
 	BootInfo.titletype = 2;
-	if(ES_GetTitleID(&BootInfo.launcher) < 0)
-		BootInfo.launcher = 0x0000000100000002LL;
+	BootInfo.launcher = launcher;
 	BootInfo.checksum = __CalcChecksum((u32*)&BootInfo,sizeof(NANDBootInfo));
+
 	s32 fd = ISFS_Open("/shared2/sys/NANDBOOTINFO", ISFS_OPEN_RW );
 	if(fd < 0)
-	{
 		return fd;
-	}
+
 	s32 ret = ISFS_Write(fd, &BootInfo, sizeof(NANDBootInfo));
 	if(ret < 0)
 	{

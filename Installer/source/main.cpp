@@ -84,7 +84,7 @@ typedef struct
 	u8 ownerperm;
 	u8 groupperm;
 	u8 otherperm;
-} ATTRIBUTE_PACKED Nand_Permissions;
+} __attribute__((packed, aligned(32))) Nand_Permissions;
 
 typedef struct init_states {
 	s8 AHBPROT;

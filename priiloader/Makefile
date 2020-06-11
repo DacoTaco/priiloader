@@ -154,13 +154,8 @@ endif
 post_build:
 	@echo -----------------------------------------------
 	@echo creating priiloader.app for installer
-ifeq ($(UNAME),Linux)
-		@echo
-		@./OpenDolBoot $(OUTPUT).dol ../Installer/data/priiloader.app
-else
-		@echo
-		@./OpenDolBoot.exe $(OUTPUT).dol ../Installer/data/priiloader.app
-endif
+	@echo
+	@./OpenDolBoot $(OUTPUT).dol ../Installer/data/priiloader.app
 
 #---------------------------------------------------------------------------------
 clean:
