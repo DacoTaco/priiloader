@@ -22,11 +22,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include <gccore.h>
 #include <wiiuse/wpad.h>
-#include <wiikeyboard/keyboard.h>
+#include <wiikeyboard/usbkeyboard.h>
 #include <sys/time.h>
 #include <sys/unistd.h>
 
 #include "Input.h"
+#include "gecko.h"
 
 s8 _input_init = 0;
 u32 _STM_input_pressed = 0;
@@ -36,52 +37,63 @@ struct timeval _time_init;
 static lwp_t kbd_handle = LWP_THREAD_NULL;
 static volatile bool kbd_should_quit = false;
 
-void HandleKBDEvent(char sym) {
-	switch (sym) {
-		case 0x84:
-			_kbd_pressed |= INPUT_BUTTON_UP;
+void KBEventHandler(USBKeyboard_event event) 
+{
+	//gprintf("KB event %d", event.type);
+	if(event.type != USBKEYBOARD_PRESSED && event.type != USBKEYBOARD_RELEASED)
+		return;
+
+	//gprintf("keyCode 0x%X", event.keyCode);
+	u32 button = 0;
+
+	switch (event.keyCode) {
+		case 0x52: //Up
+			button = INPUT_BUTTON_UP;
 			break;
-		case 0x85:
-			_kbd_pressed |= INPUT_BUTTON_DOWN;
+		case 0x51: //Down
+			button = INPUT_BUTTON_DOWN;
 			break;
-		case 0x86:
-			_kbd_pressed |= INPUT_BUTTON_LEFT;
+		case 0x50: //Left
+			button = INPUT_BUTTON_LEFT;
 			break;
-		case 0x87:
-			_kbd_pressed |= INPUT_BUTTON_RIGHT;
+		case 0x4F: //Right
+			button = INPUT_BUTTON_RIGHT;
 			break;
-		case 0x0d: // Enter
-			_kbd_pressed |= INPUT_BUTTON_A;
+		case 0x28: //Enter
+			button = INPUT_BUTTON_A;
 			break;
-		case 0x1b:
-			_kbd_pressed |= INPUT_BUTTON_B;
+		case 0x29: //Esc
+			button = INPUT_BUTTON_B;
 			break;
-		case 'x':
-		case 'X':
-			_kbd_pressed |= INPUT_BUTTON_X;
+		case 0x1B: //X
+			button = INPUT_BUTTON_X;
 			break;
-		case 'y':
-		case 'Y':
-			_kbd_pressed |= INPUT_BUTTON_Y;
+		case 0x1C: //Y
+			button = INPUT_BUTTON_Y;
 			break;
-		case ' ':
-			_kbd_pressed |= INPUT_BUTTON_START;
+		case 0x2C: //Space
+			button = INPUT_BUTTON_START;
 			break;
 		default:
 			break;
 	}
+
+	if(event.type == USBKEYBOARD_PRESSED)
+		_kbd_pressed |= button;
+	else
+		_kbd_pressed &= ~button;
 }
 
-void *kbd_thread (void *arg) {
-	keyboard_event event;
-	while (!kbd_should_quit) {
-		if (KEYBOARD_GetEvent(&event)) {
-			if (event.type == KEYBOARD_PRESSED) {
-				HandleKBDEvent(event.symbol);
-			}
-		}
+void *kbd_thread (void *arg) 
+{
+	while (!kbd_should_quit) 
+	{
+		usleep(2000);
+		if(!USBKeyboard_IsConnected())
+			USBKeyboard_Open(KBEventHandler);
+
+		USBKeyboard_Scan();
 	}
-	
 	return NULL;
 }
 
@@ -126,9 +138,10 @@ s8 Input_Init( void )
 	gettimeofday(&_time_init, NULL);
 
 	STM_RegisterEventHandler(HandleSTMEvent);
-	r |= KEYBOARD_Init(HandleKBDEvent);
-	// Even if the thread fails to start, we shouldn't call KEYBOARD_Deinit because
-	// it's broken and calling it twice will crash and it's already called in Input_Shutdown
+	r |= USB_Initialize();
+	r |= USBKeyboard_Initialize();	
+
+	// Even if the thread fails to start, 
 	kbd_should_quit = false;
 	LWP_CreateThread(	&kbd_handle,
 							kbd_thread,
@@ -155,11 +168,19 @@ void Input_Shutdown( void )
 
 	WPAD_Shutdown();
 	kbd_should_quit = true;
+
+	//once libogc is fixed, this should be uncommented and the next keyboard deninit deleted
+	//USBKeyboard_Close();
+	//USBKeyboard_Deinitialize();	
+
 	if (kbd_handle != LWP_THREAD_NULL) {
 		LWP_JoinThread(kbd_handle, NULL);
 		kbd_handle = LWP_THREAD_NULL;
 	}
-	KEYBOARD_Deinit();
+	
+	USBKeyboard_Close();
+	USBKeyboard_Deinitialize();	
+
 	_input_init = 0;
 }
 u32 Input_ScanPads( void )
