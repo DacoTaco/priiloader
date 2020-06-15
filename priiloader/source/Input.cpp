@@ -88,7 +88,7 @@ void *kbd_thread (void *arg)
 {
 	while (!kbd_should_quit) 
 	{
-		usleep(2000);
+		usleep(400);
 		if(!USBKeyboard_IsConnected())
 			USBKeyboard_Open(KBEventHandler);
 
@@ -167,19 +167,16 @@ void Input_Shutdown( void )
 	}
 
 	WPAD_Shutdown();
-	kbd_should_quit = true;
 
-	//once libogc is fixed, this should be uncommented and the next keyboard deninit deleted
-	//USBKeyboard_Close();
-	//USBKeyboard_Deinitialize();	
+	//signal thread to exit, if it would hang on a USBRead the close will cancel it.
+	kbd_should_quit = true;
+	USBKeyboard_Close();
+	USBKeyboard_Deinitialize();	
 
 	if (kbd_handle != LWP_THREAD_NULL) {
 		LWP_JoinThread(kbd_handle, NULL);
 		kbd_handle = LWP_THREAD_NULL;
 	}
-	
-	USBKeyboard_Close();
-	USBKeyboard_Deinitialize();	
 
 	_input_init = 0;
 }
@@ -187,7 +184,7 @@ u32 Input_ScanPads( void )
 {
 	WPAD_ScanPads();
 	PAD_ScanPads();
-	usleep(1000); // Give the keyboard thread a chance to run
+	usleep(800); // Give the keyboard thread a chance to run
 	return 1;
 }
 u32 Input_ButtonsDown( bool _overrideSTM )
