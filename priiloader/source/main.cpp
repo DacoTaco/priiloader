@@ -2298,7 +2298,7 @@ void CheckForUpdate()
 		}
 		else if (file_size == -7)
 		{
-			gprintf("CheckForUpdate : HTTP Error %s!",Get_Last_reply());
+			gprintf("CheckForUpdate : HTTP Error %d!",GetLastHttpReply());
 		}
 		else if ( file_size < 0 )
 		{
@@ -2554,7 +2554,7 @@ void CheckForUpdate()
 	{
 		if(file_size < -9)
 			mem_free(Changelog);
-		gprintf("CheckForUpdate : failed to get changelog.error %d, HTTP reply %s",file_size,Get_Last_reply());
+		gprintf("CheckForUpdate : failed to get changelog.error %d, HTTP reply %d",file_size,GetLastHttpReply());
 	}
 //The choice is made. lets download what the user wanted :)
 //--------------------------------------------------------------
@@ -2581,7 +2581,7 @@ void CheckForUpdate()
 		}
 		else if (file_size == -7)
 		{
-			gprintf("HTTP Error %s!",Get_Last_reply());
+			gprintf("HTTP Error %d!",GetLastHttpReply());
 		}
 		else
 		{

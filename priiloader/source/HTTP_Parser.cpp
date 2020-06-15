@@ -26,23 +26,30 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "../../Shared/gitrev.h"
 static char HTTP_Reply[4];
 static s8 redirects = 0;
+
+s16 GetLastHttpReply( void )
+{
+	//Http Status code is always in the 1xx, 2xx , 3xx , 4xx or 5xx range
+	if(strnlen(HTTP_Reply,4) != 3)
+		return 0;
+
+	return atoi(HTTP_Reply);	
+}
+
 s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int* external_socket_to_use)
 {
+	//reset last reply
+	if(HTTP_Reply[0] != 0)
+		memset(HTTP_Reply,0,4);
+
 	//URL_REQUEST
 	if(Data)
-	{
 		mem_free(Data);
-	}
+
+	//did we get a host of filename?
 	if(host == NULL || file == NULL)
-	{
-		//blaarg, we didn't get host or file. fail!
 		return -4;
-	}
-	if(HTTP_Reply[0] != 0)
-	{
-		//reset last reply
-		memset(HTTP_Reply,0,4);
-	}
+
 	const int buffer_size = 1024;
 	char buffer[buffer_size];
 	s32 bytes_read = 0;
@@ -52,7 +59,7 @@ s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int* external_socke
 	s32 ret = 0;
 	char URL_Request[buffer_size / 2];
 	//example : "GET /daco/version.dat HTTP/1.0\r\nHost: www.dacotaco.com\r\nUser-Agent: DacoTacoIsGod/version\r\n\r\n\0"
-	sprintf( URL_Request, "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: Priiloader/%s(Nintendo Wii) DacoTacoIsGod/1.0 \r\n\r\n", file,host,GIT_REV_STR );
+	sprintf( URL_Request, "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: Priiloader/%s(Nintendo Wii) DacoTacoIsGod/1.1 \r\n\r\n", file,host,GIT_REV_STR );
 	if(external_socket_to_use == 0 || *external_socket_to_use == 0)
 	{
 		socket = ConnectSocket(host,80);
@@ -281,6 +288,7 @@ return_ret:
 	}
 	return ret;
 }
+
 s32 ConnectSocket(const char *hostname, u32 port)
 {
 	s32 socket = 0;
@@ -313,8 +321,4 @@ s32 ConnectSocket(const char *hostname, u32 port)
 	}
 	return socket;
 
-}
-const char* Get_Last_reply( void )
-{
-	return HTTP_Reply;
 }
