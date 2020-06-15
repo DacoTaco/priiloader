@@ -2282,7 +2282,15 @@ void CheckForUpdate()
 //---------------
 	UpdateStruct UpdateFile;
 	u8* buffer = NULL;
-	file_size = GetHTTPFile("www.dacotaco.com","/priiloader/version.dat",buffer,0);
+	file_size = GetHTTPFile("www.dacotaco.com","/priiloader/version.bin",buffer,0);
+	s16 httpReply = GetLastHttpReply();
+	if( file_size < 0 && httpReply >= 400 && httpReply <= 500)
+	{
+		gprintf("falling back to .dat ...");
+		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/version.dat",buffer,0);
+	}
+
+
 	if ( file_size <= 0 || file_size != (s32)sizeof(UpdateStruct) || buffer == NULL)
 	{
 		PrintFormat( 1, TEXT_OFFSET("error getting versions from server"), 224, "error getting versions from server");
