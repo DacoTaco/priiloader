@@ -1467,6 +1467,34 @@ void BootMainSysMenu( void )
 			else
 				states_hash[i] = 0;
 		}
+
+		//get the size we need for the offset hacks
+		//i know a regular for loop looks better, but this is HELLA faster. like, 170ms vs 6ms faster
+		//we sadly can't put the previous loop into this cause we could have looped over the master hack and then realize we need it...
+		u32 i = 0;
+		std::for_each(system_hacks.begin(), system_hacks.end(), [&i,&size](const system_hack& obj)
+		{
+			if(states_hash[i++] == 0)
+				return 0;
+
+			std::for_each(obj.patches.begin(), obj.patches.end(), [&size](const system_patch _patch)
+			{
+				if(_patch.offset <= 0 || _patch.patch.size() <= 0 )
+					return 0;
+				size += 8 + _patch.patch.size();
+				return 1;
+			});
+			
+			return 1;
+		});
+		
+		if(size > 0)
+		{
+			patch_ptr = (u8*)mem_align(32,size);
+			if(patch_ptr == NULL)
+				throw "failed to malloc memory for patches";
+		}
+		size = 0;
 		
 		for(u32 i = 0;i < system_hacks.size();i++)
 		{
@@ -1482,28 +1510,19 @@ void BootMainSysMenu( void )
 
 				//offset method		
 				//we copy these to mem2 for the loader to apply
-				if(system_hacks[i].patches[y].offset > 0)
+				if(system_hacks[i].patches[y].offset > 0 && patch_ptr != NULL)
 				{
-					if(patch_ptr == NULL)
-						patch_ptr = (u8*)mem_align(32,system_hacks[i].patches[y].patch.size());
-					else
-						patch_ptr = (u8*)mem_realloc(patch_ptr,ALIGN32(size+system_hacks[i].patches[y].patch.size()));
-
-					if(patch_ptr == NULL)
-					{
-						gprintf("failed to malloc memory for offset 0x%08X",system_hacks[i].patches[y].offset);
-						continue;
-					}
-
 					offset_patch* patch = (offset_patch*)(patch_ptr + size);
 					size += 8 + system_hacks[i].patches[y].patch.size();
 
 					patch->offset = system_hacks[i].patches[y].offset;
 					patch->patch_size = system_hacks[i].patches[y].patch.size();
+
 					for(u32 z = 0;z < system_hacks[i].patches[y].patch.size(); z++)
 					{
 						patch->patch[z] = system_hacks[i].patches[y].patch[z];
 					}
+
 					DCFlushRange(patch, system_hacks[i].patches[y].patch.size()+8);
 					patch_cnt++;
 					gprintf("added offset to list 0x%08X",patch->offset);
