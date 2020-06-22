@@ -215,8 +215,9 @@ void SysHackHashSettings( void )
 					u32 size = ftell(in);
 					fseek( in, 0, 0);
 
+					//always have an aligned buffer/file
 					char *buf = (char*)mem_align( 32, ALIGN32(size) );
-					memset( buf, 0, size );
+					memset( buf, 0, ALIGN32(size) );
 					fread( buf, sizeof( char ), size, in );
 
 					fclose(in);
@@ -250,7 +251,9 @@ void SysHackHashSettings( void )
 						mem_free(buf);
 						goto handle_hacks_fail;
 					}
-					ret = ISFS_Write( fd, buf, size );
+					//write the file content, aligned by 32 so there are no issues having to read less then 32 bytes 
+					//(something something, isfs having to be 32 aligned)
+					ret = ISFS_Write( fd, buf, ALIGN32(size) );
 					if( ret < 0)
 					{
 						fail = 4;
