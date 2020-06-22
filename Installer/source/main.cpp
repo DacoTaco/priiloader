@@ -180,7 +180,7 @@ void abort_pre_init(const char* msg, ...)
 	strcpy( text + vsnprintf( text,4095,msg,args ),""); 
 	va_end( args );
 	printf("\x1b[%d;%dm", 36, 1);
-	gprintf("%s, aborting mission...\r\n", text);
+	gprintf("%s -> aborting mission...\r\n", text);
 	printf("%s\nPress A to exit back to loader...\r\n",text);
 	UserYesNoStop();
 	printf("exitting...\r\n");
@@ -196,7 +196,7 @@ void abort(const char* msg, ...)
 	strcpy( text + vsnprintf( text,4095,msg,args ),""); 
 	va_end( args );
 	printf("\x1b[%d;%dm", 36, 1);
-	gprintf("%s, aborting mission...\r\n", text);
+	gprintf("%s -> aborting mission...\r\n", text);
 	printf("%s\nPress A to exit back to loader...\r\n",text);
 	UserYesNoStop();
 	printf("exitting...\r\n");

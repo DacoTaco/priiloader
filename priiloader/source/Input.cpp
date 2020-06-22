@@ -88,11 +88,15 @@ void *kbd_thread (void *arg)
 {
 	while (!kbd_should_quit) 
 	{
-		usleep(400);
-		if(!USBKeyboard_IsConnected())
-			USBKeyboard_Open(KBEventHandler);
+		if(!USBKeyboard_IsConnected() && USBKeyboard_Open(KBEventHandler))
+		{
+			//wake up the keyboard by sending it a command.
+			//im looking at you, you bastard LINQ keyboard.
+			USBKeyboard_SetLed(USBKEYBOARD_LEDCAPS, false);
+		}
 
 		USBKeyboard_Scan();
+		usleep(400);
 	}
 	return NULL;
 }
