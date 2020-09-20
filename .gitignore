@@ -1,7 +1,5 @@
 build
-branches
-old_Shared
-wiki
+/tools/HashGenerator/Debug/
 *.*
 
 # But not these files...
@@ -16,12 +14,9 @@ wiki
 !*.
 !*.ini
 !*.sln
-!*.exe
-!*.bat
 !*.dll
 !*.MD
 !*MakeFile
-!template.latex
 
 # But do ignore these:
 /Shared/gitrev.h
