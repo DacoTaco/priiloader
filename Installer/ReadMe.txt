@@ -1,49 +1,31 @@
 ---------------------------------------------------------------
 * Priiloader Installer - An installation utiltiy for priiloader *
 ---------------------------------------------------------------
-
-
-
-==============================
-Compiling / Binding Preloader
-==============================
-
-In order to compile & use this installer with your application you must first place a "certs.bin"
-in the data directory along with "preloader.app". The "preloader.app" file is your
-compiled binary of the preloader source that has been bound with nand booting code. 
-You can obtain this from any systems menu or channel. This code must be placed at the end of your 
-compiled binary and potentially padded. 
-you will also need to add the correct loading address in the dol header, in text section 1. 
-this can be done manually or with dolboot.exe or (the much improved) opendolboot (found in priiloader source folder)
-
-FAILURE TO DO THIS PROPERLY WILL RESULT IN A BRICK SO BOOTMII INSTALLED TO BOOT2 IS A MUST! 
-I ACCEPT NO LIABILITY FOR INCORRECT USE!!
-
-
 ==========================
 Binary Distribution Notes
 ==========================
 
-This installer/removal tool will install Priiloader v0.4(rev78 from svn , which is based on preloader 0.30 + 
-all other priiloader changes). 
-It is also capable of updating
+This installer/removal tool will install Priiloader
 any previous version and can be installed over the top of an older install. There is also
 a removal option that will restore your system menu and clean all traces of Priiloader
 from your system.
 
 Usage:
 
-Press (+/A) to install or update Preloader.
-Press (-/Y) to remove Preloader and restore your system menu.
-Hold Down (B) with any of the above options to use IOS249.
+Press (+/A) to install or update Priiloader.
+Press (-/Y) to remove Priiloader and restore your system menu.
 Press (HOME/Start) to chicken out and quit the installer!
 
 To access Priiloader and configure it please hold (RESET) during the boot cycle.
 
 Requirements:
 
-for installation you need the ios used to be patched with ES_DIverify & trucha ( in most cases you run 
-the installer from the Homebrew channel so that should be IOS36)
+if run from HBC 1.0.7 and above, no ios patching is needed at all. however, if the installer
+has failed to get root access of the nand, then IOS36 needs to be fully patched as the installer
+will use that ios instead.
+
+Priiloader itself does not need any ios patching (and we recommend to keep the system menu ios unpatched)
+
 
 Disclaimer:
 
@@ -62,8 +44,7 @@ Kudos:
 Crediar (base source preloader 0.30)
 DacoTaco (additional mods)
 Phpgeek (additional mods & installer)
-_Dax_ (testing)
-F_GOD (testing)
+#wiidev (both of them)
 
 
-DacoTaco , _Dax_ & F_God
+DacoTaco
