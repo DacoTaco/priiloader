@@ -61,4 +61,23 @@ but a small additional part is different in each version. You can then create
 a large hidden master hack with the independant code, and several small sub
 hacks for the different System Menu versions that all require different offsets. 
 
-An example for that functionality can be found in the Wiimmfi patcher hack. 
+An example for that functionality can be found in the Remove NoCopy Save File Protection hack.
+
+    [Remove NoCopy Save File Protection - Master]
+    maxversion=4610
+    minversion=416
+    amount=2
+    master=SaveFileProtv1
+    hash=0x3be00001,0x48000024,0x3be00000,0x4800001c
+    patch=0x3BE00000,0x48000024
+    hash=0x28000001,0x4082001c,0x80630068,0x3880011c
+    patch=0x7C000000,0x4182001C
+    [Remove NoCopy Save File Protection]
+    maxversion=4610
+    minversion=4610
+    amount=2
+    require=SaveFileProtv1
+    hash=0x540007FF,0x41820024,0x387D1662,0x4CC63182
+    patch=0x7C000000,0x41820024,0x387d1662,0x4cc63182,0x801C0024,0x5400003C,0x901C0024,0x48000018
+    hash=0x4803EBAD
+    patch=0x38600001
