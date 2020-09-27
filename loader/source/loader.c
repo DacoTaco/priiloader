@@ -145,7 +145,8 @@ u32 _loadApplication(u8* binary, void* parameter)
 		}
 
 		//copy text sections
-		for (s8 i = 0; i < 7; i++) {
+		for (s8 i = 0; i < 6; i++) 
+		{
 			if ((!dolfile->sizeText[i]) || (dolfile->addressText[i] < 0x100)) 
 				continue;
 			_memcpy ((void *) dolfile->addressText[i],binary+dolfile->offsetText[i],dolfile->sizeText[i]);
@@ -154,8 +155,9 @@ u32 _loadApplication(u8* binary, void* parameter)
 		}
 
 		//copy data sections
-		for (s8 i = 0; i < 11; i++) {
-			if ((!dolfile->sizeData[i]) || (dolfile->offsetData[i] < 0x100)) 
+		for (s8 i = 0; i < 11; i++) 
+		{
+			if ((!dolfile->sizeData[i]) || (dolfile->addressData[i] < 0x100)) 
 				continue;
 
 			set_bss = 
@@ -164,7 +166,7 @@ u32 _loadApplication(u8* binary, void* parameter)
 				dolfile->addressData[i] >= dolfile->addressBSS + dolfile->sizeBSS);
 
 			_memcpy ((void *) dolfile->addressData[i],binary+dolfile->offsetData[i],dolfile->sizeData[i]);
-			DCFlushRange((void *) dolfile->offsetData[i],dolfile->sizeData[i]);
+			DCFlushRange((void *) dolfile->addressData[i],dolfile->sizeData[i]);
 		}
 
 		//clear BSS - this is the area containing variables. it is required to clear it so we don't have unexpected results
