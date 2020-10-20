@@ -183,7 +183,7 @@ void abort_pre_init(const char* msg, ...)
 	gprintf("%s -> aborting mission...\r\n", text);
 	printf("%s\nPress A to exit back to loader...\r\n",text);
 	UserYesNoStop();
-	printf("exitting...\r\n");
+	printf("exiting...\r\n");
 	printf("\x1b[%d;%dm", 37, 1);
 	VIDEO_WaitVSync();
 	exit(0);
