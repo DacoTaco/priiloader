@@ -173,7 +173,7 @@ void SysHackHashSettings( void )
 		max_pos = 19;
 	}
 
-	if( _hacks.size() < max_pos )
+	if( _hacks.size() <= max_pos )
 		max_pos = _hacks.size()-1;
 
 	while(1)
