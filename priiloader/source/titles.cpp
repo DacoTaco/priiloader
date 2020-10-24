@@ -148,6 +148,7 @@ s8 GetTitleName(u64 id, u32 app, char* name, u8* _dst_uncode_name)
 		if (fh == -106)
 		{
 			CheckTitleOnSD(id);
+			mem_free(data);
 			return -106;
 		}
 		else if (fh < 0)
@@ -216,6 +217,7 @@ s8 GetTitleName(u64 id, u32 app, char* name, u8* _dst_uncode_name)
 	else
 	{
 		gprintf("invalid IMET header for 0x%08x/0x%08x", (u32)(id >> 32), (u32)(id & 0xFFFFFFFF));
+		mem_free(data);
 		return -9;
 	}
 	if(str[lang][0] != '\0')
@@ -233,6 +235,7 @@ s8 GetTitleName(u64 id, u32 app, char* name, u8* _dst_uncode_name)
 		gprintf("GetTitleName: no name found");
 	memset(str,0,10*84);
 	memset(str_unprocessed,0,10*84);
+	mem_free(data);
 	return 1;
 }
 s32 LoadListTitles( void )
@@ -348,7 +351,7 @@ s32 LoadListTitles( void )
 					temp.content_id = rTMD->contents[0].cid;
 					//gprintf("0x%02X%02X%02X%02X",temp.name_unicode[0],temp.name_unicode[1],temp.name_unicode[2],temp.name_unicode[3]);
 					titles.push_back(temp);
-					gprintf("LoadListTitles : added %d , title id %08X/%08X(%s)",titles.size(),TITLE_UPPER(temp.title_id),TITLE_LOWER(temp.title_id),temp.name_ascii.c_str());
+					gprintf("LoadListTitles : added %d , title id %08X/%08X(%s)",titles.size()-1,TITLE_UPPER(temp.title_id),TITLE_LOWER(temp.title_id),temp.name_ascii.c_str());
 				}
 				if(rTMD)
 				{
@@ -575,7 +578,7 @@ failure:
 							title_ID[f] = '.';
 					}
 					title_ID[4]='\0';
-					PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "(%d)%s(%s)                              ",i+1,titles[i].name_ascii.c_str(), title_ID);
+					PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "(%d)%s(%s)                              ",i,titles[i].name_ascii.c_str(), title_ID);
 				}
 				//gprintf("lolid : %s - %x & %x ",title_ID,titles[i].title_id,(titles[i].title_id & 0x00000000FFFFFFFF) << 32);			
 			}
