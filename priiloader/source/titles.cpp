@@ -398,7 +398,9 @@ s32 LoadListTitles( void )
 		max_pos = 19;
 	}
 	s16 min_pos = 0;
-	if ((s32)titles.size() < max_pos)
+
+	gprintf("max_pos before check : %d",max_pos);
+	if ((s32)titles.size() <= max_pos)
 		max_pos = titles.size() -1;
 	while(1)
 	{
