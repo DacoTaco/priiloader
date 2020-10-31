@@ -1848,8 +1848,9 @@ void InstallLoadDOL( void )
 			{
 				max_pos = 19;
 			}
-			if ((s32)app_list.size() < max_pos)
+			if ((s32)app_list.size() <= max_pos)
 				max_pos = app_list.size() -1;
+
 			//sort app lists
 			s8 swap = 0;
 			for(s32 max = 0;max < (s32)app_list.size() * (s32)app_list.size();max++)
