@@ -6,6 +6,7 @@ build
 !.gitignore
 !*.c
 !*.cpp
+!*.hpp
 !*.a
 !*.bin
 !*.h

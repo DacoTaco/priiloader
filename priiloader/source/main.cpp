@@ -66,7 +66,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "mem2_manager.h"
 #include "HomebrewChannel.h"
 #include "IOS.h"
-
+#include "rapidxml.hpp"
+#include "rapidxml_utils.hpp"
 
 //Bin includes
 #include "loader_bin.h"
@@ -1712,68 +1713,58 @@ void InstallLoadDOL( void )
 						continue;
 					}
 					memset(buf,0,size+1);
-					ret = fread(buf,1,size,app_bin) ;
+					ret = fread(buf,1,size,app_bin);
+					fclose(app_bin);
 					if(ret != (u32)size)
 					{
-						mem_free(buf);
-						fclose(app_bin);
+						mem_free(buf);						
 						temp.app_name = filename;
 						app_list.push_back(temp);
 						gdprintf("failed to read data error %d",ret);
+						continue;
 					}
-					else
+
+					try
 					{
-						fclose(app_bin);
-						char* tag_start = 0;
-						char* tag_end = 0;
-						//note to self. find safer fucking to replace strstr
-						tag_start = strstr(buf,"<no_ios_reload/>");
-						if(tag_start == NULL)
-							tag_start = strstr(buf,"<ahb_access/>");
-						if(tag_start != NULL)
+						rapidxml::xml_document<> doc;
+						doc.parse<0>(buf);
+						rapidxml::xml_node<>* appNode = doc.first_node("app");
+						rapidxml::xml_node<>* node = NULL;
+						if (appNode == NULL)
+							throw "No app node found";
+						
+						node = appNode->first_node("name");
+						if (node != NULL)
+							temp.app_name = (std::string)node->value();
+
+						if (appNode->first_node("no_ios_reload") != NULL || appNode->first_node("ahb_access") != NULL)
 							temp.HW_AHBPROT_ENABLED = 1;
-						tag_start = strstr(buf,"<name>");
-						if(tag_start != NULL)
+
+						node = appNode->first_node("arguments");
+						if (node != NULL)
 						{
-							tag_start += 6;
-							tag_end = strstr(tag_start,"</name>");
-							if(tag_end != NULL)
+							rapidxml::xml_node<>* arg = node->first_node("arg");
+							while (arg != NULL)
 							{
-								char _temp[tag_end - tag_start+1];
-								memset(_temp,0,sizeof(_temp));
-								strncpy(_temp,tag_start,tag_end - tag_start);
-								temp.app_name = _temp;
+								temp.args.push_back((std::string)arg->value());
+								arg = arg->next_sibling("arg");
 							}
 						}
-						tag_end = 0;
-						tag_start = strstr(buf,"<arguments>");
-						if(tag_start != NULL)
-						{
-							tag_end = strstr(tag_start+5,"</arguments>");
-							if(tag_start != NULL && tag_end != NULL)
-							{
-								char* arg_start = strstr(buf,"<arg>");
-								while(arg_start != NULL)
-								{
-									//arguments!
-									arg_start+= 5;
-									char* arg_end = strstr(arg_start,"</arg>");
-									if(arg_end == NULL)
-									{
-										//oh-ow. no ending. lets bail out
-										break;
-									}
-									char _temp[arg_end - arg_start+1];
-									memset(_temp,0,sizeof(_temp));
-									strncpy(_temp,arg_start,arg_end - arg_start);
-									temp.args.push_back(_temp);
-									arg_end = 0;
-									arg_start = strstr(arg_start,"<arg>");
-								}
-							}
-						}
-						mem_free(buf);
 					}
+					catch (const std::string& str)
+					{
+						gprintf("InstallLoadDol Exception: %s", str.c_str());
+					}
+					catch (char const* str)
+					{
+						gprintf("InstallLoadDol Exception: %s", str);
+					}
+					catch(...)
+					{	
+						gprintf("InstallLoadDol Exception: General xml exception");
+					}
+
+					mem_free(buf);
 					if(temp.app_name.size())
 					{
 						gdprintf("added %s to list",temp.app_name.c_str());

@@ -216,6 +216,22 @@
 				>
 			</File>
 			<File
+				RelativePath=".\include\rapidxml.hpp"
+				>
+			</File>
+			<File
+				RelativePath=".\include\rapidxml_iterators.hpp"
+				>
+			</File>
+			<File
+				RelativePath=".\include\rapidxml_print.hpp"
+				>
+			</File>
+			<File
+				RelativePath=".\include\rapidxml_utils.hpp"
+				>
+			</File>
+			<File
 				RelativePath=".\include\settings.h"
 				>
 			</File>
