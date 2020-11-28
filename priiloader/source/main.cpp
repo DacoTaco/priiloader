@@ -48,10 +48,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 //Project files
 #include "Input.h"
-#include "Shared/gitrev.h"
-#include "Shared/sha1.h"
-#include "loader/include/patches.h"
-#include "loader/include/loader.h"
+#include "gitrev.h"
+#include "sha1.h"
 #include "Global.h"
 #include "settings.h"
 #include "state.h"
@@ -69,6 +67,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "rapidxml.hpp"
 #include "rapidxml_utils.hpp"
 
+//loader files
+#include "patches.h"
+#include "loader.h"
+
 //Bin includes
 #include "loader_bin.h"
 
@@ -78,7 +80,7 @@ typedef struct _dol_settings
 	u8 argument_count;
 	s32 arg_cli_length;
 	char* arg_command_line;
-}__attribute((packed))_dol_settings;
+}__attribute((packed)) _dol_settings;
 
 typedef struct {
 	std::string app_name;
@@ -229,7 +231,7 @@ void SysHackHashSettings( void )
 						//File already exists, delete and recreate!
 						ISFS_Close( fd );
 						ret = ISFS_Delete("/title/00000001/00000002/data/hackshas.ini");
-						if( ret <0)
+						if( ret < 0)
 						{
 							fail=1;
 							mem_free(buf);

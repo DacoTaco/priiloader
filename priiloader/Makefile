@@ -20,7 +20,7 @@ BUILD		:=	build
 SOURCES		:=	source ../Shared
 LOADER		:=  ../loader
 DATA		:=	data
-INCLUDES	:=  include ../
+INCLUDES	:=  include ../Shared ../loader/include
 ENTRYPOINT	:=	0x81000000
 
 #---------------------------------------------------------------------------------
@@ -95,7 +95,7 @@ export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib) \
 					-L$(LIBOGC_LIB)
 
 export OUTPUT	:=	$(CURDIR)/$(TARGET)
-.PHONY: build clean pre_build post_build
+.PHONY: build clean rebuild pre_build post_build
 #---------------------------------------------------------------------------------
 #lets see what OS we are on
 UNAME := $(shell uname)
@@ -161,6 +161,8 @@ post_build:
 clean:
 	@echo clean ...
 	@rm -fr $(BUILD) $(OUTPUT).elf $(OUTPUT).dol $(DATA)/loader.bin
+	
+rebuild : clean $(BUILD)
 
 #---------------------------------------------------------------------------------
 run:

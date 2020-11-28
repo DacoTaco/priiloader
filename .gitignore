@@ -12,6 +12,7 @@ build
 !*.h
 !*.s
 !*.vcproj
+!*.vcxproj
 !*.
 !*.ini
 !*.sln

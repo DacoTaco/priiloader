@@ -66,8 +66,6 @@ extern void *xfb;
 //FUNCTIONS
 //---------------
 void InitVideo ( void );
-
-void Control_VI_Regs ( u8 mode );
 s8 InitNetwork();
 u8 GetUsbOnlyMode();
 u8 ToggleUSBOnlyMode();

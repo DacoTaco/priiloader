@@ -98,7 +98,7 @@ export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib) \
 					-L$(LIBOGC_LIB)
 
 export OUTPUT	:=	$(CURDIR)/$(TARGET)
-.PHONY: $(BUILD) clean
+.PHONY: $(BUILD) clean rebuild
 
 #---------------------------------------------------------------------------------
 #build order
@@ -113,6 +113,8 @@ $(BUILD):
 clean:
 	@echo clean ...
 	@rm -fr $(BUILD) $(OUTPUT).elf $(OUTPUT).dol
+	
+rebuild : clean $(BUILD)
 
 #---------------------------------------------------------------------------------
 run:

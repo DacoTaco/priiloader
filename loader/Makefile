@@ -93,7 +93,7 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES), -iquote $(CURDIR)/$(dir)) \
 export LIBPATHS	:= -L$(LIBOGC_LIB) $(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 
 export OUTPUT	:=	$(CURDIR)/$(TARGET)
-.PHONY: $(BUILD) clean
+.PHONY: $(BUILD) clean rebuild
 
 #---------------------------------------------------------------------------------
 $(BUILD):
@@ -108,6 +108,7 @@ clean:
 	@echo clean ...
 	@rm -fr $(BUILD) $(OUTPUT).bin
 
+rebuild : clean $(BUILD)
 
 #---------------------------------------------------------------------------------
 else

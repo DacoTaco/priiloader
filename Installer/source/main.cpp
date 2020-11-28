@@ -871,7 +871,7 @@ patch_tmd:
 		,rTMD->contents[rTMD->boot_index].hash[16],rTMD->contents[rTMD->boot_index].hash[17],rTMD->contents[rTMD->boot_index].hash[18],rTMD->contents[rTMD->boot_index].hash[19]);
 	gprintf("generated priiloader SHA1 : ");
 	sha.Reset();
-	sha.Input(priiloader_app,priiloader_app_size);
+	sha.Input(priiloader_app, priiloader_app_size);
 	if (!sha.Result(FileHash))
 	{
 		gprintf("could not compute Hash of Priiloader!\r\n");
@@ -1149,7 +1149,7 @@ s8 WritePriiloader( bool priiloader_found )
 		gprintf("error %d\r\n",fd);
 		abort("\nFailed to open file for Priiloader writing");
 	}
-	ret = ISFS_Write(fd,priiloader_app,priiloader_app_size);
+	ret = ISFS_Write(fd, priiloader_app, priiloader_app_size);
 	if (ret < 0 ) //check if the app was writen correctly				
 	{
 		ISFS_Close(fd);
