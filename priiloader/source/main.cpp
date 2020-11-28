@@ -2132,12 +2132,13 @@ void AutoBootDol( void )
 			if(fd < 0)
 				throw "failed to open argument file";
 
-			if (ISFS_GetFileStats(fd,status) < 0 || status->file_length < 2)
-				throw "failed to get argument file info or file to small";
+			if (ISFS_GetFileStats(fd,status) < 0 || status->file_length < sizeof(_dol_settings) - sizeof(dol_settings->arg_command_line))
+				throw "failed to get argument file info or file too small";
 
 			//read the argument count,AHBPROT bit and arg lenght
-			if( ISFS_Read( fd, dol_settings, sizeof(_dol_settings)) < (s32)sizeof(_dol_settings))
-				throw "failed to read arguments file";
+			s32 ret = ISFS_Read( fd, dol_settings, status->file_length);
+			if( ret < (s32)status->file_length)
+				throw ("failed to read arguments file(" + std::to_string(ret) + ")");
 
 			if(dol_settings->HW_AHBPROT_bit != 1 && dol_settings->HW_AHBPROT_bit != 0 )
 			{
