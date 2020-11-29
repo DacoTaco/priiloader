@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30107.140
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DacosLove", "DacosLove.vcxproj", "{B03234DC-4EA8-46E2-9884-A72F8F508108}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "loader", "..\..\loader\loader.vcxproj", "{342ADF49-53FA-44E2-83FD-920558E06D7E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B03234DC-4EA8-46E2-9884-A72F8F508108}.Debug|Win32.ActiveCfg = Release|Win32
+		{B03234DC-4EA8-46E2-9884-A72F8F508108}.Debug|Win32.Build.0 = Release|Win32
+		{B03234DC-4EA8-46E2-9884-A72F8F508108}.Release|Win32.ActiveCfg = Release|Win32
+		{B03234DC-4EA8-46E2-9884-A72F8F508108}.Release|Win32.Build.0 = Release|Win32
+		{342ADF49-53FA-44E2-83FD-920558E06D7E}.Debug|Win32.ActiveCfg = Debug|Win32
+		{342ADF49-53FA-44E2-83FD-920558E06D7E}.Debug|Win32.Build.0 = Debug|Win32
+		{342ADF49-53FA-44E2-83FD-920558E06D7E}.Release|Win32.ActiveCfg = Release|Win32
+		{342ADF49-53FA-44E2-83FD-920558E06D7E}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {8A7E9362-0605-40F1-8EC2-FB8A2DF71788}
+	EndGlobalSection
+EndGlobal

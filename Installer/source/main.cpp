@@ -1388,29 +1388,6 @@ s8 PatchIos( s8 AHBPROT_only )
 	//nand permissions : 42 8b d0 01 25 66 -> 42 8b e0 01 25 66
 	u8 old_nand_Table[] = {0x42, 0x8B, 0xD0, 0x01, 0x25, 0x66}; 
 
-	//allow downgrading titles, thanks daveboal : D2 -> 0xE0
-	u8 downgrade_fix[] = { 0x20, 0xEE, 0x00, 0x40, 0x18, 0x2B, 0x1C, 0x3A, 0x32, 0x58, 0x88, 0x19, 0x88, 0x13, 0x42, 0x99, 0xD2 };
-
-	//allow fake signature titles to be installed : 07 -> 00
-	u8 trucha_hash1[] = {0x20, 0x07, 0x23, 0xA2};
-	u8 trucha_hash2[] = {0x20, 0x07, 0x4B, 0x0B};
-
-	//allow identification of 'anything' : D1 23 -> 00 00
-	u8 identifyCheck[] = {0x68, 0x68, 0x28, 0x03, 0xD1, 0x23};
-
-	//------------------------------
-	//vWii specific patches :
-	//------------------------------
-	//these patches should allow us to install 00000001 titles again (aka system titles like IOS and SM)
-#ifdef VWII_MODE
-	u8 SysTitleInstall_pt1[] = { 0x68, 0x1A, 0x2A, 0x01, 0xD0, 0x05 }; //needs to be applied twice
-	u8 SysTitleInstall_pt2[] = { 0xD0, 0x02, 0x33, 0x06, 0x42, 0x9A, 0xD1, 0x01 };	//also twice
-	u8 SysTitleInstall_pt3[] = { 0x68, 0xFB, 0x2B, 0x00, 0xDB, 0x01 }; //once
-	u8 pt1_found = 0;
-	u8 pt2_found = 0;
-	u8 pt3_found = 0;
-#endif
-
 	s8 patches_applied = 0;
 	if(read32(0x0d800064) == 0xFFFFFFFF)
 	{
@@ -1471,111 +1448,12 @@ s8 PatchIos( s8 AHBPROT_only )
 					}
 					goto continue_loop;
 				}
-				/* //unused patches : trucha,es_identify,downgrade fix
-				if (AHBPROT_only == 0 && !memcmp(mem_block, trucha_hash1, sizeof(trucha_hash1)))
-				{
-					gprintf("Found Hash check @ 0x%X, patching...\r\n", address);
-					_write8(address+1,0);
-					patches_applied++;
-					DCFlushRange((u8 *)((address) >> 5 << 5), (sizeof(trucha_hash1) >> 5 << 5) + 64);	
-#ifdef DEBUG
-					gprintf("value is now 0x%X\r\n",*(vu32*)address);
-#endif
-					goto continue_loop;
-				}
-				if (AHBPROT_only == 0 && !memcmp(mem_block, trucha_hash2, sizeof(trucha_hash2)))
-				{
-					gprintf("Found Hash check2 @ 0x%X, patching...\r\n", address);
-					_write8(address+1,0);
-					patches_applied++;
-					DCFlushRange((u8 *)((address) >> 5 << 5), (sizeof(trucha_hash2) >> 5 << 5) + 64);
-#ifdef DEBUG
-					gprintf("value is now 0x%X\r\n",*(vu32*)address);
-#endif
-					goto continue_loop;
-				}
-				if (AHBPROT_only == 0 && !memcmp(mem_block, identifyCheck, sizeof(identifyCheck)))
-				{
-					gprintf("Found ES_Identify check @ 0x%X, patching...\r\n", address);
-					_write8(address+4,0x00);
-					_write8(address+5,0x00);
-					patches_applied++;
-					DCFlushRange((u8 *)((address) >> 5 << 5), (sizeof(identifyCheck) >> 5 << 5) + 64);
-					ICInvalidateRange((u8 *)((address) >> 5 << 5), (sizeof(identifyCheck) >> 5 << 5) + 64);
-#ifdef DEBUG
-					gprintf("value is now 0x%X & 0x%X\r\n",*(vu32*)(address),*(vu32*)(address+4));
-#endif
-					goto continue_loop;
-				}
-				if (AHBPROT_only == 0 && !memcmp(mem_block, downgrade_fix, sizeof(downgrade_fix)))
-				{
-					gprintf("Found downgrade check @ 0x%X, patching...\r\n", address);
-					_write8(address+16,0xE0);
-					patches_applied++;
-					DCFlushRange((u8 *)((address) >> 5 << 5), (sizeof(downgrade_fix) >> 5 << 5) + 64);
-#ifdef DEBUG
-					gprintf("value is now 0x%X\r\n",*(vu32*)(address+13));
-#endif
-					goto continue_loop;
-				}*/
-#ifdef VWII_MODE
-				if (AHBPROT_only == 0 && !memcmp(mem_block, SysTitleInstall_pt1, sizeof(SysTitleInstall_pt1)))
-				{
-					gprintf("Found pt1 of SysInstall check @ 0x%X, patching...\r\n", address);
-					_write8(address+4,0x46);
-					_write8(address+5,0xC0);
-					pt1_found++;
-					if(pt1_found >= 2)
-						patches_applied++;
-					DCFlushRange((u8 *)((address) >> 5 << 5), (sizeof(downgrade_fix) >> 5 << 5) + 64);
-#ifdef DEBUG
-					gprintf("value is now 0x%X\r\n",*(vu32*)(address+4));
-#endif
-					goto continue_loop;
-				}
-				if (AHBPROT_only == 0 && !memcmp(mem_block, SysTitleInstall_pt2, sizeof(SysTitleInstall_pt2)))
-				{
-					gprintf("Found pt2 of SysInstall check @ 0x%X, patching...\r\n", address);
-					_write8(address,0x46);
-					_write8(address+1,0xC0);
-					_write8(address+6,0xE0);
-					pt2_found++;
-					if(pt2_found >= 2)
-						patches_applied++;
-					DCFlushRange((u8 *)((address) >> 5 << 5), (sizeof(downgrade_fix) >> 5 << 5) + 64);
-#ifdef DEBUG
-					gprintf("value is now 0x%X\r\n",*(vu32*)(address+4));
-#endif
-					goto continue_loop;
-				}
-				if (AHBPROT_only == 0 && !memcmp(mem_block, SysTitleInstall_pt3, sizeof(SysTitleInstall_pt3)))
-				{
-					gprintf("Found pt3 of SysInstall check @ 0x%X, patching...\r\n", address);
-					_write8(address+5,0x10);
-					pt3_found++;
-					patches_applied++;
-					DCFlushRange((u8 *)((address) >> 5 << 5), (sizeof(downgrade_fix) >> 5 << 5) + 64);
-#ifdef DEBUG
-					gprintf("value is now 0x%X\r\n",*(vu32*)(address+4));
-#endif
-					goto continue_loop;
-				}
-#endif
 
-		continue_loop:
+				continue_loop:
 				mem_block++;
 				continue;
-
 			}
 			write16(0x0d8b420a, 1);
-#ifdef VWII_MODE
-			if(pt1_found == 1 || pt2_found == 1 ||
-				(pt1_found > 1 && pt2_found > 1 && pt3_found == 0) )
-			{
-				//the SysTitle patch is incomplete. for safty , lets abort
-				abort_pre_init("SysTitleInstall not complete. please report this!\r\n");
-			}
-#endif
 		}
 		else
 		{

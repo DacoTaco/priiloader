@@ -190,7 +190,7 @@ $(OUTPUT).elf: $(OFILES)
 # This rule links in the loader project
 #---------------------------------------------------------------------------------
 loader: loader.bin.o
-loader.bin.o : $(LOADER)/loader.bin
+loader.bin.o : ../$(LOADER)/loader.bin #this path is relative from the a path in $(SOURCES)
 	@echo $(notdir $<)
 	$(bin2o)
 
