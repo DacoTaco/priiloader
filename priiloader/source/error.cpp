@@ -92,61 +92,65 @@ void ShowError ( void )
 
 		switch( error )
 		{
+			default:
 			case ERROR_NONE:
-			/*default:*/
-			break;
+				break;
 			case ERROR_BOOT_DOL_OPEN:
 				PrintFormat( 0, 16, (rmode->viHeight)-144, "Error autobooting file, try reinstalling!");
 				PrintFormat( 0, 16, (rmode->viHeight)-128, "Could not open file!");
-			break;
+				break;
 			case ERROR_BOOT_DOL_READ:
 				PrintFormat( 0, 16, (rmode->viHeight)-144, "Error autobooting file, try reinstalling!");
 				PrintFormat( 0, 16, (rmode->viHeight)-128, "Reading the file failed!");
-			break;
+				break;
 			case ERROR_BOOT_DOL_SEEK:
 				PrintFormat( 0, 16, (rmode->viHeight)-144, "Error autobooting file, try reinstalling!");
 				PrintFormat( 0, 16, (rmode->viHeight)-128, "Seek failed!");
-			break;
+				break;
 			case ERROR_BOOT_DOL_ENTRYPOINT:
 				PrintFormat( 0, 16, (rmode->viHeight)-144, "Error autobooting file, try reinstalling!");
 				PrintFormat( 0, 16, (rmode->viHeight)-128, "Entrypoint is unusable!");
-			break;
+				break;
 			case ERROR_ISFS_INIT:
 				PrintFormat( 0, 16, (rmode->viHeight)-144, "ISFS_Initialize() failed");
-			break;
+				break;
 			case ERROR_BOOT_HBC:
 				PrintFormat( 0, 16, (rmode->viHeight)-144, "Error autobooting HBC, maybe title not installed?");
-			break;
+				break;
 			case ERROR_BOOT_BOOTMII:
 				PrintFormat( 0, 16, (rmode->viHeight)-144, "Error booting Bootmii IOS!");
-			break;
+				break;
 			case ERROR_BOOT_ERROR:
 				PrintFormat( 0, 16, (rmode->viHeight)-144, "Error autobooting due problems with the settings.ini!");
-			break;
+				break;
+			case ERROR_SYSMENU_FRONT_BUTTONS_FORBIDDEN:
+				PrintFormat( 0, 16, (rmode->viHeight)-144, "Error Entering Menu");
+				PrintFormat( 0, 16, (rmode->viHeight)-128, "Front buttons forbidden in this menu.");
+				break;
 			case ERROR_SETTING_OPEN:
 				PrintFormat( 0, 16, (rmode->viHeight)-144, "Problems with settings.ini!");
 				PrintFormat( 0, 16, (rmode->viHeight)-128, "Could not open/create file!");
-			break;
+				break;
 			case ERROR_SETTING_WRITE:
 				PrintFormat( 0, 16, (rmode->viHeight)-144, "Problems with settings.ini!");
 				PrintFormat( 0, 16, (rmode->viHeight)-128, "Could not write file!");
-			break;
+				break;
 			case ERROR_SETTING_READ:
 				PrintFormat( 0, 16, (rmode->viHeight)-144, "Problems with settings.ini!");
 				PrintFormat( 0, 16, (rmode->viHeight)-128, "Could not read file!");
-			break;
+				break;
 			case ERROR_THREAD_CREATE:
 				PrintFormat( 0, 16, (rmode->viHeight)-144, "LWP_CreateThread() failed!");
-			break;
+				break;
 			case ERROR_MALLOC:
 				PrintFormat( 0, 16, (rmode->viHeight)-144, "malloc failed!");
-			break;
+				break;
 			case ERROR_STATE_CLEAR:
 				PrintFormat( 0, 16, (rmode->viHeight)-144, "failed to clear state!");
-			break;
+				break;
 			case ERROR_SYSMENU_GENERAL:
 				PrintFormat( 0, 16, (rmode->viHeight)-144, "Failed to load system menu!");
-			break;
+				break;
 
 			case ERROR_SYSMENU_TIKNOTFOUND:
 			case ERROR_SYSMENU_TIKSIZEGETFAILED:
@@ -160,7 +164,6 @@ void ShowError ( void )
 			case ERROR_SYSMENU_BOOTGETSTATS:
 				ShowAutoBootError();
 				break;
-
 			case ERROR_HACKS_TO_LONG:
 				ShowHacksError();
 				break;
