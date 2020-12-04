@@ -111,23 +111,25 @@ u32 _loadApplication(u8* binary, void* parameter)
 			ICInvalidateRange ((void*)(phdr->p_vaddr | 0x80000000),phdr->p_filesz);
 			if(phdr->p_type != PT_LOAD )
 				continue;
+
+			//PT_LOAD Segment, aka static program data
 			_memcpy((void*)(phdr->p_vaddr | 0x80000000), binary + phdr->p_offset , phdr->p_filesz);
 		}
 
 		//according to dhewg the section headers are totally un-needed (infact, they break a few elf loading)
-		//however, checking for the type does the trick to make them work :)
+		//this has to do with not clearing the SHT_NOBITS area's (BSS or memory used for uninitialised data)
 		for( s32 i=0; i < ElfHdr->e_shnum; ++i )
 		{
 			Elf32_Shdr *shdr = (Elf32_Shdr*)(binary + (ElfHdr->e_shoff + sizeof( Elf32_Shdr ) * i));
 
-			//useless check
+			//useless check - null section = no purpose
 			//if( shdr->sh_type == SHT_NULL )
 			//	continue;
 
 			if (shdr->sh_type != SHT_NOBITS)
 				continue;
 				
-			_memcpy((void*)(shdr->sh_addr | 0x80000000), binary + shdr->sh_offset,shdr->sh_size);
+			_memset((void*)(shdr->sh_addr | 0x80000000), 0, shdr->sh_size);
 			DCFlushRange((void*)(shdr->sh_addr | 0x80000000),shdr->sh_size);
 		}
 		return (ElfHdr->e_entry | 0x80000000);	
