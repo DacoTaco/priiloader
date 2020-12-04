@@ -3017,6 +3017,7 @@ int main(int argc, char **argv)
 			if(cur_off < 5)
 				ClearScreen();
 
+			error = ERROR_NONE;
 			system_state.InMainMenu = 0;
 			redraw=true;
 
@@ -3044,7 +3045,7 @@ int main(int argc, char **argv)
 				case 5:
 					if((INPUT_Pressed & INPUT_BUTTON_STM) != 0)
 					{
-						redraw = false;
+						error = ERROR_SYSMENU_FRONT_BUTTONS_FORBIDDEN;
 						break;
 					}
 
@@ -3054,25 +3055,23 @@ int main(int argc, char **argv)
 				case 6:
 					if((INPUT_Pressed & INPUT_BUTTON_STM) != 0)
 					{
-						redraw = false;
+						error = ERROR_SYSMENU_FRONT_BUTTONS_FORBIDDEN;
 						break;
 					}
 
 					ClearScreen();
 					SysHackHashSettings();
-					redraw=true;
 					break;
 				case 7:
 					ClearScreen();
 					CheckForUpdate();
 					net_deinit();
-					redraw=true;
 					break;
 				case 8:
 					//when using the front buttons, we will refusing going into the password menu
 					if((INPUT_Pressed & INPUT_BUTTON_STM) != 0)
 					{
-						redraw = false;
+						error = ERROR_SYSMENU_FRONT_BUTTONS_FORBIDDEN;
 						break;
 					}
 					
@@ -3158,10 +3157,19 @@ int main(int argc, char **argv)
 			PrintFormat( cur_off==8, TEXT_OFFSET("Set Password"), 208, "Set Password");
 			PrintFormat( cur_off==9, TEXT_OFFSET("Settings"), 224, "Settings");
 
-			if (error > 0)
+			if(error == ERROR_REFRESH)
+			{
+				PrintFormat( 0, 16, (rmode->viHeight)-144, "                                                             ");
+				PrintFormat( 0, 16, (rmode->viHeight)-128, "                                                             ");
+				error = ERROR_NONE;
+			}
+			else if (error > ERROR_NONE)
 			{
 				ShowError();
-				error = ERROR_NONE;
+				if(error == ERROR_SYSMENU_FRONT_BUTTONS_FORBIDDEN)
+					error = ERROR_REFRESH;
+				else
+					error = ERROR_NONE;
 			}
 			redraw = false;
 		}
