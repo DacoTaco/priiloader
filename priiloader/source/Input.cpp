@@ -134,7 +134,7 @@ void HandleSTMEvent(u32 event)
 }
 s8 Input_Init( void ) 
 {
-	if(_input_init != 0)
+	if(_input_init)
 		return 1;
 
 	s8 r = PAD_Init();
@@ -159,7 +159,7 @@ s8 Input_Init( void )
 }
 void Input_Shutdown( void )
 {
-	if (_input_init != 1)
+	if (!_input_init)
 		return;
 	
 	for (int i = 0;i < WPAD_MAX_WIIMOTES ;i++)

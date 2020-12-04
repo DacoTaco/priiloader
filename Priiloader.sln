@@ -31,14 +31,14 @@ Global
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{5F442C2A-5700-4F90-87E6-BEC5C54BF00C}.Installer Only|Win32.ActiveCfg = Installer Only|Win32
 		{5F442C2A-5700-4F90-87E6-BEC5C54BF00C}.Priiloader only|Win32.ActiveCfg = Installer Only|Win32
-		{5F442C2A-5700-4F90-87E6-BEC5C54BF00C}.Priiloader only|Win32.Build.0 = Priiloader only|Win32
+		{5F442C2A-5700-4F90-87E6-BEC5C54BF00C}.Priiloader only|Win32.Build.0 = Installer Only|Win32
 		{5F442C2A-5700-4F90-87E6-BEC5C54BF00C}.Release|Win32.ActiveCfg = Installer Only|Win32
-		{5F442C2A-5700-4F90-87E6-BEC5C54BF00C}.Release|Win32.Build.0 = Release|Win32
+		{5F442C2A-5700-4F90-87E6-BEC5C54BF00C}.Release|Win32.Build.0 = Installer Only|Win32
 		{E0E7DAF2-AE44-4DAF-AB23-38162FD44F00}.Installer Only|Win32.ActiveCfg = Installer Only|Win32
 		{E0E7DAF2-AE44-4DAF-AB23-38162FD44F00}.Installer Only|Win32.Build.0 = Installer Only|Win32
 		{E0E7DAF2-AE44-4DAF-AB23-38162FD44F00}.Priiloader only|Win32.ActiveCfg = Installer Only|Win32
 		{E0E7DAF2-AE44-4DAF-AB23-38162FD44F00}.Release|Win32.ActiveCfg = Installer Only|Win32
-		{E0E7DAF2-AE44-4DAF-AB23-38162FD44F00}.Release|Win32.Build.0 = Release|Win32
+		{E0E7DAF2-AE44-4DAF-AB23-38162FD44F00}.Release|Win32.Build.0 = Installer Only|Win32
 		{342ADF49-53FA-44E2-83FD-920558E06D7E}.Installer Only|Win32.ActiveCfg = Release|Win32
 		{342ADF49-53FA-44E2-83FD-920558E06D7E}.Priiloader only|Win32.ActiveCfg = Release|Win32
 		{342ADF49-53FA-44E2-83FD-920558E06D7E}.Priiloader only|Win32.Build.0 = Release|Win32

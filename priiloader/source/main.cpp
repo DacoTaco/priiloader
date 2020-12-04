@@ -1214,9 +1214,11 @@ void BootMainSysMenu( void )
 	signed_blob* TMD = NULL;
 	s8* ticket = NULL;
 
-	//boot file:
+	//loader & boot file
 	void* binary = NULL;
 	u32 bootfile_size = 0;
+	u8* patch_ptr = NULL;
+	void* loader_addr = NULL;
 
 	//general
 	s32 ret = 0;
@@ -1456,7 +1458,6 @@ void BootMainSysMenu( void )
 		u32 max_address = (u32)(mem_block + bootfile_size);
 		u32 size = 0;
 		u32 patch_cnt = 0;
-		u8* patch_ptr = NULL;
 		
 		// Loop over sub-hacks to see which to enable and which's master to enable
 		for(u32 i = 0;i < system_hacks.size();i++)
@@ -1559,7 +1560,7 @@ void BootMainSysMenu( void )
 		} // end general hacks loop*/
 
 		//prepare loader
-		void* loader_addr = (void*)mem_align(32,loader_bin_size);
+		loader_addr = (void*)mem_align(32,loader_bin_size);
 		if(!loader_addr)
 			throw "failed to alloc the loader";
 
@@ -1609,6 +1610,10 @@ void BootMainSysMenu( void )
 		gprintf("BootMainSysMenu Exception was thrown");
 	}
 
+	if (patch_ptr)
+		mem_free(patch_ptr);
+	if (loader_addr)
+		mem_free(loader_addr);
 	if(ticket)
 		mem_free(ticket);
 	if(TMD)
