@@ -146,9 +146,9 @@ ifeq ($(wildcard ../.git/.),)
 	@echo '#define GIT_REV_STR "0x'$(NUMBER)'-no-git"' >> ../Shared/gitrev.h
 	@echo 'Using 0x'$(NUMBER)' as revision, '0x'$(NUMBER)'-no-git as revision string'
 else
-	@echo "#define GIT_REV 0x$(shell git describe --always --long)" > ../Shared/gitrev.h
+	@echo "#define GIT_REV 0x$(shell git rev-parse --verify --short HEAD)" > ../Shared/gitrev.h
 	@echo "#define GIT_REV_STR \"0x$(shell git describe --always --long --dirty)\"" >> ../Shared/gitrev.h
-	@echo "Using 0x$(shell git describe --always --long) as revision, \"0x$(shell git describe --always --long --dirty)\" as revision string"
+	@echo "Using 0x$(shell git rev-parse --verify --short HEAD) as revision, \"0x$(shell git describe --always --long --dirty)\" as revision string"
 endif
 
 post_build:
