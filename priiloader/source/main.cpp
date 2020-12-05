@@ -2750,18 +2750,21 @@ void Autoboot_System( void )
 }
 s8 CheckMagicWords( void )
 {
-	//0x4461636f = "Daco" in hex, 0x50756e65 = "Pune", 0x41627261 = "Abra"  
-	if(  *(vu32*)MAGIC_WORD_ADDRESS_1 == 0x4461636f || *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x4461636f )
+	vu32* addr = (vu32*)MAGIC_WORD_ADDRESS_1;	
+	while (addr != NULL)
 	{
-		return MAGIC_WORD_DACO;
-	}
-	else if ( *(vu32*)MAGIC_WORD_ADDRESS_1 == 0x50756e65 || *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x50756e65 )
-	{
-		return MAGIC_WORD_PUNE;
-	}
-	else if( *(vu32*)MAGIC_WORD_ADDRESS_1 == 0x41627261 || *(vu32*)MAGIC_WORD_ADDRESS_2 == 0x41627261 )
-	{
-		return MAGIC_WORD_ABRA;
+		//0x4461636f = "Daco" in hex, 0x50756e65 = "Pune", 0x41627261 = "Abra"  
+		if(*addr == 0x4461636f)
+			return MAGIC_WORD_DACO;
+		else if(*addr == 0x50756e65)
+			return MAGIC_WORD_PUNE;
+		else if(*addr == 0x41627261)
+			return MAGIC_WORD_ABRA;
+
+		if (addr != (vu32*)MAGIC_WORD_ADDRESS_2)
+			addr = (vu32*)MAGIC_WORD_ADDRESS_2;
+		else
+			break;
 	}
 	return 0;
 }
