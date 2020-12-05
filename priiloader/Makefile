@@ -170,7 +170,7 @@ run:
 ifneq ($(WIILOAD),)
 	@echo -----------------------------------------------
 	@echo loading $(TARGET).elf
-	wiiload $(TARGET).elf
+	@wiiload $(TARGET).elf
 else
 	@echo "wiiload variable not set. skipping sending to homebrew channel (wiiload)"
 endif

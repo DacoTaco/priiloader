@@ -66,7 +66,7 @@
     <NMakeForcedUsingAssemblies>
     </NMakeForcedUsingAssemblies>
     <NMakeForcedIncludes>gctypes.h</NMakeForcedIncludes>
-    <IncludePath>.\include;.\build\;$(SolutionDir)\Shared;$(DKP_HOME)\devkitPPC\powerpc-eabi\include;$(DKP_HOME)\libogc\include;$(DKP_HOME)\libogc\include\bte;$(DKP_HOME)\libogc\include\di;$(DKP_HOME)\libogc\include\mad;$(DKP_HOME)\libogc\include\modplay;$(DKP_HOME)\libogc\include\ogc;$(DKP_HOME)\libogc\include\sdcard;$(DKP_HOME)\libogc\include\wiiuse;$(VC_IncludePath)</IncludePath>
+    <IncludePath>.\include;.\build\;$(SolutionDir)\Shared;$(DKP_HOME)\devkitPPC\powerpc-eabi\include;$(DKP_HOME)\libogc\include;$(DKP_HOME)\libogc\include\bte;$(DKP_HOME)\libogc\include\di;$(DKP_HOME)\libogc\include\mad;$(DKP_HOME)\libogc\include\modplay;$(DKP_HOME)\libogc\include\ogc;$(DKP_HOME)\libogc\include\sdcard;$(DKP_HOME)\libogc\include\wiiuse</IncludePath>
     <LibraryWPath />
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Installer Only|Win32'">
@@ -90,7 +90,9 @@
     <NMakeReBuildCommandLine>make rebuild</NMakeReBuildCommandLine>
     <NMakeCleanCommandLine>make clean</NMakeCleanCommandLine>
     <NMakeOutput>$(ProjectName).dol</NMakeOutput>
-    <NMakePreprocessorDefinitions>WIN32;HW_RVLHW_RVLVC7;NDEBUG;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
+    <NMakePreprocessorDefinitions>HW_RVL;NDEBUG;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
+    <NMakeIncludeSearchPath>$(SolutionDir)\Shared;.\build\;.\include</NMakeIncludeSearchPath>
+    <NMakeForcedIncludes>gctypes.h</NMakeForcedIncludes>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <BuildLog>
