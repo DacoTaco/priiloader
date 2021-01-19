@@ -27,7 +27,6 @@ INCLUDES	:=	include
 
 CFLAGS		=	-O2 $(INCLUDE) -save-temps -fno-asynchronous-unwind-tables -fno-builtin
 CXXFLAGS	=	$(CFLAGS)
-
 LDFLAGS		=	-nostartfiles -nodefaultlibs -Wl,-Map,$(notdir $@).map
 
 #---------------------------------------------------------------------------------

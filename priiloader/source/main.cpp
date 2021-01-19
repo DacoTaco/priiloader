@@ -954,6 +954,7 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		return -1;
 
 	void* loader_addr = NULL;
+	loader_t loader = NULL;
 	u8 ret = 1;
 
 	try
@@ -977,7 +978,7 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		memcpy(loader_addr,loader_bin,loader_bin_size);	
 		DCFlushRange(loader_addr, loader_bin_size);
 		ICInvalidateRange(loader_addr, loader_bin_size);
-		SET_LOADER_ADDRESS(loader_addr);
+		loader = (loader_t)loader_addr;
 
 
 		gprintf("BootDolFromMem : shutting down...");
@@ -1219,6 +1220,7 @@ void BootMainSysMenu( void )
 	u32 bootfile_size = 0;
 	u8* patch_ptr = NULL;
 	void* loader_addr = NULL;
+	loader_t loader = NULL;
 
 	//general
 	s32 ret = 0;
@@ -1567,7 +1569,7 @@ void BootMainSysMenu( void )
 		memcpy(loader_addr,loader_bin,loader_bin_size);	
 		DCFlushRange(loader_addr, loader_bin_size);
 		ICInvalidateRange(loader_addr, loader_bin_size);
-		SET_LOADER_ADDRESS(loader_addr);
+		loader = (loader_t)loader_addr;
 
 		ShutdownDevices();
 		USB_Deinitialize();

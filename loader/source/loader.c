@@ -35,7 +35,7 @@ void _memset(void* src, u32 data, u32 len);
 u32 _loadApplication(u8* binary, void* parameter);
 
 //NOTE : see loader.h about this function's definition & signature
-void _boot _LDR_PARAMETERS
+void _boot (_LDR_PARAMETERS)
 {
 	if(binary == NULL || (parameter == NULL && parameterCount > 0))
 		return;

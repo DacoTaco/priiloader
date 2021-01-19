@@ -25,12 +25,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define _LOADER_H_
 
 //NOTE : its a bit odd, but in the loader its parameters are defined by this define.
-//if you want to change the parameters, do it here so it'll change everywhere else
-#define _LDR_PARAMETERS (void* binary, void* parameter, u32 parameterCount, u8 isSystemMenu)
-
-void _boot _LDR_PARAMETERS; 
-void(*loader)_LDR_PARAMETERS;
-#define SET_LOADER_ADDRESS(x) loader = (void (*)_LDR_PARAMETERS)(x)
-
+//if you want to change the parameters, do it here so it'll change everywhere else (typedef + implementation)
+#define _LDR_PARAMETERS void* binary, void* parameter, u32 parameterCount, u8 isSystemMenu
+typedef void (*loader_t)(_LDR_PARAMETERS);
 
 #endif
