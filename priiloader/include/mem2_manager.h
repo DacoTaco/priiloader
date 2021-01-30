@@ -16,6 +16,11 @@
 #define mem_align(align,size) mem2_memalign(align,size,OTHER_AREA)
 #define mem_realloc(oldPtr, newSize) mem2_realloc(oldPtr, newSize, OTHER_AREA)
 #define ALIGN32(x) (((x) + 31) & ~31)
+
+#ifndef ATTRIBUTE_ALIGN
+#define ATTRIBUTE_ALIGN(v)							[[gnu::aligned(v)]]
+#endif
+
 #ifndef STACK_ALIGN
 // courtesy of Marcan
 #define STACK_ALIGN(type, name, cnt, alignment)		u8 _al__##name[((sizeof(type)*(cnt)) + (alignment) + (((sizeof(type)*(cnt))%(alignment)) > 0 ? ((alignment) - ((sizeof(type)*(cnt))%(alignment))) : 0))]; \
