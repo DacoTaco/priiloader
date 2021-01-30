@@ -25,162 +25,274 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <stdlib.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <ogc/ipc.h>
 #include "mem2_manager.h"
 #include "dvd.h"
+#include "gecko.h"
 
-s8 async_called = 0;
-u8 *inbuf = 0;
-u8 *outbuf = 0;
-s32 di_fd = 0;
-DVD_status DVD_state;
-const vu32* __diReg = (u32*)0xCD806000;
-static s32 SetDriveState (s32 result,void *usrdata)
+typedef struct _di_iovector
 {
-	if (result != 0)
-	{
-		DVD_state.DriveError = 1;
-	}
-	else
-	{
-		DVD_state.DriveClosed = 1;
-	}
+	ioctlv ioctlv[8];
+} di_iovector;
+
+u32 _di_lasterror[0x08] ATTRIBUTE_ALIGN(32);
+
+s32 di_fd = -1;
+s8 async_called = 0;
+ioctlv iovectors[8] ATTRIBUTE_ALIGN(64) = { 0 };
+u32 cmd[8] ATTRIBUTE_ALIGN(64) = { 0 };
+
+
+//see https://wiibrew.org/wiki/Hardware/Drive_Interface for the address
+//see https://www.gc-forever.com/yagcd/chap5.html#sec5.7 for registries
+const vu32* __diReg = (u32*)0xCD806000;
+
+static s32 _driveStopped(s32 result, void* usrdata)
+{
+	async_called = 0;
 	return 1;
 }
-u32 DVDCheckCover( void )
-{
-	return !(__diReg[1] & 1);
-	//return !( (*(u32*)0xCD806004) & 1);
-}
-s8 DVDStopDisc( bool do_async )
-{
-	if(async_called == 1 || DVDCheckCover() == 0) // async was called or the dvd drive has no disk/not connected. lets not do this then
-		return 0;
-	
-	return DVD_DoCommand(0xE3,0,do_async);
-	/*
-	DVD_state.DriveClosed = 0;
-	DVD_state.DriveError = 0;
-	if(di_fd == 0)
-		di_fd = IOS_Open("/dev/di",0);
-	if(di_fd)
-	{
-		if(inbuf == NULL)
-			inbuf = (u8*)mem_align( 32, 0x20 );
-		if(outbuf == NULL)
-			outbuf = (u8*)mem_align( 32, 0x20 );
 
-		memset(inbuf, 0, 0x20 );
-		memset(outbuf, 0, 0x20 );
-
-		((u32*)inbuf)[0x00] = 0xE3000000;
-		((u32*)inbuf)[0x01] = 0;
-		((u32*)inbuf)[0x02] = 0;
-
-		DCFlushRange(inbuf, 0x20);
-		//why crediar used an async and not look if it really closed (or was busy closing) is beyond me...
-		if(!do_async)
-		{
-			IOS_Ioctl( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20);
-			DVDCleanUp();
-			return;
-		}
-		else
-		{
-			async_called = 1;
-			IOS_IoctlAsync( di_fd, 0xE3, inbuf, 0x20, outbuf, 0x20, SetDriveState, NULL);
-		}
-	}
-	return;*/
-}
-void DVDCleanUp( void )
+void _cleanUp(void)
 {
-	if(di_fd != 0)
-		IOS_Close(di_fd);
-	if(outbuf != NULL)
-		mem_free( outbuf );
-	if(inbuf != NULL)
-		mem_free( inbuf );
 	return;
 }
-s8 DvdKilled( void )
+
+s32 DVDInit(void)
 {
-	if(async_called == 0) // no async was called so this function is useless
+	if (di_fd >= 0)
 		return 1;
-	if(DVD_state.DriveError)
-	{
-		DVDCleanUp();
-		DVDStopDisc(false);
-		DVD_state.DriveError = 0;
-		DVD_state.DriveClosed = 1;
-		async_called = 0;
-		return 1;
-	}
-	if(DVD_state.DriveClosed)
-	{
-		DVDCleanUp();
-		async_called = 0;
-		return 1;
-	}
-	return 0;
+
+	di_fd = IOS_Open("/dev/di", 0);
+
+	return di_fd < 0 ? di_fd : 1;
 }
-s8 DVD_DoCommand( s32 command , u32 inbuf_param_1, bool do_async)
+
+inline s32 DVDAsyncBusy(void)
 {
-	if(async_called == 1) // async was called so no, we wont call on it again since we dont support multiple asyncs...yet :P
+	return async_called;
+}
+
+void DVDCloseHandle(void)
+{
+	if (di_fd < 0)
+		return;
+
+	IOS_Close(di_fd);
+	di_fd = -1;
+}
+
+s32 DVDDiscAvailable(void)
+{
+	return (__diReg[1] & 1);
+	//return ( (*(u32*)0xCD806004) & 1);
+}
+
+s32 DVDStopDrive(void)
+{
+	//disabled as it said it was unavailable after some wii disc boot failure?
+	/*if (DVDDiscAvailable() == 0)
+		return 1;*/
+		
+	u32 value = 0;
+	return DVDExecuteCommand(DVD_CMD_STOP_DRIVE, false, &value, 4, NULL, 0, NULL);
+};
+
+s32 DVDStopDriveAsync(void)
+{
+	if (/*DVDDiscAvailable() == 0 ||*/ async_called == 1)
 		return 0;
 
-	DVD_state.DriveClosed = 0;
-	DVD_state.DriveError = 0;
-	if(di_fd == 0)
-		di_fd = IOS_Open("/dev/di",0);
-	if(di_fd)
+	u32 value = 0;
+	return DVDExecuteCommand(DVD_CMD_STOP_DRIVE, true, &value, 4, NULL, 0, _driveStopped);
+};
+
+s32 DVDResetDrive(void)
+{
+	return DVDResetDriveWithMode(DVD_RESETSOFT);
+};
+s32 DVDResetDriveWithMode(u32 mode)
+{
+	return DVDExecuteCommand(DVD_CMD_RESET_DRIVE, false, &mode, 4, NULL, 0, NULL);
+}
+
+s32 DVDReadGameID(void* dst, u32 len)
+{
+	//for some odd reason returns 0 ? :/
+	/*if (DVDDiscAvailable() == 0)
+		return -1;*/
+
+	//its not that the output has to be 32 byte aligned, it'll raise an error anyway
+	if (((u32)dst % 32) != 0)
+		return -2;
+
+	s32 ret = DVDExecuteCommand(DVD_CMD_READ_ID, false, NULL, 0, dst, len, NULL);
+	if (ret < 0)
+		return ret;
+
+	return (ret == 1) ? ret : -ret;
+}
+
+s32 DVDUnencryptedRead(u32 offset, void* buf, u32 len)
+{
+	//for some odd reason returns 0 ? :/
+	/*if (DVDDiscAvailable() == 0)
+		return -1;*/
+
+	if (((u32)buf % 32) != 0)
+		return -2;
+		
+	u32 data[2] = { 
+		len, 
+		offset >> 2
+	};
+
+	s32 ret = DVDExecuteCommand(DVD_CMD_UNENCRYPTED_READ, false, data , sizeof(data), buf, len, NULL);
+	if (ret < 0)
+		return ret;
+
+	return (ret == 1) ? ret : -ret;
+}
+
+s32 DVDClosePartition()
+{
+	return DVDExecuteCommand(DVD_CMD_CLOSE_PARTITION, false, NULL, 0, NULL, 0, NULL);
+}
+
+s32 DVDOpenPartition(u32 offset, void* eticket, void* shared_cert_in, u32 shared_cert_in_len, void* tmd_out)
+{
+	if (shared_cert_in != NULL && shared_cert_in_len > 0)
+		return -1;
+
+	ioctlv data[4] ATTRIBUTE_ALIGN(64);
+
+	data[0].data = eticket;
+	data[0].len = (eticket == NULL) ? 0 : 0x02A4;
+	data[1].data = shared_cert_in;
+	data[1].len = (shared_cert_in == NULL) ? 0 : shared_cert_in_len;
+	data[2].data = tmd_out;
+	data[2].len = (tmd_out == NULL) ? 0 : 0x49E4;
+	data[3].data = &_di_lasterror;
+	data[3].len = 0x20;
+
+	s32 ret = DVDExecuteVCommand(DVD_CMD_OPEN_PARTITION, false, 3, 2, &offset, 4, &data, sizeof(data), NULL, NULL);
+	if (ret < 0)
+		return ret;
+
+	return (ret == 1) ? ret : -ret;
+}
+
+s32 DVDRead(off_t offset, u32 len, void* output)
+{
+	if (output == NULL || len == 0)
+		return -1;
+
+	//its not that the output has to be 32 byte aligned, but it performs better that way
+	if (((u32)output % 32) != 0)
+		return -2;
+
+	u32 data[2] = { 
+		len, 
+		offset >> 2
+	};
+
+	s32 ret = DVDExecuteCommand(DVD_CMD_READ, false, data, sizeof(data), output, len, NULL);
+	if (ret < 0)
+		return ret;
+
+	return (ret == 1) ? ret : -ret;
+}
+
+s32 DVDIdentify()
+{
+	u8 dummy[0x20] [[gnu::aligned(64)]];
+	return DVDExecuteCommand(DVD_CMD_IDENTIFY, false, NULL, 0, dummy, 0x20, NULL);
+}
+
+s32 DVDExecuteVCommand(s32 command, bool do_async, s32 cnt_in, s32 cnt_io, void* cmd_input, u32 cmd_input_size, void* input, u32 input_size, ipccallback callback, void* userdata)
+{
+	if (DVDAsyncBusy()) // async was called or the dvd drive has no disk/not connected. lets not do this then since we dont support multiple asyncs...yet :P
+		return -1;
+
+	if (di_fd < 0)
+		DVDInit();
+
+	if (!di_fd)
+		return -2;
+
+	if (cmd_input_size > 0x1C) //di command is 0x20, -4 for the command = 0x1C
+		return -3;
+
+	_cleanUp();
+
+	memset(iovectors, 0, sizeof(iovectors));
+	memset(cmd, 0, sizeof(cmd));
+
+	cmd[0] = (u32)(command << 24);
+	if (cmd_input != NULL && cmd_input_size > 0)
+		memcpy(&cmd[1], cmd_input, cmd_input_size);
+
+	iovectors[0].data = cmd;
+	iovectors[0].len = sizeof(cmd);
+	if (input != NULL && input_size > 0)
+		memcpy(&iovectors[1], input, input_size);
+
+	DCFlushRange(cmd, sizeof(cmd));
+	DCFlushRange(iovectors, sizeof(iovectors));
+
+	if (!do_async)
 	{
-		if(inbuf == NULL)
-			inbuf = (u8*)mem_align( 32, 0x20 );
-		if(outbuf == NULL)
-			outbuf = (u8*)mem_align( 32, 0x20 );
-		if(inbuf == NULL ||outbuf == NULL)
-		{
-			//memory failure :/
-			DVDCleanUp();
-			return 0;
-		}
-
-		memset(inbuf, 0, 0x20 );
-		memset(outbuf, 0, 0x20 );
-
-		/*s32 command = 0x8A;
-		gprintf("0x%X - 0x%08X - 0x%X\n",command,command,(u8)(command << 24)); // 0x8A - 0x8A000000 - 0x0 */
-
-		((u32*)inbuf)[0x00] = (s32)(command << 24);
-		((u32*)inbuf)[0x01] = inbuf_param_1;
-		((u32*)inbuf)[0x02] = 0;
-
-		DCFlushRange(inbuf, 0x20);
-
-		if(!do_async)
-		{
-			IOS_Ioctl( di_fd, command, inbuf, 0x20, outbuf, 0x20);
-			DVDCleanUp();
-			return 1;
-		}
-		else
-		{
-			async_called = 1;
-			IOS_IoctlAsync( di_fd, command, inbuf, 0x20, outbuf, 0x20, SetDriveState, NULL);
-		}
+		s32 ret = IOS_Ioctlv(di_fd, command, cnt_in, cnt_io, iovectors);
+		_cleanUp();
+		return ret;
 	}
 	else
-		return 0;
+	{
+		async_called = 1;
+		IOS_IoctlvAsync(di_fd, command, cnt_in, cnt_io, iovectors, callback, userdata);
+	}
+
 	return 1;
 }
-s8 DVDReset ( bool do_async )
-{
-	if(async_called == 1) // async was called so no, we wont call on it again since we dont support multiple commands...yet :P
-		return 0;
 
-	//from libogc's dvd.h :
-	//#define DVD_RESETHARD					0			/*!< Performs a hard reset. Complete new boot of FW. */
-	//#define DVD_RESETSOFT					1			/*!< Performs a soft reset. FW restart and drive spinup */
-	//#define DVD_RESETNONE					2			/*!< Only initiate DI registers */
-	return DVD_DoCommand(0x8A,2,do_async);
+s32 DVDExecuteCommand(u32 command, u8 do_async, void* input, s32 input_size, void* output, s32 output_size, ipccallback callback)
+{
+	if (DVDAsyncBusy()) // async was called or the dvd drive has no disk/not connected. lets not do this then since we dont support multiple asyncs...yet :P
+		return -1;
+
+	if (input_size > 0x1C) //di command is 0x20, -4 for the command = 0x1C
+		return -2;
+
+	if (di_fd < 0)
+		DVDInit();
+
+	if (!di_fd)
+		return -3;
+
+	if (output_size > 0 && output == NULL)
+	{
+		//memory failure :/
+		_cleanUp();
+		return 0;
+	}
+
+	memset(cmd, 0, sizeof(cmd));
+	cmd[0] = (u32)(command << 24);
+	if (input != NULL && input_size > 0)
+		memcpy(&cmd[1], input, input_size);
+	DCFlushRange(cmd, sizeof(cmd));
+
+	if (!do_async)
+	{
+		s32 ret = IOS_Ioctl(di_fd, command, cmd, sizeof(cmd), output, output_size);
+		_cleanUp();
+		return ret;
+	}
+	else
+	{
+		async_called = 1;
+		IOS_IoctlAsync(di_fd, command, cmd, sizeof(cmd), output, output_size, callback, NULL);
+	}
+
+	return 1;
 }

@@ -53,7 +53,7 @@ void gprintf( const char *str, ... )
 	//cout << "The local date and time is: " << asctime(localtm) << endl;
 	char nstr[2048];
 	memset(nstr,0,2048);
-	snprintf(nstr,2048, "%d:%d:%d : %s\r\n",localtm->tm_hour,localtm->tm_min,localtm->tm_sec, str);
+	snprintf(nstr,2048, "%02d:%02d:%02d : %s\r\n",localtm->tm_hour,localtm->tm_min,localtm->tm_sec, str);
 
 	va_list ap;
 	va_start(ap,str);

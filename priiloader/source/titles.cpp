@@ -478,20 +478,20 @@ s32 LoadListTitles( void )
 
 			//lets start this bitch
 #ifdef USE_DVD_ASYNC
-			if(DVDCheckCover())
+			if(DVDDiscAvailable())
 			{
 				gprintf("LoadListTitles : excecuting StopDisc Async...");
-				DVDStopDisc(true);
+				DVDStopDriveAsync();
 			}
 			else
 			{
 				gprintf("LoadListTitles : Skipping StopDisc -> no drive or disc in drive");
 			}
 #else
-			if(DVDCheckCover())
+			if(DVDDiscAvailable())
 			{
 				gprintf("LoadListTitles : excecuting StopDisc...");
-				DVDStopDisc(false);
+				DVDStopDrive();
 			}
 			else
 			{
@@ -534,7 +534,7 @@ s32 LoadListTitles( void )
 
 #ifdef USE_DVD_ASYNC
 			gdprintf("waiting for drive to stop...");
-			while(DvdKilled() < 1);
+			while(DVDAsyncBusy() < 1);
 #endif
 			VIDEO_SetBlack(1);
 			VIDEO_Flush();
@@ -546,7 +546,7 @@ failure:
 			VIDEO_WaitVSync();
 			Input_Init();
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to Load Title!"))*13/2))>>1, 224, "Failed to Load Title!");
-			while(DvdKilled() < 1);
+			while(DVDAsyncBusy() < 1);
 			sleep(3);
 			redraw = true;
 		}			

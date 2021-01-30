@@ -960,10 +960,10 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 	try
 	{
 		//its an elf; lets start killing DVD :')
-		if(DVDCheckCover())
+		if(DVDDiscAvailable())
 		{
 			gprintf("BootDolFromMem : excecuting StopDisc Async...");
-			DVDStopDisc(true);
+			DVDStopDriveAsync();
 		}
 		else
 		{
@@ -986,11 +986,12 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		ClearState();
 		Input_Shutdown();
 
-		if(DvdKilled() < 1)
+		if(DVDAsyncBusy() < 1)
 		{
 			gprintf("checking DVD drive...");
-			while(DvdKilled() < 1);
+			while(DVDAsyncBusy() < 1);
 		}
+		DVDCloseHandle();
 
 		s8 bAHBPROT = 0;
 		s32 Ios_to_load = 0;
@@ -1036,21 +1037,6 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		gprintf("BootDolFromMem : starting binary... 0x%08X",loader_addr);	
 		ICSync();
 		loader(binary, args, args != NULL, 0);
-		
-		//old alternate booting code. i prefer the loader xD
-		/*u32 level;
-		__STM_Close();
-		ISFS_Deinitialize();
-		ShutdownDevices();
-		USB_Deinitialize();
-		__IOS_ShutdownSubsystems();
-		SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
-		_CPU_ISR_Disable (level);
-		mtmsr(mfmsr() & ~0x8000);
-		mtmsr(mfmsr() | 0x2002);
-		ICSync();
-		entrypoint();
-		_CPU_ISR_Restore (level);*/
 
 		//it failed. FAIL!
 		gprintf("this ain't good");
@@ -1205,8 +1191,299 @@ s8 BootDolFromFile( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<st
 
 	return ret;
 }
-void BootMainSysMenu( void )
+void ApploaderInitCallback(const char* fmt, ...) 
+{ 
+	if(fmt != NULL)
+		gprintf("StubApploaderInitCallback : %s", fmt);
+}
+void BootDvdDrive(void)
 {
+	DVDTableOfContent* tableOfContent = NULL;
+	DVDPartitionInfo* partitionsInfo = NULL;
+	u8* tmd_buf = NULL;
+	u8 partitionOpened = 0;
+	u8 deinit = 0;		
+	apploader_entry app_entry = NULL;
+	apploader_init app_init = NULL;
+	apploader_main app_main = NULL;
+	apploader_final app_final = NULL;
+	dvd_main dvd_entry [[gnu::noreturn]] = NULL;
+
+	ClearScreen();
+	PrintFormat(1, TEXT_OFFSET("Loading DVD..."), 208, "Loading DVD...");
+	gprintf("reading dvd...");
+	gprintf("framebuffer : 0x%08X", rmode);
+
+	try
+	{
+		DVDInit();
+		s32 ret = DVDResetDrive();
+		if (ret <= 0)
+			throw "Failed to Reset Drive (" + std::to_string(ret) + ")";
+
+		ret = DVDIdentify();
+		if (ret <= 0)
+			throw "Failed to Identify (" + std::to_string(ret) + ")";
+
+		memset((char*)0x80000000, 0, 0x20);
+		ICInvalidateRange((u32*)0x80000000, 0x20);
+		DCFlushRange((u32*)0x80000000, 0x20);
+
+		//Read Game ID. required to do certain commands, also needed to check disc type.
+		ret = DVDReadGameID((u8*)0x80000000, 0x20);
+		if (ret <= 0)
+			throw "Failed to Read Game info (" + std::to_string(ret) + ")";
+
+		//Read game name. offset 0x20 - 0x400 
+		char gameName[0x41] ATTRIBUTE_ALIGN(32);
+		memset(gameName, 0, sizeof(gameName));
+		ret = DVDUnencryptedRead(0x20, gameName, 0x40);
+		if (ret <= 0)
+			throw "Failed to Read Game name (" + std::to_string(ret) + ")";
+		PrintFormat(1, TEXT_OFFSET(gameName), 224, gameName);
+		gprintf("loading %s...", gameName);
+
+		//verify disc type
+		if (*((u32*)0x8000001C) == GCDVD_MAGIC_VALUE)
+		{
+			gprintf("Gamecube Disc detected, booting BC...");
+			WII_LaunchTitle(BC_Title_Id);
+			throw "something odd happened after booting BC";
+		}
+
+		if (*((u32*)0x80000018) != WIIDVD_MAGIC_VALUE)
+			throw "Unknown Disc inserted.";
+
+		tableOfContent = (DVDTableOfContent*)mem_align(32, 0x20);
+		partitionsInfo = (DVDPartitionInfo*)mem_align(32, 0x20);
+		//tmd has a max size of 0x49E4(MAX_SIGNED_TMD_SIZE) + some extra -> 0x4A00
+		tmd_buf = (u8*)mem_align(32, 0x4A00);
+
+		if (tableOfContent == NULL || partitionsInfo == NULL || tmd_buf == NULL)
+			throw "Failed to allocate memory";
+		
+		memset(tableOfContent, 0, 0x20);
+		memset(partitionsInfo, 0, 0x20);
+		memset(tmd_buf, 0, 0x4A00);
+
+		ret = DVDUnencryptedRead(WIIDVD_TOC_OFFSET, tableOfContent, 0x20);
+		if (ret <= 0)
+			throw "Failed to Read TableOfContent (" + std::to_string(ret) + ")";
+
+		//shift offset by 2 bits to compensate for the bits needed for the UnencryptedRead
+		ret = DVDUnencryptedRead(tableOfContent->partitionInfoOffset << 2, partitionsInfo, 0x20);
+		if (ret <= 0)
+			throw "Failed to Read Partition Info (" + std::to_string(ret) + ")";
+
+		DVDPartitionInfo* bootGameInfo = NULL;
+		for (u32 index = 0; index < tableOfContent->bootInfoCount; index++)
+		{
+			if (partitionsInfo[index].len != 0)
+				continue;
+
+			bootGameInfo = &(partitionsInfo[index]);
+			break;
+		}
+
+		if (bootGameInfo == NULL)
+			throw "could not find game info partition";
+
+		signed_blob* mTMD = (signed_blob*)tmd_buf;
+		ret = DVDOpenPartition(bootGameInfo->offset, NULL, NULL, 0, mTMD);
+		if (ret <= 0)
+			throw "Failed to open Partition (" + std::to_string(ret) + ")";
+
+		partitionOpened = 1;	
+		tmd* rTMD = (tmd*)SIGNATURE_PAYLOAD(mTMD);	
+		u8 requiredIOS = rTMD->sys_version & 0xFF;
+		gprintf("game title: 0x%16llX", rTMD->title_id);
+		gprintf("ios : %d", requiredIOS);
+
+		memset(rTMD, 0, 0x190);
+
+		//reloading IOS not right yet, DI stuff fail afterwards :/
+		if (IOS_GetVersion() != requiredIOS)
+		{
+			gprintf("reloading ios");
+			s8 keepAHBProt = 1;
+			
+			ret = DVDClosePartition();
+			partitionOpened = 0;
+			if (ret <= 0)
+				throw "Failed to close Partition (" + std::to_string(ret) + ")";
+
+			Input_Shutdown();
+			ShutdownDevices();
+			USB_Deinitialize();
+			ISFS_Deinitialize();
+			DVDCloseHandle();
+			deinit = 1;
+
+			ret = ReloadIos(requiredIOS, &keepAHBProt);
+			if (ret <= 0)
+				throw "Failed to reload IOS (" + std::to_string(ret) + ")";
+				
+			ret = DVDInit();
+			if (ret <= 0)
+				throw "Failed to init dvd drive (" + std::to_string(ret) + ")";
+
+			//this is required. many commands don't work before having called ReadID (like opening the partition)
+			ret = DVDReadGameID((u8*)0x80000000, 0x20);
+			if (ret <= 0)
+				throw "Failed to re-read Game info (" + std::to_string(ret) + ")";
+
+			ret = DVDOpenPartition(bootGameInfo->offset, NULL, NULL, 0, mTMD);
+			if (ret <= 0)
+				throw "Failed to open Partition (" + std::to_string(ret) + ")";
+			partitionOpened = 1;
+		}
+
+		ret = DVDRead(0x00, 0x20, (void*)0x80000000);
+		if (ret <= 0)
+			throw "Failed to read partition header(" + std::to_string(ret) + ")";
+
+		apploader_hdr appldr_header ATTRIBUTE_ALIGN(32);
+		memset(&appldr_header, 0, sizeof(apploader_hdr));
+		ret = DVDRead(APPLOADER_HDR_OFFSET, sizeof(apploader_hdr), &appldr_header);
+		if (ret <= 0)
+			throw "Failed to read apploader header(" + std::to_string(ret) + ")";
+
+		DCFlushRange(&appldr_header, sizeof(apploader_hdr));
+		gprintf("apploader_header : 0x%08X - 0x%08X - 0x%08X", appldr_header.entry, appldr_header.size + appldr_header.trailersize, appldr_header.size);
+
+		//Continue reading the apploader now that we have the header
+		//TODO: replace this address with a mem2 address if possible?
+		ret = DVDRead(APPLOADER_HDR_OFFSET + sizeof(apploader_hdr), appldr_header.size + appldr_header.trailersize, (void*)0x81200000);
+		if (ret <= 0)
+			throw "Failed to read start of apploader (" + std::to_string(ret) + ")";
+		DCFlushRange((void*)0x81200000, appldr_header.size + appldr_header.trailersize);
+		ICInvalidateRange((void*)0x81200000, appldr_header.size + appldr_header.trailersize);
+
+		asm("isync");
+		app_entry = (apploader_entry)appldr_header.entry;
+		app_entry(&app_init, &app_main, &app_final);
+		app_init(ApploaderInitCallback);
+
+		void* data;
+		int size;
+		int offset;
+		while (app_main(&data, &size, &offset) == 1)
+		{
+			gprintf("reading 0x%08X bytes from 0x%08X to 0x%08X", size, offset, data);
+			ret = DVDRead(offset << 2, size, data);
+			if (ret < 0)
+				throw "Failed to read apploader data @ offset " + std::to_string(offset) + "(" + std::to_string(ret) + ")";
+			DCFlushRange(data, size);
+		}
+
+		dvd_entry = (dvd_main)app_final();
+
+		if(dvd_entry == NULL || 0x80003000 > (u32)(dvd_entry) )
+			throw "failed to get entrypoint";
+
+		//disc related pokes to finish it off
+		//see memory map @ https://wiibrew.org/w/index.php?title=Memory_Map
+		//and @ https://www.gc-forever.com/yagcd/chap4.html#sec4
+		*(vu32*)0x80000020 = 0x0D15EA5E;				// Boot from DVD
+		*(vu32*)0x80000024 = 0x00000001;				// Version
+		*(vu32*)0x80000028 = 0x01800000;				// Memory Size (Physical) 24MB
+		*(vu32*)0x8000002C = 0x00000023;				// Production Board Model
+		/**(vu32*)0x80000030 = 0x00000000;				// Arena Low
+		*(vu32*)0x80000034 = 0x817FEC60;				// Arena High - get from DVD
+		*(vu32*)0x80000038 = 0x817FEC60;				// FST Start - get from DVD*/
+		*(vu32*)0x80000060 = 0x38A00040;				// Debugger hook
+		*(vu32*)0x800000CC = 0x00000001;				// Video Mode
+		*(vu32*)0x800000E4 = 0x8008f7b8;				// Thread Pointer
+		*(vu32*)0x800000F0 = 0x01800000;				// Dev Debugger Monitor Address
+		*(vu32*)0x800000F8 = 0x0E7BE2C0;				// Bus Clock Speed
+		*(vu32*)0x800000FC = 0x2B73A840;				// CPU Clock Speed
+		*(vu32*)0x800030C0 = 0x00000000;				// EXI
+		*(vu32*)0x800030C4 = 0x00000000;				// EXI
+		*(vu32*)0x800030DC = 0x00000000;				// Time
+		*(vu32*)0x800030D8 = 0x00000000;				// Time
+		*(vu32*)0x800030E0 = 0x00000000;				// PADInit
+		*(vu32*)0x800030E4 = 0x00000000;				// Console type
+		*(vu32*)0x80003100 = 0x01800000;				// BAT
+		*(vu32*)0x80003104 = 0x01800000;				// BAT
+		*(vu32*)0x8000310C = 0x00000000;				// Init
+		*(vu32*)0x80003110 = 0x00000000;				// Init
+		*(vu32*)0x80003118 = 0x04000000;				// 
+		*(vu32*)0x8000311C = 0x04000000;				// BAT
+		*(vu32*)0x80003120 = 0x93400000;				// BAT
+		*(vu32*)0x80003124 = 0x90000800;				// Init - MEM2 low
+		*(vu32*)0x80003128 = 0x933E0000;				// Init - MEM2 High
+		*(vu32*)0x80003130 = 0x933E0000;				// IPC - MEM2 low
+		*(vu32*)0x80003134 = 0x93400000;				// IPC - MEM2 High
+		*(vu32*)0x80003138 = 0x00000011;				// Console type
+		*(vu32*)0x8000315C = 0x80800113;				// DI Legacy mode ? OSInit/apploader?
+		*(vu32*)0x80003180 = *(vu32*)0x80000000;		// Enable WC24 by having the game id's the same
+		*(vu32*)0x8000318C = 0x00000000;				// Title Booted from NAND
+		*(vu32*)0x80003190 = 0x00000000;				// Title Booted from NAND
+
+		DCFlushRange((void*)0x80000000, 0x3200);
+
+		//Deinit audio
+		*(vu32*)0xCD006C00 = 0x00000000;
+
+		DVDCloseHandle();
+		ClearScreen();
+		VIDEO_Configure(VIDEO_GetPreferredMode(NULL));
+		VIDEO_SetNextFramebuffer(xfb);
+		VIDEO_SetBlack(FALSE);
+		VIDEO_Flush();
+		VIDEO_WaitVSync();
+		if (rmode->viTVMode & VI_NON_INTERLACE) VIDEO_WaitVSync();
+		gprintf("booting binary (0x%08X)...", dvd_entry);
+		__IOS_ShutdownSubsystems();
+		if (system_state.Init)
+		{
+			VIDEO_Flush();
+			VIDEO_WaitVSync();
+		}
+		__exception_closeall();
+		ICSync();
+		dvd_entry();
+
+		gprintf("oh ow, this ain't good...");
+	}
+	catch (const std::string & ex)
+	{
+		gprintf("BootDvdDrive Exception -> %s", ex.c_str());
+	}
+	catch (char const* ex)
+	{
+		gprintf("BootDvdDrive Exception -> %s", ex);
+	}
+	catch (...)
+	{
+		gprintf("BootDvdDrive Exception was thrown");
+	}
+
+	if(partitionOpened)
+		DVDClosePartition();
+
+	DVDStopDriveAsync();
+
+	if (tableOfContent)
+		mem_free(tableOfContent);
+	if (partitionsInfo)
+		mem_free(partitionsInfo);
+	if (tmd_buf)
+		mem_free(tmd_buf);
+	error = ERROR_DVD_BOOT_FAILURE;
+
+	if (deinit)
+	{
+		PollDevices();
+		ISFS_Initialize();
+		Input_Init();
+	}
+	while(DVDAsyncBusy());
+	DVDCloseHandle();	
+	return;
+}
+void BootMainSysMenu( void )
+{	
 	//boot info
 	const u64 TitleID=0x0000000100000002LL;
 	u32 tmd_size;
@@ -2885,11 +3162,12 @@ int main(int argc, char **argv)
 				else if(SGetSetting(SETTING_SHUTDOWNTO) == SHUTDOWNTO_NONE)
 				{
 					gprintf("Shutting down...\n");
-					DVDStopDisc(true);
+					DVDStopDriveAsync();
 					ShutdownDevices();
 					USB_Deinitialize();
 					*(vu32*)0xCD8000C0 &= ~0x20;
-					while(DvdKilled() < 1);
+					while(DVDAsyncBusy() < 1);
+					DVDCloseHandle();
 					if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
 					{
 						STM_ShutdownToStandby();
@@ -2997,7 +3275,8 @@ int main(int argc, char **argv)
 
 	if( SGetSetting(SETTING_STOPDISC) )
 	{
-		DVDStopDisc(false);
+		DVDStopDrive();
+		DVDCloseHandle();
 	}
 	_sync();
 #ifdef DEBUG
@@ -3042,18 +3321,11 @@ int main(int argc, char **argv)
 				case 3: // show titles list
 					LoadListTitles();
 					break;
-				case 4:		//load main.bin from /title/00000001/00000002/data/ dir
-					AutoBootDol();
+				case 4: //Launch Disc
+					BootDvdDrive();
 					break;
-				case 5:
-					if((INPUT_Pressed & INPUT_BUTTON_STM) != 0)
-					{
-						error = ERROR_SYSMENU_FRONT_BUTTONS_FORBIDDEN;
-						break;
-					}
-
-					ClearScreen();
-					InstallLoadDOL();
+				case 5:	//load main.bin from /title/00000001/00000002/data/ dir
+					AutoBootDol();
 					break;
 				case 6:
 					if((INPUT_Pressed & INPUT_BUTTON_STM) != 0)
@@ -3063,14 +3335,24 @@ int main(int argc, char **argv)
 					}
 
 					ClearScreen();
-					SysHackHashSettings();
+					InstallLoadDOL();
 					break;
 				case 7:
+					if((INPUT_Pressed & INPUT_BUTTON_STM) != 0)
+					{
+						error = ERROR_SYSMENU_FRONT_BUTTONS_FORBIDDEN;
+						break;
+					}
+
+					ClearScreen();
+					SysHackHashSettings();
+					break;
+				case 8:
 					ClearScreen();
 					CheckForUpdate();
 					net_deinit();
 					break;
-				case 8:
+				case 9:
 					//when using the front buttons, we will refusing going into the password menu
 					if((INPUT_Pressed & INPUT_BUTTON_STM) != 0)
 					{
@@ -3082,7 +3364,7 @@ int main(int argc, char **argv)
 					InstallPassword();
 					redraw=true;
 					break;
-				case 9:
+				case 10:
 					SetSettings();
 					break;
 				default:
@@ -3099,29 +3381,16 @@ int main(int argc, char **argv)
 		{
 			cur_off++;
 
-			if( error == ERROR_UPDATE )
-			{
-				if( cur_off >= 11 )
-					cur_off = 0;
-			}else {
+			if (cur_off >= (error == ERROR_UPDATE ? 12 : 11))
+				cur_off = 0;
 
-				if( cur_off >= 10 )
-					cur_off = 0;
-			}
 			redraw=true;
 		} else if ( INPUT_Pressed & INPUT_BUTTON_UP )
 		{
 			cur_off--;
 
 			if( cur_off < 0 )
-			{
-				if( error == ERROR_UPDATE )
-				{
-					cur_off=11-1;
-				} else {
-					cur_off=10-1;
-				}
-			}
+				cur_off = (error == ERROR_UPDATE ? 12 : 11) - 1;
 
 			redraw=true;
 		}
@@ -3153,12 +3422,14 @@ int main(int argc, char **argv)
 			PrintFormat( cur_off==1, TEXT_OFFSET("Homebrew Channel"), 80, "Homebrew Channel");
 			PrintFormat( cur_off==2, TEXT_OFFSET("BootMii IOS"), 96, "BootMii IOS");
 			PrintFormat( cur_off==3, TEXT_OFFSET("Launch Title"), 112, "Launch Title");
-			PrintFormat( cur_off==4, TEXT_OFFSET("Installed File"), 144, "Installed File");
-			PrintFormat( cur_off==5, TEXT_OFFSET("Load/Install File"), 160, "Load/Install File");
-			PrintFormat( cur_off==6, TEXT_OFFSET("System Menu Hacks"), 176, "System Menu Hacks");
-			PrintFormat( cur_off==7, TEXT_OFFSET("Check For Update"),192,"Check For Update");
-			PrintFormat( cur_off==8, TEXT_OFFSET("Set Password"), 208, "Set Password");
-			PrintFormat( cur_off==9, TEXT_OFFSET("Settings"), 224, "Settings");
+			PrintFormat( cur_off==4, TEXT_OFFSET("Launch Disc"), 128, "Launch Disc");
+
+			PrintFormat( cur_off==5, TEXT_OFFSET("Installed File"), 160, "Installed File");
+			PrintFormat( cur_off==6, TEXT_OFFSET("Load/Install File"), 176, "Load/Install File");
+			PrintFormat( cur_off==7, TEXT_OFFSET("System Menu Hacks"), 192, "System Menu Hacks");
+			PrintFormat( cur_off==8, TEXT_OFFSET("Check For Update"),208,"Check For Update");
+			PrintFormat( cur_off==9, TEXT_OFFSET("Set Password"), 224, "Set Password");
+			PrintFormat( cur_off==10, TEXT_OFFSET("Settings"), 240, "Settings");
 
 			if(error == ERROR_REFRESH)
 			{
@@ -3181,7 +3452,8 @@ int main(int argc, char **argv)
 			*(vu32*)0xCD8000C0 &= ~0x20;
 			ClearState();
 			VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
-			DVDStopDisc(false);
+			DVDStopDrive();
+			DVDCloseHandle();
 			Input_Shutdown();
 			ShutdownDevices();
 			USB_Deinitialize();
