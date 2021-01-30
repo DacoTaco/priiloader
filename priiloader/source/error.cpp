@@ -151,7 +151,9 @@ void ShowError ( void )
 			case ERROR_SYSMENU_GENERAL:
 				PrintFormat( 0, 16, (rmode->viHeight)-144, "Failed to load system menu!");
 				break;
-
+			case ERROR_DVD_BOOT_FAILURE:
+				PrintFormat(0, 16, (rmode->viHeight) - 144, "Failed to load from DVD drive!");
+				break;
 			case ERROR_SYSMENU_TIKNOTFOUND:
 			case ERROR_SYSMENU_TIKSIZEGETFAILED:
 			case ERROR_SYSMENU_TIKREADFAILED:

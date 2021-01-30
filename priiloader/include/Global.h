@@ -27,7 +27,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //DEFINES
 //---------------
 
-#define TEXT_OFFSET(X) ((((rmode->viWidth) / 2 ) - (sizeof((X))*13/2))>>1)
+#define TEXT_OFFSET(X) ((((rmode->viWidth) / 2 ) - (strnlen((X), 128)*13/2))>>1)
 
 #ifdef DEBUG
 	#define gdprintf gprintf
