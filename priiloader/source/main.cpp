@@ -39,6 +39,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <ogc/usb.h>
 #include <ogc/machine/processor.h>
 #include <ogc/machine/asm.h>
+#include <ogc/lwp_watchdog.h>
 
 #include <sys/dir.h>
 #include <vector>
@@ -1212,7 +1213,6 @@ void BootDvdDrive(void)
 	ClearScreen();
 	PrintFormat(1, TEXT_OFFSET("Loading DVD..."), 208, "Loading DVD...");
 	gprintf("reading dvd...");
-	gprintf("framebuffer : 0x%08X", rmode);
 
 	try
 	{
@@ -1349,10 +1349,9 @@ void BootDvdDrive(void)
 			throw "Failed to read apploader header(" + std::to_string(ret) + ")";
 
 		DCFlushRange(&appldr_header, sizeof(apploader_hdr));
-		gprintf("apploader_header : 0x%08X - 0x%08X - 0x%08X", appldr_header.entry, appldr_header.size + appldr_header.trailersize, appldr_header.size);
 
 		//Continue reading the apploader now that we have the header
-		//TODO: replace this address with a mem2 address if possible?
+		//TODO (?) : replace this address with a mem2 address if possible?
 		ret = DVDRead(APPLOADER_HDR_OFFSET + sizeof(apploader_hdr), appldr_header.size + appldr_header.trailersize, (void*)0x81200000);
 		if (ret <= 0)
 			throw "Failed to read start of apploader (" + std::to_string(ret) + ")";
@@ -1381,6 +1380,10 @@ void BootDvdDrive(void)
 		if(dvd_entry == NULL || 0x80003000 > (u32)(dvd_entry) )
 			throw "failed to get entrypoint";
 
+		//i don't know why this is done. all loaders do it, but dolphin doesnt. 
+		//what is even the purpose of this?
+		settime(secs_to_ticks(time(NULL) - 946684800));
+
 		//disc related pokes to finish it off
 		//see memory map @ https://wiibrew.org/w/index.php?title=Memory_Map
 		//and @ https://www.gc-forever.com/yagcd/chap4.html#sec4
@@ -1388,37 +1391,42 @@ void BootDvdDrive(void)
 		*(vu32*)0x80000024 = 0x00000001;				// Version
 		*(vu32*)0x80000028 = 0x01800000;				// Memory Size (Physical) 24MB
 		*(vu32*)0x8000002C = 0x00000023;				// Production Board Model
-		/**(vu32*)0x80000030 = 0x00000000;				// Arena Low
+		*(vu32*)0x80000030 = 0x00000000;				// Arena Low
 		*(vu32*)0x80000034 = 0x817FEC60;				// Arena High - get from DVD
-		*(vu32*)0x80000038 = 0x817FEC60;				// FST Start - get from DVD*/
-		*(vu32*)0x80000060 = 0x38A00040;				// Debugger hook
 		*(vu32*)0x800000CC = 0x00000001;				// Video Mode
 		*(vu32*)0x800000E4 = 0x8008f7b8;				// Thread Pointer
 		*(vu32*)0x800000F0 = 0x01800000;				// Dev Debugger Monitor Address
+		*(vu32*)0x800000F4 = 0x8179B500;				// __start ?
 		*(vu32*)0x800000F8 = 0x0E7BE2C0;				// Bus Clock Speed
 		*(vu32*)0x800000FC = 0x2B73A840;				// CPU Clock Speed
 		*(vu32*)0x800030C0 = 0x00000000;				// EXI
 		*(vu32*)0x800030C4 = 0x00000000;				// EXI
 		*(vu32*)0x800030DC = 0x00000000;				// Time
-		*(vu32*)0x800030D8 = 0x00000000;				// Time
+		*(vu32*)0x800030D8 = 0XFFFFFFFF;				// Time
 		*(vu32*)0x800030E0 = 0x00000000;				// PADInit
-		*(vu32*)0x800030E4 = 0x00000000;				// Console type
+		*(vu32*)0x800030E4 = 0x00008201;				// Console type
+		*(vu32*)0x800030F0 = 0x00000000;				// Apploader parameters
+		*(vu32*)0x8000315C = 0x80800113;				// DI Legacy mode ? OSInit/apploader?
+		*(vu32*)0x80003184 = *(vu32*)0x80000000;		// Enable WC24 by having the game id's the same
+		*(vu32*)0x8000318C = 0x00000000;				// Title Booted from NAND
+		*(vu32*)0x80003190 = 0x00000000;				// Title Booted from NAND
+
+		//Extra pokes that could have a use, but we can do without
+		//They aren't found in dolphin, nor GeckoOS so.... meh
+		/* *(vu32*)0x80000038 = 0x817FEC60;				// FST Start - get from DVD
+		*(vu32*)0x80000060 = 0x38A00040;				// Debugger hook
 		*(vu32*)0x80003100 = 0x01800000;				// BAT
 		*(vu32*)0x80003104 = 0x01800000;				// BAT
 		*(vu32*)0x8000310C = 0x00000000;				// Init
 		*(vu32*)0x80003110 = 0x00000000;				// Init
-		*(vu32*)0x80003118 = 0x04000000;				// 
+		*(vu32*)0x80003118 = 0x04000000;				//
 		*(vu32*)0x8000311C = 0x04000000;				// BAT
 		*(vu32*)0x80003120 = 0x93400000;				// BAT
 		*(vu32*)0x80003124 = 0x90000800;				// Init - MEM2 low
 		*(vu32*)0x80003128 = 0x933E0000;				// Init - MEM2 High
 		*(vu32*)0x80003130 = 0x933E0000;				// IPC - MEM2 low
 		*(vu32*)0x80003134 = 0x93400000;				// IPC - MEM2 High
-		*(vu32*)0x80003138 = 0x00000011;				// Console type
-		*(vu32*)0x8000315C = 0x80800113;				// DI Legacy mode ? OSInit/apploader?
-		*(vu32*)0x80003180 = *(vu32*)0x80000000;		// Enable WC24 by having the game id's the same
-		*(vu32*)0x8000318C = 0x00000000;				// Title Booted from NAND
-		*(vu32*)0x80003190 = 0x00000000;				// Title Booted from NAND
+		*(vu32*)0x80003138 = 0x00000011;				// Console type*/
 
 		DCFlushRange((void*)0x80000000, 0x3200);
 
@@ -1433,18 +1441,19 @@ void BootDvdDrive(void)
 		VIDEO_Flush();
 		VIDEO_WaitVSync();
 		if (rmode->viTVMode & VI_NON_INTERLACE) VIDEO_WaitVSync();
+
 		gprintf("booting binary (0x%08X)...", dvd_entry);
+		u32 level;
 		__IOS_ShutdownSubsystems();
-		if (system_state.Init)
-		{
-			VIDEO_Flush();
-			VIDEO_WaitVSync();
-		}
 		__exception_closeall();
+		_CPU_ISR_Disable (level);
+		mtmsr(mfmsr() & ~0x8000);
+		mtmsr(mfmsr() | 0x2002);
 		ICSync();
 		dvd_entry();
 
-		gprintf("oh ow, this ain't good...");
+		_CPU_ISR_Restore (level);
+		gprintf("Failed");
 	}
 	catch (const std::string & ex)
 	{
