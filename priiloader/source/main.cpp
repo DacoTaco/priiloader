@@ -75,6 +75,45 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //Bin includes
 #include "loader_bin.h"
 
+//copy of libogc's SYS_*Video functions, untill the new version is released
+#ifndef SYS_VIDEO_NTSC
+#define SRAM_VIDEO_MODE_BITS			0x03
+#define SYS_VIDEO_NTSC					0x00
+#define SYS_VIDEO_PAL					0x01
+#define SYS_VIDEO_MPAL					0x02
+
+extern "C"
+{
+	extern syssram* __SYS_LockSram(void);
+	extern u32 __SYS_UnlockSram(u32 write);
+}
+
+u8 SYS_GetVideoMode(void)
+{
+	u8 mode;
+	syssram* sram;
+
+	sram = __SYS_LockSram();
+	mode = (sram->flags & SRAM_VIDEO_MODE_BITS);
+	__SYS_UnlockSram(0);
+	return mode;
+}
+
+void SYS_SetVideoMode(u8 mode)
+{
+	u32 write;
+	syssram* sram;
+
+	write = 0;
+	sram = __SYS_LockSram();
+	if ((sram->flags & SRAM_VIDEO_MODE_BITS) != mode) {
+		sram->flags = (sram->flags & ~SRAM_VIDEO_MODE_BITS) | (mode & SRAM_VIDEO_MODE_BITS);
+		write = 1;
+	}
+	__SYS_UnlockSram(write);
+}
+#endif
+
 typedef struct _dol_settings 
 {
 	s8 HW_AHBPROT_bit;
@@ -1197,6 +1236,60 @@ void ApploaderInitCallback(const char* fmt, ...)
 	if(fmt != NULL)
 		gprintf("StubApploaderInitCallback : %s", fmt);
 }
+s8 SetVideoModeForDisc(u32 gameID)
+{
+	GXRModeObj* vidmode;
+	s8 videoMode = 0;
+	//Taken from Dolphin
+	switch (gameID & 0xFF)
+	{
+		//PAL
+		case 'D':
+		case 'F':
+		case 'H':
+		case 'I':
+		case 'L':
+		case 'M':
+		case 'P':
+		case 'R':
+		case 'S':
+		case 'U':
+		case 'V':
+			gprintf("PAL50");
+			// set 50Hz mode - incompatible with S-Video cables!
+			vidmode = &TVPal528IntDf;
+			videoMode = SYS_VIDEO_PAL;
+			break;
+
+		//NTSC-J
+		case 'J':
+		case 'K':
+		case 'Q':
+		case 'T':
+			gprintf("NTSC-J");
+			goto region_ntsc;
+			break;
+
+		//NTSC-U
+		default:
+			gprintf("unknown ID");
+		case 'B':
+		case 'N':
+		case 'E':
+			gprintf("NTSC-U");
+		region_ntsc:
+			videoMode = SYS_VIDEO_NTSC;
+			vidmode = &TVNtsc480IntDf;
+			break;
+	}
+
+	//set video mode for the game
+	ClearScreen();
+	if (rmode != vidmode)
+		ConfigureVideo(vidmode);
+
+	return videoMode;
+}
 void BootDvdDrive(void)
 {
 	DVDTableOfContent* tableOfContent = NULL;
@@ -1204,6 +1297,7 @@ void BootDvdDrive(void)
 	u8* tmd_buf = NULL;
 	u8 partitionOpened = 0;
 	u8 deinit = 0;		
+	u32 gameID = 0;
 	apploader_entry app_entry = NULL;
 	apploader_init app_init = NULL;
 	apploader_main app_main = NULL;
@@ -1225,7 +1319,7 @@ void BootDvdDrive(void)
 		ICInvalidateRange((u32*)0x80000000, 0x20);
 		DCFlushRange((u32*)0x80000000, 0x20);
 
-		ret = DVDIdentify();
+		ret = DVDInquiry();
 		if (ret <= 0)
 			throw "Failed to Identify (" + std::to_string(ret) + ")";
 
@@ -1233,6 +1327,11 @@ void BootDvdDrive(void)
 		ret = DVDReadGameID((u8*)0x80000000, 0x20);
 		if (ret <= 0)
 			throw "Failed to Read Game info (" + std::to_string(ret) + ")";
+
+		ICInvalidateRange((u32*)0x80000000, 0x20);
+		DCFlushRange((u32*)0x80000000, 0x20);
+		gameID = *(u32*)0x80000000;
+		gprintf("GameID 0x%08X", gameID);
 
 		//verify disc type
 		if (*((u32*)0x8000001C) == GCDVD_MAGIC_VALUE)
@@ -1248,56 +1347,24 @@ void BootDvdDrive(void)
 
 			//Read BI2 from disk. this has no real purpose on the wii, but it sets the DVD drive in a ready state
 			//System Menu does this to be sure the DVD is in the correct state for the game to use.
-			char bi2[0x2000] ATTRIBUTE_ALIGN(32);
+			char bi2[0x2000] [[gnu::aligned(32)]];
 			ret = DVDUnencryptedRead(0x440, bi2, sizeof(bi2));
 			if (ret < 0)
 				throw "Failed to read BI2 (" + std::to_string(ret) + ")";
+			DVDCloseHandle();
 
-			//Deinit audio
-			//*(vu32*)0xCD006C00 = 0x00000000;
-
-			gprintf("video mode : 0x%08X", SYS_GetVideoMode());
-			GXRModeObj* vidmode;
-			if ((read32(0x80000000) & 0xFF) == 'E' || (read32(0x80000000) & 0xFF) == 'J')
-			{
-				// set 60Hz mode
-				if (CONF_GetVideo() == CONF_VIDEO_PAL)
-				{
-					gprintf("pal + 60hz");
-					// PAL60 is the same as NTSC except it works properly with SCART cables
-					// (NTSC assumes S-Video output = red picture with a SCART cable)
-					SYS_SetVideoMode(SYS_VIDEO_PAL);
-					vidmode = &TVEurgb60Hz480IntDf;
-				}
-				else
-				{
-					gprintf("NTSC");
-					SYS_SetVideoMode(SYS_VIDEO_NTSC);
-					vidmode = &TVNtsc480IntDf;
-				}
-			}
-			else
-			{
-				gprintf("PAL50");
-				// set 50Hz mode - incompatible with S-Video cables!
-				vidmode = &TVPal528IntDf;
-				SYS_SetVideoMode(SYS_VIDEO_PAL);
-			}
-
-			//set video mode for the game
-			ClearScreen();
-			if (rmode != vidmode)
-				ConfigureVideo(vidmode);
-			s8 video_mode = SYS_GetVideoMode();
-			gprintf("new video mode : 0x%08X", video_mode);
-			*(vu32*)0x800000CC = video_mode > SYS_VIDEO_NTSC ? 0x00000001 : 0x00000000;
+			s8 oldVideoMode = SYS_GetVideoMode();
+			s8 videoMode = SetVideoModeForDisc(gameID);
+			gprintf("video mode : 0x%02X -> 0x%02X", oldVideoMode, videoMode);
+			if (oldVideoMode != videoMode)
+				SYS_SetVideoMode(videoMode);
+			*(vu32*)0x800000CC = videoMode > SYS_VIDEO_NTSC ? 0x00000001 : 0x00000000;
 			DCFlushRange((void*)0x80000000, 0x3200);
 
 			//set bootstate for when we come back
 			SetBootState(255, 130, 0, 0);
 
-			DVDCloseHandle();
-			gprintf("booting BC...");
+			gprintf("booting BC..."); 
 			ret = WII_LaunchTitle(BC_Title_Id);
 			throw "launching BC failed(" + std::to_string(ret) + ")";
 		}
@@ -1306,7 +1373,7 @@ void BootDvdDrive(void)
 			throw "Unknown Disc inserted.";
 
 		//Read game name. offset 0x20 - 0x400 
-		char gameName[0x41] ATTRIBUTE_ALIGN(32);
+		char gameName[0x41] [[gnu::aligned(32)]];
 		memset(gameName, 0, sizeof(gameName));
 		ret = DVDUnencryptedRead(0x20, gameName, 0x40);
 		if (ret <= 0)
@@ -1398,13 +1465,13 @@ void BootDvdDrive(void)
 			partitionOpened = 1;
 		}
 
-		ret = DVDRead(0x00, 0x20, (void*)0x80000000);
+		ret = DVDRead(0x00, (void*)0x80000000, 0x20);
 		if (ret <= 0)
 			throw "Failed to read partition header(" + std::to_string(ret) + ")";
 
-		apploader_hdr appldr_header ATTRIBUTE_ALIGN(32);
+		apploader_hdr appldr_header [[gnu::aligned(32)]];
 		memset(&appldr_header, 0, sizeof(apploader_hdr));
-		ret = DVDRead(APPLOADER_HDR_OFFSET, sizeof(apploader_hdr), &appldr_header);
+		ret = DVDRead(APPLOADER_HDR_OFFSET, &appldr_header, sizeof(apploader_hdr));
 		if (ret <= 0)
 			throw "Failed to read apploader header(" + std::to_string(ret) + ")";
 
@@ -1412,7 +1479,7 @@ void BootDvdDrive(void)
 
 		//Continue reading the apploader now that we have the header
 		//TODO (?) : replace this address with a mem2 address if possible?
-		ret = DVDRead(APPLOADER_HDR_OFFSET + sizeof(apploader_hdr), appldr_header.size + appldr_header.trailersize, (void*)0x81200000);
+		ret = DVDRead(APPLOADER_HDR_OFFSET + sizeof(apploader_hdr), (void*)0x81200000, appldr_header.size + appldr_header.trailersize);
 		if (ret <= 0)
 			throw "Failed to read start of apploader (" + std::to_string(ret) + ")";
 		DCFlushRange((void*)0x81200000, appldr_header.size + appldr_header.trailersize);
@@ -1429,7 +1496,7 @@ void BootDvdDrive(void)
 		while (app_main(&data, &size, &offset) == 1)
 		{
 			gprintf("reading 0x%08X bytes from 0x%08X to 0x%08X", size, offset, data);
-			ret = DVDRead(offset << 2, size, data);
+			ret = DVDRead(offset << 2, data, size);
 			if (ret < 0)
 				throw "Failed to read apploader data @ offset " + std::to_string(offset) + "(" + std::to_string(ret) + ")";
 			DCFlushRange(data, size);
@@ -1440,9 +1507,12 @@ void BootDvdDrive(void)
 		if(dvd_entry == NULL || 0x80003000 > (u32)(dvd_entry) )
 			throw "failed to get entrypoint";
 
+		DVDCloseHandle();
 		//i don't know why this is done. all loaders do it, but dolphin doesnt. 
 		//what is even the purpose of this?
 		settime(secs_to_ticks(time(NULL) - 946684800));
+
+		s8 videoMode = SetVideoModeForDisc(gameID);
 
 		//disc related pokes to finish it off
 		//see memory map @ https://wiibrew.org/w/index.php?title=Memory_Map
@@ -1453,7 +1523,7 @@ void BootDvdDrive(void)
 		*(vu32*)0x8000002C = 0x00000023;				// Production Board Model
 		*(vu32*)0x80000030 = 0x00000000;				// Arena Low
 		*(vu32*)0x80000034 = 0x817FEC60;				// Arena High - get from DVD
-		*(vu32*)0x800000CC = 0x00000001;				// Video Mode
+		*(vu32*)0x800000CC = videoMode > SYS_VIDEO_NTSC ? 0x00000001 : 0x00000000;	// Video Mode
 		*(vu32*)0x800000E4 = 0x8008f7b8;				// Thread Pointer
 		*(vu32*)0x800000F0 = 0x01800000;				// Dev Debugger Monitor Address
 		*(vu32*)0x800000F4 = 0x8179B500;				// __start ?
@@ -1489,18 +1559,6 @@ void BootDvdDrive(void)
 		*(vu32*)0x80003138 = 0x00000011;				// Console type*/
 
 		DCFlushRange((void*)0x80000000, 0x3200);
-
-		//Deinit audio
-		*(vu32*)0xCD006C00 = 0x00000000;
-
-		DVDCloseHandle();
-		ClearScreen();
-		VIDEO_Configure(VIDEO_GetPreferredMode(NULL));
-		VIDEO_SetNextFramebuffer(xfb);
-		VIDEO_SetBlack(FALSE);
-		VIDEO_Flush();
-		VIDEO_WaitVSync();
-		if (rmode->viTVMode & VI_NON_INTERLACE) VIDEO_WaitVSync();
 
 		gprintf("booting binary (0x%08X)...", dvd_entry);
 		u32 level;
