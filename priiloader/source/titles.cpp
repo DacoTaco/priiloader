@@ -31,6 +31,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "mem2_manager.h"
 #include "dvd.h"
 #include "Input.h"
+#include "gecko.h"
 
 #define USE_DVD_ASYNC
 

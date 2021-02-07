@@ -29,12 +29,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #define TEXT_OFFSET(X) ((((rmode->viWidth) / 2 ) - (strnlen((X), 128)*13/2))>>1)
 
-#ifdef DEBUG
-	#define gdprintf gprintf
-#else
-	#define gdprintf(...)
-#endif
-
 //INCLUDES
 //---------------
 #include <ogc/es.h>
@@ -49,7 +43,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <network.h>
 #include <sdcard/wiisd_io.h>
 #include <fat.h>
-#include "gecko.h"
 
 //STRUCTS
 //--------------
@@ -66,6 +59,7 @@ extern void *xfb;
 //FUNCTIONS
 //---------------
 void InitVideo ( void );
+void ConfigureVideo(GXRModeObj* videoMode);
 s8 InitNetwork();
 u8 GetUsbOnlyMode();
 u8 ToggleUSBOnlyMode();

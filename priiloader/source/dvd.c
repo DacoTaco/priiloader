@@ -102,7 +102,7 @@ s32 DVDStopDriveAsync(void)
 {
 	if (/*DVDDiscAvailable() == 0 ||*/ async_called == 1)
 		return 0;
-
+	
 	u32 value = 0;
 	return DVDExecuteCommand(DVD_CMD_STOP_DRIVE, true, &value, 4, NULL, 0, _driveStopped);
 };
@@ -125,8 +125,27 @@ s32 DVDReadGameID(void* dst, u32 len)
 	//its not that the output has to be 32 byte aligned, it'll raise an error anyway
 	if (((u32)dst % 32) != 0)
 		return -2;
-
+	
 	s32 ret = DVDExecuteCommand(DVD_CMD_READ_ID, false, NULL, 0, dst, len, NULL);
+	if (ret < 0)
+		return ret;
+
+	return (ret == 1) ? ret : -ret;
+}
+s32 DVDAudioBufferConfig(u8 enable, s8 buffer_size)
+{
+	if (enable == 0 && buffer_size > 0)
+		return -1;
+
+	if (enable > 0 && buffer_size == 0)
+		buffer_size = 10;
+
+	u32 data[2] = {
+		(u32)((enable > 0) & 1),
+		(u32)(buffer_size & 0x0F)
+	};
+
+	s32 ret = DVDExecuteCommand(DVD_CMD_CONFIG_AUDIO_BUFFER, false, data, 8, NULL, 0, NULL);
 	if (ret < 0)
 		return ret;
 
@@ -145,7 +164,7 @@ s32 DVDUnencryptedRead(u32 offset, void* buf, u32 len)
 	u32 data[2] = { 
 		len, 
 		offset >> 2
-	};
+	}; 
 
 	s32 ret = DVDExecuteCommand(DVD_CMD_UNENCRYPTED_READ, false, data , sizeof(data), buf, len, NULL);
 	if (ret < 0)
@@ -195,7 +214,7 @@ s32 DVDRead(off_t offset, u32 len, void* output)
 		len, 
 		offset >> 2
 	};
-
+	
 	s32 ret = DVDExecuteCommand(DVD_CMD_READ, false, data, sizeof(data), output, len, NULL);
 	if (ret < 0)
 		return ret;
@@ -205,7 +224,7 @@ s32 DVDRead(off_t offset, u32 len, void* output)
 
 s32 DVDIdentify()
 {
-	u8 dummy[0x20] [[gnu::aligned(64)]];
+	u8 dummy[0x20] [[gnu::aligned(64)]]; 
 	return DVDExecuteCommand(DVD_CMD_IDENTIFY, false, NULL, 0, dummy, 0x20, NULL);
 }
 

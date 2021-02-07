@@ -1221,18 +1221,89 @@ void BootDvdDrive(void)
 		if (ret <= 0)
 			throw "Failed to Reset Drive (" + std::to_string(ret) + ")";
 
-		ret = DVDIdentify();
-		if (ret <= 0)
-			throw "Failed to Identify (" + std::to_string(ret) + ")";
-
 		memset((char*)0x80000000, 0, 0x20);
 		ICInvalidateRange((u32*)0x80000000, 0x20);
 		DCFlushRange((u32*)0x80000000, 0x20);
+
+		ret = DVDIdentify();
+		if (ret <= 0)
+			throw "Failed to Identify (" + std::to_string(ret) + ")";
 
 		//Read Game ID. required to do certain commands, also needed to check disc type.
 		ret = DVDReadGameID((u8*)0x80000000, 0x20);
 		if (ret <= 0)
 			throw "Failed to Read Game info (" + std::to_string(ret) + ")";
+
+		//verify disc type
+		if (*((u32*)0x8000001C) == GCDVD_MAGIC_VALUE)
+		{
+			gprintf("GC disc detected");
+
+			//gamecube games MUST have this called after reading the ID
+			//if any command is done before this, this will error out.
+			//see https://wiibrew.org/wiki//dev/di#0xE4_DVDLowAudioBufferConfig
+			ret = DVDAudioBufferConfig(*(u8*)0x80000008, *(u8*)0x80000009);
+			if (ret < 0)
+				throw "Failed to set audio streaming config (" + std::to_string(ret) + ")";
+
+			//Read BI2 from disk. this has no real purpose on the wii, but it sets the DVD drive in a ready state
+			//System Menu does this to be sure the DVD is in the correct state for the game to use.
+			char bi2[0x2000] ATTRIBUTE_ALIGN(32);
+			ret = DVDUnencryptedRead(0x440, bi2, sizeof(bi2));
+			if (ret < 0)
+				throw "Failed to read BI2 (" + std::to_string(ret) + ")";
+
+			//Deinit audio
+			//*(vu32*)0xCD006C00 = 0x00000000;
+
+			gprintf("video mode : 0x%08X", SYS_GetVideoMode());
+			GXRModeObj* vidmode;
+			if ((read32(0x80000000) & 0xFF) == 'E' || (read32(0x80000000) & 0xFF) == 'J')
+			{
+				// set 60Hz mode
+				if (CONF_GetVideo() == CONF_VIDEO_PAL)
+				{
+					gprintf("pal + 60hz");
+					// PAL60 is the same as NTSC except it works properly with SCART cables
+					// (NTSC assumes S-Video output = red picture with a SCART cable)
+					SYS_SetVideoMode(SYS_VIDEO_PAL);
+					vidmode = &TVEurgb60Hz480IntDf;
+				}
+				else
+				{
+					gprintf("NTSC");
+					SYS_SetVideoMode(SYS_VIDEO_NTSC);
+					vidmode = &TVNtsc480IntDf;
+				}
+			}
+			else
+			{
+				gprintf("PAL50");
+				// set 50Hz mode - incompatible with S-Video cables!
+				vidmode = &TVPal528IntDf;
+				SYS_SetVideoMode(SYS_VIDEO_PAL);
+			}
+
+			//set video mode for the game
+			ClearScreen();
+			if (rmode != vidmode)
+				ConfigureVideo(vidmode);
+			s8 video_mode = SYS_GetVideoMode();
+			gprintf("new video mode : 0x%08X", video_mode);
+			*(vu32*)0x800000CC = video_mode > SYS_VIDEO_NTSC ? 0x00000001 : 0x00000000;
+			DCFlushRange((void*)0x80000000, 0x3200);
+
+			//set bootstate for when we come back
+			SetBootState(255, 130, 0, 0);
+
+			DVDCloseHandle();
+			gprintf("booting BC...");
+			ret = WII_LaunchTitle(BC_Title_Id);
+			throw "launching BC failed(" + std::to_string(ret) + ")";
+		}
+
+		if (*((u32*)0x80000018) != WIIDVD_MAGIC_VALUE)
+			throw "Unknown Disc inserted.";
 
 		//Read game name. offset 0x20 - 0x400 
 		char gameName[0x41] ATTRIBUTE_ALIGN(32);
@@ -1242,17 +1313,6 @@ void BootDvdDrive(void)
 			throw "Failed to Read Game name (" + std::to_string(ret) + ")";
 		PrintFormat(1, TEXT_OFFSET(gameName), 224, gameName);
 		gprintf("loading %s...", gameName);
-
-		//verify disc type
-		if (*((u32*)0x8000001C) == GCDVD_MAGIC_VALUE)
-		{
-			gprintf("Gamecube Disc detected, booting BC...");
-			WII_LaunchTitle(BC_Title_Id);
-			throw "something odd happened after booting BC";
-		}
-
-		if (*((u32*)0x80000018) != WIIDVD_MAGIC_VALUE)
-			throw "Unknown Disc inserted.";
 
 		tableOfContent = (DVDTableOfContent*)mem_align(32, 0x20);
 		partitionsInfo = (DVDPartitionInfo*)mem_align(32, 0x20);
@@ -1413,7 +1473,7 @@ void BootDvdDrive(void)
 
 		//Extra pokes that could have a use, but we can do without
 		//They aren't found in dolphin, nor GeckoOS so.... meh
-		/* *(vu32*)0x80000038 = 0x817FEC60;				// FST Start - get from DVD
+		/**(vu32*)0x80000038 = 0x817FEC60;				// FST Start - get from DVD
 		*(vu32*)0x80000060 = 0x38A00040;				// Debugger hook
 		*(vu32*)0x80003100 = 0x01800000;				// BAT
 		*(vu32*)0x80003104 = 0x01800000;				// BAT

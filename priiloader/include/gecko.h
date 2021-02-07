@@ -35,6 +35,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <ogc/usbgecko.h>
 #include <debug.h>
 
+#ifdef DEBUG
+#define gdprintf gprintf
+#else
+#define gdprintf(...)
+#endif
+
 void CheckForGecko( void );
 void gprintf( const char *str, ... );
 void SetDumpDebug( u8 value );

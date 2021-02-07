@@ -67,6 +67,7 @@ typedef void (*apploader_entry)(apploader_init* init, apploader_main* main, appl
 #define DVD_CMD_CLOSE_PARTITION		0x8C
 #define DVD_CMD_UNENCRYPTED_READ	0x8D
 #define DVD_CMD_STOP_DRIVE			0xE3
+#define DVD_CMD_CONFIG_AUDIO_BUFFER	0xE4
 
 #define GCDVD_MAGIC_VALUE			0xC2339F3D
 #define WIIDVD_MAGIC_VALUE			0x5D1C9EA3
@@ -95,6 +96,7 @@ s32 DVDOpenPartition(u32 offset, void* eticket, void* shared_cert_in, u32 shared
 s32 DVDClosePartition();
 s32 DVDRead(off_t offset, u32 len, void* output);
 s32 DVDIdentify();
+s32 DVDAudioBufferConfig(u8 enable, s8 buffer_size);
 s32 DVDExecuteCommand(u32 command, u8 do_async, void* input, s32 input_size, void* output, s32 output_size, ipccallback callback);
 s32 DVDExecuteVCommand(s32 command, bool do_async, s32 cnt_in, s32 cnt_io, void* cmd_input, u32 cmd_input_size, void* input, u32 input_size, ipccallback callback, void* userdata);
 
