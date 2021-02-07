@@ -35,12 +35,12 @@ typedef struct _di_iovector
 	ioctlv ioctlv[8];
 } di_iovector;
 
-u32 _di_lasterror[0x08] ATTRIBUTE_ALIGN(32);
+u32 _di_lasterror[0x08] [[gnu::aligned(32)]];
 
 s32 di_fd = -1;
 s8 async_called = 0;
-ioctlv iovectors[8] ATTRIBUTE_ALIGN(64) = { 0 };
-u32 cmd[8] ATTRIBUTE_ALIGN(64) = { 0 };
+ioctlv iovectors[8] [[gnu::aligned(64)]] = { 0 };
+u32 cmd[8] [[gnu::aligned(64)]] = { 0 };
 
 
 //see https://wiibrew.org/wiki/Hardware/Drive_Interface for the address
@@ -51,11 +51,6 @@ static s32 _driveStopped(s32 result, void* usrdata)
 {
 	async_called = 0;
 	return 1;
-}
-
-void _cleanUp(void)
-{
-	return;
 }
 
 s32 DVDInit(void)
@@ -85,7 +80,6 @@ void DVDCloseHandle(void)
 s32 DVDDiscAvailable(void)
 {
 	return (__diReg[1] & 1);
-	//return ( (*(u32*)0xCD806004) & 1);
 }
 
 s32 DVDStopDrive(void)
@@ -99,10 +93,7 @@ s32 DVDStopDrive(void)
 };
 
 s32 DVDStopDriveAsync(void)
-{
-	if (/*DVDDiscAvailable() == 0 ||*/ async_called == 1)
-		return 0;
-	
+{	
 	u32 value = 0;
 	return DVDExecuteCommand(DVD_CMD_STOP_DRIVE, true, &value, 4, NULL, 0, _driveStopped);
 };
@@ -183,7 +174,7 @@ s32 DVDOpenPartition(u32 offset, void* eticket, void* shared_cert_in, u32 shared
 	if (shared_cert_in != NULL && shared_cert_in_len > 0)
 		return -1;
 
-	ioctlv data[4] ATTRIBUTE_ALIGN(64);
+	ioctlv data[4] [[gnu::aligned(64)]];
 
 	data[0].data = eticket;
 	data[0].len = (eticket == NULL) ? 0 : 0x02A4;
@@ -201,7 +192,7 @@ s32 DVDOpenPartition(u32 offset, void* eticket, void* shared_cert_in, u32 shared
 	return (ret == 1) ? ret : -ret;
 }
 
-s32 DVDRead(off_t offset, u32 len, void* output)
+s32 DVDRead(off_t offset, void* output, u32 len)
 {
 	if (output == NULL || len == 0)
 		return -1;
@@ -222,7 +213,7 @@ s32 DVDRead(off_t offset, u32 len, void* output)
 	return (ret == 1) ? ret : -ret;
 }
 
-s32 DVDIdentify()
+s32 DVDInquiry()
 {
 	u8 dummy[0x20] [[gnu::aligned(64)]]; 
 	return DVDExecuteCommand(DVD_CMD_IDENTIFY, false, NULL, 0, dummy, 0x20, NULL);
@@ -242,8 +233,6 @@ s32 DVDExecuteVCommand(s32 command, bool do_async, s32 cnt_in, s32 cnt_io, void*
 	if (cmd_input_size > 0x1C) //di command is 0x20, -4 for the command = 0x1C
 		return -3;
 
-	_cleanUp();
-
 	memset(iovectors, 0, sizeof(iovectors));
 	memset(cmd, 0, sizeof(cmd));
 
@@ -262,7 +251,6 @@ s32 DVDExecuteVCommand(s32 command, bool do_async, s32 cnt_in, s32 cnt_io, void*
 	if (!do_async)
 	{
 		s32 ret = IOS_Ioctlv(di_fd, command, cnt_in, cnt_io, iovectors);
-		_cleanUp();
 		return ret;
 	}
 	else
@@ -291,7 +279,6 @@ s32 DVDExecuteCommand(u32 command, u8 do_async, void* input, s32 input_size, voi
 	if (output_size > 0 && output == NULL)
 	{
 		//memory failure :/
-		_cleanUp();
 		return 0;
 	}
 
@@ -304,7 +291,6 @@ s32 DVDExecuteCommand(u32 command, u8 do_async, void* input, s32 input_size, voi
 	if (!do_async)
 	{
 		s32 ret = IOS_Ioctl(di_fd, command, cmd, sizeof(cmd), output, output_size);
-		_cleanUp();
 		return ret;
 	}
 	else

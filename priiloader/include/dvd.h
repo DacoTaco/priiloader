@@ -44,7 +44,7 @@ typedef struct
 	s32 size;
 	s32 trailersize;
 	s32 padding;
-} apploader_hdr ATTRIBUTE_ALIGN(32);
+} apploader_hdr [[gnu::aligned(32)]];
 
 //apploader functions
 typedef void (*dvd_main)(void);
@@ -54,10 +54,9 @@ typedef void (*apploader_init_cb)(const char* fmt, ...);
 typedef void (*apploader_init)(apploader_init_cb);
 typedef void (*apploader_entry)(apploader_init* init, apploader_main* main, apploader_final* final);
 
-//from libogc's dvd.h :
-#define DVD_RESETHARD				0			//!< Performs a hard reset. Complete new boot of FW.
-#define DVD_RESETSOFT				1			//!< Performs a soft reset. FW restart and drive spinup
-#define DVD_RESETNONE				2			//!< Only initiate DI registers
+#define DVD_RESETHARD				0			//Performs a hard reset. Complete new boot of FW.
+#define DVD_RESETSOFT				1			//Performs a soft reset. FW restart and drive spinup
+#define DVD_RESETNONE				2			//Only initiate DI registers
 
 #define DVD_CMD_IDENTIFY			0x12
 #define DVD_CMD_READ_ID				0x70
@@ -94,9 +93,13 @@ s32 DVDReadGameID(void* dst, u32 len);
 s32 DVDUnencryptedRead(u32 offset, void* buf, u32 len);
 s32 DVDOpenPartition(u32 offset, void* eticket, void* shared_cert_in, u32 shared_cert_in_len, void* tmd_out );
 s32 DVDClosePartition();
-s32 DVDRead(off_t offset, u32 len, void* output);
-s32 DVDIdentify();
+s32 DVDRead(off_t offset, void* output, u32 len);
+s32 DVDInquiry();
+
+//Configures the drive's audio streaming buffer. also clears the DiscID from memory, but doesn't clear the cache.
 s32 DVDAudioBufferConfig(u8 enable, s8 buffer_size);
+
+//Command execution
 s32 DVDExecuteCommand(u32 command, u8 do_async, void* input, s32 input_size, void* output, s32 output_size, ipccallback callback);
 s32 DVDExecuteVCommand(s32 command, bool do_async, s32 cnt_in, s32 cnt_io, void* cmd_input, u32 cmd_input_size, void* input, u32 input_size, ipccallback callback, void* userdata);
 
