@@ -28,6 +28,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include "state.h"
 #include "mem2_manager.h"
+#include "gecko.h"
 
 wii_state system_state;
 

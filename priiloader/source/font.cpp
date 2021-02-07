@@ -34,6 +34,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "settings.h"
 #include "font.h"
 #include "mem2_manager.h"
+#include "gecko.h"
 
 u32 trans_font(u32 value, int add_color[4])
 {
