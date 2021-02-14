@@ -79,27 +79,6 @@ void InitVideo ( void )
 		return;
 
 	VIDEO_Init();
-
-	/*
-	//apparently the video likes to be bigger then it actually is on NTSC/PAL60/480p. lets fix that!
-	if( rmode->viTVMode == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
-	{
-		//the correct one would be * 0.035 to be sure to get on the Action safe of the screen.
-		GX_AdjustForOverscan(rmode, rmode, 0, rmode->viWidth * 0.026 ); 
-	}
-
-	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
-	
-	console_init( xfb, 20, 20, rmode->fbWidth, rmode->xfbHeight, rmode->fbWidth*VI_DISPLAY_PIX_SZ );
-
-	VIDEO_Configure(rmode);
-	VIDEO_SetNextFramebuffer(xfb);
-	VIDEO_SetBlack(FALSE);
-	VIDEO_Flush();
-
-	VIDEO_WaitVSync();
-	if(rmode->viTVMode&VI_NON_INTERLACE)
-		VIDEO_WaitVSync();*/
 	_configureVideoMode(VIDEO_GetPreferredMode(NULL), 1);
 	vid_init = 1;
 	gdprintf("resolution is %dx%d",rmode->viWidth,rmode->viHeight);

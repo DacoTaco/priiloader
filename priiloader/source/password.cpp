@@ -155,7 +155,7 @@ void InstallPassword( void )
 				sprintf(tfile, "fat:/%s", file);
 				in = fopen(tfile, "rb");
 			}
-			if( in ) // if( RemountDevices() && in )
+			if( in )
 				PrintFormat( 1, (rmode->viWidth-48)>>1, 48, "OK");
 			else
 				PrintFormat( 0, (rmode->viWidth-48)>>1, 48, "--");
