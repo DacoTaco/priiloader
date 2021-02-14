@@ -179,9 +179,9 @@ int main(int argc, char **argv)
 	char* InputBetaFile = argv[3];
 	unsigned int prodSHA1Hash[5];
 	unsigned int betaSHA1Hash[5];
-	unsigned int major;
-	unsigned int minor;
-	unsigned int patch;
+	int major;
+	int minor;
+	int patch;
 	version_t version;
 	version_t beta_version;
 	memset(&version, 0, sizeof(version_t));
@@ -191,18 +191,18 @@ int main(int argc, char **argv)
 		printf("Invalid prod version");
 		goto _exit;
 	}
-	version.major = major;
-	version.minor = minor;
-	version.patch = patch;
+	version.major = major & 0xFF;
+	version.minor = minor & 0xFF;
+	version.patch = patch & 0xFF;
 
 	if (sscanf(argv[4], "%d.%d.%d", &major, &minor, &patch) != 3 || major > 254 || minor > 254 || patch > 254)
 	{
 		printf("Invalid prod version");
 		goto _exit;
 	}
-	beta_version.major = major;
-	beta_version.minor = minor;
-	beta_version.patch = patch;
+	beta_version.major = major & 0xFF;
+	beta_version.minor = minor & 0xFF;
+	beta_version.patch = patch & 0xFF;
 	beta_version.sub_version = atoi((const char*)argv[5]);
 
 	printf("calculating Hash of -STABLE- dol version %u.%u.%u...\n", version.major, version.minor, version.patch);
