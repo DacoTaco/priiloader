@@ -2705,19 +2705,20 @@ void CheckForUpdate()
 		sleep(5);
 		return;
 	}
+	gprintf("done");
 	s32 file_size = 0;
 //start update
 //---------------
 	UpdateStruct UpdateFile;
 	u8* buffer = NULL;
-	file_size = GetHTTPFile("www.dacotaco.com","/priiloader/version.bin",buffer,0);
+	file_size = GetHTTPFile("www.dacotaco.com","/priiloader/versionV2.bin",buffer,0);
 	s16 httpReply = GetLastHttpReply();
 	if( file_size < 0 && httpReply >= 400 && httpReply <= 500)
 	{
 		gprintf("falling back to .dat ...");
-		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/version.dat",buffer,0);
+		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/versionV2.dat",buffer,0);
 	}
-
+	gprintf("file downloaded");
 
 	if ( file_size <= 0 || file_size != (s32)sizeof(UpdateStruct) || buffer == NULL)
 	{
@@ -2765,7 +2766,7 @@ void CheckForUpdate()
 	s8 cur_off = 0;
 	ClearScreen();
 	//make a nice list of the updates
-	if ( (VERSION < UpdateFile.version) || (VERSION == UpdateFile.version && BETAVERSION > 0) )
+	if ( smaller_version(VERSION, UpdateFile.prod_version) || (same_version(VERSION, UpdateFile.prod_version) && VERSION_BETA > 0) )
 		VersionUpdates = 1;
 	//to make the if short :
 	// - beta updates should be enabled
@@ -2773,11 +2774,15 @@ void CheckForUpdate()
 	// - the current version should < the beta OR the version == the beta IF a beta is installed
 	if ( 
 		SGetSetting(SETTING_SHOWBETAUPDATES) && 
-		BETAVERSION < UpdateFile.beta_number && 
-		( ( VERSION < UpdateFile.beta_version && BETAVERSION == 0 ) || ( VERSION == UpdateFile.beta_version && BETAVERSION > 0 ) ) 
-		)
+		( (smaller_version(VERSION, UpdateFile.beta_version) && VERSION_BETA == 0) || (same_version(VERSION, UpdateFile.beta_version) && VERSION_BETA < UpdateFile.beta_version.sub_version)) )
 	{
 		BetaUpdates = 1;
+	}
+
+	if (VersionUpdates == 0 && BetaUpdates == 0)
+	{
+		sleep(2);
+		return;
 	}
 
 	while(1)
@@ -2785,45 +2790,18 @@ void CheckForUpdate()
 		if(redraw)
 		{
 			if ( VersionUpdates )
-			{
-				if( (UpdateFile.version&0xFF) % 10 == 0 )
-				{
-					PrintFormat( cur_off == 0, 16, 64+(16*1), "Update to %d.%d",UpdateFile.version >> 8,(UpdateFile.version&0xFF) / 10);
-				}
-				else
-				{
-					PrintFormat( cur_off == 0, 16, 64+(16*1), "Update to v%d.%d.%d", UpdateFile.version >>8, (UpdateFile.version&0xFF) / 10,(UpdateFile.version&0xFF) % 10 );
-					//PrintFormat( cur_off == 0, 16, 64+(16*1), "Update to %d.%d",UpdateFile.version >> 8,UpdateFile.version&0xFF);
-				}
-			}
+				PrintFormat( cur_off == 0, 16, 64+(16*1), "Update to v%d.%d.%d", UpdateFile.prod_version.major, UpdateFile.prod_version.minor, UpdateFile.prod_version.patch);
 			else
-			{
-				PrintFormat( cur_off == 0, 16, 64+(16*1), "No major updates\n");
-			}
+				PrintFormat( cur_off == 0, 16, 64+(16*1), "No version updates\n");
+
 			if (SGetSetting(SETTING_SHOWBETAUPDATES))
 			{
 				if ( BetaUpdates )
-				{
-					if( (UpdateFile.beta_version&0xFF) % 10 == 0 )
-					{
-						//PrintFormat( cur_off==1, 16, 64+(16*2), "Update to %d.%d beta %d",UpdateFile.beta_version >> 8,UpdateFile.beta_version&0xFF, UpdateFile.beta_number);
-						PrintFormat( cur_off==1, 16, 64+(16*2), "Update to %d.%d beta %d",UpdateFile.beta_version >> 8,(UpdateFile.beta_version&0xFF) / 10 , UpdateFile.beta_number);
-					}
-					else
-					{
-						PrintFormat( cur_off==1, 16, 64+(16*2), "Update to %d.%d.%d beta %d",UpdateFile.beta_version >> 8,(UpdateFile.beta_version&0xFF) / 10,(UpdateFile.beta_version&0xFF) % 10, UpdateFile.beta_number);
-					}
-				}
+					PrintFormat( cur_off==1, 16, 64+(16*2), "Update to v%d.%d.%d beta %d", UpdateFile.beta_version.major, UpdateFile.beta_version.minor, UpdateFile.beta_version.patch, UpdateFile.beta_version.sub_version);
 				else
-				{
 					PrintFormat( cur_off==1, 16, 64+(16*2), "No Beta update\n");
-				}
 			}	
-			if ( VersionUpdates == 0 && BetaUpdates == 0)
-			{
-				sleep(2);
-				return;
-			}
+
 			PrintFormat( 0, TEXT_OFFSET("A(A) Download Update       "), rmode->viHeight-48, "A(A) Download Update       ");
 			PrintFormat( 0, TEXT_OFFSET("B(B) Cancel Update         "), rmode->viHeight-32, "B(B) Cancel Update         ");
 			redraw = 0;
@@ -2998,13 +2976,13 @@ void CheckForUpdate()
 	gprintf("downloading %s",DownloadedBeta?"beta":"update");
 	if(DownloadedBeta)
 	{
-		PrintFormat( 1, TEXT_OFFSET("downloading   .   beta   ..."), 208, "downloading %d.%d beta %d...",UpdateFile.beta_version >> 8,UpdateFile.beta_version&0xFF, UpdateFile.beta_number);
+		PrintFormat( 1, TEXT_OFFSET("downloading   .   beta   ..."), 208, "downloading %d.%d.%d beta %d...", UpdateFile.beta_version.major, UpdateFile.beta_version.minor, UpdateFile.beta_version.patch, UpdateFile.beta_version.sub_version);
 		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/Priiloader_Beta.dol",Data,0);
 		//download beta
 	}
 	else
 	{
-		PrintFormat( 1, TEXT_OFFSET("downloading   .  ..."), 208, "downloading %d.%d ...",UpdateFile.version >> 8,UpdateFile.version&0xFF);
+		PrintFormat( 1, TEXT_OFFSET("downloading   .  ..."), 208, "downloading %d.%d.%d ...", UpdateFile.prod_version.major, UpdateFile.prod_version.minor, UpdateFile.prod_version.patch);
 		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/Priiloader_Update.dol",Data,0);
 		//download Update
 	}
@@ -3052,36 +3030,36 @@ void CheckForUpdate()
 		if (!DownloadedBeta)
 		{
 			gprintf("%08X %08X %08X %08X %08X"
-					,UpdateFile.SHA1_Hash[0]
-					,UpdateFile.SHA1_Hash[1]
-					,UpdateFile.SHA1_Hash[2]
-					,UpdateFile.SHA1_Hash[3]
-					,UpdateFile.SHA1_Hash[4]);
+					,UpdateFile.prod_sha1_hash[0]
+					,UpdateFile.prod_sha1_hash[1]
+					,UpdateFile.prod_sha1_hash[2]
+					,UpdateFile.prod_sha1_hash[3]
+					,UpdateFile.prod_sha1_hash[4]);
 		}
 		else
 		{
 			gprintf("%08X %08X %08X %08X %08X"
-					,UpdateFile.beta_SHA1_Hash[0]
-					,UpdateFile.beta_SHA1_Hash[1]
-					,UpdateFile.beta_SHA1_Hash[2]
-					,UpdateFile.beta_SHA1_Hash[3]
-					,UpdateFile.beta_SHA1_Hash[4]);
+					,UpdateFile.beta_sha1_hash[0]
+					,UpdateFile.beta_sha1_hash[1]
+					,UpdateFile.beta_sha1_hash[2]
+					,UpdateFile.beta_sha1_hash[3]
+					,UpdateFile.beta_sha1_hash[4]);
 		}
 
 		if (
 			( !DownloadedBeta && (
-			UpdateFile.SHA1_Hash[0] == FileHash[0] &&
-			UpdateFile.SHA1_Hash[1] == FileHash[1] &&
-			UpdateFile.SHA1_Hash[2] == FileHash[2] &&
-			UpdateFile.SHA1_Hash[3] == FileHash[3] &&
-			UpdateFile.SHA1_Hash[4] == FileHash[4] ) ) ||
+			UpdateFile.prod_sha1_hash[0] == FileHash[0] &&
+			UpdateFile.prod_sha1_hash[1] == FileHash[1] &&
+			UpdateFile.prod_sha1_hash[2] == FileHash[2] &&
+			UpdateFile.prod_sha1_hash[3] == FileHash[3] &&
+			UpdateFile.prod_sha1_hash[4] == FileHash[4] ) ) ||
 
 			( DownloadedBeta && (
-			UpdateFile.beta_SHA1_Hash[0] == FileHash[0] &&
-			UpdateFile.beta_SHA1_Hash[1] == FileHash[1] &&
-			UpdateFile.beta_SHA1_Hash[2] == FileHash[2] &&
-			UpdateFile.beta_SHA1_Hash[3] == FileHash[3] &&
-			UpdateFile.beta_SHA1_Hash[4] == FileHash[4] ) ) )
+			UpdateFile.beta_sha1_hash[0] == FileHash[0] &&
+			UpdateFile.beta_sha1_hash[1] == FileHash[1] &&
+			UpdateFile.beta_sha1_hash[2] == FileHash[2] &&
+			UpdateFile.beta_sha1_hash[3] == FileHash[3] &&
+			UpdateFile.beta_sha1_hash[4] == FileHash[4] ) ) )
 		{
 			gprintf("Hash check complete. booting file...");
 		}
@@ -3098,13 +3076,10 @@ void CheckForUpdate()
 //---------------------------------------------------
 		ClearScreen();
 		if(DownloadedBeta)
-		{
-			PrintFormat( 1, TEXT_OFFSET("loading   .   beta   ..."), 208, "loading %d.%d beta %d...",UpdateFile.beta_version >> 8,UpdateFile.beta_version&0xFF, UpdateFile.beta_number);
-		}
+			PrintFormat( 1, TEXT_OFFSET("loading   .   beta   ..."), 208, "loading %d.%d.%d beta %d...", UpdateFile.beta_version.major, UpdateFile.beta_version.minor, UpdateFile.beta_version.patch, UpdateFile.beta_version.sub_version);
 		else
-		{
-			PrintFormat( 1, TEXT_OFFSET("loading   .  ..."), 208, "loading %d.%d ...",UpdateFile.version >> 8,UpdateFile.version&0xFF);
-		}
+			PrintFormat( 1, TEXT_OFFSET("loading   .  ..."), 208, "loading %d.%d.%d ...", UpdateFile.prod_version.major, UpdateFile.prod_version.minor, UpdateFile.prod_version.patch);
+
 		sleep(1);
 		//load the fresh installer
 		net_deinit();
@@ -3190,7 +3165,7 @@ int main(int argc, char **argv)
 #endif
 	gprintf("priiloader");
 	gprintf("Built   : %s %s", __DATE__, __TIME__ );
-	gprintf("Version : %d.%d.%d (rev %s)", VERSION>>8, (VERSION&0xFF) / 10,(VERSION&0xFF) % 10,GIT_REV_STR);//VERSION>>16, VERSION&0xFFFF, SVN_REV_STR);
+	gprintf("Version : %d.%d.%d (rev %s)", VERSION.major, VERSION.minor, VERSION.patch, GIT_REV_STR);
 	gprintf("Firmware: %d.%d.%d", *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143 );
 
 	/**(vu32*)0x80000020 = 0x0D15EA5E;				// Magic word (how did the console boot?)
@@ -3229,8 +3204,7 @@ int main(int argc, char **argv)
 	s16 Bootstate = CheckBootState();
 	gprintf("BootState:%d", Bootstate );
 	memset(&system_state,0,sizeof(wii_state));
-	StateFlags flags;
-	flags = GetStateFlags();
+	StateFlags flags = GetStateFlags();
 	gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u & checksum %u",flags.type,flags.discstate,flags.returnto,flags.flags,flags.checksum);
 	s8 magicWord = CheckMagicWords();
 	
@@ -3407,15 +3381,12 @@ int main(int argc, char **argv)
 	}
 	_sync();
 #ifdef DEBUG
-	gdprintf("priiloader v%d.%d DEBUG (Sys:%d)(IOS:%d)(%s %s)", VERSION>>8, VERSION&0xFF, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
-#else
-	#if BETAVERSION > 0
-		gprintf("priiloader v%d.%d BETA %d (Sys:%d)(IOS:%d)(%s %s)", VERSION>>8, VERSION&0xFF,BETAVERSION,SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
-	#endif
+	gdprintf("priiloader v%d.%d.%d DEBUG (Sys:%d)(IOS:%d)(%s %s)", VERSION.major, VERSION.minor, VERSION.patch, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
+#elif VERSION_BETA > 0
+	gprintf("priiloader v%d.%d.%d BETA %d (Sys:%d)(IOS:%d)(%s %s)", VERSION.major, VERSION.minor, VERSION.patch, VERSION.beta, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
 #endif
+
 	system_state.InMainMenu = 1;
-	//gprintf("ptr of video : 0x%08X - 0x%08X",xfb,rmode);
-	//gprintf("ptr : 0x%08X data of ptr : 0x%08X size : %d",&system_state,*((u32*)&system_state),sizeof(system_state));
 	while(1)
 	{
 		Input_ScanPads();
@@ -3524,23 +3495,11 @@ int main(int argc, char **argv)
 
 		if( redraw )
 		{
-			//if its 0, it means there is no minor version
-			if( (VERSION&0xFF) % 10 == 0 )
-			{
-#if BETAVERSION > 0
-					PrintFormat( 0, 128, rmode->viHeight-96, "Priiloader v%d.%d(beta v%d)", VERSION>>8, (VERSION&0xFF) / 10, BETAVERSION&0xFF );
+#if VERSION_BETA > 0
+			PrintFormat( 0, 128, rmode->viHeight-96, "Priiloader v%d.%d.%d(beta v%d)", VERSION.major, VERSION.minor, VERSION.patch, VERSION.beta);
 #else
-					PrintFormat( 0, 128, rmode->viHeight-96, "Priiloader v%d.%d (r0x%08x)", VERSION>>8, (VERSION&0xFF) / 10 ,GIT_REV );
+			PrintFormat( 0, 128, rmode->viHeight-96, "Priiloader v%d.%d.%d (r0x%08x)", VERSION.major, VERSION.minor, VERSION.patch, GIT_REV );
 #endif
-			}
-			else
-			{
-#if BETAVERSION > 0
-				PrintFormat( 0, 128, rmode->viHeight-96, "Priiloader v%d.%d.%d(beta v%d)", VERSION>>8, (VERSION&0xFF) / 10,(VERSION&0xFF) % 10, BETAVERSION&0xFF );
-#else
-				PrintFormat( 0, 128, rmode->viHeight-96, "Priiloader v%d.%d.%d (r0x%08x)", VERSION>>8, (VERSION&0xFF) / 10,(VERSION&0xFF) % 10,GIT_REV );
-#endif
-			}
 			PrintFormat( 0, 16, rmode->viHeight-112, "IOS v%d", (*(vu32*)0x80003140)>>16 );
 			PrintFormat( 0, 16, rmode->viHeight-96, "Systemmenu v%d", SysVersion );			
 			PrintFormat( 0, 16, rmode->viHeight-64, "Priiloader is a mod of Preloader 0.30");

@@ -13,6 +13,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Shared", "Shared", "{75BAEB
 		Shared\gitrev.h = Shared\gitrev.h
 		Shared\sha1.cpp = Shared\sha1.cpp
 		Shared\sha1.h = Shared\sha1.h
+		Shared\version.cpp = Shared\version.cpp
 		Shared\version.h = Shared\version.h
 	EndProjectSection
 EndProject

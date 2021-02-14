@@ -39,18 +39,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //defines
 //----------------
 
-
-//typedef
-//---------------
-typedef struct {
-	u32 version;
-	unsigned SHA1_Hash[5];
-	u32 beta_version;
-	u32 beta_number;
-	unsigned beta_SHA1_Hash[5];
-} UpdateStruct;
-
-
 //functions
 //--------------
 s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int* external_socket_to_use);

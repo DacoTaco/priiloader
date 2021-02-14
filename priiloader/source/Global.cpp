@@ -119,24 +119,22 @@ s8 InitNetwork()
 {
 	s32 result;
 	gprintf("InitNetwork : Waiting for network to initialise...");
-    while ((result = net_init()) == -EAGAIN);
-    if (result >= 0) 
+	while ((result = net_init()) == -EAGAIN) {}
+	if (result < 0)
 	{
-        char myIP[16];
-		//s32 if_config( char *local_ip, char *netmask, char *gateway,bool use_dhcp, int max_retries);
-		if (if_config(myIP, NULL, NULL, true,1) < 0) 
-		{
-			gdprintf("InitNetwork : Error reading IP address");
-			return -1;
-		}
-		gdprintf("InitNetwork : IP Address -> %s",myIP);
-		return 1;
-    } 
-	else 
-	{
-		gprintf("InitNetwork : DHCP timeout or no known access point availble");
+		gprintf("InitNetwork : DHCP timeout or no known access point available");
 		return -2;
-    }
+	}
+
+    char myIP[16];
+	//s32 if_config( char *local_ip, char *netmask, char *gateway,bool use_dhcp, int max_retries);
+	if (if_config(myIP, NULL, NULL, true,1) < 0) 
+	{
+		gdprintf("InitNetwork : Error reading IP address");
+		return -1;
+	}
+	gdprintf("InitNetwork : IP Address -> %s",myIP);
+	return 1;
 }
 u8 GetUsbOnlyMode()
 {

@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include "../../Shared/sha1.h"
+#include "../../Shared/version.h"
+
 #ifdef WIN32
 #include <windows.h>
 #define sleep(x) Sleep(x*1000)
@@ -15,36 +17,141 @@
 #endif
 
 typedef struct {
-	unsigned int version;
-	unsigned SHA1_Hash[5];
+	unsigned int prod_version;
+	unsigned prod_sha1_hash[5];
 	unsigned int beta_version;
 	unsigned int beta_number;
-	unsigned beta_SHA1_Hash[5];
-} UpdateStruct;
+	unsigned beta_sha1_hash[5];
+} UpdateStructV1;
 
-void Display_Parameters ( void )
+void Display_Parameters(void)
 {
-	printf("HashGenerator [stable_dol_path] stable_version [beta_dol_path] beta_version beta_number\n\n");
 	printf("parameters:\n");
+	printf("HashGenerator [stable_dol_path] stable_version [beta_dol_path] beta_version beta_number\n\n");
+	printf("versioning is in x.x.x format\n");
 	printf("-h : display this message\n");
 }
-bool Data_Need_Swapping( void )
+bool Data_Need_Swapping(void)
 {
-    int test_var = 1;
-    char *cptr = (char*)&test_var;
+	int test_var = 1;
+	char* cptr = (char*)&test_var;
 
 	//true means little ending
 	//false means big endian
-    return (cptr != NULL);
+	return (cptr != NULL);
 }
 inline void endian_swap(unsigned int& x)
 {
-    x = (x>>24) | 
-        ((x<<8) & 0x00FF0000) |
-        ((x>>8) & 0x0000FF00) |
-        (x<<24);
+	x = (x >> 24) |
+		((x << 8) & 0x00FF0000) |
+		((x >> 8) & 0x0000FF00) |
+		(x << 24);
 }
 
+char WriteV1UpdateFile(UpdateStructV1* update)
+{
+	//write the version file
+	printf("writing v1 version file...\n");
+	FILE* outputBin = fopen("version.bin", "wb");
+	FILE* outputDat = fopen("version.dat", "wb");
+	if (!outputBin || !outputDat)
+	{
+		if (outputBin)
+			fclose(outputBin);
+		if (outputDat)
+			fclose(outputDat);
+
+		printf("failed to open/create file!\n");
+		return -1;
+	}
+
+	if (Data_Need_Swapping())
+	{
+		printf("the machine is %s endian. a endian swap is needed before writing\n", Data_Need_Swapping() ? "Little" : "Big");
+		//swap hash to big endian 
+		endian_swap(update->beta_version);
+		endian_swap(update->beta_number);
+		endian_swap(update->prod_version);
+	}
+
+	fwrite(update, 1, sizeof(UpdateStructV1), outputBin);
+	fwrite(update, 1, sizeof(UpdateStructV1), outputDat);
+	fclose(outputBin);
+	fclose(outputDat);
+	printf("done!\n");
+	return 1;
+}
+
+char WriteUpdateFile(UpdateStruct* update)
+{
+	//write the version file
+	printf("writing v2 version file...\n");
+	FILE* outputBin = fopen("versionV2.bin", "wb");
+	FILE* outputDat = fopen("versionV2.dat", "wb");
+	if (!outputBin || !outputDat)
+	{
+		if (outputBin)
+			fclose(outputBin);
+		if (outputDat)
+			fclose(outputDat);
+
+		printf("failed to open/create file!\n");
+		return -1;
+	}
+
+	fwrite(update, 1, sizeof(UpdateStruct), outputBin);
+	fwrite(update, 1, sizeof(UpdateStruct), outputDat);
+	fclose(outputBin);
+	fclose(outputDat);
+	printf("done!\n");
+	return 1;
+}
+
+char CalculateBinaryHash(char* filename, unsigned int* hash)
+{
+	if (filename == NULL || hash == NULL)
+		return -1;
+
+	printf("opening dol...\n");
+	FILE* dolFile = fopen(filename, "rb");
+	if (!dolFile)
+	{
+		printf("failed to open %s\n", filename);
+		return -2;
+	}
+
+	printf("opened\nreading Dol data...\n");
+
+	// obtain file size:
+	fseek(dolFile, 0, SEEK_END);
+	long dolSize = ftell(dolFile);
+	rewind(dolFile);
+
+	SHA1 sha; // SHA-1 class
+	sha.Reset();
+	memset(hash, 0, 20);
+	char input = fgetc(dolFile);
+	for (int i = 0; i < dolSize; i++)
+	{
+		sha.Input(input);
+		input = fgetc(dolFile);
+	}
+	fclose(dolFile);
+	if (!sha.Result(hash))
+	{
+		printf("sha: could not compute Hash for stable release!\n");
+		return -3;
+	}
+
+	printf("Hash : %08X %08X %08X %08X %08X\n",
+		hash[0],
+		hash[1],
+		hash[2],
+		hash[3],
+		hash[4]);
+
+	return 1;
+}
 
 int main(int argc, char **argv)
 {
@@ -60,146 +167,104 @@ int main(int argc, char **argv)
 		printf("\n\nnot enough parameters given\n");
 		Display_Parameters();
 		exit(0);
-	}/*
-	for (int i = 1; i < argc; i++)
+	}
+
+	/*for (int i = 1; i < argc; i++)
 	{
 		printf("%s\n",argv[i]);
 	}
 	sleep(2);*/
-	char* InputStableFile = argv[1];
-	int version = atoi((const char*)argv[2]);
+
+	char* InputProdFile = argv[1];
 	char* InputBetaFile = argv[3];
-	int beta_version = atoi((const char*)argv[4]);
-	unsigned char beta_number = atoi((const char*)argv[5]);
-	FILE* Dol;
-	UpdateStruct *UpdateFile;
-	UpdateFile = (UpdateStruct*) malloc(sizeof(UpdateStruct));
-	if(UpdateFile == NULL)
+	unsigned int prodSHA1Hash[5];
+	unsigned int betaSHA1Hash[5];
+	unsigned int major;
+	unsigned int minor;
+	unsigned int patch;
+	version_t version;
+	version_t beta_version;
+	memset(&version, 0, sizeof(version_t));
+	memset(&beta_version, 0, sizeof(version_t));
+	if (sscanf(argv[2], "%d.%d.%d", &major, &minor, &patch) != 3 || major > 254 || minor > 254 || patch > 254)
+	{
+		printf("Invalid prod version");
+		goto _exit;
+	}
+	version.major = major;
+	version.minor = minor;
+	version.patch = patch;
+
+	if (sscanf(argv[4], "%d.%d.%d", &major, &minor, &patch) != 3 || major > 254 || minor > 254 || patch > 254)
+	{
+		printf("Invalid prod version");
+		goto _exit;
+	}
+	beta_version.major = major;
+	beta_version.minor = minor;
+	beta_version.patch = patch;
+	beta_version.sub_version = atoi((const char*)argv[5]);
+
+	printf("calculating Hash of -STABLE- dol version %u.%u.%u...\n", version.major, version.minor, version.patch);
+	if( CalculateBinaryHash(InputProdFile, prodSHA1Hash) < 0)
+		goto _exit;
+
+	printf("calculating Hash of -BETA- dol version %u.%u.%u beta %u...\n", beta_version.major, beta_version.minor, beta_version.patch, beta_version.sub_version);
+	if( CalculateBinaryHash(InputBetaFile, betaSHA1Hash) < 0)
+		goto _exit;
+
+	if (Data_Need_Swapping())
+	{
+		printf("the machine is %s endian. a endian swap is needed before writing\n\n", Data_Need_Swapping() ? "Little" : "Big");
+		//swap hash to big endian 
+		for (int i = 0; i < 5; i++)
+		{
+			endian_swap(prodSHA1Hash[i]);
+			endian_swap(betaSHA1Hash[i]);
+		}
+	}
+
+	//write the v2 version file
+	UpdateStruct* UpdateFile = (UpdateStruct*)malloc(sizeof(UpdateStruct));
+	if (UpdateFile == NULL)
 	{
 		printf("failed to allocate UpdateFile\n");
-		sleep(2);
-		exit(0);
+		goto _exit;
 	}
-	memset(UpdateFile,0,sizeof(UpdateStruct));
-	printf("opening dol...\n");
-	Dol = fopen(InputStableFile,"rb");
-	if(!Dol)
+	memset(UpdateFile, 0, sizeof(UpdateStruct));
+	memcpy(UpdateFile->prod_sha1_hash, prodSHA1Hash, sizeof(UpdateFile->prod_sha1_hash));
+	memcpy(UpdateFile->beta_sha1_hash, betaSHA1Hash, sizeof(UpdateFile->beta_sha1_hash));
+	UpdateFile->prod_version = version;
+	UpdateFile->beta_version = beta_version;
+	if (WriteUpdateFile(UpdateFile) < 0)
 	{
-		printf("failed to open %s\n",InputStableFile);
-		sleep(2);
 		free(UpdateFile);
-		exit(0);
+		goto _exit;
 	}
-	printf("opened\nreading Dol data...\n");
-	long DolSize;
-	// obtain file size:
-	fseek (Dol , 0 , SEEK_END);
-	DolSize = ftell(Dol);
-#ifdef DEBUG
-	printf("detected file size : %d-0x%x\n",(int)DolSize,(int)DolSize);
-#endif
-	rewind (Dol);
-	char DolFile;
-	UpdateFile->version = (int)version;
-	printf("calculating Hash of -STABLE- dol version %u...\n",UpdateFile->version);
-	SHA1 sha; // SHA-1 class
-	sha.Reset();
-    DolFile = fgetc(Dol);
-	for(int i = 0; i < DolSize;i++)
-	{
-		sha.Input(DolFile);
-        DolFile = fgetc(Dol);
-	}
-    fclose(Dol);
-    if (!sha.Result(UpdateFile->SHA1_Hash))
-    {
-        printf("sha: could not compute Hash for stable release!\n");
-		free(UpdateFile);
-		sleep(2);
-		exit(0);
-    }
-    else
-    {
-		printf( "Hash : %08X %08X %08X %08X %08X\n",
-				UpdateFile->SHA1_Hash[0],
-				UpdateFile->SHA1_Hash[1],
-				UpdateFile->SHA1_Hash[2],
-				UpdateFile->SHA1_Hash[3],
-				UpdateFile->SHA1_Hash[4]);
-    }
-
-	//done with stable release. now to do the same for beta lol
-	DolSize = 0;
-	printf("opening dol...\n");
-	Dol = fopen(InputBetaFile,"rb");
-	if(!Dol)
-	{
-		printf("failed to open %s\n",InputBetaFile);
-		sleep(2);
-		free(UpdateFile);
-		exit(0);
-	}
-	printf("opened\nreading Dol data...\n");
-	fseek (Dol , 0 , SEEK_END);
-	DolSize = ftell(Dol);
-	rewind (Dol);
-	UpdateFile->beta_version = (int)beta_version;
-	UpdateFile->beta_number = (int)beta_number;
-	printf("calculating Hash of -BETA- dol version %u beta %u...\n",UpdateFile->beta_version , UpdateFile->beta_number);
-	sha.Reset();
-    DolFile = fgetc(Dol);
-	for(int i = 0; i < DolSize;i++)
-	{
-		sha.Input(DolFile);
-        DolFile = fgetc(Dol);
-	}
-    fclose(Dol);
-    if (!sha.Result(UpdateFile->beta_SHA1_Hash))
-    {
-        printf("sha: could not compute Hash for Official release!\n");
-		free(UpdateFile);
-		sleep(2);
-		exit(0);
-    }
-    else
-    {
-		printf( "Hash : %08X %08X %08X %08X %08X\n",
-				UpdateFile->beta_SHA1_Hash[0],
-				UpdateFile->beta_SHA1_Hash[1],
-				UpdateFile->beta_SHA1_Hash[2],
-				UpdateFile->beta_SHA1_Hash[3],
-				UpdateFile->beta_SHA1_Hash[4]);
-    }
-
-
-	//write the version file
-	printf("writing version file...\n");
-	FILE *output = fopen("version.dat","wb");
-	if(!output)
-	{
-		printf("failed to open/create file!\n");
-		sleep(2);
-		free(UpdateFile);
-		exit(0);
-	}
-	if( Data_Need_Swapping() )
-	{
-		printf("the machine is %s endian. a endian swap is needed before writing\n\n",Data_Need_Swapping()?"Little":"Big");
-		//swap hash to big endian 
-		for (int i = 0;i < 5;i++)
-		{
-			endian_swap(UpdateFile->SHA1_Hash[i]);
-			endian_swap(UpdateFile->beta_SHA1_Hash[i]);
-		}
-		endian_swap(UpdateFile->beta_version);
-		endian_swap(UpdateFile->beta_number);
-		endian_swap(UpdateFile->version);
-	}
-	fwrite(UpdateFile,1,sizeof(UpdateStruct),output);
-	fclose(output);
-	printf("done!\n");
-	sleep(5);
 	free(UpdateFile);
+
+	//write v1 version file
+	UpdateStructV1* UpdateFileV1 = (UpdateStructV1*)malloc(sizeof(UpdateStructV1));
+	if (UpdateFileV1 == NULL)
+	{
+		printf("failed to allocate UpdateFile\n");
+		goto _exit;
+	}
+	memset(UpdateFileV1, 0, sizeof(UpdateStructV1));
+	memcpy(UpdateFileV1->prod_sha1_hash, prodSHA1Hash, sizeof(UpdateFileV1->prod_sha1_hash));
+	memcpy(UpdateFileV1->beta_sha1_hash, betaSHA1Hash, sizeof(UpdateFileV1->beta_sha1_hash));
+	UpdateFileV1->prod_version = (unsigned int)((version.major << 8) | (version.minor*10) | (version.patch));
+	UpdateFileV1->beta_version = (unsigned int)((beta_version.major << 8) | (beta_version.minor * 10) | (beta_version.patch));
+	UpdateFileV1->beta_number = beta_version.sub_version;
+	if (WriteV1UpdateFile(UpdateFileV1) < 0)
+	{
+		free(UpdateFileV1);
+		goto _exit;
+	}
+	free(UpdateFileV1);
+
+_exit:
+	sleep(5);
 	return 0;
 }
 

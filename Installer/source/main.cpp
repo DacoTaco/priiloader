@@ -1543,22 +1543,12 @@ int main(int argc, char **argv)
 	}
 
 	printf("\r\nIOS %d rev %d\r\n\r\n",IOS_GetVersion(),IOS_GetRevision());
-if( (VERSION&0xFF) % 10 == 0 )
-{
 #if BETAVERSION > 0
-		printf("Priiloader v%d.%db%d(r0x%08x) Installation/Removal Tool\n\n\n\n\t",VERSION>>8, (VERSION&0xFF) / 10,BETAVERSION,GIT_REV);
+	printf("Priiloader v%d.%d.%db%d(r0x%08x) Installation/Removal Tool\n\n\n\n\t", VERSION.major, VERSION.minor, VERSION.patch, VERSION.beta, GIT_REV);
 #else
-		printf("\t\tPriiloader v%d.%d(r0x%08x) Installation / Removal Tool\n\n\n\n\t",VERSION>>8, (VERSION&0xFF) / 10,GIT_REV);
+	printf("\t\tPriiloader v%d.%d.%d(r0x%08x) Installation / Removal Tool\n\n\n\n\t", VERSION.major, VERSION.minor, VERSION.patch, GIT_REV);
 #endif
-}
-else
-{
-#if BETAVERSION > 0
-		printf("Priiloader v%d.%d.%db%d(r0x%08x) Installation/Removal Tool\n\n\n\n\t",VERSION>>8, (VERSION&0xFF) / 10,(VERSION&0xFF) % 10,BETAVERSION,GIT_REV);
-#else
-		printf("\t\tPriiloader v%d.%d.%d(r0x%08x) Installation / Removal Tool\n\n\n\n\t",VERSION>>8, (VERSION&0xFF) / 10,(VERSION&0xFF) % 10,GIT_REV);
-#endif
-}
+
 	printf("\t\t\t\t\tPLEASE READ THIS CAREFULLY\n\n\t");
 	printf("\t\tTHIS PROGRAM/TOOL COMES WITHOUT ANY WARRANTIES!\n\t");
 	printf("\t\tYOU ACCEPT THAT YOU INSTALL THIS AT YOUR OWN RISK\n\n\n\t");
