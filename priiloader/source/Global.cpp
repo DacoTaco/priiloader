@@ -150,18 +150,18 @@ bool PollDevices( void )
 	//check mounted device's status and unmount or mount if needed. once something is unmounted, lets see if we can mount something in its place
 	if( ( (Mounted & 2) && !__io_wiisd.isInserted() ) || ( (Mounted & 1) && !__io_usbstorage.isInserted() ) )
 	{
-		fatUnmount("fat:");
+		fatUnmount("fat:");		
 		if(Mounted & 1)
 		{
-			Mounted = 0;
 			gprintf("USB removed");
+			__io_usbstorage.shutdown();
 		}
 		if(Mounted & 2)
 		{
-			Mounted = 0;
 			gprintf("SD removed");
 			__io_wiisd.shutdown();
-		}			
+		}		
+		Mounted = 0;
 	}
 	//check if SD is mountable
 	if( UsbOnly == 0 && !(Mounted & 2) && __io_wiisd.startup() &&  __io_wiisd.isInserted() && !(Device_Not_Mountable & 2) )
@@ -171,6 +171,7 @@ bool PollDevices( void )
 			//USB is mounted. lets kick it out and use SD instead :P
 			fatUnmount("fat:");
 			Mounted = 0;
+			__io_usbstorage.shutdown();
 			gprintf("USB: Unmounted");
 		}
 		if(fatMountSimple("fat",&__io_wiisd))
@@ -208,6 +209,7 @@ bool PollDevices( void )
 		{
 			Device_Not_Mountable -= 1;
 			gdprintf("USB: NM Flag Reset");
+			__io_usbstorage.shutdown();
 		}
 		if ( ( Device_Not_Mountable & 2 ) &&  !__io_wiisd.isInserted() )
 		{
