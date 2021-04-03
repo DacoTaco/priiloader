@@ -535,7 +535,7 @@ s32 LoadListTitles( void )
 
 #ifdef USE_DVD_ASYNC
 			gdprintf("waiting for drive to stop...");
-			while(DVDAsyncBusy() < 1);
+			while(DVDAsyncBusy());
 #endif
 			VIDEO_SetBlack(1);
 			VIDEO_Flush();
@@ -547,7 +547,7 @@ failure:
 			VIDEO_WaitVSync();
 			Input_Init();
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to Load Title!"))*13/2))>>1, 224, "Failed to Load Title!");
-			while(DVDAsyncBusy() < 1);
+			while(DVDAsyncBusy());
 			sleep(3);
 			redraw = true;
 		}			

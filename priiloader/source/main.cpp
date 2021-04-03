@@ -1026,10 +1026,10 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		ClearState();
 		Input_Shutdown();
 
-		if(DVDAsyncBusy() < 1)
+		if(DVDAsyncBusy())
 		{
 			gprintf("checking DVD drive...");
-			while(DVDAsyncBusy() < 1);
+			while(DVDAsyncBusy());
 		}
 		DVDCloseHandle();
 
@@ -3267,7 +3267,7 @@ int main(int argc, char **argv)
 					ShutdownDevices();
 					USB_Deinitialize();
 					*(vu32*)0xCD8000C0 &= ~0x20;
-					while(DVDAsyncBusy() < 1);
+					while(DVDAsyncBusy());
 					DVDCloseHandle();
 					if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
 					{
