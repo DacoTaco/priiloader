@@ -2884,14 +2884,14 @@ int main(int argc, char **argv)
 					gprintf("Shutting down...\n");
 					DVDStopDisc(true);
 					ShutdownDevices();
+					Input_Shutdown();
 					USB_Deinitialize();
 					*(vu32*)0xCD8000C0 &= ~0x20;
 					while(DvdKilled() < 1);
 					if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
-					{
 						STM_ShutdownToStandby();
-
-					} else {
+					else 
+					{
 						if( CONF_GetShutdownMode() == CONF_SHUTDOWN_STANDBY )
 						{
 							//standby = red = off							
