@@ -3202,6 +3202,7 @@ int main(int argc, char **argv)
 
 	SetDumpDebug(SGetSetting(SETTING_DUMPGECKOTEXT));
 	s16 Bootstate = CheckBootState();
+	u32 GcShutdownFlag = *(u32*)0x80003164;
 	gprintf("BootState:%d", Bootstate );
 	memset(&system_state,0,sizeof(wii_state));
 	StateFlags flags = GetStateFlags();
@@ -3226,8 +3227,8 @@ int main(int argc, char **argv)
 		{
 			case TYPE_UNKNOWN: //255 or -1, only seen when shutting down from MIOS or booting dol from HBC. it is actually an invalid value
 				flags = GetStateFlags();
-				gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u",flags.type,flags.discstate,flags.returnto,flags.flags);
-				if( flags.flags == 130 ) //&& temp.discstate != 2)
+				gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u (gcflag : 0x%08X)", flags.type, flags.discstate, flags.returnto, flags.flags, GcShutdownFlag);
+				if( flags.flags == 130 && GcShutdownFlag != 0) //&& temp.discstate != 2)
 				{
 					//if the flag is 130, its probably shutdown from mios. in that case system menu 
 					//will handle it perfectly (and i quote from SM's OSreport : "Shutdown system from GC!")
