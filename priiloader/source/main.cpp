@@ -1362,7 +1362,7 @@ void BootDvdDrive(void)
 			DCFlushRange((void*)0x80000000, 0x3200);
 
 			//set bootstate for when we come back
-			SetBootState(255, 130, 0, 0);
+			SetBootState(TYPE_UNKNOWN, FLAGS_STARTGCGAME, RETURN_TO_MENU, 0);
 
 			gprintf("booting BC..."); 
 			ret = WII_LaunchTitle(BC_Title_Id);
@@ -3206,7 +3206,7 @@ int main(int argc, char **argv)
 	gprintf("BootState:%d", Bootstate );
 	memset(&system_state,0,sizeof(wii_state));
 	StateFlags flags = GetStateFlags();
-	gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u & checksum %u",flags.type,flags.discstate,flags.returnto,flags.flags,flags.checksum);
+	gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u & checksum %u (gcflag : 0x%08X)", flags.type, flags.discstate, flags.returnto, flags.flags, flags.checksum, GcShutdownFlag);
 	s8 magicWord = CheckMagicWords();
 	
 	// before anything else, poll input devices such as keyboards to see if we should stop autoboot
@@ -3225,22 +3225,6 @@ int main(int argc, char **argv)
 		//Check autoboot settings
 		switch( Bootstate )
 		{
-			case TYPE_UNKNOWN: //255 or -1, only seen when shutting down from MIOS or booting dol from HBC. it is actually an invalid value
-				flags = GetStateFlags();
-				gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u (gcflag : 0x%08X)", flags.type, flags.discstate, flags.returnto, flags.flags, GcShutdownFlag);
-				if( flags.flags == 130 && GcShutdownFlag != 0) //&& temp.discstate != 2)
-				{
-					//if the flag is 130, its probably shutdown from mios. in that case system menu 
-					//will handle it perfectly (and i quote from SM's OSreport : "Shutdown system from GC!")
-					//it seems to reboot into bootstate 5. but its safer to let SM handle it
-					gprintf("255:System Menu");
-					BootMainSysMenu();
-				}
-				else
-				{
-					Autoboot_System();
-				}
-				break;
 			case TYPE_SHUTDOWNSYSTEM: // 5 - shutdown
 				ClearState();
 				//check for valid nandboot shitzle. if its found we need to change bootstate to 4.
@@ -3292,28 +3276,37 @@ int main(int argc, char **argv)
 					}
 				}
 				break;
-			case RETURN_TO_ARGS: //2 - normal reboot which funny enough doesn't happen very often
+			case TYPE_REBOOT: //2 - normal reboot which funny enough doesn't happen very often
 			case TYPE_RETURN: //3 - return to system menu
 				switch( SGetSetting(SETTING_RETURNTO) )
 				{
 					case RETURNTO_SYSMENU:
 						gprintf("ReturnTo:System Menu");
 						BootMainSysMenu();
-					break;
+						break;
 
 					case RETURNTO_AUTOBOOT:
 						Autoboot_System();
-					break;
+						break;
 
 					default:
-					break;
+						break;
 				}
 				break;
+			case TYPE_UNKNOWN: //255 or -1, only seen when shutting down from MIOS or booting dol from HBC. it is actually an invalid value	
+				if (flags.flags == FLAGS_STARTGCGAME && GcShutdownFlag != 0) //&& temp.discstate != 2)
+				{
+					//if the flag is 0x82 & the GcShutdown flag is set, its probably shutdown from mios. in that case system menu 
+					//will handle it perfectly (and i quote from SM's OSreport : "Shutdown system from GC!")
+					//it seems to reboot into bootstate 5. but its safer to let SM handle it
+					gprintf("255 : System Menu");
+					BootMainSysMenu();
+				}
 			case TYPE_NANDBOOT: // 4 - nandboot
 				//apparently a boot state in which the system menu auto boots a title. read more : http://wiibrew.org/wiki/WiiConnect24#WC24_title_booting
 				//as it hardly happens i guess nothing bad can happen if we ignore it and just do autoboot instead :)
-			case RETURN_TO_SETTINGS: // 1 - Boot when fully shutdown & wiiconnect24 is off. why its called RETURN_TO_SETTINGS i have no clue...
-			case RETURN_TO_MENU: // 0 - boot when wiiconnect24 is on
+			case TYPE_EJECTDISC: // 1 - Boot when fully shutdown & wiiconnect24 is off. why its called TYPE_EJECTDISC i have no clue...
+			case TYPE_WC24: // 0 - boot when wiiconnect24 is on
 				Autoboot_System();
 				break;
 			default :

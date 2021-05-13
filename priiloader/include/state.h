@@ -27,13 +27,34 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <gccore.h>
 #include <string.h>
 
-#define TYPE_RETURN 3
-#define TYPE_NANDBOOT 4
-#define TYPE_SHUTDOWNSYSTEM 5
-#define TYPE_UNKNOWN 255
-#define RETURN_TO_MENU 0
-#define RETURN_TO_SETTINGS 1
-#define RETURN_TO_ARGS 2
+//boot states
+#define TYPE_WC24				0x00
+#define TYPE_EJECTDISC			0x01
+#define TYPE_REBOOT				0x02
+#define TYPE_RETURN				0x03
+#define TYPE_NANDBOOT			0x04
+#define TYPE_SHUTDOWNSYSTEM		0x05
+#define TYPE_UNKNOWN			0xFF
+
+//return to flags
+#define RETURN_TO_MENU			0x00
+#define RETURN_TO_SETTINGS		0x01
+#define RETURN_TO_ARGS			0x02
+
+//disc state
+#define DISCSTATE_WII			0x01
+#define DISCSTATE_GC			0x02
+#define DISCSTATE_OPEN			0x03
+
+//additional flags
+#define STATE_FLAG1				0x80
+#define STATE_FLAG2				0x40
+#define STATE_FLAG3				0x04
+#define STATE_FLAG4				0x02
+#define STATE_FLAG5				0x01
+
+#define FLAGS_STARTWIIGAME		(STATE_FLAG1 | STATE_FLAG2 | STATE_FLAG5)
+#define FLAGS_STARTGCGAME		(STATE_FLAG1 | STATE_FLAG4)
 
 typedef struct {
 	u32 checksum;
