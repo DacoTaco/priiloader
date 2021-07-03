@@ -60,12 +60,7 @@ extern void *xfb;
 //---------------
 void InitVideo ( void );
 void ConfigureVideo(GXRModeObj* videoMode);
+void ClearScreen();
 s8 InitNetwork();
-u8 GetUsbOnlyMode();
-u8 ToggleUSBOnlyMode();
-bool PollDevices( void );
-void ShutdownDevices();
-bool RemountDevices( void );
-s8 GetMountedValue(void);
 
 #endif

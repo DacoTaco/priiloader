@@ -18,6 +18,7 @@
 #include "HomebrewChannel.h"
 #include "font.h"
 #include "Input.h"
+#include "mount.h"
 
 //Bin include
 #include "stub_bin.h"
@@ -196,7 +197,6 @@ void LoadHBC( void )
 void LoadBootMii( void )
 {
 	//when this was coded on 6th of Oct 2009 Bootmii ios was in IOS slot 254
-	PollDevices();
 	if(isIOSstub(254))
 	{
 		if(rmode != NULL)
@@ -206,7 +206,7 @@ void LoadBootMii( void )
 		}
 		return;
 	}
-	if ( !(GetMountedValue() & 2) )
+	if ( !HAS_SD_FLAG(GetMountedFlags()) )
 	{
 		if(rmode != NULL)
 		{
@@ -215,24 +215,24 @@ void LoadBootMii( void )
 		}
 		return;
 	}
-	FILE* BootmiiFile = fopen("fat:/bootmii/armboot.bin","r");
+	FILE* BootmiiFile = fopen(BuildPath("/bootmii/armboot.bin", MountDevice::Device_SD).c_str(),"r");
 	if (!BootmiiFile)
 	{
 		if(rmode != NULL)
 		{
-			PrintFormat( 1, TEXT_OFFSET("Could not find fat:/bootmii/armboot.bin"), 208, "Could not find fat:/bootmii/armboot.bin");
+			PrintFormat( 1, TEXT_OFFSET("Could not find sd:/bootmii/armboot.bin"), 208, "Could not find sd:/bootmii/armboot.bin");
 			sleep(5);
 		}
 		return;
 	}
 	fclose(BootmiiFile);
 		
-	/*BootmiiFile = fopen("fat:/bootmii/ppcboot.elf","r");
+	/*BootmiiFile = fopen(BuildPath("/bootmii/ppcboot.elf", MountDevice::Device_SD).c_str(),"r");
 	if(!BootmiiFile)
 	{
 		if(rmode != NULL)
 		{	
-			PrintFormat( 1, TEXT_OFFSET("Could not find fat:/bootmii/ppcboot.elf"), 208, "Could not find fat:/bootmii/ppcboot.elf");
+			PrintFormat( 1, TEXT_OFFSET("Could not find sd:/bootmii/ppcboot.elf"), 208, "Could not find sd:/bootmii/ppcboot.elf");
 			sleep(5);
 		}
 		return;

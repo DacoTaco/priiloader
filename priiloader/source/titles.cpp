@@ -32,14 +32,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "dvd.h"
 #include "Input.h"
 #include "gecko.h"
-
-#define USE_DVD_ASYNC
+#include "mount.h"
 
 s8 CheckTitleOnSD(u64 id)
 {
-	//check Mounted Devices so that IF the SD is inserted it also gets mounted
-	PollDevices();
-	if (!(GetMountedValue() & 2)) //no SD mounted, lets bail out
+	if (!HAS_SD_FLAG(GetMountedFlags())) //no SD mounted, lets bail out
 		return -1;
 	char title_ID[5];
 	//Check app on SD. it might be there. not that it matters cause we can't boot from SD
@@ -54,9 +51,9 @@ s8 CheckTitleOnSD(u64 id)
 			title_ID[f] = '.';
 	}
 	title_ID[4]='\0';
-	char file[64] ATTRIBUTE_ALIGN(32);
-	sprintf(file, "fat:/private/wii/title/%s/content.bin", title_ID);
-	FILE* SDHandler = fopen(file,"rb");
+	std::string filepath = BuildPath("/private/wii/title/%s/content.bin", MountDevice::Device_SD);
+	filepath.replace(filepath.find("%s"), 2, title_ID);
+	FILE* SDHandler = fopen(filepath.c_str(),"rb");
 	if (SDHandler)
 	{
 		//content.bin is there meaning its on SD
@@ -129,8 +126,6 @@ s8 GetTitleName(u64 id, u32 app, char* name, u8* _dst_uncode_name)
 		return -3;
 	}
 
-	//lets get this party started with the right way to call ES_OpenTitleContent. and not like how libogc < 1.8.3 does it. patch was passed on , and is done correctly in 1.8.3
-	//the right way is ES_OpenTitleContent(u64 TitleID,tikview* views,u16 Index); note the views >_>
 	s32 fh = ES_OpenTitleContent(id, views, 0);
 	if (fh == -106)
 	{
@@ -478,7 +473,6 @@ s32 LoadListTitles( void )
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Loading title..."))*13/2))>>1, 208, "Loading title...");
 
 			//lets start this bitch
-#ifdef USE_DVD_ASYNC
 			if(DVDDiscAvailable())
 			{
 				gprintf("LoadListTitles : excecuting StopDisc Async...");
@@ -488,17 +482,6 @@ s32 LoadListTitles( void )
 			{
 				gprintf("LoadListTitles : Skipping StopDisc -> no drive or disc in drive");
 			}
-#else
-			if(DVDDiscAvailable())
-			{
-				gprintf("LoadListTitles : excecuting StopDisc...");
-				DVDStopDrive();
-			}
-			else
-			{
-				gprintf("LoadListTitles : Skipping StopDisc -> no drive or disc in drive");
-			}
-#endif
 			
 			u32 cnt ATTRIBUTE_ALIGN(32) = 0;
 			STACK_ALIGN(tikview,views,4,32);
@@ -531,12 +514,10 @@ s32 LoadListTitles( void )
 			ClearState();
 			SetNandBootInfo();
 			Input_Shutdown();
-			ShutdownDevices();
+			ShutdownMounts();
 
-#ifdef USE_DVD_ASYNC
 			gdprintf("waiting for drive to stop...");
 			while(DVDAsyncBusy());
-#endif
 			VIDEO_SetBlack(1);
 			VIDEO_Flush();
 

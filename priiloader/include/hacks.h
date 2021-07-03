@@ -41,10 +41,17 @@ struct system_hack {
 	std::vector< system_patch > patches;
 }ATTRIBUTE_ALIGN(32);
 
+enum HacksSource {
+	HacksAuto,
+	HacksSD,
+	HacksUSB,
+	HacksNand
+};
+
 extern std::vector<system_hack> system_hacks;
 extern std::vector<u8> states_hash;
 
-s8 LoadSystemHacks( bool Force_Load_Nand );
+s8 LoadSystemHacks( HacksSource source );
 s32 GetMasterHackIndexByID(const std::string& ID );
 
 #endif
