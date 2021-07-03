@@ -41,7 +41,7 @@ class MutexLock
 private:
 	mutex_t _mutex;
 public:
-	MutexLock(mutex_t mutex) : _mutex(mutex) { }
+	explicit MutexLock(mutex_t mutex) : _mutex(mutex) { }
 	~MutexLock()
 	{
 		LWP_MutexUnlock(_mutex);
