@@ -42,6 +42,7 @@ typedef struct {
 	u8 PasscheckPriiloader;
 	u8 PasscheckMenu;
 	u8 ShowBetaUpdates;
+	u8 PreferredMountPoint;
 } ATTRIBUTE_ALIGN(32) Settings;
 
 enum {
@@ -79,6 +80,12 @@ enum {
 	SHUTDOWNTO_NONE,
 	SHUTDOWNTO_PRIILOADER,
 	SHUTDOWNTO_AUTOBOOT
+};
+
+enum PreferredMountPoint {
+	MOUNT_AUTO,
+	MOUNT_SD,
+	MOUNT_USB
 };
 
 extern Settings *settings;
