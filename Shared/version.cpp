@@ -32,6 +32,6 @@ unsigned char same_version(version_t v1, version_t v2)
 unsigned char smaller_version(version_t v1, version_t v2)
 {
 	return v1.major < v2.major ||
-		v1.minor < v2.minor ||
-		v1.patch < v2.patch;
+		(v1.major == v2.major && v1.minor < v2.minor) ||
+		(v1.major == v2.major && v1.minor == v2.minor && v1.patch < v2.patch);
 }

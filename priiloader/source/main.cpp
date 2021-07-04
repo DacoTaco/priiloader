@@ -2715,7 +2715,7 @@ void CheckForUpdate()
 	s16 httpReply = GetLastHttpReply();
 	if( file_size < 0 && httpReply >= 400 && httpReply <= 500)
 	{
-		gprintf("falling back to .dat ...");
+		gprintf("falling back to .dat");
 		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/versionV2.dat",buffer,0);
 	}
 	gprintf("file downloaded");
@@ -2779,12 +2779,6 @@ void CheckForUpdate()
 		BetaUpdates = 1;
 	}
 
-	if (VersionUpdates == 0 && BetaUpdates == 0)
-	{
-		sleep(2);
-		return;
-	}
-
 	while(1)
 	{
 		if(redraw)
@@ -2802,9 +2796,15 @@ void CheckForUpdate()
 					PrintFormat( cur_off==1, 16, 64+(16*2), "No Beta update\n");
 			}	
 
-			PrintFormat( 0, TEXT_OFFSET("A(A) Download Update       "), rmode->viHeight-48, "A(A) Download Update       ");
-			PrintFormat( 0, TEXT_OFFSET("B(B) Cancel Update         "), rmode->viHeight-32, "B(B) Cancel Update         ");
+			PrintFormat( 0, TEXT_OFFSET("A(A) Download Update"), rmode->viHeight-80, "A(A) Download Update");
+			PrintFormat( 0, TEXT_OFFSET("B(B) Cancel Update"), rmode->viHeight-64, "B(B) Cancel Update");
 			redraw = 0;
+
+			if (VersionUpdates == 0 && BetaUpdates == 0)
+			{
+				sleep(2);
+				return;
+			}
 		}
 
 		Input_ScanPads();

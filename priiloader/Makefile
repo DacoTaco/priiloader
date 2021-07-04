@@ -21,7 +21,7 @@ SOURCES		:=	source ../Shared
 LOADER		:=  ../loader
 DATA		:=	data
 INCLUDES	:=  include ../Shared ../loader/include
-ENTRYPOINT	:=	0x81000000
+ENTRYPOINT	:=	0x80F00000
 
 #---------------------------------------------------------------------------------
 # options for code generation

@@ -234,9 +234,9 @@ int main(int argc, char **argv)
 		{
 			printf("different nboot to dol entrypoint detected! Changing\n\t0x%04X%04X\tto\t0x%04X%04X\n",
 				SwapEndian16(nboot->upper_entrypoint),SwapEndian16(nboot->lower_entrypoint),
-				SwapEndian(inputHeader->entrypoint) >> 16,SwapEndian(inputHeader->entrypoint)& 0x0000FFFF);
-			nboot->upper_entrypoint = (unsigned short)(SwapEndian(inputHeader->entrypoint) >> 16);
-			nboot->lower_entrypoint = (unsigned short)(SwapEndian(inputHeader->entrypoint) & 0x0000FFFF);
+				SwapEndian16(inputHeader->entrypoint & 0x0000FFFF), SwapEndian16(inputHeader->entrypoint >> 16));
+			nboot->upper_entrypoint = (unsigned short)(inputHeader->entrypoint & 0x0000FFFF);
+			nboot->lower_entrypoint = (unsigned short)(inputHeader->entrypoint >> 16);
 		}
 	}
 
