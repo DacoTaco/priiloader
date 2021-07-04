@@ -777,7 +777,35 @@ void SetSettings( void )
 				}
 				break;		
 			}
-			case 11: //ignore ios reloading for system menu?
+			case 11: // Preferred mount point
+			{
+				if (pressed & INPUT_BUTTON_LEFT ||
+					pressed & INPUT_BUTTON_RIGHT)
+				{
+					switch (settings->PreferredMountPoint)
+					{
+						case PreferredMountPoint::MOUNT_USB:
+							settings->PreferredMountPoint = (pressed & INPUT_BUTTON_LEFT)
+								? PreferredMountPoint::MOUNT_SD
+								: PreferredMountPoint::MOUNT_AUTO;
+							break;
+						case PreferredMountPoint::MOUNT_SD:
+							settings->PreferredMountPoint = (pressed & INPUT_BUTTON_LEFT)
+								? PreferredMountPoint::MOUNT_AUTO
+								: PreferredMountPoint::MOUNT_USB;
+							break;
+						case PreferredMountPoint::MOUNT_AUTO:
+						default:
+							settings->PreferredMountPoint = (pressed & INPUT_BUTTON_LEFT)
+								? PreferredMountPoint::MOUNT_USB
+								: PreferredMountPoint::MOUNT_SD;
+							break;
+					}
+					redraw = true;
+				}
+				break;
+			}
+			case 12: //ignore ios reloading for system menu?
 			{
 				if ( pressed & INPUT_BUTTON_LEFT				|| 
 					 pressed & INPUT_BUTTON_RIGHT				|| 
@@ -809,7 +837,7 @@ void SetSettings( void )
 				}
 				break;
 			}
-			case 12:		//	System Menu IOS
+			case 13:		//	System Menu IOS
 			{
 				if ( pressed & INPUT_BUTTON_LEFT )
 				{
@@ -847,18 +875,18 @@ void SetSettings( void )
 				}
 				break;
 			} 
-			case 13:
+			case 14:
 			{
 				if ( pressed & INPUT_BUTTON_A )
 				{
 					if( SaveSettings() )
-						PrintFormat( 1, 114, 128+(16*14), "save settings : done  ");
+						PrintFormat( 1, 114, 128+(16*15), "save settings : done  ");
 					else
-						PrintFormat( 1, 114, 128+(16*14), "save settings : failed");
+						PrintFormat( 1, 114, 128+(16*15), "save settings : failed");
 				}
 				break;
 			} 
-			case 14:
+			case 15:
 			{
 				if ( pressed & INPUT_BUTTON_A )
 				{
@@ -874,19 +902,19 @@ void SetSettings( void )
 		if ( pressed & INPUT_BUTTON_DOWN )
 		{
 			cur_off++;
-			if( (settings->UseSystemMenuIOS) && (cur_off == 12))
+			if( (settings->UseSystemMenuIOS) && (cur_off == 13))
 				cur_off++;
-			if( cur_off >= 15)
+			if( cur_off >= 16)
 				cur_off = 0;
 			
 			redraw=true;
 		} else if ( pressed & INPUT_BUTTON_UP )
 		{
 			cur_off--;
-			if( (settings->UseSystemMenuIOS) && (cur_off == 12))
+			if( (settings->UseSystemMenuIOS) && (cur_off == 13))
 				cur_off--;
 			if( cur_off < 0 )
-				cur_off = 14;
+				cur_off = 15;
 			
 			redraw=true;
 		}
@@ -953,6 +981,20 @@ void SetSettings( void )
 			
 			//PrintFormat( 0, 16, 64, "Pos:%d", ((rmode->viWidth /2)-(strlen("settings saved")*13/2))>>1);
 
+			std::string fatDevice;
+			switch (settings->PreferredMountPoint)
+			{
+				case PreferredMountPoint::MOUNT_USB:
+					fatDevice = "USB ";
+					break;
+				case PreferredMountPoint::MOUNT_SD:
+					fatDevice = "SD  ";
+					break;
+				case PreferredMountPoint::MOUNT_AUTO:
+				default:
+					fatDevice = "Auto";
+					break;
+			}
 			PrintFormat( cur_off==3, 0, 128+(16*2), "  Stop disc on startup:          %s", settings->StopDisc?"on ":"off");
 			PrintFormat( cur_off==4, 0, 128+(16*3), "   Light slot on error:          %s", settings->LidSlotOnError?"on ":"off");
 			PrintFormat( cur_off==5, 0, 128+(16*4), "        Ignore standby:          %s", settings->IgnoreShutDownMode?"on ":"off");
@@ -961,17 +1003,18 @@ void SetSettings( void )
 			PrintFormat( cur_off==8, 0, 128+(16*7), "      Protect Autoboot:          %s", settings->PasscheckMenu?"on ":"off");
 			PrintFormat( cur_off==9, 0, 128+(16*8), "     Dump Gecko output:          %s", settings->DumpGeckoText?"on ":"off");
 			PrintFormat( cur_off==10,0, 128+(16*9), "     Show Beta Updates:          %s", settings->ShowBetaUpdates?"on ":"off");
-			PrintFormat( cur_off==11,0, 128+(16*10),"   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
+			PrintFormat( cur_off==11,0, 128+(16*10), "    Default fat device:          %s", fatDevice.c_str());
+			PrintFormat( cur_off==12,0, 128+(16*11),"   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
 			if(!settings->UseSystemMenuIOS)
 			{
-				PrintFormat( cur_off==12, 0, 128+(16*11), "     IOS to use for SM:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
+				PrintFormat( cur_off==13, 0, 128+(16*12), "     IOS to use for SM:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
 			}
 			else
 			{
-				PrintFormat( cur_off==12, 0, 128+(16*11),	"                                        ");
+				PrintFormat( cur_off==13, 0, 128+(16*12),	"                                        ");
 			}
-			PrintFormat( cur_off==13, 114, 128+(16*14), "save settings         ");
-			PrintFormat( cur_off==14, 114, 128+(16*15), "  Exit Menu");
+			PrintFormat( cur_off==14, 114, 128+(16*15), "save settings         ");
+			PrintFormat( cur_off==15, 114, 128+(16*16), "  Exit Menu");
 
 			redraw = false;
 		}
