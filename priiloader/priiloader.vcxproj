@@ -112,6 +112,7 @@
     <ClCompile Include="source\IOS.cpp" />
     <ClCompile Include="source\main.cpp" />
     <ClCompile Include="source\mem2_manager.c" />
+    <ClCompile Include="source\mount.cpp" />
     <ClCompile Include="source\password.cpp" />
     <ClCompile Include="source\playlog.c" />
     <ClCompile Include="source\settings.cpp" />
@@ -130,6 +131,7 @@
     <ClInclude Include="include\Input.h" />
     <ClInclude Include="include\IOS.h" />
     <ClInclude Include="include\mem2_manager.h" />
+    <ClInclude Include="include\mount.h" />
     <ClInclude Include="include\password.h" />
     <ClInclude Include="include\playlog.h" />
     <ClInclude Include="include\rapidxml.hpp" />

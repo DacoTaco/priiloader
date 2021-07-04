@@ -18,6 +18,7 @@
 #include "HomebrewChannel.h"
 #include "font.h"
 #include "Input.h"
+#include "mount.h"
 
 //Bin include
 #include "stub_bin.h"
@@ -184,11 +185,13 @@ void LoadHBC( void )
 	tikview *views = (tikview *)mem_align( 32, sizeof(tikview)*cnt );
 	ES_GetTicketViews(TitleID, views, cnt);
 	ClearState();
+	ShutdownMounts();
 	Input_Shutdown();
 	gprintf("starting HBC");
 	ES_LaunchTitle(TitleID, &views[0]);
 	//well that went wrong
 	Input_Init();
+	InitMounts();
 	error = ERROR_BOOT_HBC;
 	mem_free(views);
 	return;
@@ -196,7 +199,6 @@ void LoadHBC( void )
 void LoadBootMii( void )
 {
 	//when this was coded on 6th of Oct 2009 Bootmii ios was in IOS slot 254
-	PollDevices();
 	if(isIOSstub(254))
 	{
 		if(rmode != NULL)
@@ -206,7 +208,7 @@ void LoadBootMii( void )
 		}
 		return;
 	}
-	if ( !(GetMountedValue() & 2) )
+	if ( !HAS_SD_FLAG(GetMountedFlags()) )
 	{
 		if(rmode != NULL)
 		{
@@ -215,24 +217,24 @@ void LoadBootMii( void )
 		}
 		return;
 	}
-	FILE* BootmiiFile = fopen("fat:/bootmii/armboot.bin","r");
+	FILE* BootmiiFile = fopen(BuildPath("/bootmii/armboot.bin", StorageDevice::SD).c_str(),"r");
 	if (!BootmiiFile)
 	{
 		if(rmode != NULL)
 		{
-			PrintFormat( 1, TEXT_OFFSET("Could not find fat:/bootmii/armboot.bin"), 208, "Could not find fat:/bootmii/armboot.bin");
+			PrintFormat( 1, TEXT_OFFSET("Could not find sd:/bootmii/armboot.bin"), 208, "Could not find sd:/bootmii/armboot.bin");
 			sleep(5);
 		}
 		return;
 	}
 	fclose(BootmiiFile);
 		
-	/*BootmiiFile = fopen("fat:/bootmii/ppcboot.elf","r");
+	/*BootmiiFile = fopen(BuildPath("/bootmii/ppcboot.elf", StorageDevice::Device_SD).c_str(),"r");
 	if(!BootmiiFile)
 	{
 		if(rmode != NULL)
 		{	
-			PrintFormat( 1, TEXT_OFFSET("Could not find fat:/bootmii/ppcboot.elf"), 208, "Could not find fat:/bootmii/ppcboot.elf");
+			PrintFormat( 1, TEXT_OFFSET("Could not find sd:/bootmii/ppcboot.elf"), 208, "Could not find sd:/bootmii/ppcboot.elf");
 			sleep(5);
 		}
 		return;
@@ -240,11 +242,13 @@ void LoadBootMii( void )
 	fclose(BootmiiFile);*/
 	u8 currentIOS = IOS_GetVersion();
 	Input_Shutdown();
+	ShutdownMounts();
 	IOS_ReloadIOS(254);
 	//launching bootmii failed. lets wait a bit for the launch(it could be delayed) and then load the other ios back
 	sleep(3);
 	IOS_ReloadIOS(currentIOS);
 	system_state.ReloadedIOS = 1;
+	InitMounts();
 	Input_Init();
 	return;
 }

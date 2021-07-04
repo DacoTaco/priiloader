@@ -32,9 +32,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "settings.h"
 #include "mem2_manager.h"
 #include "Input.h"
-
-extern void ClearScreen();
-extern bool PollDevices();
+#include "Global.h"
+#include "mount.h"
 
 bool check_pass( char* pass )
 {
@@ -65,7 +64,6 @@ bool check_pass( char* pass )
 
 void InstallPassword( void )
 {
-	char filepath[MAXPATHLEN];
 	char *pbuf=NULL;
 	unsigned int psize=0;
 	char *ptr;
@@ -74,7 +72,7 @@ void InstallPassword( void )
 	char tfile[200];
 	int redraw = 1;
 	FILE* in = NULL;
-	if (!PollDevices() )
+	if (!GetMountedFlags() )
 	{
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to mount fat device!"))*13/2))>>1, 208, "Failed to mount fat device!");
 		sleep(5);
@@ -147,13 +145,13 @@ void InstallPassword( void )
 			if(file == NULL)
 			{
 				PrintFormat( 0, 16, 48, "File:     wii_secure.dol");
-				in = fopen("fat:/wii_secure.dol", "rb");
+				in = fopen(BuildPath("/wii_secure.dol").c_str(), "rb");
 			}
 			else
 			{
 				PrintFormat( 0, 16, 48, "File:     %s", file);
-				sprintf(tfile, "fat:/%s", file);
-				in = fopen(tfile, "rb");
+				sprintf(tfile, "/%s", file);
+				in = fopen(BuildPath(tfile).c_str(), "rb");
 			}
 			if( in )
 				PrintFormat( 1, (rmode->viWidth-48)>>1, 48, "OK");
@@ -180,9 +178,8 @@ void InstallPassword( void )
 		if ( pressed & INPUT_BUTTON_A )
 		{
 			ClearScreen();
-	//Install file
-			sprintf(filepath, "fat:/password.txt");
-			FILE *passtxt = fopen(filepath, "rb" );
+			//Install file
+			FILE *passtxt = fopen(BuildPath("/password.txt").c_str(), "rb" );
 			if( passtxt == NULL )
 			{
 				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Couldn't open \"password.txt\" for reading!"))*13/2))>>1, 208, "Couldn't open \"password.txt\" for reading!");
@@ -266,7 +263,7 @@ void InstallPassword( void )
 
 void password_check( void )
 {
-	PollDevices();
+	InitMounts();
 	char *cpbuf = NULL;
 	char * ptr;
 	char* password = NULL;
@@ -337,18 +334,20 @@ void password_check( void )
 	int two = 0;
 	bool behind = false;
 	FILE* f;
+	std::string path;
 
 	for(i=0;i<len;i++)
 	{
 		char_status[i] = 0;
 	}
-	char path[200];
 	if(file == NULL)
 	{
  		file = (char*)"wii_secure.dol";
 	}
-	sprintf(path, "fat:/%s", file);
-	f = fopen(path,"rb");
+
+	path = BuildPath("/%s");
+	path.replace(path.find("%s"), 2, file);
+	f = fopen(path.c_str(),"rb");
 	if(f != NULL)
 	{
 		filecheck = 0; 
@@ -549,8 +548,7 @@ void password_check( void )
 				if(words[i] != password[i])
 					passcheck = 1;
 			}
-			PollDevices();
-			f = fopen(path,"rb");
+			f = fopen(path.c_str(), "rb");
 			if(f != NULL)
 			{
 				fclose(f);
