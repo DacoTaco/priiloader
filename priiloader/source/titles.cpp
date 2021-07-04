@@ -51,7 +51,7 @@ s8 CheckTitleOnSD(u64 id)
 			title_ID[f] = '.';
 	}
 	title_ID[4]='\0';
-	std::string filepath = BuildPath("/private/wii/title/%s/content.bin", MountDevice::Device_SD);
+	std::string filepath = BuildPath("/private/wii/title/%s/content.bin", StorageDevice::SD);
 	filepath.replace(filepath.find("%s"), 2, title_ID);
 	FILE* SDHandler = fopen(filepath.c_str(),"rb");
 	if (SDHandler)

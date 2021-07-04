@@ -398,7 +398,7 @@ bool _addOrRejectHack(system_hack& hack)
 		return false;
 	}
 }
-s8 LoadSystemHacks(HacksSource source)
+s8 LoadSystemHacks(StorageDevice source)
 {
 	//system_hacks already loaded
 	if (system_hacks.size() || states_hash.size()) 
@@ -420,22 +420,9 @@ s8 LoadSystemHacks(HacksSource source)
 	}
 
 	//read the hacks file size
-	if (source != HacksSource::HacksNand)
+	if (source != StorageDevice::NAND)
 	{
-		MountDevice device;
-		switch (source)
-		{
-			case HacksUSB:
-				device = MountDevice::Device_USB;
-				break;
-			case HacksAuto:
-			case HacksSD:
-			default:
-				device = MountDevice::Device_Auto;
-				break;
-		}
-
-		fat_file_handler = fopen(BuildPath("/apps/priiloader/hacks_hash.ini", device).c_str(),"rb");
+		fat_file_handler = fopen(BuildPath("/apps/priiloader/hacks_hash.ini", source).c_str(),"rb");
 		if(!fat_file_handler)
 		{
 			gprintf("fopen error : %s", strerror(errno));
@@ -451,7 +438,7 @@ s8 LoadSystemHacks(HacksSource source)
 	//no file opened from FAT device, so lets open the nand file
 	if (!fat_file_handler)
 	{
-		source = HacksSource::HacksNand;
+		source = StorageDevice::NAND;
 		nand_file_handler = ISFS_Open("/title/00000001/00000002/data/hackshas.ini", 1);
 		if (nand_file_handler < 0)
 		{
@@ -466,10 +453,10 @@ s8 LoadSystemHacks(HacksSource source)
 
 	if (file_size == 0)
 	{
-		if (source != HacksSource::HacksNand)
+		if (source != StorageDevice::NAND)
 			gprintf("Error \"hacks_hash.ini\" is 0 byte!");
 
-		if (source == HacksSource::HacksNand)
+		if (source == StorageDevice::NAND)
 		{
 			ISFS_Close(nand_file_handler);
 			nand_file_handler = -1;
@@ -488,7 +475,7 @@ s8 LoadSystemHacks(HacksSource source)
 	std::string line;
 	system_hack new_hack;
 
-	while (GetLine(source == HacksSource::HacksNand, line))
+	while (GetLine(source == StorageDevice::NAND, line))
 	{
 		//Specs of this loop/function : 
 		// - read the line and put it in the correct part of the hack
@@ -522,7 +509,7 @@ s8 LoadSystemHacks(HacksSource source)
 	_addOrRejectHack(new_hack);
 
 	//cleanup on aisle 4
-	if (source == HacksSource::HacksNand)
+	if (source == StorageDevice::NAND)
 	{
 		ISFS_Close(nand_file_handler);
 		nand_file_handler = -1;

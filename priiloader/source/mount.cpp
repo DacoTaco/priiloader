@@ -41,18 +41,11 @@ class MutexLock
 private:
 	mutex_t _mutex;
 public:
-	explicit MutexLock(mutex_t mutex) : _mutex(mutex) { }
-	~MutexLock()
-	{
-		LWP_MutexUnlock(_mutex);
-	}
-
-	void lock()
-	{
+	explicit MutexLock(mutex_t mutex) : _mutex(mutex) 
+	{ 
 		LWP_MutexLock(_mutex);
 	}
-
-	void unlock()
+	~MutexLock()
 	{
 		LWP_MutexUnlock(_mutex);
 	}
@@ -116,6 +109,7 @@ void ShutdownMounts()
 	__io_usbstorage.shutdown();
 
 	__pollCallback = NULL;
+	notMountableFlag = 0;
 	LWP_MutexDestroy(mountPointMutex);
 
 	_init = 0;
@@ -125,18 +119,17 @@ u8 GetMountedFlags()
 {
 	u8 flags = 0;
 	MutexLock mountLock(mountPointMutex);
-	mountLock.lock();
 
 	if (_sdMounted)
-		flags |= MountDevice::Device_SD;
+		flags |= StorageDevice::SD;
 
 	if (_usbMounted)
-		flags |= MountDevice::Device_USB;
+		flags |= StorageDevice::USB;
 
 	return flags;
 }
 
-string BuildPath(const char* path, MountDevice forceDevice)
+string BuildPath(const char* path, StorageDevice device)
 {
 	string output;
 	string semiColon;
@@ -146,7 +139,6 @@ string BuildPath(const char* path, MountDevice forceDevice)
 	const u32 maxInputLen = (MAXPATHLEN + NAME_MAX) - 10;
 
 	MutexLock mountLock(mountPointMutex);
-	mountLock.lock();
 	if (path == NULL || __mountPoint.length() == 0)
 	{
 		gprintf("path or mountPoint is null");
@@ -155,23 +147,24 @@ string BuildPath(const char* path, MountDevice forceDevice)
 	
 	inputLen = strnlen(path, maxInputLen);
 	if (inputLen == 0 || inputLen >= maxInputLen)
-	{
-		gprintf("len oops : %d - %d", maxInputLen, inputLen);
 		return output;
-	}
 
 	//add semicolon or backslash to the path if needed
 	semiColon = (path[0] == ':') ? "" : ":";
 	backslash = (path[0] == '/' || path[1] == '/') ? "" : "/";
-	switch (forceDevice)
+	switch (device)
 	{
-		case MountDevice::Device_USB:
+		case StorageDevice::NAND:
+			mountPoint = "";
+			semiColon = "";
+			break;
+		case StorageDevice::USB:
 			mountPoint = "usb";
 			break;
-		case MountDevice::Device_SD:
+		case StorageDevice::SD:
 			mountPoint = "sd";
 			break;
-		case MountDevice::Device_Auto:
+		case StorageDevice::Auto:
 		default:
 			mountPoint = __mountPoint;
 			break;
@@ -185,12 +178,12 @@ string BuildPath(const char* path, MountDevice forceDevice)
 void PollMount(void)
 {
 	MutexLock mountLock(mountPointMutex);
-	mountLock.lock();
 
 	//sd card removed?
 	if (_sdMounted && !__io_wiisd.isInserted())
 	{
 		fatUnmount("sd:");
+		gprintf("SD: Unmounted");
 		__io_wiisd.shutdown();
 		_sdMounted = false;
 	}
@@ -200,10 +193,11 @@ void PollMount(void)
 	{
 		fatUnmount("usb:");
 		_usbMounted = false;
+		gprintf("USB: Unmounted");
 	}
 
 	//check sd it we can mount it?
-	if (!_sdMounted && __io_wiisd.startup() && __io_wiisd.isInserted() && !(notMountableFlag & MountDevice::Device_SD))
+	if (!_sdMounted && __io_wiisd.startup() && __io_wiisd.isInserted() && !(notMountableFlag & StorageDevice::SD))
 	{
 		if (fatMountSimple("sd", &__io_wiisd))
 		{
@@ -212,13 +206,13 @@ void PollMount(void)
 		}
 		else
 		{
-			notMountableFlag |= MountDevice::Device_SD;
+			notMountableFlag |= StorageDevice::SD;
 			gprintf("SD: Failed to mount");
 		}
 	}
 
 	//or can we mount usb?
-	if (__io_usbstorage.startup() && __io_usbstorage.isInserted() && !_usbMounted && !(notMountableFlag & MountDevice::Device_USB))
+	if (__io_usbstorage.startup() && __io_usbstorage.isInserted() && !_usbMounted && !(notMountableFlag & StorageDevice::USB))
 	{
 		if (fatMountSimple("usb", &__io_usbstorage))
 		{
@@ -227,7 +221,7 @@ void PollMount(void)
 		}
 		else
 		{
-			notMountableFlag |= MountDevice::Device_USB;
+			notMountableFlag |= StorageDevice::USB;
 			gprintf("USB: Failed to mount");
 		}
 	}
@@ -235,16 +229,16 @@ void PollMount(void)
 	//check not mountable flags
 	if (notMountableFlag > 0)
 	{
-		if ((notMountableFlag & MountDevice::Device_USB) && !__io_usbstorage.isInserted())
+		if ((notMountableFlag & StorageDevice::USB) && !__io_usbstorage.isInserted())
 		{
-			notMountableFlag &= ~MountDevice::Device_USB;
+			notMountableFlag &= ~StorageDevice::USB;
 			gdprintf("USB: NM Flag Reset");
 			__io_usbstorage.shutdown();
 		}
-		if ((notMountableFlag & MountDevice::Device_SD) && !__io_wiisd.isInserted())
+		if ((notMountableFlag & StorageDevice::SD) && !__io_wiisd.isInserted())
 		{
 			//not needed for SD yet but just to be on the safe side
-			notMountableFlag &= ~MountDevice::Device_SD;
+			notMountableFlag &= ~StorageDevice::SD;
 			gdprintf("SD: NM Flag Reset");
 			__io_wiisd.shutdown();
 		}
@@ -272,9 +266,10 @@ void PollMount(void)
 	}
 	
 	//something changed, notify client?
-	if (__pollCallback != NULL && oldMountPoint != __mountPoint)
+	if (oldMountPoint != __mountPoint)
 	{
-		gprintf("default mountpoint : %s", __mountPoint.c_str());
-		__pollCallback(_sdMounted, _usbMounted);
+		gprintf("Mount switch to %s", __mountPoint.c_str());
+		if(__pollCallback != NULL)
+			__pollCallback(_sdMounted, _usbMounted);
 	}		
 }

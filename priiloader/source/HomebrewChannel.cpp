@@ -185,11 +185,13 @@ void LoadHBC( void )
 	tikview *views = (tikview *)mem_align( 32, sizeof(tikview)*cnt );
 	ES_GetTicketViews(TitleID, views, cnt);
 	ClearState();
+	ShutdownMounts();
 	Input_Shutdown();
 	gprintf("starting HBC");
 	ES_LaunchTitle(TitleID, &views[0]);
 	//well that went wrong
 	Input_Init();
+	InitMounts();
 	error = ERROR_BOOT_HBC;
 	mem_free(views);
 	return;
@@ -215,7 +217,7 @@ void LoadBootMii( void )
 		}
 		return;
 	}
-	FILE* BootmiiFile = fopen(BuildPath("/bootmii/armboot.bin", MountDevice::Device_SD).c_str(),"r");
+	FILE* BootmiiFile = fopen(BuildPath("/bootmii/armboot.bin", StorageDevice::SD).c_str(),"r");
 	if (!BootmiiFile)
 	{
 		if(rmode != NULL)
@@ -227,7 +229,7 @@ void LoadBootMii( void )
 	}
 	fclose(BootmiiFile);
 		
-	/*BootmiiFile = fopen(BuildPath("/bootmii/ppcboot.elf", MountDevice::Device_SD).c_str(),"r");
+	/*BootmiiFile = fopen(BuildPath("/bootmii/ppcboot.elf", StorageDevice::Device_SD).c_str(),"r");
 	if(!BootmiiFile)
 	{
 		if(rmode != NULL)
@@ -240,11 +242,13 @@ void LoadBootMii( void )
 	fclose(BootmiiFile);*/
 	u8 currentIOS = IOS_GetVersion();
 	Input_Shutdown();
+	ShutdownMounts();
 	IOS_ReloadIOS(254);
 	//launching bootmii failed. lets wait a bit for the launch(it could be delayed) and then load the other ios back
 	sleep(3);
 	IOS_ReloadIOS(currentIOS);
 	system_state.ReloadedIOS = 1;
+	InitMounts();
 	Input_Init();
 	return;
 }

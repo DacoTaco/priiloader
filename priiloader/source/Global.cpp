@@ -104,7 +104,7 @@ void ConfigureVideo(GXRModeObj* videoMode)
 s8 InitNetwork()
 {
 	s32 result;
-	gprintf("InitNetwork : Waiting for network to initialise...");
+	gprintf("InitNetwork : Waiting for network init...");
 	while ((result = net_init()) == -EAGAIN) {}
 	if (result < 0)
 	{

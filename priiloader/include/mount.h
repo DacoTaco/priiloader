@@ -27,10 +27,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 //typedef's
 typedef void (*mountChangedCallback)(bool sd_mounted, bool usb_mounted);
-enum MountDevice {
-	Device_Auto = 0,
-	Device_SD = 1,
-	Device_USB = 2,
+enum StorageDevice {
+	Auto = 0,
+	SD = 1,
+	USB = 2,
+	NAND = 4,
 };
 
 //functions
@@ -38,12 +39,12 @@ enum MountDevice {
 extern "C" {
 #endif
 
-#define HAS_SD_FLAG(x)		(x & Device_SD)
-#define HAS_USB_FLAG(x)		(x & Device_USB)
+#define HAS_SD_FLAG(x)		(x & StorageDevice::SD)
+#define HAS_USB_FLAG(x)		(x & StorageDevice::USB)
 
 void InitMounts(mountChangedCallback callback = NULL);
 void ShutdownMounts();
-std::string BuildPath(const char* path, MountDevice forceDevice = MountDevice::Device_Auto);
+std::string BuildPath(const char* path, StorageDevice device = StorageDevice::Auto);
 void PollMount(void);
 u8 GetMountedFlags();
 

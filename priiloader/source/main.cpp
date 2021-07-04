@@ -153,21 +153,6 @@ s32 __IOS_LoadStartupIOS()
 
 void SysHackHashSettings( void )
 {
-	if( !LoadSystemHacks(HacksSource::HacksAuto) )
-	{
-		if(GetMountedFlags() == 0)
-		{
-			PrintFormat( 1, TEXT_OFFSET("Failed to mount FAT device"), 208+16, "Failed to mount FAT device");
-		}
-		else
-		{
-			PrintFormat( 1, TEXT_OFFSET("Can't find device:/apps/priiloader/hacks_hash.ini"), 208+16, "Can't find device:/apps/priiloader/hacks_hash.ini");
-		}
-		PrintFormat( 1, TEXT_OFFSET("Can't find hacks_hash.ini on NAND"), 208+16+16, "Can't find hacks_hash.ini on NAND");
-		sleep(5);
-		return;
-	}
-
 	u32 SysVersion=GetSysMenuVersion();
 	struct hack_index{
 		std::string desc;
@@ -179,45 +164,92 @@ void SysHackHashSettings( void )
 	u16 min_pos = 0;
 	s32 fd = 0;
 	bool redraw=true;
-
-	//loop hacks file and see which one we show
-	for( unsigned int i=0; i<system_hacks.size(); ++i)
-	{
-		if( system_hacks[i].max_version >= SysVersion && system_hacks[i].min_version <= SysVersion
-				&& system_hacks[i].masterID.length() == 0)
-		{
-			hack_index hack;
-			hack.desc.assign(system_hacks[i].desc,0,39);
-			while(hack.desc.size() < 40)
-				hack.desc += " ";
-			hack.index = i;
-			_hacks.push_back(hack);
-		}
-	}
-
-	if( _hacks.size() == 0 )
-	{
-		PrintFormat( 1, TEXT_OFFSET("Couldn't find any hacks for"), 208, "Couldn't find any hacks for");
-		PrintFormat( 1, TEXT_OFFSET("System Menu version:vxxx"), 228, "System Menu version:v%d", SysVersion );
-		sleep(5);
-		return;
-	}
-
-	if( rmode->viTVMode == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
-	{
-		//ye, those tv's want a special treatment again >_>
-		max_pos = 14;
-	}
-	else
-	{
-		max_pos = 19;
-	}
-
-	if( _hacks.size() <= max_pos )
-		max_pos = _hacks.size()-1;
+	bool reload=true;
+	StorageDevice device = StorageDevice::Auto;
 
 	while(1)
 	{
+		if (_mountChanged)
+		{
+			gprintf("mount changed");
+			ClearScreen();
+			PrintFormat(1, TEXT_OFFSET("Reloading Hacks..."), 208, "Reloading Hacks...");
+			sleep(1);
+			reload = true;
+			min_pos = 0;
+			max_pos = 0;
+			cur_off = 0;
+			_mountChanged = 0;
+			redraw = true;
+		}
+
+		if (reload)
+		{
+			gprintf("reloading...");
+			if (!LoadSystemHacks(device))
+			{
+				if (GetMountedFlags() == 0)
+				{
+					PrintFormat(1, TEXT_OFFSET("Failed to mount FAT device"), 208 + 16, "Failed to mount FAT device");
+				}
+				else
+				{
+					PrintFormat(1, TEXT_OFFSET("Can't find device:/apps/priiloader/hacks_hash.ini"), 208 + 16, "Can't find device:/apps/priiloader/hacks_hash.ini");
+				}
+				PrintFormat(1, TEXT_OFFSET("Can't find hacks_hash.ini on NAND"), 208 + 16 + 16, "Can't find hacks_hash.ini on NAND");
+				sleep(5);
+				return;
+			}
+			reload = false;
+			gprintf("loaded hacks");
+
+			//loop hacks file and see which one we show
+			_hacks.clear();
+			for (unsigned int i = 0; i < system_hacks.size(); ++i)
+			{
+				if (system_hacks[i].max_version >= SysVersion && system_hacks[i].min_version <= SysVersion
+					&& system_hacks[i].masterID.length() == 0)
+				{
+					hack_index hack;
+					hack.desc.assign(system_hacks[i].desc, 0, 39);
+					while (hack.desc.size() < 40)
+						hack.desc += " ";
+					hack.index = i;
+					_hacks.push_back(hack);
+				}
+			}
+
+			if (_hacks.size() == 0)
+			{
+				u8 mountedFlags = GetMountedFlags();
+				if (device == StorageDevice::Auto && HAS_SD_FLAG(mountedFlags) && HAS_USB_FLAG(mountedFlags))
+				{
+					device = settings->PreferredMountPoint == PreferredMountPoint::MOUNT_USB
+						? StorageDevice::SD
+						: StorageDevice::USB;
+					gprintf("switching to 2nd device...");
+					reload = 1;
+					continue;
+				}
+
+				PrintFormat(1, TEXT_OFFSET("Couldn't find any hacks for"), 208, "Couldn't find any hacks for");
+				PrintFormat(1, TEXT_OFFSET("System Menu version:vxxx"), 228, "System Menu version:v%d", SysVersion);
+				sleep(5);
+				return;
+			}
+
+			//ye, those tv's want a special treatment again >_>
+			if (rmode->viTVMode == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan())
+				max_pos = 14;
+			else
+				max_pos = 19;
+
+			if (_hacks.size() <= max_pos)
+				max_pos = _hacks.size() - 1;
+
+			ClearScreen();
+		}
+
 		Input_ScanPads();
 
 		u32 pressed = Input_ButtonsDown();
@@ -1270,7 +1302,7 @@ s8 BootDolFromFile( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<st
 void ApploaderInitCallback(const char* fmt, ...) 
 { 
 	if(fmt != NULL)
-		gprintf("StubApploaderInitCallback : %s", fmt);
+		gdprintf("StubApploaderInitCallback : %s", fmt);
 }
 s8 SetVideoModeForDisc(u32 gameID)
 {
@@ -1742,7 +1774,7 @@ void BootMainSysMenu( void )
 		ISFS_Close(fd);
 
 		gprintf("loading hacks");
-		LoadSystemHacks(HacksSource::HacksNand);
+		LoadSystemHacks(StorageDevice::NAND);
 
 		Input_Shutdown();
 		gprintf("input shutdown");
@@ -2074,7 +2106,7 @@ void InstallLoadDOL( void )
 	memset(filename,0,NAME_MAX+1);
 	memset(filepath,0,MAXPATHLEN+NAME_MAX+1);
 	std::vector<Binary_struct> app_list;
-	MountDevice device = MountDevice::Device_Auto;
+	StorageDevice device = StorageDevice::Auto;
 	DIR* dir;
 	s8 reload = 1;
 	s8 redraw = 1;
@@ -2262,11 +2294,11 @@ void InstallLoadDOL( void )
 			if( app_list.size() == 0 )
 			{
 				u8 mountedFlags = GetMountedFlags();
-				if(device != MountDevice::Device_Auto && HAS_SD_FLAG(mountedFlags) && HAS_USB_FLAG(mountedFlags))
+				if(device == StorageDevice::Auto && HAS_SD_FLAG(mountedFlags) && HAS_USB_FLAG(mountedFlags))
 				{
 					device = settings->PreferredMountPoint == PreferredMountPoint::MOUNT_USB
-						? MountDevice::Device_SD
-						: MountDevice::Device_USB;
+						? StorageDevice::SD
+						: StorageDevice::USB;
 					gprintf("switching to 2nd device...");
 					reload = 1;
 					continue;
