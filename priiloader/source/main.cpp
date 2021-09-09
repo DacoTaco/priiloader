@@ -693,13 +693,13 @@ void SetSettings( void )
 						while(1)
 						{
 							Input_ScanPads();
-							u32 pressed  = Input_ButtonsDown(true);
-							if(pressed & INPUT_BUTTON_A)
+							u32 input = Input_ButtonsDown(true);
+							if(input & INPUT_BUTTON_A)
 							{
 								settings->PasscheckPriiloader = true;
 								break;
 							}
-							else if(pressed & INPUT_BUTTON_B)
+							else if(input & INPUT_BUTTON_B)
 							{
 								break;
 							}
@@ -732,13 +732,13 @@ void SetSettings( void )
 						while(1)
 						{
 							Input_ScanPads();
-							u32 pressed  = Input_ButtonsDown(true);
-							if(pressed & INPUT_BUTTON_A)
+							u32 input  = Input_ButtonsDown(true);
+							if(input & INPUT_BUTTON_A)
 							{
 								settings->PasscheckMenu = true;
 								break;
 							}
-							else if(pressed & INPUT_BUTTON_B)
+							else if(input & INPUT_BUTTON_B)
 							{
 								break;
 							}
@@ -1816,7 +1816,7 @@ void BootMainSysMenu( void )
 				throw ("ES_Identify: GetStoredTMD error " + std::to_string(ret));
 			}
 
-			s32 fd = ISFS_Open("/sys/cert.sys",ISFS_OPEN_READ);
+			fd = ISFS_Open("/sys/cert.sys",ISFS_OPEN_READ);
 			if(fd < 0 )
 			{
 				error = ERROR_SYSMENU_ESDIVERFIY_FAILED;
@@ -1884,10 +1884,10 @@ void BootMainSysMenu( void )
 		//get the size we need for the offset hacks
 		//i know a regular for loop looks better, but this is HELLA faster. like, 170ms vs 6ms faster
 		//we sadly can't put the previous loop into this cause we could have looped over the master hack and then realize we need it...
-		u32 i = 0;
-		std::for_each(system_hacks.begin(), system_hacks.end(), [&i,&size](const system_hack& obj)
+		u32 index = 0;
+		std::for_each(system_hacks.begin(), system_hacks.end(), [&index,&size](const system_hack& obj)
 		{
-			if(states_hash[i++] == 0)
+			if(states_hash[index++] == 0)
 				return 0;
 
 			std::for_each(obj.patches.begin(), obj.patches.end(), [&size](const system_patch _patch)
@@ -2711,14 +2711,14 @@ void CheckForUpdate()
 //---------------
 	UpdateStruct UpdateFile;
 	u8* buffer = NULL;
-	file_size = GetHTTPFile("www.dacotaco.com","/priiloader/versionV2.bin",buffer,0);
+
+	file_size = HttpGet("www.dacotaco.com", "/priiloader/versionV2.bin", buffer, NULL);
 	s16 httpReply = GetLastHttpReply();
 	if( file_size < 0 && httpReply >= 400 && httpReply <= 500)
 	{
 		gprintf("falling back to .dat");
-		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/versionV2.dat",buffer,0);
+		file_size = HttpGet("www.dacotaco.com", "/priiloader/versionV2.dat", buffer, NULL);
 	}
-	gprintf("file downloaded");
 
 	if ( file_size <= 0 || file_size != (s32)sizeof(UpdateStruct) || buffer == NULL)
 	{
@@ -2739,7 +2739,7 @@ void CheckForUpdate()
 		}
 		else if ( file_size < 0 )
 		{
-			gprintf("CheckForUpdate : GetHTTPFile error %d",file_size);
+			gprintf("CheckForUpdate : HttpGet error %d",file_size);
 		}
 		else if (file_size != (s32)sizeof(UpdateStruct))
 		{
@@ -2868,11 +2868,11 @@ void CheckForUpdate()
 	gprintf("downloading changelog...");
 	if(DownloadedBeta)
 	{
-		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/changelog_beta.txt",Changelog,0);
+		file_size = HttpGet("www.dacotaco.com", "/priiloader/changelog_beta.txt", Changelog, NULL);
 	}
 	else
 	{
-		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/changelog.txt",Changelog,0);
+		file_size = HttpGet("www.dacotaco.com", "/priiloader/changelog.txt", Changelog, NULL);
 	}
 	if (file_size > 0)
 	{
@@ -2886,7 +2886,7 @@ void CheckForUpdate()
 			max_line = 14;
 		else
 			max_line = 19;
-		u8 redraw = 1;
+		redraw = 1;
 
 		char *ptr;
 		std::vector<char*> lines;
@@ -2977,13 +2977,13 @@ void CheckForUpdate()
 	if(DownloadedBeta)
 	{
 		PrintFormat( 1, TEXT_OFFSET("downloading   .   beta   ..."), 208, "downloading %d.%d.%d beta %d...", UpdateFile.beta_version.major, UpdateFile.beta_version.minor, UpdateFile.beta_version.patch, UpdateFile.beta_version.sub_version);
-		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/Priiloader_Beta.dol",Data,0);
+		file_size = HttpGet("www.dacotaco.com", "/priiloader/Priiloader_Beta.dol", Data, NULL);
 		//download beta
 	}
 	else
 	{
 		PrintFormat( 1, TEXT_OFFSET("downloading   .  ..."), 208, "downloading %d.%d.%d ...", UpdateFile.prod_version.major, UpdateFile.prod_version.minor, UpdateFile.prod_version.patch);
-		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/Priiloader_Update.dol",Data,0);
+		file_size = HttpGet("www.dacotaco.com", "/priiloader/Priiloader_Update.dol", Data, NULL);
 		//download Update
 	}
 	if ( file_size <= 0 )

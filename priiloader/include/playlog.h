@@ -1,9 +1,9 @@
 #ifndef _PLAYLOG_H_
 #define _PLAYLOG_H_
 
-#ifdef __cplusplus
 #define PLAYRECPATH "/title/00000001/00000002/data/play_rec.dat"
 
+#ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 

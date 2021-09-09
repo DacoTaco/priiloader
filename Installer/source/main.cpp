@@ -1142,6 +1142,11 @@ s8 WritePriiloader( bool priiloader_found )
 	sprintf(temp_dest,"/tmp/%s",ptemp);
 	ISFS_Delete(temp_dest);
 	ret = ISFS_CreateFile(temp_dest,SysPerm.attributes,SysPerm.ownerperm,SysPerm.groupperm,SysPerm.otherperm);
+    if (ret < 0)
+    {
+        gprintf("error %d\r\n", fd);
+        abort("\nFailed to create file for Priiloader");
+    }
 
 	fd = ISFS_Open(temp_dest,ISFS_OPEN_RW);
 	if (fd < 0)
@@ -1626,7 +1631,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	ret = ES_GetTitleID(&TitleID);
+	ES_GetTitleID(&TitleID);
 	gprintf("identified as = 0x%08X%08X\r\n",TITLE_UPPER(TitleID),TITLE_LOWER(TitleID));
 
 	if (ISFS_Initialize() < 0)
