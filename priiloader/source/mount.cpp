@@ -81,7 +81,6 @@ void InitMounts(mountChangedCallback callback)
 
 	LWP_MutexInit(&mountPointMutex, false);
 	quit_thread = false;
-	PollMount();
 	LWP_CreateThread(&mnt_thread_handle, _mountThread, NULL, NULL, 16 * 1024, 50);
 	_init = 1;
 }
