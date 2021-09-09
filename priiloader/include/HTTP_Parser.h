@@ -53,7 +53,7 @@ typedef struct {
 
 //functions
 //--------------
-s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int* external_socket_to_use);
+s32 HttpGet(const char *host, const char *file, u8*& Data, int* externalSocket);
 s32 ConnectSocket(const char *hostname, u32 port);
 s16 GetLastHttpReply( void );
 

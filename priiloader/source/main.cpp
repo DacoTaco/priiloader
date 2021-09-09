@@ -2306,12 +2306,12 @@ void CheckForUpdate()
 //---------------
 	UpdateStruct UpdateFile;
 	u8* buffer = NULL;
-	file_size = GetHTTPFile("www.dacotaco.com","/priiloader/version.bin",buffer,0);
+	file_size = HttpGet("www.dacotaco.com", "/priiloader/version.bin", buffer, NULL);
 	s16 httpReply = GetLastHttpReply();
 	if( file_size < 0 && httpReply >= 400 && httpReply <= 500)
 	{
 		gprintf("falling back to .dat ...");
-		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/version.dat",buffer,0);
+		file_size = HttpGet("www.dacotaco.com", "/priiloader/version.dat", buffer, NULL);
 	}
 
 
@@ -2334,7 +2334,7 @@ void CheckForUpdate()
 		}
 		else if ( file_size < 0 )
 		{
-			gprintf("CheckForUpdate : GetHTTPFile error %d",file_size);
+			gprintf("CheckForUpdate : HttpGet error %d",file_size);
 		}
 		else if (file_size != (s32)sizeof(UpdateStruct))
 		{
@@ -2486,11 +2486,11 @@ void CheckForUpdate()
 	gprintf("downloading changelog...");
 	if(DownloadedBeta)
 	{
-		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/changelog_beta.txt",Changelog,0);
+		file_size = HttpGet("www.dacotaco.com", "/priiloader/changelog_beta.txt", Changelog, NULL);
 	}
 	else
 	{
-		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/changelog.txt",Changelog,0);
+		file_size = HttpGet("www.dacotaco.com", "/priiloader/changelog.txt", Changelog, NULL);
 	}
 	if (file_size > 0)
 	{
@@ -2595,13 +2595,13 @@ void CheckForUpdate()
 	if(DownloadedBeta)
 	{
 		PrintFormat( 1, TEXT_OFFSET("downloading   .   beta   ..."), 208, "downloading %d.%d beta %d...",UpdateFile.beta_version >> 8,UpdateFile.beta_version&0xFF, UpdateFile.beta_number);
-		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/Priiloader_Beta.dol",Data,0);
+		file_size = HttpGet("www.dacotaco.com", "/priiloader/Priiloader_Beta.dol", Data, NULL);
 		//download beta
 	}
 	else
 	{
 		PrintFormat( 1, TEXT_OFFSET("downloading   .  ..."), 208, "downloading %d.%d ...",UpdateFile.version >> 8,UpdateFile.version&0xFF);
-		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/Priiloader_Update.dol",Data,0);
+		file_size = HttpGet("www.dacotaco.com", "/priiloader/Priiloader_Update.dol", Data, NULL);
 		//download Update
 	}
 	if ( file_size <= 0 )
