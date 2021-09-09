@@ -101,7 +101,8 @@ error_2:
 int Playlog_Delete(void)
 {
 	s32 ret,playrec_fd;
-	
+	playrec_struct playrec_buf;
+
 	//Open play_rec.dat
 	playrec_fd = IOS_Open(PLAYRECPATH, IPC_OPEN_RW);
 	if(playrec_fd < 0)
