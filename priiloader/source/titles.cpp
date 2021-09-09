@@ -515,12 +515,11 @@ s32 LoadListTitles( void )
 			if(wcslen((wchar_t*)titles[cur_off].name_unicode))
 			{
 				//kill play_rec.dat if its already there...
-				ret = ISFS_Delete(PLAYRECPATH);
+				ISFS_Delete(PLAYRECPATH);
 				//and create it with the new info :)
 				std::string id;
 				id.push_back(titles[cur_off].title_id & 0xFFFFFFFF);
-				ret = Playlog_Update(id.c_str(), titles[cur_off].name_unicode);
-				gdprintf("play_rec ret = %d",ret);
+				Playlog_Update(id.c_str(), titles[cur_off].name_unicode);
 			}
 			else
 			{

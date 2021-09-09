@@ -16,9 +16,7 @@
 
 #define SECONDS_TO_2000 946684800LL
 #define TICKS_PER_SECOND 60750000LL
-#ifndef PLAYRECPATH
-	#define PLAYRECPATH "/title/00000001/00000002/data/play_rec.dat"
-#endif
+
 typedef struct
 {
 	u32 checksum;
@@ -35,8 +33,6 @@ typedef struct
 		} ATTRIBUTE_PACKED;
 	};
 } playrec_struct;
-
-playrec_struct playrec_buf;
 
 // Thanks to Dr. Clipper
 u64 getWiiTime(void)
@@ -60,8 +56,7 @@ int Playlog_Update(const char ID[6], const u8 title[84])
 			IOS_Close(playrec_fd);
 			
 			//In case the play_rec.dat wasn´t found create one and try again
-			int ret = ISFS_CreateFile(PLAYRECPATH,0,3,3,3);
-			if( ret < 0 )
+			if( ISFS_CreateFile(PLAYRECPATH,0,3,3,3) < 0 )
 				goto error_1;
 				
 			playrec_fd = IOS_Open(PLAYRECPATH, IPC_OPEN_RW);
