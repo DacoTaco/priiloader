@@ -2501,9 +2501,9 @@ void CheckForUpdate()
 		u8 min_line = 0;
 		u8 max_line = 0;
 		if( rmode->viTVMode == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
-			max_line = 14;
+			max_line = 12;
 		else
-			max_line = 19;
+			max_line = 17;
 		redraw = 1;
 
 		char *ptr;
@@ -2525,11 +2525,11 @@ void CheckForUpdate()
 		PrintFormat( 1, TEXT_OFFSET("-----------"), 64+(16*2), "-----------");
 		if((lines.size() -1) > max_line)
 		{
-			PrintFormat( 0, TEXT_OFFSET("Up    Scroll Up        "), rmode->viHeight-80, "Up    Scroll Up");
-			PrintFormat( 0, TEXT_OFFSET("Down  Scroll Down      "), rmode->viHeight-64, "Down  Scroll Down");
+			PrintFormat( 0, TEXT_OFFSET("Up    Scroll Up        "), rmode->viHeight-112, "Up    Scroll Up");
+			PrintFormat( 0, TEXT_OFFSET("Down  Scroll Down      "), rmode->viHeight-96, "Down  Scroll Down");
 		}
-		PrintFormat( 0, TEXT_OFFSET("A(A)  Proceed(Download)"), rmode->viHeight-48, "A(A)  Proceed(Download)");
-		PrintFormat( 0, TEXT_OFFSET("B(B)  Cancel Update    "), rmode->viHeight-32, "B(B)  Cancel Update    ");
+		PrintFormat( 0, TEXT_OFFSET("A(A)  Proceed(Download)"), rmode->viHeight-80, "A(A)  Proceed(Download)");
+		PrintFormat( 0, TEXT_OFFSET("B(B)  Cancel Update    "), rmode->viHeight-64, "B(B)  Cancel Update    ");
 
 		u32 pressed = 0;
 		while(1)
@@ -2586,7 +2586,9 @@ void CheckForUpdate()
 	{
 		if(file_size < -9)
 			mem_free(Changelog);
-		gprintf("CheckForUpdate : failed to get changelog.error %d, HTTP reply %d",file_size,GetLastHttpReply());
+		PrintFormat( 1, TEXT_OFFSET("error getting changelog from server"), 224, "error getting changelog from server");
+		gprintf("CheckForUpdate : failed to get changelog.error %d, HTTP reply %d", file_size, GetLastHttpReply());
+		return;
 	}
 //The choice is made. lets download what the user wanted :)
 //--------------------------------------------------------------

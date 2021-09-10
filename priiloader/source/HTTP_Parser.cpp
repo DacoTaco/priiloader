@@ -167,6 +167,7 @@ s32 HttpGet(const char *host, const char *file, u8*& dataPtr, int* externalSocke
 			}
 
 			net_close(socket);
+			socket = 0;
 
 			hostLocation = location.find("/", 6);
 			newFile = "";
@@ -233,13 +234,13 @@ s32 HttpGet(const char *host, const char *file, u8*& dataPtr, int* externalSocke
 
 		if(dataSize <= 0)
 		{
-			u8* newPtr = (u8*)mem_malloc(dataRead+bytesTransfered);
-
-			if(dataPtr != NULL)
+			if(dataPtr == NULL)
 			{
-				memcpy(newPtr, dataPtr, dataRead);
-				mem_free(dataPtr);
-				dataPtr = newPtr;
+				dataPtr = (u8*)mem_malloc(dataRead+bytesTransfered);
+			}
+			else
+			{
+				dataPtr = (u8*)mem_realloc(dataPtr, dataRead+bytesTransfered);
 			}
 		}
 
