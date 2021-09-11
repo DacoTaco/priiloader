@@ -47,6 +47,7 @@ void _configureVideoMode(GXRModeObj* videoMode, s8 internalConfig)
 			u32 cnt = 0;
 			_viReg[1] = 0x02;
 			while (cnt < 1000) cnt++;
+			gdprintf(_viReg[1]);
 			_viReg[1] = 0x00;
 		}
 
