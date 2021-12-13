@@ -92,6 +92,7 @@ void ShutdownMounts()
 
 	//shutdown the mounting thread
 	quit_thread = true;
+	MutexLock mountLock(mountPointMutex);
 	if (mnt_thread_handle != LWP_THREAD_NULL) 
 		LWP_JoinThread(mnt_thread_handle, NULL);
 	mnt_thread_handle = LWP_THREAD_NULL;
@@ -109,8 +110,6 @@ void ShutdownMounts()
 
 	__pollCallback = NULL;
 	notMountableFlag = 0;
-	LWP_MutexDestroy(mountPointMutex);
-
 	_init = 0;
 }
 
