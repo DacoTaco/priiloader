@@ -1944,17 +1944,18 @@ void BootMainSysMenu( void )
 				//hash method
 				else if(system_hacks[i].patches[y].hash.size() > 0)
 				{
+					u8 temp_hash[system_hacks[i].patches[y].hash.size()];
+					u8 temp_patch[system_hacks[i].patches[y].patch.size()];
+					memset(temp_hash, 0, system_hacks[i].patches[y].hash.size());
+					memset(temp_patch, 0, system_hacks[i].patches[y].patch.size());
+					std::copy(system_hacks[i].patches[y].hash.begin(), system_hacks[i].patches[y].hash.end(), temp_hash);
+					std::copy(system_hacks[i].patches[y].patch.begin(), system_hacks[i].patches[y].patch.end(), temp_patch);
+
 					while( add + (u32)mem_block < max_address)
 					{
-						u8 temp_hash[system_hacks[i].patches[y].hash.size()];
-						u8 temp_patch[system_hacks[i].patches[y].patch.size()];
-						std::copy(system_hacks[i].patches[y].hash.begin(),system_hacks[i].patches[y].hash.end(),temp_hash);
 						if ( !memcmp(mem_block+add, temp_hash ,sizeof(temp_hash)) )
 						{
 							gprintf("Found %s @ 0x%X, patching hash # %d...",system_hacks[i].desc.c_str(), add, y+1);
-							std::copy(system_hacks[i].patches[y].patch.begin(),
-								system_hacks[i].patches[y].patch.end(),
-								temp_patch);
 							memcpy((u8*)mem_block+add,temp_patch,sizeof(temp_patch) );
 							DCFlushRange((u8 *)((add+(u32)mem_block) >> 5 << 5), (sizeof(temp_patch) >> 5 << 5) + 64);
 							break;
