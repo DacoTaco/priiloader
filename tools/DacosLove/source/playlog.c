@@ -44,7 +44,7 @@ u64 getWiiTime(void)
 
 int Playlog_Update(const char ID[6], const u8 title[84])
 {
-	s32 ret,playrec_fd;
+	s32 playrec_fd;
 	u32 sum = 0;
 	u8 i;
 	u64 stime;
@@ -52,17 +52,17 @@ int Playlog_Update(const char ID[6], const u8 title[84])
 	//Open play_rec.dat
 	playrec_fd = IOS_Open(PLAYRECPATH, IPC_OPEN_RW);
 	if(playrec_fd == -106)
-		{
-			IOS_Close(playrec_fd);
+	{
+		IOS_Close(playrec_fd);
 			
-			//In case the play_rec.dat wasn´t found create one and try again
-			if( ISFS_CreateFile(PLAYRECPATH,0,3,3,3) < 0 )
-				goto error_1;
+		//In case the play_rec.dat wasn´t found create one and try again
+		if(ISFS_CreateFile(PLAYRECPATH, 0, 3, 3, 3) < 0 )
+			goto error_1;
 				
-			playrec_fd = IOS_Open(PLAYRECPATH, IPC_OPEN_RW);
-			if(playrec_fd < 0)
-				goto error_1;
-		}
+		playrec_fd = IOS_Open(PLAYRECPATH, IPC_OPEN_RW);
+		if(playrec_fd < 0)
+			goto error_1;
+	}
 	else if(playrec_fd < 0)
 		goto error_1;
 
@@ -82,8 +82,7 @@ int Playlog_Update(const char ID[6], const u8 title[84])
 	playrec_buf.checksum=sum;
 
 	//Write play_rec.dat
-	ret = IOS_Write(playrec_fd, &playrec_buf, sizeof(playrec_buf));
-	if(ret!=sizeof(playrec_buf))
+	if(IOS_Write(playrec_fd, &playrec_buf, sizeof(playrec_buf))  != sizeof(playrec_buf))
 		goto error_2;
 
 	IOS_Close(playrec_fd);
@@ -100,7 +99,7 @@ error_2:
 
 int Playlog_Delete(void)
 {
-	s32 ret,playrec_fd;
+	s32 playrec_fd;
 	playrec_struct playrec_buf;
 
 	//Open play_rec.dat
@@ -109,8 +108,7 @@ int Playlog_Delete(void)
 		goto error_1;
 
 	//Read play_rec.dat
-	ret = IOS_Read(playrec_fd, &playrec_buf, sizeof(playrec_buf));
-	if(ret != sizeof(playrec_buf))
+	if(IOS_Read(playrec_fd, &playrec_buf, sizeof(playrec_buf)) != sizeof(playrec_buf))
 		goto error_2;
 
 	if(IOS_Seek(playrec_fd, 0, 0)<0)
@@ -119,8 +117,7 @@ int Playlog_Delete(void)
 	// invalidate checksum
 	playrec_buf.checksum=0;
 
-	ret = IOS_Write(playrec_fd, &playrec_buf, sizeof(playrec_buf));
-	if(ret!=sizeof(playrec_buf))
+	if(IOS_Write(playrec_fd, &playrec_buf, sizeof(playrec_buf)) != sizeof(playrec_buf))
 		goto error_2;
 
 	IOS_Close(playrec_fd);

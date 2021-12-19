@@ -24,6 +24,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define _HACKS_H_
 
 #include "Global.h"
+#include "mount.h"
 #include <string>
 
 struct system_patch {
@@ -44,7 +45,7 @@ struct system_hack {
 extern std::vector<system_hack> system_hacks;
 extern std::vector<u8> states_hash;
 
-s8 LoadSystemHacks( bool Force_Load_Nand );
+s8 LoadSystemHacks( StorageDevice source );
 s32 GetMasterHackIndexByID(const std::string& ID );
 
 #endif

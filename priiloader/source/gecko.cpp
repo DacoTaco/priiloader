@@ -21,7 +21,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 #include "gecko.h"
-#include "Global.h" // i hate to do this, but i need to if i want to prevent a crash when dumping gecko output & switching device. also, why the fuck does fopen succeed if not device is mounted?!
+#include "mount.h"
+
 u8 GeckoFound = 0;
 u8 DumpDebug = 0;
 
@@ -65,9 +66,9 @@ void gprintf( const char *str, ... )
 		usb_sendbuffer( 1, astr, size );
 		usb_flush(EXI_CHANNEL_1);
 	}
-	if (DumpDebug > 0 && GetMountedValue() > 0)
+	if (DumpDebug > 0 && GetMountedFlags() > 0)
 	{
-		FILE* fd = fopen("fat:/prii.log","ab");
+		FILE* fd = fopen(BuildPath("/prii.log").c_str(), "ab");
 		if(fd != NULL)
 		{
 			//0x0D0A = \r\n
@@ -91,10 +92,10 @@ void SetDumpDebug( u8 value )
 		return;
 	}
 	DumpDebug = value;
-	if (DumpDebug > 0 && GetMountedValue() > 0)
+	if (DumpDebug > 0 && GetMountedFlags() > 0)
 	{
 		//create file, or re-open and add lining
-		FILE* fd = fopen("fat:/prii.log","ab");
+		FILE* fd = fopen(BuildPath("/prii.log").c_str(), "ab");
 		if(fd != NULL)
 		{
 			char str[] = "--------gecko_output_enabled------\r\n\0";

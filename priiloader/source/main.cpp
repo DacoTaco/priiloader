@@ -65,6 +65,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "mem2_manager.h"
 #include "HomebrewChannel.h"
 #include "IOS.h"
+#include "mount.h"
 #include "rapidxml.hpp"
 #include "rapidxml_utils.hpp"
 
@@ -137,40 +138,21 @@ extern "C"
 //overwrite the weak variable in libogc that enables malloc to use mem2. this disables it
 u32 MALLOC_MEM2 = 0;
 
+static u8 _mountChanged = 0;
+
+void _mountCallback(bool sd_mounted, bool usb_mounted)
+{
+	//the callback only gets fired if the mount actually changed value, so we just set the variable hehe
+	_mountChanged = 1;
+}
+
 s32 __IOS_LoadStartupIOS()
 {
 	return 0;
 }
 
-void ClearScreen()
-{
-	if( !SGetSetting(SETTING_BLACKBACKGROUND))
-		VIDEO_ClearFrameBuffer( rmode, xfb, 0xFF80FF80);
-	else
-		VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
-	VIDEO_WaitVSync();
-	printf("\x1b[5;0H");
-	fflush(stdout);
-	return;
-}
-
 void SysHackHashSettings( void )
 {
-	if( !LoadSystemHacks(false) )
-	{
-		if(GetMountedValue() == 0)
-		{
-			PrintFormat( 1, TEXT_OFFSET("Failed to mount FAT device"), 208+16, "Failed to mount FAT device");
-		}
-		else
-		{
-			PrintFormat( 1, TEXT_OFFSET("Can't find fat:/apps/priiloader/hacks_hash.ini"), 208+16, "Can't find fat:/apps/priiloader/hacks_hash.ini");
-		}
-		PrintFormat( 1, TEXT_OFFSET("Can't find hacks_hash.ini on NAND"), 208+16+16, "Can't find hacks_hash.ini on NAND");
-		sleep(5);
-		return;
-	}
-
 	u32 SysVersion=GetSysMenuVersion();
 	struct hack_index{
 		std::string desc;
@@ -182,45 +164,92 @@ void SysHackHashSettings( void )
 	u16 min_pos = 0;
 	s32 fd = 0;
 	bool redraw=true;
-
-	//loop hacks file and see which one we show
-	for( unsigned int i=0; i<system_hacks.size(); ++i)
-	{
-		if( system_hacks[i].max_version >= SysVersion && system_hacks[i].min_version <= SysVersion
-				&& system_hacks[i].masterID.length() == 0)
-		{
-			hack_index hack;
-			hack.desc.assign(system_hacks[i].desc,0,39);
-			while(hack.desc.size() < 40)
-				hack.desc += " ";
-			hack.index = i;
-			_hacks.push_back(hack);
-		}
-	}
-
-	if( _hacks.size() == 0 )
-	{
-		PrintFormat( 1, TEXT_OFFSET("Couldn't find any hacks for"), 208, "Couldn't find any hacks for");
-		PrintFormat( 1, TEXT_OFFSET("System Menu version:vxxx"), 228, "System Menu version:v%d", SysVersion );
-		sleep(5);
-		return;
-	}
-
-	if( rmode->viTVMode == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
-	{
-		//ye, those tv's want a special treatment again >_>
-		max_pos = 14;
-	}
-	else
-	{
-		max_pos = 19;
-	}
-
-	if( _hacks.size() <= max_pos )
-		max_pos = _hacks.size()-1;
+	bool reload=true;
+	StorageDevice device = StorageDevice::Auto;
 
 	while(1)
 	{
+		if (_mountChanged)
+		{
+			gprintf("mount changed");
+			ClearScreen();
+			PrintFormat(1, TEXT_OFFSET("Reloading Hacks..."), 208, "Reloading Hacks...");
+			sleep(1);
+			reload = true;
+			min_pos = 0;
+			max_pos = 0;
+			cur_off = 0;
+			_mountChanged = 0;
+			redraw = true;
+		}
+
+		if (reload)
+		{
+			gprintf("reloading...");
+			if (!LoadSystemHacks(device))
+			{
+				if (GetMountedFlags() == 0)
+				{
+					PrintFormat(1, TEXT_OFFSET("Failed to mount FAT device"), 208 + 16, "Failed to mount FAT device");
+				}
+				else
+				{
+					PrintFormat(1, TEXT_OFFSET("Can't find device:/apps/priiloader/hacks_hash.ini"), 208 + 16, "Can't find device:/apps/priiloader/hacks_hash.ini");
+				}
+				PrintFormat(1, TEXT_OFFSET("Can't find hacks_hash.ini on NAND"), 208 + 16 + 16, "Can't find hacks_hash.ini on NAND");
+				sleep(5);
+				return;
+			}
+			reload = false;
+			gprintf("loaded hacks");
+
+			//loop hacks file and see which one we show
+			_hacks.clear();
+			for (unsigned int i = 0; i < system_hacks.size(); ++i)
+			{
+				if (system_hacks[i].max_version >= SysVersion && system_hacks[i].min_version <= SysVersion
+					&& system_hacks[i].masterID.length() == 0)
+				{
+					hack_index hack;
+					hack.desc.assign(system_hacks[i].desc, 0, 39);
+					while (hack.desc.size() < 40)
+						hack.desc += " ";
+					hack.index = i;
+					_hacks.push_back(hack);
+				}
+			}
+
+			if (_hacks.size() == 0)
+			{
+				u8 mountedFlags = GetMountedFlags();
+				if (device == StorageDevice::Auto && HAS_SD_FLAG(mountedFlags) && HAS_USB_FLAG(mountedFlags))
+				{
+					device = settings->PreferredMountPoint == PreferredMountPoint::MOUNT_USB
+						? StorageDevice::SD
+						: StorageDevice::USB;
+					gprintf("switching to 2nd device...");
+					reload = 1;
+					continue;
+				}
+
+				PrintFormat(1, TEXT_OFFSET("Couldn't find any hacks for"), 208, "Couldn't find any hacks for");
+				PrintFormat(1, TEXT_OFFSET("System Menu version:vxxx"), 228, "System Menu version:v%d", SysVersion);
+				sleep(5);
+				return;
+			}
+
+			//ye, those tv's want a special treatment again >_>
+			if (rmode->viTVMode == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan())
+				max_pos = 14;
+			else
+				max_pos = 19;
+
+			if (_hacks.size() <= max_pos)
+				max_pos = _hacks.size() - 1;
+
+			ClearScreen();
+		}
+
 		Input_ScanPads();
 
 		u32 pressed = Input_ButtonsDown();
@@ -238,15 +267,15 @@ void SysHackHashSettings( void )
 				s8 fail = 0;
 				s32 ret;
 				FILE *in = NULL;
-				if (GetMountedValue() != 0)
+				if (GetMountedFlags() != 0)
 				{
-					in = fopen ("fat:/apps/priiloader/hacks_hash.ini","rb");
+					in = fopen (BuildPath("/apps/priiloader/hacks_hash.ini").c_str(),"rb");
 				}
 				else
 				{
 					gprintf("no FAT device found");
 				}
-				if ( ( (GetMountedValue() & 2) && !__io_wiisd.isInserted() ) || ( (GetMountedValue() & 1) && !__io_usbstorage.isInserted() ) )
+				if ( ( (!HAS_SD_FLAG(GetMountedFlags())) && !__io_wiisd.isInserted() ) || ( (!HAS_USB_FLAG(GetMountedFlags())) && !__io_usbstorage.isInserted() ) )
 				{
 					PrintFormat( 0, 103, rmode->viHeight-48, "saving failed : SD/USB error");
 					continue;
@@ -362,7 +391,6 @@ handle_hacks_s_fail:
 			} 
 			else 
 			{
-
 				s32 j = 0;
 				u32 i = 0;
 				for(i=0; i<system_hacks.size(); ++i)
@@ -732,7 +760,7 @@ void SetSettings( void )
 						while(1)
 						{
 							Input_ScanPads();
-							u32 input  = Input_ButtonsDown(true);
+							u32 input = Input_ButtonsDown(true);
 							if(input & INPUT_BUTTON_A)
 							{
 								settings->PasscheckMenu = true;
@@ -781,7 +809,35 @@ void SetSettings( void )
 				}
 				break;		
 			}
-			case 11: //ignore ios reloading for system menu?
+			case 11: // Preferred mount point
+			{
+				if (pressed & INPUT_BUTTON_LEFT ||
+					pressed & INPUT_BUTTON_RIGHT)
+				{
+					switch (settings->PreferredMountPoint)
+					{
+						case PreferredMountPoint::MOUNT_USB:
+							settings->PreferredMountPoint = (pressed & INPUT_BUTTON_LEFT)
+								? PreferredMountPoint::MOUNT_SD
+								: PreferredMountPoint::MOUNT_AUTO;
+							break;
+						case PreferredMountPoint::MOUNT_SD:
+							settings->PreferredMountPoint = (pressed & INPUT_BUTTON_LEFT)
+								? PreferredMountPoint::MOUNT_AUTO
+								: PreferredMountPoint::MOUNT_USB;
+							break;
+						case PreferredMountPoint::MOUNT_AUTO:
+						default:
+							settings->PreferredMountPoint = (pressed & INPUT_BUTTON_LEFT)
+								? PreferredMountPoint::MOUNT_USB
+								: PreferredMountPoint::MOUNT_SD;
+							break;
+					}
+					redraw = true;
+				}
+				break;
+			}
+			case 12: //ignore ios reloading for system menu?
 			{
 				if ( pressed & INPUT_BUTTON_LEFT				|| 
 					 pressed & INPUT_BUTTON_RIGHT				|| 
@@ -813,7 +869,7 @@ void SetSettings( void )
 				}
 				break;
 			}
-			case 12:		//	System Menu IOS
+			case 13:		//	System Menu IOS
 			{
 				if ( pressed & INPUT_BUTTON_LEFT )
 				{
@@ -851,18 +907,18 @@ void SetSettings( void )
 				}
 				break;
 			} 
-			case 13:
+			case 14:
 			{
 				if ( pressed & INPUT_BUTTON_A )
 				{
 					if( SaveSettings() )
-						PrintFormat( 1, 114, 128+(16*14), "save settings : done  ");
+						PrintFormat( 1, 114, 128+(16*15), "save settings : done  ");
 					else
-						PrintFormat( 1, 114, 128+(16*14), "save settings : failed");
+						PrintFormat( 1, 114, 128+(16*15), "save settings : failed");
 				}
 				break;
 			} 
-			case 14:
+			case 15:
 			{
 				if ( pressed & INPUT_BUTTON_A )
 				{
@@ -878,19 +934,19 @@ void SetSettings( void )
 		if ( pressed & INPUT_BUTTON_DOWN )
 		{
 			cur_off++;
-			if( (settings->UseSystemMenuIOS) && (cur_off == 12))
+			if( (settings->UseSystemMenuIOS) && (cur_off == 13))
 				cur_off++;
-			if( cur_off >= 15)
+			if( cur_off >= 16)
 				cur_off = 0;
 			
 			redraw=true;
 		} else if ( pressed & INPUT_BUTTON_UP )
 		{
 			cur_off--;
-			if( (settings->UseSystemMenuIOS) && (cur_off == 12))
+			if( (settings->UseSystemMenuIOS) && (cur_off == 13))
 				cur_off--;
 			if( cur_off < 0 )
-				cur_off = 14;
+				cur_off = 15;
 			
 			redraw=true;
 		}
@@ -957,6 +1013,20 @@ void SetSettings( void )
 			
 			//PrintFormat( 0, 16, 64, "Pos:%d", ((rmode->viWidth /2)-(strlen("settings saved")*13/2))>>1);
 
+			std::string fatDevice;
+			switch (settings->PreferredMountPoint)
+			{
+				case PreferredMountPoint::MOUNT_USB:
+					fatDevice = "USB ";
+					break;
+				case PreferredMountPoint::MOUNT_SD:
+					fatDevice = "SD  ";
+					break;
+				case PreferredMountPoint::MOUNT_AUTO:
+				default:
+					fatDevice = "Auto";
+					break;
+			}
 			PrintFormat( cur_off==3, 0, 128+(16*2), "  Stop disc on startup:          %s", settings->StopDisc?"on ":"off");
 			PrintFormat( cur_off==4, 0, 128+(16*3), "   Light slot on error:          %s", settings->LidSlotOnError?"on ":"off");
 			PrintFormat( cur_off==5, 0, 128+(16*4), "        Ignore standby:          %s", settings->IgnoreShutDownMode?"on ":"off");
@@ -965,17 +1035,18 @@ void SetSettings( void )
 			PrintFormat( cur_off==8, 0, 128+(16*7), "      Protect Autoboot:          %s", settings->PasscheckMenu?"on ":"off");
 			PrintFormat( cur_off==9, 0, 128+(16*8), "     Dump Gecko output:          %s", settings->DumpGeckoText?"on ":"off");
 			PrintFormat( cur_off==10,0, 128+(16*9), "     Show Beta Updates:          %s", settings->ShowBetaUpdates?"on ":"off");
-			PrintFormat( cur_off==11,0, 128+(16*10),"   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
+			PrintFormat( cur_off==11,0, 128+(16*10), "    Default fat device:          %s", fatDevice.c_str());
+			PrintFormat( cur_off==12,0, 128+(16*11),"   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
 			if(!settings->UseSystemMenuIOS)
 			{
-				PrintFormat( cur_off==12, 0, 128+(16*11), "     IOS to use for SM:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
+				PrintFormat( cur_off==13, 0, 128+(16*12), "     IOS to use for SM:          %d  ", (u32)(TitleIDs[IOS_off]&0xFFFFFFFF) );
 			}
 			else
 			{
-				PrintFormat( cur_off==12, 0, 128+(16*11),	"                                        ");
+				PrintFormat( cur_off==13, 0, 128+(16*12),	"                                        ");
 			}
-			PrintFormat( cur_off==13, 114, 128+(16*14), "save settings         ");
-			PrintFormat( cur_off==14, 114, 128+(16*15), "  Exit Menu");
+			PrintFormat( cur_off==14, 114, 128+(16*15), "save settings         ");
+			PrintFormat( cur_off==15, 114, 128+(16*16), "  Exit Menu");
 
 			redraw = false;
 		}
@@ -1064,7 +1135,7 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		gprintf("IOS state : ios %d - ahbprot : %d ",IOS_GetVersion(),(read32(0x0d800064) == 0xFFFFFFFF ));
 
 		ISFS_Deinitialize();
-		ShutdownDevices();
+		ShutdownMounts();
 		USB_Deinitialize();
 		__IOS_ShutdownSubsystems();
 		if(system_state.Init)
@@ -1081,7 +1152,7 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		//it failed. FAIL!
 		gprintf("this ain't good");
 		__IOS_InitializeSubsystems();
-		PollDevices();
+		InitMounts(_mountCallback);
 		ISFS_Initialize();
 		Input_Init();
 		PAD_Init();
@@ -1119,13 +1190,10 @@ s8 BootDolFromFile( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<st
 
 	try
 	{
-		if (GetMountedValue() == 0)
-		{
+		if (GetMountedFlags() == 0)
 			return -5;
-		}
 
-		std::string _path;
-		_path.append(Dir);
+		std::string _path = Dir;
 		gprintf("going to boot %s",_path.c_str());
 
 		args = (struct __argv*)mem_align(32,sizeof(__argv));
@@ -1184,7 +1252,7 @@ s8 BootDolFromFile( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<st
 			args->endARGV = args->argv + 1;
 			args->argvMagic = ARGV_MAGIC; //everything is set so the magic is set so it becomes valid*/
 		}
-		dol = fopen(Dir,"rb");	
+		dol = fopen(_path.c_str(), "rb");
 		if(!dol)
 			throw "failed to open file";
 
@@ -1200,7 +1268,7 @@ s8 BootDolFromFile( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<st
 		fread( binary, sizeof( u8 ), size, dol );
 		fclose(dol);
 
-		BootDolFromMem(binary,HW_AHBPROT_ENABLED,args);
+		BootDolFromMem(binary, HW_AHBPROT_ENABLED, args);
 		//we didn't boot, that ain't good
 		ret = -8;
 	}
@@ -1234,7 +1302,7 @@ s8 BootDolFromFile( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<st
 void ApploaderInitCallback(const char* fmt, ...) 
 { 
 	if(fmt != NULL)
-		gprintf("StubApploaderInitCallback : %s", fmt);
+		gdprintf("StubApploaderInitCallback : %s", fmt);
 }
 s8 SetVideoModeForDisc(u32 gameID)
 {
@@ -1373,7 +1441,7 @@ void BootDvdDrive(void)
 			throw "Unknown Disc inserted.";
 
 		//Read game name. offset 0x20 - 0x400 
-		char gameName[0x41] [[gnu::aligned(32)]];
+		char gameName[0x80] [[gnu::aligned(32)]];
 		memset(gameName, 0, sizeof(gameName));
 		ret = DVDUnencryptedRead(0x20, gameName, 0x40);
 		if (ret <= 0)
@@ -1440,7 +1508,7 @@ void BootDvdDrive(void)
 				throw "Failed to close Partition (" + std::to_string(ret) + ")";
 
 			Input_Shutdown();
-			ShutdownDevices();
+			ShutdownMounts();
 			USB_Deinitialize();
 			ISFS_Deinitialize();
 			DVDCloseHandle();
@@ -1601,7 +1669,7 @@ void BootDvdDrive(void)
 
 	if (deinit)
 	{
-		PollDevices();
+		InitMounts(_mountCallback);
 		ISFS_Initialize();
 		Input_Init();
 	}
@@ -1706,7 +1774,7 @@ void BootMainSysMenu( void )
 		ISFS_Close(fd);
 
 		gprintf("loading hacks");
-		LoadSystemHacks(true);
+		LoadSystemHacks(StorageDevice::NAND);
 
 		Input_Shutdown();
 		gprintf("input shutdown");
@@ -1976,7 +2044,7 @@ void BootMainSysMenu( void )
 		ICInvalidateRange(loader_addr, loader_bin_size);
 		loader = (loader_t)loader_addr;
 
-		ShutdownDevices();
+		ShutdownMounts();
 		USB_Deinitialize();
 
 		ISFS_Deinitialize();
@@ -1998,7 +2066,7 @@ void BootMainSysMenu( void )
 
 		//oh ow, this ain't good
 		__IOS_InitializeSubsystems();
-		PollDevices();
+		InitMounts(_mountCallback);
 		mem_free(patch_ptr);
 		mem_free(loader_addr);
 		ISFS_Initialize();
@@ -2039,19 +2107,26 @@ void InstallLoadDOL( void )
 	memset(filename,0,NAME_MAX+1);
 	memset(filepath,0,MAXPATHLEN+NAME_MAX+1);
 	std::vector<Binary_struct> app_list;
+	StorageDevice device = StorageDevice::Auto;
 	DIR* dir;
 	s8 reload = 1;
 	s8 redraw = 1;
-	s8 DevStat = GetMountedValue();
 	s16 cur_off = 0;
 	s16 max_pos = 0;
 	s16 min_pos = 0;
 	u32 ret = 0;
 	while(1)
 	{
-		PollDevices();
-		if (DevStat != GetMountedValue())
+		if (_mountChanged)
 		{
+			if (GetMountedFlags() == 0)
+			{
+				ClearScreen();
+				PrintFormat(1, TEXT_OFFSET("NO fat device found!"), 208, "NO fat device found!");
+				sleep(5);
+				return;
+			}
+
 			ClearScreen();
 			PrintFormat( 1, TEXT_OFFSET("Reloading Binaries..."), 208, "Reloading Binaries...");
 			sleep(1);
@@ -2060,21 +2135,15 @@ void InstallLoadDOL( void )
 			min_pos = 0;
 			max_pos = 0;
 			cur_off = 0;
+			_mountChanged = 0;
 			redraw=1;
 		}
-		if(GetMountedValue() == 0)
-		{
-			ClearScreen();
-			PrintFormat( 1, TEXT_OFFSET("NO fat device found!"), 208, "NO fat device found!");
-			sleep(5);
-			return;
-		}
+
 		if(reload)
 		{
 			gprintf("loading binaries...");
-			DevStat = GetMountedValue();
 			reload = 0;
-			dir = opendir ("fat:/apps/");
+			dir = opendir (BuildPath("/apps/", device).c_str());
 			if( dir != NULL )
 			{
 				//get all files names
@@ -2087,12 +2156,12 @@ void InstallLoadDOL( void )
 						//we dont want the root or the dirup stuff. so lets filter them
 						continue;
 					}
-					sprintf(filepath,"fat:/apps/%s/boot.dol",filename);
+					sprintf(filepath, BuildPath("/apps/%s/boot.dol", device).c_str(), filename);
 					FILE* app_bin;
 					app_bin = fopen(filepath,"rb");
 					if(!app_bin)
 					{
-						sprintf(filepath,"fat:/apps/%s/boot.elf",filename);
+						sprintf(filepath, BuildPath("/apps/%s/boot.elf", device).c_str(), filename);
 						app_bin = fopen(filepath,"rb");
 						if(!app_bin)
 							continue;
@@ -2102,7 +2171,7 @@ void InstallLoadDOL( void )
 					temp.HW_AHBPROT_ENABLED = 0;
 					temp.app_path = filepath;
 					temp.args.clear();
-					sprintf(filepath,"fat:/apps/%s/meta.xml",filename);
+					sprintf(filepath, BuildPath("/apps/%s/meta.xml", device).c_str(), filename);
 					app_bin = fopen(filepath,"rb");
 					if(!app_bin)
 					{
@@ -2197,62 +2266,57 @@ void InstallLoadDOL( void )
 			}
 			else
 			{
-				gprintf("WARNING: could not open fat:/apps/ for binaries");
+				gprintf("WARNING: could not open device:/apps/ for binaries");
 			}
-			dir = opendir ("fat:/");
+			dir = opendir (BuildPath("/", device).c_str());
 			if(dir == NULL)
+				gprintf("WARNING: could not open device:/ for binaries");
+
+			while( dir != NULL && readdir(dir) != NULL )
 			{
-				gprintf("WARNING: could not open fat:/ for binaries");
-			}
-			else
-			{
-				while( readdir(dir) != NULL )
+				memset(filename,0,NAME_MAX);
+				memcpy(filename, dir->fileData.d_name, strnlen(dir->fileData.d_name,NAME_MAX) );
+				if( (strstr( filename, ".dol") != NULL) ||
+					(strstr( filename, ".DOL") != NULL) ||
+					(strstr( filename, ".elf") != NULL) ||
+					(strstr( filename, ".ELF") != NULL) )
 				{
-					memset(filename,0,NAME_MAX);
-					memcpy(filename, dir->fileData.d_name, strnlen(dir->fileData.d_name,NAME_MAX) );
-					if( (strstr( filename, ".dol") != NULL) ||
-						(strstr( filename, ".DOL") != NULL) ||
-						(strstr( filename, ".elf") != NULL) ||
-						(strstr( filename, ".ELF") != NULL) )
-					{
-						Binary_struct temp;
-						temp.HW_AHBPROT_ENABLED = 0;
-						temp.app_name = filename;
-						sprintf(filepath,"fat:/%s",filename);
-						temp.app_path.assign(filepath);
-						app_list.push_back(temp);
-					}
+					Binary_struct temp;
+					temp.HW_AHBPROT_ENABLED = 0;
+					temp.app_name = filename;
+					sprintf(filepath, BuildPath("/%s", device).c_str(), filename);
+					temp.app_path.assign(filepath);
+					app_list.push_back(temp);
 				}
-				closedir( dir );
 			}
+			if (dir != NULL)
+				closedir( dir );
 			
 			if( app_list.size() == 0 )
 			{
-				if((GetMountedValue() & 2) && ToggleUSBOnlyMode() == 1)
+				u8 mountedFlags = GetMountedFlags();
+				if(device == StorageDevice::Auto && HAS_SD_FLAG(mountedFlags) && HAS_USB_FLAG(mountedFlags))
 				{
-					gprintf("switching to USB only...also mounted == %d",GetMountedValue());
+					device = settings->PreferredMountPoint == PreferredMountPoint::MOUNT_USB
+						? StorageDevice::SD
+						: StorageDevice::USB;
+					gprintf("switching to 2nd device...");
 					reload = 1;
 					continue;
 				}
-				if(GetUsbOnlyMode() == 1)
-				{
-					gprintf("fixing usbonly mode...");
-					ToggleUSBOnlyMode();
-				}
+
 				PrintFormat( 1, TEXT_OFFSET("Couldn't find any executable files"), 208, "Couldn't find any executable files");
-				PrintFormat( 1, TEXT_OFFSET("in the fat:/apps/ on the device!"), 228, "in the fat:/apps/ on the device!");
+				PrintFormat( 1, TEXT_OFFSET("in device:/apps/ on the devices!"), 228, "in device:/apps/ on the devices!");
 				sleep(5);
 				return;
 			}
+
+			//ye, those tv's want a special treatment again >_>
 			if( rmode->viTVMode == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
-			{
-				//ye, those tv's want a special treatment again >_>
 				max_pos = 14;
-			}
 			else
-			{
 				max_pos = 19;
-			}
+
 			if ((s32)app_list.size() <= max_pos)
 				max_pos = app_list.size() -1;
 
@@ -2263,7 +2327,8 @@ void InstallLoadDOL( void )
 				swap = 0;
 				for (int count = 0; count < (s32)app_list.size(); count++)
 				{
-					if(strncmp(app_list[count].app_path.c_str(),"fat:/apps/",strlen("fat:/apps/")) == 0)
+					std::string path = BuildPath("/apps/", device);
+					if(app_list[count].app_path.rfind(path.c_str(), 0) == 0)
 					{
 						for(int swap_index = 0;swap_index < (s32)app_list.size();swap_index++)
 						{
@@ -2275,7 +2340,7 @@ void InstallLoadDOL( void )
 						}
 					}
 				}
-				if(swap != 0)
+				if(swap)
 					break;
 			}
 			ClearScreen();
@@ -2307,9 +2372,7 @@ void InstallLoadDOL( void )
 		u32 pressed  = Input_ButtonsDown();
  
 		if ( pressed & INPUT_BUTTON_B )
-		{
 			break;
-		}
 
 		if ( pressed & INPUT_BUTTON_A )
 		{
@@ -2317,11 +2380,11 @@ void InstallLoadDOL( void )
 			FILE *dol = fopen(app_list[cur_off].app_path.c_str(),"rb");
 			if( dol == NULL )
 			{
-				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not open:\"%s\" for reading")+strlen(app_list[cur_off].app_name.c_str()))*13/2))>>1, 208, "Could not open:\"%s\" for reading", app_list[cur_off].app_name.c_str());
+				PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Could not open:\"%s\" for reading") + app_list[cur_off].app_name.length())*13/2))>>1, 208, "Could not open:\"%s\" for reading", app_list[cur_off].app_name.c_str());
 				sleep(5);
 				break;
 			}
-			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("Installing \"%s\"...")+strlen(app_list[cur_off].app_name.c_str()))*13/2))>>1, 208, "Installing \"%s\"...", app_list[cur_off].app_name.c_str());
+			PrintFormat( 0, ((rmode->viWidth /2)-((strlen("Installing \"%s\"...") + app_list[cur_off].app_name.length())*13/2))>>1, 208, "Installing \"%s\"...", app_list[cur_off].app_name.c_str());
 
 			//get size
 			fseek( dol, 0, SEEK_END );
@@ -2458,7 +2521,6 @@ void InstallLoadDOL( void )
 			ClearScreen();
 			redraw=true;
 			ISFS_Close( fd );
-
 		}
 
 		if ( pressed & INPUT_BUTTON_Y )
@@ -3200,7 +3262,7 @@ int main(int argc, char **argv)
 	LoadSettings();
 	if(SGetSetting(SETTING_DUMPGECKOTEXT) == 1)
 	{
-		PollDevices();
+		InitMounts(_mountCallback);
 	}
 
 	SetDumpDebug(SGetSetting(SETTING_DUMPGECKOTEXT));
@@ -3252,7 +3314,7 @@ int main(int argc, char **argv)
 				{
 					gprintf("Shutting down...\n");
 					DVDStopDriveAsync();
-					ShutdownDevices();
+					ShutdownMounts();
 					Input_Shutdown();
 					USB_Deinitialize();
 					*(vu32*)0xCD8000C0 &= ~0x20;
@@ -3357,8 +3419,8 @@ int main(int argc, char **argv)
 	}
 	
 	system_state.Init = 1;
-	r = (s32)PollDevices();
-	gprintf("FAT_Init():%d", r );
+	InitMounts(_mountCallback);
+	gprintf("FAT_Init():%d", GetMountedFlags());
 
 	//init video first so we can see crashes :)
 	InitVideo();
@@ -3386,6 +3448,7 @@ int main(int argc, char **argv)
 	system_state.InMainMenu = 1;
 	while(1)
 	{
+		_mountChanged = 0;
 		Input_ScanPads();
 		u32 INPUT_Pressed = Input_ButtonsDown();
  
@@ -3538,7 +3601,7 @@ int main(int argc, char **argv)
 			DVDStopDrive();
 			DVDCloseHandle();
 			Input_Shutdown();
-			ShutdownDevices();
+			ShutdownMounts();
 			USB_Deinitialize();
 			if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
 			{
@@ -3562,11 +3625,7 @@ int main(int argc, char **argv)
 				}
 			}
 
-		}
-
-		//check Mounted Devices
-		PollDevices();
-		
+		}		
 		VIDEO_WaitVSync();
 	}
 

@@ -33,6 +33,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "settings.h"
 #include "error.h"
 #include "mem2_manager.h"
+#include "mount.h"
 
 #define BLOCK_SIZE ALIGN32(32)
 
@@ -40,7 +41,7 @@ std::vector<system_hack> system_hacks;
 std::vector<u8> states_hash;
 
 u32 file_size = 0;
-FILE* sd_file_handler = NULL;
+FILE* fat_file_handler = NULL;
 s32 nand_file_handler = -1;
 
 s32 GetMasterHackIndexByID(const std::string& ID )
@@ -91,7 +92,7 @@ bool GetLine(bool reading_nand, std::string& line)
 		}
 		else
 		{
-			file_pos = ftell(sd_file_handler);
+			file_pos = ftell(fat_file_handler);
 		}
 
 		buf = (char*)mem_align(32,max_size+1);
@@ -121,7 +122,7 @@ bool GetLine(bool reading_nand, std::string& line)
 			if (reading_nand)
 				ret = ISFS_Read(nand_file_handler, (void*)addr, len );
 			else
-				ret = fread( (void*)addr, sizeof( char ), len, sd_file_handler );
+				ret = fread( (void*)addr, sizeof( char ), len, fat_file_handler );
 
 			if(ret <= 0)
 			{
@@ -169,7 +170,7 @@ bool GetLine(bool reading_nand, std::string& line)
 		}
 		else
 		{
-			fseek( sd_file_handler, file_pos, SEEK_SET);
+			fseek( fat_file_handler, file_pos, SEEK_SET);
 		}
 		return line.length() > 0;
 	}
@@ -394,7 +395,7 @@ bool _addOrRejectHack(system_hack& hack)
 		return false;
 	}
 }
-s8 LoadSystemHacks(bool load_nand)
+s8 LoadSystemHacks(StorageDevice source)
 {
 	//system_hacks already loaded
 	if (system_hacks.size() || states_hash.size()) 
@@ -409,32 +410,32 @@ s8 LoadSystemHacks(bool load_nand)
 		ISFS_Close(nand_file_handler);
 		nand_file_handler = -1;
 	}
-	if (sd_file_handler != NULL)
+	if (fat_file_handler != NULL)
 	{
-		fclose(sd_file_handler);
-		sd_file_handler = NULL;
+		fclose(fat_file_handler);
+		fat_file_handler = NULL;
 	}
 
 	//read the hacks file size
-	if (!load_nand)
+	if (source != StorageDevice::NAND)
 	{
-		sd_file_handler = fopen("fat:/apps/priiloader/hacks_hash.ini","rb");
-		if(!sd_file_handler)
+		fat_file_handler = fopen(BuildPath("/apps/priiloader/hacks_hash.ini", source).c_str(),"rb");
+		if(!fat_file_handler)
 		{
 			gprintf("fopen error : %s", strerror(errno));
 		}
 		else
 		{
-			fseek( sd_file_handler, 0, SEEK_END );
-			file_size = ftell(sd_file_handler);
-			fseek( sd_file_handler, 0, SEEK_SET);
+			fseek( fat_file_handler, 0, SEEK_END );
+			file_size = ftell(fat_file_handler);
+			fseek( fat_file_handler, 0, SEEK_SET);
 		}
 	}
 
 	//no file opened from FAT device, so lets open the nand file
-	if (!sd_file_handler)
+	if (!fat_file_handler)
 	{
-		load_nand = true;
+		source = StorageDevice::NAND;
 		nand_file_handler = ISFS_Open("/title/00000001/00000002/data/hackshas.ini", 1);
 		if (nand_file_handler < 0)
 		{
@@ -449,19 +450,19 @@ s8 LoadSystemHacks(bool load_nand)
 
 	if (file_size == 0)
 	{
-		if (!load_nand)
+		if (source != StorageDevice::NAND)
 			gprintf("Error \"hacks_hash.ini\" is 0 byte!");
 
-		if (load_nand)
+		if (source == StorageDevice::NAND)
 		{
 			ISFS_Close(nand_file_handler);
 			nand_file_handler = -1;
 		}			
 		else
 		{
-			if(sd_file_handler)
-				fclose(sd_file_handler);
-			sd_file_handler = NULL;
+			if(fat_file_handler)
+				fclose(fat_file_handler);
+			fat_file_handler = NULL;
 		}
 
 		return 0;
@@ -471,7 +472,7 @@ s8 LoadSystemHacks(bool load_nand)
 	std::string line;
 	system_hack new_hack;
 
-	while (GetLine(load_nand,line))
+	while (GetLine(source == StorageDevice::NAND, line))
 	{
 		//Specs of this loop/function : 
 		// - read the line and put it in the correct part of the hack
@@ -505,16 +506,16 @@ s8 LoadSystemHacks(bool load_nand)
 	_addOrRejectHack(new_hack);
 
 	//cleanup on aisle 4
-	if (load_nand)
+	if (source == StorageDevice::NAND)
 	{
 		ISFS_Close(nand_file_handler);
 		nand_file_handler = -1;
 	}
 	else
 	{
-		if(sd_file_handler)
-			fclose(sd_file_handler);
-		sd_file_handler = NULL;
+		if(fat_file_handler)
+			fclose(fat_file_handler);
+		fat_file_handler = NULL;
 	}
 
 	//Load the states_hash
