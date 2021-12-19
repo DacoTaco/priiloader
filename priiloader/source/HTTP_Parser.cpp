@@ -24,262 +24,252 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <string>
 #include "HTTP_Parser.h"
 #include "../../Shared/gitrev.h"
-#include "gecko.h"
-static char HTTP_Reply[4];
+static s16 lastStatusCode;
 static s8 redirects = 0;
 
 s16 GetLastHttpReply( void )
 {
-	//Http Status code is always in the 1xx, 2xx , 3xx , 4xx or 5xx range
-	if(strnlen(HTTP_Reply,4) != 3)
-		return 0;
-
-	return atoi(HTTP_Reply);	
+	return lastStatusCode;
 }
 
-s32 GetHTTPFile(const char *host,const char *file,u8*& Data, int* external_socket_to_use)
+s32 HttpGet(const char* host, const char* file, u8*& dataPtr, int* externalSocket)
 {
 	//reset last reply
-	if(HTTP_Reply[0] != 0)
-		memset(HTTP_Reply,0,4);
+	lastStatusCode = 0;
 
 	//URL_REQUEST
-	if(Data)
-		mem_free(Data);
+	if (dataPtr)
+		mem_free(dataPtr);
 
 	//did we get a host of filename?
-	if(host == NULL || file == NULL)
+	if (host == NULL || file == NULL)
 		return -4;
 
-	const int buffer_size = 1024;
-	char buffer[buffer_size];
-	s32 bytes_read = 0;
-	s32 bytes_send = 0;
-	int file_size = 0;
-	s32 total = 0;
-	int socket = 0;
+	const s32 bufferSize = 1024;
+	char buffer[bufferSize];
+	std::string location = "";
+	u32 hostLocation;
+	std::string newHost;
+	std::string newFile;
 	s32 ret = 0;
-	char URL_Request[buffer_size / 2];
-	//example : "GET /daco/version.dat HTTP/1.0\r\nHost: www.dacotaco.com\r\nUser-Agent: DacoTacoIsGod/version\r\n\r\n\0"
-	sprintf( URL_Request, "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: Priiloader/%s(Nintendo Wii) DacoTacoIsGod/1.1 \r\n\r\n", file, host, GIT_REV_STR );
-	if(external_socket_to_use == 0 || *external_socket_to_use == 0)
+	s32 bytesTransfered = 0;
+	u32 dataRead = 0;
+	u32 dataSize = 0;
+	int socket = 0;
+
+	//setup the http request
+	char httpRequest[bufferSize / 2] = { 0 };
+	snprintf(httpRequest, bufferSize / 2 - 1, "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: Priiloader/%s(Nintendo Wii) DacoTacoIsGod/1.1 \r\n\r\n", file, host, GIT_REV_STR);
+
+	//setup socket
+	if (externalSocket == NULL || *externalSocket == 0)
 	{
-		socket = ConnectSocket(host,80);
-		if(socket < 0)
+		socket = ConnectSocket(host, 80);
+		if (socket < 0)
 			return socket;
 	}
 	else
 	{
-		socket = *external_socket_to_use;
+		socket = *externalSocket;
 	}
 
-	bytes_send = net_send(socket, URL_Request, strlen(URL_Request), 0);
-	if (bytes_send <= 0)
+	//Set Get Request
+	bytesTransfered = net_send(socket, httpRequest, strlen(httpRequest), 0);
+	if (bytesTransfered <= 0)
 	{
-		net_close(socket);
-		free(Data);
-		Data = NULL;
 		ret = -5;
-		goto return_ret;
+		goto _return;
 	}
 
-	//receive the header. it starts with something like "HTTP/1.1 [reply number like '200'] [name of code. 200 = 'OK']" { 48 54 54 50 2F 31 2E 31 20 xx xx xx 20 yy yy}
-	for( ;; )
+	//Read HTTP Headers
+	for (s32 i = 0; i < bufferSize;)
 	{
-		bytes_read = 0;
-		memset( buffer, '\0', 1024 );
-
-		int i, n;
-		for( i = 0;i < 265;)
+		bytesTransfered = net_recv(socket, &buffer[i], 1, 0);
+		if (bytesTransfered <= 0 || (i + bytesTransfered) >= bufferSize)
 		{
-			n = net_recv(socket,(char*)&buffer[i],1, 0);
-
-			if( n <= 0 )
-			{
-				//it is possible we get here cause there is no content_lenght mentioned. which fails
-				//that can be fixed by reading anyway and reallocating as we go. not gonna implement that atm
-				ret = -6;
-				goto return_ret;
-			}
-
-			i += n;
-
-			if( i > 1 )
-			{
-				if( buffer[i-1] == 0x0A && buffer[i-2] == 0x0D )
-					break;
-			}
+			ret = -6;
+			goto _return;
 		}
 
-		if(HTTP_Reply[0] == 0)
+		//newline (0x0D0A) means we have a http header to parse
+		if (i >= 1 && buffer[i - 1] == 0x0D && buffer[i] == 0x0A)
 		{
-			strncpy(HTTP_Reply,&buffer[9],3);
-			HTTP_Reply[3] = '\0';
-			std::string location;
-			char* phost = NULL;
-			char host_new[buffer_size];
-			char file_new[buffer_size];
-			//process the HTTP reply. full list @ http://en.wikipedia.org/wiki/List_of_HTTP_status_codes
-			switch(atoi(HTTP_Reply))
+			//headers are done. the rest is all data.
+			if (i <= 1)
+				break;
+
+			//remove newline and parse header
+			buffer[i] = 0;
+			buffer[i - 1] = 0;
+
+			std::string httpHeader = buffer;
+			std::transform(httpHeader.begin(), httpHeader.end(), httpHeader.begin(), ::tolower);
+
+			//HTTP reply header -> "HTTP/1.1 [reply number like '200'] [name of code. 200 = 'OK']" { 48 54 54 50 2F 31 2E 31 20 xx xx xx 20 yy yy}
+			if (httpHeader.rfind("http/", 0) == 0)
 			{
-				case 200: // 200 - OK . everything is fine. lets proceed
-					if(redirects > 0)
-					{
-						redirects--;
-						ret = 1;
-						goto return_ret;
-					}
-					break;
-				case 302:
-				case 301: //moved. to lazy to implement that :P
-					{
-						//first lets get the new link.
-						//HTTP/1.1 301 Moved Permanently..Location: http://www.google.com/..Content-Type: 
-						memset( buffer, 0, buffer_size );
-						for( i = 0;i < buffer_size;)
-						{
-							n = net_recv(socket,(char*)&buffer[i],1, 0);
-							if( n <= 0 )
-							{
-								if (i > 0)
-									break;
+				s32 beginStatusCode = httpHeader.find(" ");
+				s32 endStatusCode = httpHeader.find(" ", beginStatusCode + 1);
 
-								ret = -6;
-								goto return_ret;
-							}
-
-							i += n;
-						}
-						std::string header(buffer);
-						std::transform(header.begin(), header.end(), header.begin(), ::tolower);	
-						if(header.find("location: ", 0, 10) == std::string::npos)
-						{
-							//the location wasn't there, or the server wasn't following protocol. so lets bail out
-							net_close(socket);
-							ret = -88;
-							goto return_ret;
-						}
-
-						location = header.substr(header.find("location: "),
-							header.size() - header.find("location: "));
-						int start = strlen("location: ");
-						int end = location.npos;
-						if (location.compare(0, 2, "\r\n"))
-							end = location.find("\r\n") - start;
-
-						location = location.substr(start, end);
-						//we got the url. close everything and start all over
-						net_close(socket);
-						memset( buffer, '\0', buffer_size );
-						bytes_send = 0;
-						bytes_read = 0;
-						memset(host_new,0,buffer_size);
-						memset(file_new,0,buffer_size);
-						//extract host & file from url
-						if( location.length() <= 7 || location.find("http://", 0, 7) == std::string::npos )
-						{
-							//no http:// found so its either https (unsupported) or not a valid link. bail out.
-							ret = -99;
-							goto return_ret;
-						}
-
-						strncpy(buffer, location.c_str()+7, buffer_size - 1);
-						phost = strchr(buffer,'/');
-						//note : use snprintf instead of strncpy when im done and make the host/file none-const and make the code more permanent
-						if(phost != NULL)
-						{
-							strncpy(host_new,buffer,phost-buffer);
-							memcpy(file_new,&buffer[phost-buffer],buffer_size-strnlen(host_new,buffer_size));
-						}
-						else
-						{
-							strncpy(file_new,"/\0",2);
-							memcpy(host_new,buffer,strlen(buffer));
-						}
-						gprintf("new host & file : %s & %s",host_new,file_new);
-						redirects++;
-						GetHTTPFile(host_new,file_new,Data,&socket);
-						if(redirects > 0)
-						{
-							//we were called from some redirect loop, so lets bail out
-							return 1;
-						}
-						else
-						{
-							//we are no longer in a redirect loop. so we proceed like planned :)
-							break;
-						}
-					}
-					break;
-				case 404: //File Not Found. nothing special we can do :)
-				default: //o ow, a reply we dont understand yet D: close connection and bail out
-					net_close(socket);
+				if (beginStatusCode <= 0 || endStatusCode <= 0 || (endStatusCode - beginStatusCode) < 1 || endStatusCode - beginStatusCode > 4)
+				{
 					ret = -7;
-					goto return_ret;
-					break;
+					goto _return;
+				}
+				lastStatusCode = atoi(httpHeader.substr(beginStatusCode + 1, endStatusCode - beginStatusCode).c_str());
 			}
-		}	
-		if( !memcmp( buffer, "Content-Length: ", 16 ) )
-		{
-			sscanf( buffer , "Content-Length: %d", &file_size );
+			else if (httpHeader.rfind("content-length: ", 0) == 0)
+			{
+				dataSize = atoi(httpHeader.substr(16).c_str());
+			}
+			else if (httpHeader.rfind("localtion: ", 0) == 0)
+			{
+				//location
+				location = httpHeader.substr(httpHeader.find("location: "));
+			}
+
+			i = 0;
+			bytesTransfered = 0;
+			memset(buffer, 0, bufferSize);
+			continue;
 		}
-		else if( !memcmp( buffer, "\x0D\x0A", 2 ) )
+
+		i += bytesTransfered;
+	}
+
+	bytesTransfered = 0;
+	memset(buffer, 0, bufferSize);
+
+	//Check status code
+	switch (lastStatusCode)
+	{
+	case 200: // OK
+		if (redirects > 0)
+		{
+			redirects--;
+			ret = dataSize;
+			goto _return;
+		}
+		break;
+	case 302:
+	case 301: // Resource Moved
+		if (location.size() == 0)
+		{
+			ret = -8;
+			goto _return;
+		}
+
+		//we only support http links. no https or w/e, sorry
+		if (location.rfind("http://", 0) != 0)
+		{
+			ret = -9;
+			goto _return;
+		}
+
+		net_close(socket);
+		socket = 0;
+
+		hostLocation = location.find("/", 6);
+		newFile = "";
+		if (hostLocation == std::string::npos || hostLocation + 1 >= location.size())
+		{
+			newHost = location.substr(0, hostLocation);
+		}
+		else
+		{
+			int fileLocation = location.find("/", hostLocation + 1);
+			newHost = location.substr(hostLocation + 1, fileLocation - hostLocation - 1);
+			newFile = location.substr(fileLocation);
+		}
+
+		redirects++;
+		dataSize = HttpGet(newHost.c_str(), newFile.c_str(), dataPtr, &socket);
+		if (dataSize < 0)
+		{
+			ret = dataSize;
+			goto _return;
+		}
+
+		//we were called from some redirect loop, so lets bail out
+		if (redirects > 0)
+			return dataSize;
+
+		//we are no longer in a redirect loop. so we proceed like planned :)
+		break;
+	case 404: //File Not Found. nothing special we can do :)
+	default: //o ow, a reply we dont understand yet D: close connection and bail out
+		ret = -10;
+		goto _return;
+	}
+
+	//http headers have been parsed. lets receive the actual data now.
+	if (dataSize > 0)
+	{
+		dataPtr = (u8*)mem_malloc(dataSize);
+		if (dataPtr == NULL)
+		{
+			ret = -11;
+			goto _return;
+		}
+		memset(dataPtr, 0, dataSize);
+	}
+
+	memset(buffer, 0, bufferSize);
+	for (int i = 0;;)
+	{
+		u32 len = bufferSize - i;
+		if (dataSize > 0 && len > dataSize)
+			len = dataSize;
+
+		bytesTransfered = net_recv(socket, &buffer[i], len, 0);
+		if (bytesTransfered <= 0)
+		{
+			if (dataSize > 0)
+				ret = -12;
+			else
+				ret = dataRead;
+
+			goto _return;
+		}
+
+		if (dataSize <= 0)
+		{
+			if (dataPtr == NULL)
+			{
+				dataPtr = (u8*)mem_malloc(dataRead + bytesTransfered);
+			}
+			else
+			{
+				dataPtr = (u8*)mem_realloc(dataPtr, dataRead + bytesTransfered);
+			}
+		}
+
+		memcpy(dataPtr + dataRead, buffer + i, bytesTransfered);
+		dataRead += bytesTransfered;
+
+		i += bytesTransfered;
+		if (i >= bufferSize)
+		{
+			i = 0;
+			memset(buffer, 0, bufferSize);
+		}
+
+		if (dataSize > 0 && dataRead >= dataSize)
 			break;
 	}
-	if(file_size == 0)
-	{
-		if(!external_socket_to_use)
-			net_close(socket);
-		ret = -8;
-		goto return_ret;
-	}
-	Data = (u8*)mem_malloc( file_size );
-	if (Data == NULL)
-	{
-		ret = -9;
-		goto return_ret;
-	}
-	memset(Data,0,file_size);
-	gdprintf( "Download: %c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c\r",
-	176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176, 176 );
-	while (total != file_size)
-	{
-		bytes_read = 0;
-		bytes_read = net_recv(socket,buffer,1024, 0);
-		if(!bytes_read)
-		{
-			if(!external_socket_to_use)
-				net_close(socket);
-			free(Data);
-			Data = NULL;
-			ret = -10;
-			goto return_ret;
-		}
-		memcpy( &Data[total], buffer, bytes_read );
-		total += bytes_read;
-		int Ddone = (total *20 )/ file_size;
-		gdprintf("Download: ");
-		while( Ddone )
-		{
-			gdprintf( "%c", 178 );
-			Ddone--;
-		}
-		gdprintf( "\r" );
-	}
-	gdprintf("\r\n");
-	net_close(socket);
-	return file_size;
-return_ret:
-	if(ret < 0)
+
+	ret = dataRead;
+
+_return:
+	if (ret <= 0 && dataPtr != NULL)
+		mem_free(dataPtr);
+
+	if (externalSocket != NULL && socket > 0)
 	{
 		net_close(socket);
-		redirects = 0;
+		socket = 0;
 	}
 
-	if(external_socket_to_use != 0)
-	{
-		memset(external_socket_to_use,socket,sizeof(int));
-	}
 	return ret;
 }
 
@@ -314,5 +304,4 @@ s32 ConnectSocket(const char *hostname, u32 port)
 		return -3;
 	}
 	return socket;
-
 }

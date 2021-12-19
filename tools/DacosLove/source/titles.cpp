@@ -31,6 +31,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "mem2_manager.h"
 #include "dvd.h"
 #include "Input.h"
+#include "gecko.h"
 
 #define USE_DVD_ASYNC
 
@@ -504,7 +505,7 @@ s32 LoadListTitles( void )
 			if(wcslen((wchar_t*)titles[cur_off].name_unicode))
 			{
 				//kill play_rec.dat if its already there...
-				ret = ISFS_Delete(PLAYRECPATH);
+				ISFS_Delete(PLAYRECPATH);
 				//and create it with the new info :)
 				std::string id;
 				id.push_back(titles[cur_off].title_id & 0xFFFFFFFF);

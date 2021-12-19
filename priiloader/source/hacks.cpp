@@ -361,10 +361,7 @@ bool _processLine(system_hack& hack, std::string &line)
 	catch(...)
 	{
 		gprintf("_processLine General Exception: invalid line");		
-	}	
-
-	if(line.length() > 0)
-		gprintf("line : %s",line.c_str());
+	}
 
 	return false;
 }

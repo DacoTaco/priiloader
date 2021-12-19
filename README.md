@@ -1,7 +1,7 @@
 # What is Priiloader #
 
 [Priiloader](http://wiibrew.org/wiki/Priiloader) is a heavily modified version of [Preloader 0.30](http://wiibrew.org/wiki/Preloader) by [DacoTaco](http://wiibrew.org/wiki/User:DacoTaco) and BadUncle.
-It is an application that is loaded prior to the Wii System Menu, which allows it to fix certain kinds of bricks that leave the System Menu in a broken state (like a Bannerbrick), or to add various patches like update blockers to the System menu. 
+It is an application that is loaded prior to the Wii System Menu, which allows it to fix certain kinds of bricks that leave the System Menu in a broken state (like a banner brick), or to add various patches like update blockers or Wiimmfi patches to the System Menu. 
 
 **Quick note: Priiloader will _NOT_ save your Wii if you fucked up the System Menu IOS (on 4.3 this is IOS80. See [here](http://wiibrew.org/wiki/IOS_History) to check which IOS that is for you.**
 # What has been changed since Preloader 0.30 base source? #
@@ -24,9 +24,9 @@ It is an application that is loaded prior to the Wii System Menu, which allows i
 
 # What do I need to install Priiloader? #
 
-Thats the best part! All you need is a way of booting homebrew (Homebrew Channel recommended). If you have The Homebrew Channel 1.0.7 or above, you don't need any patched IOS at all! if you don't, then a patched IOS36 is required (although it is recommended to just update the HBC)
+That's the best part! All you need is a way of booting homebrew (Homebrew Channel recommended). If you have The Homebrew Channel 1.0.7 or above, you don't need any patched IOS at all! If you don't, then a patched IOS36 is required (although it is recommended to just update the HBC)
 
-Priiloader itself needs no hacked IOS at all (hell, we recommend using unpatched IOS)
+Priiloader itself needs no hacked IOS at all (hell, we recommend using unpatched IOS).
 
 # Can I contact you guys elsewhere? #
 Yes, you can! I (Daco) can be found in #priiloader and #wiidev on efnet.org, or on [Github](https://github.com/DacoTaco). 

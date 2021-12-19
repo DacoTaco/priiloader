@@ -721,7 +721,7 @@ void SetSettings( void )
 						while(1)
 						{
 							Input_ScanPads();
-							u32 input  = Input_ButtonsDown(true);
+							u32 input = Input_ButtonsDown(true);
 							if(input & INPUT_BUTTON_A)
 							{
 								settings->PasscheckPriiloader = true;
@@ -2012,17 +2012,18 @@ void BootMainSysMenu( void )
 				//hash method
 				else if(system_hacks[i].patches[y].hash.size() > 0)
 				{
+					u8 temp_hash[system_hacks[i].patches[y].hash.size()];
+					u8 temp_patch[system_hacks[i].patches[y].patch.size()];
+					memset(temp_hash, 0, system_hacks[i].patches[y].hash.size());
+					memset(temp_patch, 0, system_hacks[i].patches[y].patch.size());
+					std::copy(system_hacks[i].patches[y].hash.begin(), system_hacks[i].patches[y].hash.end(), temp_hash);
+					std::copy(system_hacks[i].patches[y].patch.begin(), system_hacks[i].patches[y].patch.end(), temp_patch);
+
 					while( add + (u32)mem_block < max_address)
 					{
-						u8 temp_hash[system_hacks[i].patches[y].hash.size()];
-						u8 temp_patch[system_hacks[i].patches[y].patch.size()];
-						std::copy(system_hacks[i].patches[y].hash.begin(),system_hacks[i].patches[y].hash.end(),temp_hash);
 						if ( !memcmp(mem_block+add, temp_hash ,sizeof(temp_hash)) )
 						{
 							gprintf("Found %s @ 0x%X, patching hash # %d...",system_hacks[i].desc.c_str(), add, y+1);
-							std::copy(system_hacks[i].patches[y].patch.begin(),
-								system_hacks[i].patches[y].patch.end(),
-								temp_patch);
 							memcpy((u8*)mem_block+add,temp_patch,sizeof(temp_patch) );
 							DCFlushRange((u8 *)((add+(u32)mem_block) >> 5 << 5), (sizeof(temp_patch) >> 5 << 5) + 64);
 							break;
@@ -2773,14 +2774,14 @@ void CheckForUpdate()
 //---------------
 	UpdateStruct UpdateFile;
 	u8* buffer = NULL;
-	file_size = GetHTTPFile("www.dacotaco.com","/priiloader/versionV2.bin",buffer,0);
+
+	file_size = HttpGet("www.dacotaco.com", "/priiloader/versionV2.bin", buffer, NULL);
 	s16 httpReply = GetLastHttpReply();
 	if( file_size < 0 && httpReply >= 400 && httpReply <= 500)
 	{
 		gprintf("falling back to .dat");
-		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/versionV2.dat",buffer,0);
+		file_size = HttpGet("www.dacotaco.com", "/priiloader/versionV2.dat", buffer, NULL);
 	}
-	gprintf("file downloaded");
 
 	if ( file_size <= 0 || file_size != (s32)sizeof(UpdateStruct) || buffer == NULL)
 	{
@@ -2801,7 +2802,7 @@ void CheckForUpdate()
 		}
 		else if ( file_size < 0 )
 		{
-			gprintf("CheckForUpdate : GetHTTPFile error %d",file_size);
+			gprintf("CheckForUpdate : HttpGet error %d",file_size);
 		}
 		else if (file_size != (s32)sizeof(UpdateStruct))
 		{
@@ -2930,11 +2931,11 @@ void CheckForUpdate()
 	gprintf("downloading changelog...");
 	if(DownloadedBeta)
 	{
-		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/changelog_beta.txt",Changelog,0);
+		file_size = HttpGet("www.dacotaco.com", "/priiloader/changelog_beta.txt", Changelog, NULL);
 	}
 	else
 	{
-		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/changelog.txt",Changelog,0);
+		file_size = HttpGet("www.dacotaco.com", "/priiloader/changelog.txt", Changelog, NULL);
 	}
 	if (file_size > 0)
 	{
@@ -2945,9 +2946,9 @@ void CheckForUpdate()
 		u8 min_line = 0;
 		u8 max_line = 0;
 		if( rmode->viTVMode == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
-			max_line = 14;
+			max_line = 12;
 		else
-			max_line = 19;
+			max_line = 17;
 		redraw = 1;
 
 		char *ptr;
@@ -2969,11 +2970,11 @@ void CheckForUpdate()
 		PrintFormat( 1, TEXT_OFFSET("-----------"), 64+(16*2), "-----------");
 		if((lines.size() -1) > max_line)
 		{
-			PrintFormat( 0, TEXT_OFFSET("Up    Scroll Up        "), rmode->viHeight-80, "Up    Scroll Up");
-			PrintFormat( 0, TEXT_OFFSET("Down  Scroll Down      "), rmode->viHeight-64, "Down  Scroll Down");
+			PrintFormat( 0, TEXT_OFFSET("Up    Scroll Up        "), rmode->viHeight-112, "Up    Scroll Up");
+			PrintFormat( 0, TEXT_OFFSET("Down  Scroll Down      "), rmode->viHeight-96, "Down  Scroll Down");
 		}
-		PrintFormat( 0, TEXT_OFFSET("A(A)  Proceed(Download)"), rmode->viHeight-48, "A(A)  Proceed(Download)");
-		PrintFormat( 0, TEXT_OFFSET("B(B)  Cancel Update    "), rmode->viHeight-32, "B(B)  Cancel Update    ");
+		PrintFormat( 0, TEXT_OFFSET("A(A)  Proceed(Download)"), rmode->viHeight-80, "A(A)  Proceed(Download)");
+		PrintFormat( 0, TEXT_OFFSET("B(B)  Cancel Update    "), rmode->viHeight-64, "B(B)  Cancel Update    ");
 
 		u32 pressed = 0;
 		while(1)
@@ -3030,7 +3031,9 @@ void CheckForUpdate()
 	{
 		if(file_size < -9)
 			mem_free(Changelog);
-		gprintf("CheckForUpdate : failed to get changelog.error %d, HTTP reply %d",file_size,GetLastHttpReply());
+		PrintFormat( 1, TEXT_OFFSET("error getting changelog from server"), 224, "error getting changelog from server");
+		gprintf("CheckForUpdate : failed to get changelog.error %d, HTTP reply %d", file_size, GetLastHttpReply());
+		return;
 	}
 //The choice is made. lets download what the user wanted :)
 //--------------------------------------------------------------
@@ -3039,13 +3042,13 @@ void CheckForUpdate()
 	if(DownloadedBeta)
 	{
 		PrintFormat( 1, TEXT_OFFSET("downloading   .   beta   ..."), 208, "downloading %d.%d.%d beta %d...", UpdateFile.beta_version.major, UpdateFile.beta_version.minor, UpdateFile.beta_version.patch, UpdateFile.beta_version.sub_version);
-		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/Priiloader_Beta.dol",Data,0);
+		file_size = HttpGet("www.dacotaco.com", "/priiloader/Priiloader_Beta.dol", Data, NULL);
 		//download beta
 	}
 	else
 	{
 		PrintFormat( 1, TEXT_OFFSET("downloading   .  ..."), 208, "downloading %d.%d.%d ...", UpdateFile.prod_version.major, UpdateFile.prod_version.minor, UpdateFile.prod_version.patch);
-		file_size = GetHTTPFile("www.dacotaco.com","/priiloader/Priiloader_Update.dol",Data,0);
+		file_size = HttpGet("www.dacotaco.com", "/priiloader/Priiloader_Update.dol", Data, NULL);
 		//download Update
 	}
 	if ( file_size <= 0 )
