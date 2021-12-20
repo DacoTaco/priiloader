@@ -242,7 +242,7 @@ void SysHackHashSettings( void )
 			if (rmode->viTVMode == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan())
 				max_pos = 14;
 			else
-				max_pos = 19;
+				max_pos = 17;
 
 			if (_hacks.size() <= max_pos)
 				max_pos = _hacks.size() - 1;
@@ -275,9 +275,9 @@ void SysHackHashSettings( void )
 				{
 					gprintf("no FAT device found");
 				}
-				if ( ( (!HAS_SD_FLAG(GetMountedFlags())) && !__io_wiisd.isInserted() ) || ( (!HAS_USB_FLAG(GetMountedFlags())) && !__io_usbstorage.isInserted() ) )
+				if ( ( (!HAS_SD_FLAG(GetMountedFlags())) && !__io_wiisd.isInserted() ) && ( (!HAS_USB_FLAG(GetMountedFlags())) && !__io_usbstorage.isInserted() ) )
 				{
-					PrintFormat( 0, 103, rmode->viHeight-48, "saving failed : SD/USB error");
+					PrintFormat( 0, 103, 64+(max_pos+5)*16, "saving failed : SD/USB error");
 					continue;
 				}
 				if( in != NULL )
@@ -1126,17 +1126,17 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 			sleep(2);	
 		}
 
-		if(Ios_to_load > 2 && Ios_to_load < 255)
-		{
-			ReloadIos(Ios_to_load,&bAHBPROT);
-			system_state.ReloadedIOS = 1;
-		}
-		
-		gprintf("IOS state : ios %d - ahbprot : %d ",IOS_GetVersion(),(read32(0x0d800064) == 0xFFFFFFFF ));
-
 		ISFS_Deinitialize();
 		ShutdownMounts();
 		USB_Deinitialize();
+
+		if (Ios_to_load > 2 && Ios_to_load < 255)
+		{
+			ReloadIos(Ios_to_load, &bAHBPROT);
+			system_state.ReloadedIOS = 1;
+		}
+
+		gprintf("IOS state : ios %d - ahbprot : %d ", IOS_GetVersion(), (read32(0x0d800064) == 0xFFFFFFFF));
 		__IOS_ShutdownSubsystems();
 		if(system_state.Init)
 		{
@@ -3222,6 +3222,7 @@ void ClearMagicWord( void )
 	DCFlushRange((void*)MAGIC_WORD_ADDRESS_2,4);
 	return;
 }
+
 int main(int argc, char **argv)
 {
 	CheckForGecko();
