@@ -34,6 +34,16 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "gecko.h"
 #include "mount.h"
 
+//The known HBC titles
+const title_info HBC_Titles[] = {
+	{ 0x0001000148415858LL, "HAXX" },
+	{ 0x000100014A4F4449LL, "JODI" },
+	{ 0x00010001AF1BF516LL, "0.7 - 1.1" },
+	{ 0x000100014C554C5ALL, "LULZ" },
+	{ 0x000100014F484243LL, "OpenHBC 1.4"}
+};
+const s32 HBC_Titles_Size = (s32)((sizeof(HBC_Titles) / sizeof(HBC_Titles[0])));
+
 s8 CheckTitleOnSD(u64 id)
 {
 	if (!HAS_SD_FLAG(GetMountedFlags())) //no SD mounted, lets bail out
@@ -88,7 +98,7 @@ s8 GetTitleName(u64 id, u32 app, char* name, u8* _dst_uncode_name)
 		but what we should be doing otherwise : 
 		int lang = CONF_GetLanguage();
     */
-	int lang = 1;
+	const int lang = CONF_LANG_ENGLISH;
 	s32 r;
 	u8 return_unicode_name = (_dst_uncode_name == NULL)? 0 : 1;
 
@@ -219,7 +229,7 @@ s8 GetTitleName(u64 id, u32 app, char* name, u8* _dst_uncode_name)
 	if(str[lang][0] != '\0')
 	{
 		gdprintf("GetTitleName : title %s",str[lang]);
-		memcpy(name, str[lang], strnlen(str[lang],255));
+		memcpy(name, str[lang], strnlen(str[lang], 84));
 		if (return_unicode_name && str_unprocessed[lang][1] != '\0')
 		{
 			memcpy(_dst_uncode_name,&str_unprocessed[lang][0],83);
@@ -234,6 +244,99 @@ s8 GetTitleName(u64 id, u32 app, char* name, u8* _dst_uncode_name)
 	mem_free(data);
 	return 1;
 }
+
+u8 GetTitleRegion(u32 lowerTitleId)
+{
+	//Taken from Dolphin
+	switch (lowerTitleId & 0xFF)
+	{
+		//PAL
+		case 'D':
+		case 'F':
+		case 'H':
+		case 'I':
+		case 'L':
+		case 'M':
+		case 'P':
+		case 'R':
+		case 'S':
+		case 'U':
+		case 'V':
+			return TITLE_PAL;
+
+			//NTSC-J
+		case 'J':
+		case 'K':
+		case 'Q':
+		case 'T':
+			return TITLE_NTSC_J;
+
+			//NTSC-U
+		default:
+			gprintf("unknown Region");
+		case 'B':
+		case 'N':
+		case 'E':
+			return TITLE_NTSC;
+	}
+}
+
+s8 VideoRegionMatches(s8 titleRegion)
+{
+	switch (rmode->viTVMode)
+	{
+		case VI_NTSC:
+		case VI_DEBUG:
+			return (titleRegion == TITLE_NTSC || titleRegion == TITLE_NTSC_J);
+		case VI_PAL:
+		case VI_MPAL:
+		case VI_DEBUG_PAL:
+		case VI_EURGB60:
+			return (titleRegion == TITLE_PAL);
+		default:
+			return 1;
+	}
+}
+
+s8 SetVideoModeForTitle(u32 lowerTitleId)
+{
+	//always set video, 
+	s8 titleRegion = GetTitleRegion(lowerTitleId);
+	GXRModeObj* vidmode = rmode;
+	s8 videoMode = 0;
+	switch (titleRegion)
+	{
+		//PAL
+		case TITLE_PAL:
+			gprintf("PAL50");
+			// set 50Hz mode - incompatible with S-Video cables!
+			vidmode = &TVPal528IntDf;
+			videoMode = SYS_VIDEO_PAL;
+			break;
+
+		case TITLE_NTSC_J:
+			gprintf("NTSC-J");
+			goto region_ntsc;
+			break;
+
+		case TITLE_NTSC:
+			gprintf("NTSC-U");
+		region_ntsc:
+			videoMode = SYS_VIDEO_NTSC;
+			vidmode = &TVNtsc480IntDf;
+			break;
+		default:
+			gprintf("unknown titleRegion");
+			break;
+	}
+
+	//set video mode for the game
+	if (rmode != vidmode && !VideoRegionMatches(titleRegion))
+		ConfigureVideoMode(vidmode);
+
+	return videoMode;
+}
+
 s32 LoadListTitles( void )
 {
 	PrintFormat( 1, ((rmode->viWidth /2)-((strlen("loading titles..."))*13/2))>>1, 208+16, "loading titles...");
@@ -286,8 +389,8 @@ s32 LoadListTitles( void )
 		//u32 titletype = title_list[i] >> 32;
 		switch (title_list[i] >> 32)
 		{
-			case 0x10001: // Normal channels / VC
-			case 0x10002: // "System channels" -- News, Weather, etc.
+			case TITLE_TYPE_DOWNLOAD:	// Normal channels / VC
+			case TITLE_TYPE_SYSTEM:		// "System channels" -- News, Weather, etc.
 			{
 				u32 tmd_size;
 				ret = ES_GetTMDViewSize(title_list[i], &tmd_size);
@@ -355,11 +458,11 @@ s32 LoadListTitles( void )
 				}
 				//break;
 			}
-			case 1: // IOS, MIOS, BC, System Menu
-			case 0x10000: // TMD installed by running a disc
-			case 0x10004: // "Hidden channels by discs" -- WiiFit channel
-			case 0x10008: // "Hidden channels" -- EULA, rgnsel
-			case 0x10005: // Downloadable Content for Wiiware
+			case TITLE_TYPE_ESSENTIAL:	// IOS, MIOS, BC, System Menu
+			case TITLE_TYPE_DISC:		// TMD installed by running a disc
+			case TITLE_TYPE_GAMECHANNEL:// "Hidden channels by discs" -- WiiFit channel
+			case TITLE_TYPE_HIDDEN:		// "Hidden channels" -- EULA, rgnsel
+			case TITLE_TYPE_DLC:		// Downloadable Content for Wiiware
 			default:
 				break;
 		}
@@ -395,7 +498,6 @@ s32 LoadListTitles( void )
 	}
 	s16 min_pos = 0;
 
-	gprintf("max_pos before check : %d",max_pos);
 	if ((s32)titles.size() <= max_pos)
 		max_pos = titles.size() -1;
 	while(1)
@@ -483,6 +585,8 @@ s32 LoadListTitles( void )
 				gprintf("LoadListTitles : Skipping StopDisc -> no drive or disc in drive");
 			}
 			
+			s8 regionMatch = 1;
+			s8 titleRegion = 0;
 			u32 cnt ATTRIBUTE_ALIGN(32) = 0;
 			STACK_ALIGN(tikview,views,4,32);
 
@@ -520,8 +624,55 @@ s32 LoadListTitles( void )
 			VIDEO_SetBlack(1);
 			VIDEO_Flush();
 
+			titleRegion = GetTitleRegion(TITLE_LOWER(titles[cur_off].title_id));
+			regionMatch = VideoRegionMatches(titleRegion);
+
+			//if our region mismatched, we need to also verify against our list of known HBC channels
+			if (!regionMatch)
+			{
+				for (s32 hbcIndex = 0; hbcIndex < HBC_Titles_Size; hbcIndex++)
+				{
+					if (HBC_Titles[hbcIndex].title_id == titles[cur_off].title_id)
+					{
+						regionMatch = 1;
+						break;
+					}
+				}
+			}
+
+			//onlt shutdown video if:
+			// * region mismatched
+			// * not (known) HBC
+			// * titleType == TITLE_TYPE_DOWNLOAD 
+			// * TITLE_GAMEID_TYPE(gameId) != H,W or O
+			if (!regionMatch && TITLE_UPPER(titles[cur_off].title_id) == TITLE_TYPE_DOWNLOAD)
+			{
+				switch (TITLE_GAMEID_TYPE(TITLE_LOWER(titles[cur_off].title_id)))
+				{
+					case 'C':
+					case 'E':
+					case 'F':
+					case 'J':
+					case 'L':
+					case 'M':
+					case 'N':
+					case 'P':
+					case 'Q':
+						gprintf("LoadListTitles : Region Mismatch ! %d -> %d", rmode->viTVMode, titleRegion);
+						ShutdownVideo();
+						break;
+					case 'H':
+					case 'O':
+					case 'W':
+					case 'X':
+					default:
+						break;
+				}
+			}
+
 			ES_LaunchTitle(titles[cur_off].title_id, &views[0]);
 failure:
+			InitVideo();
 			VIDEO_SetBlack(0);
 			VIDEO_Flush();
 			VIDEO_WaitVSync();

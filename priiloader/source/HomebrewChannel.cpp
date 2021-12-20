@@ -23,19 +23,6 @@
 //Bin include
 #include "stub_bin.h"
 
-//The known HBC titles
-
-const title_info HBC_Titles[] = {
-	{ 0x0001000148415858LL, "HAXX" },
-	{ 0x000100014A4F4449LL, "JODI" },
-	{ 0x00010001AF1BF516LL, "0.7 - 1.1" },
-	{ 0x000100014C554C5ALL, "LULZ" },
-	{ 0x000100014F484243LL, "OpenHBC 1.4"}
-};
-
-//array size retrieval
-#define HBC_Titles_Size (s32)((sizeof(HBC_Titles) / sizeof(HBC_Titles[0])))
-
 //stub functions
 void LoadHBCStub ( void )
 {

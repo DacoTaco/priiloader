@@ -33,8 +33,23 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "font.h"
 
 //defines
-#define TITLE_UPPER(x) (u32)(x >> 32)
-#define TITLE_LOWER(x) (u32)(x & 0xFFFFFFFF)
+#define TITLE_TYPE_INVALID              0x00000000
+#define TITLE_TYPE_ESSENTIAL            0x00000001
+#define TITLE_TYPE_DISC                 0x00010000
+#define TITLE_TYPE_DOWNLOAD             0x00010001
+#define TITLE_TYPE_SYSTEM               0x00010002
+#define TITLE_TYPE_GAMECHANNEL          0x00010004
+#define TITLE_TYPE_DLC                  0x00010005
+#define TITLE_TYPE_HIDDEN               0x00010008
+
+#define TITLE_COMBINE(upper, lower)     (u64)(((u64)upper << 32) + (lower & 0xFFFFFFFF))
+#define TITLE_UPPER(x)                  (u32)(x >> 32)
+#define TITLE_LOWER(x)                  (u32)(x & 0xFFFFFFFF)
+#define TITLE_GAMEID_TYPE(x)            (u8)((x >> 24) & 0x000000FF)
+
+#define TITLE_NTSC                      0
+#define TITLE_NTSC_J                    1
+#define TITLE_PAL                       2
 
 //structs & classes
 //-------------------
@@ -57,10 +72,16 @@ typedef struct {
     u8 crypto[16]; // MD5 of 0x40 to 0x640 in header. crypto should be all 0's when calculating final MD5
 } IMET;
 
+//The known HBC titles
+extern const title_info HBC_Titles[];
+extern const s32 HBC_Titles_Size;
+
 //functions
 //-------------
 s8 CheckTitleOnSD(u64 id);
 s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name);
+u8 GetTitleRegion(u32 lowerTitleId);
+s8 SetVideoModeForTitle(u32 lowerTitleId);
 s32 LoadListTitles( void );
 
 #endif

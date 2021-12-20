@@ -35,23 +35,10 @@ void _configureVideoMode(GXRModeObj* videoMode, s8 internalConfig)
 	//if xfb is already set, that means we already configured
 	//we reset the whole thing, just in case
 	if (xfb)
-	{
-		free(MEM_K1_TO_K0(xfb));
-		//de-init video
-		vu16* const _viReg = (u16*)0xCC002000;
-		if ((_viReg[1] & 0x0001))
-		{
-			//reset & de-init the regs. at least that should work according to libogc
-			u32 cnt = 0;
-			_viReg[1] = 0x02;
-			while (cnt < 1000) cnt++;
-			gdprintf(_viReg[1]);
-			_viReg[1] = 0x00;
-		}
+		ShutdownVideo();
 
-		//init video
-		VIDEO_Init();
-	}
+	//init video
+	VIDEO_Init();
 
 	//apparently the video likes to be bigger then it actually is on NTSC/PAL60/480p. lets fix that!
 	if ((internalConfig) &&
@@ -71,15 +58,34 @@ void _configureVideoMode(GXRModeObj* videoMode, s8 internalConfig)
 	VIDEO_WaitVSync();
 	if (rmode->viTVMode & VI_NON_INTERLACE)
 		VIDEO_WaitVSync();
+
+	vid_init = 1;
 }
+
+void ShutdownVideo(void)
+{
+	free(MEM_K1_TO_K0(xfb));
+	//de-init video
+	vu16* const _viReg = (u16*)0xCC002000;
+	if ((_viReg[1] & 0x0001))
+	{
+		//reset & de-init the regs. at least that should work according to libogc
+		u32 cnt = 0;
+		_viReg[1] = 0x02;
+		while (cnt < 1000) cnt++;
+		gdprintf(_viReg[1]);
+		_viReg[1] = 0x00;
+	}
+
+	vid_init = 0;
+}
+
 void InitVideo ( void )
 {
 	if (vid_init == 1)
 		return;
 
-	VIDEO_Init();
 	_configureVideoMode(VIDEO_GetPreferredMode(NULL), 1);
-	vid_init = 1;
 	gdprintf("resolution is %dx%d",rmode->viWidth,rmode->viHeight);
 	return;
 }
@@ -96,9 +102,10 @@ void ClearScreen()
 	return;
 }
 
-void ConfigureVideo(GXRModeObj* videoMode)
+void ConfigureVideoMode(GXRModeObj* videoMode)
 {
 	_configureVideoMode(videoMode, 0);
+	return;
 }
 
 s8 InitNetwork()

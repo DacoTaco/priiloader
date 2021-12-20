@@ -59,7 +59,8 @@ extern void *xfb;
 //FUNCTIONS
 //---------------
 void InitVideo ( void );
-void ConfigureVideo(GXRModeObj* videoMode);
+void ShutdownVideo(void);
+void ConfigureVideoMode(GXRModeObj* videoMode);
 void ClearScreen();
 s8 InitNetwork();
 

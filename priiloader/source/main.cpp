@@ -1304,60 +1304,6 @@ void ApploaderInitCallback(const char* fmt, ...)
 	if(fmt != NULL)
 		gdprintf("StubApploaderInitCallback : %s", fmt);
 }
-s8 SetVideoModeForDisc(u32 gameID)
-{
-	GXRModeObj* vidmode;
-	s8 videoMode = 0;
-	//Taken from Dolphin
-	switch (gameID & 0xFF)
-	{
-		//PAL
-		case 'D':
-		case 'F':
-		case 'H':
-		case 'I':
-		case 'L':
-		case 'M':
-		case 'P':
-		case 'R':
-		case 'S':
-		case 'U':
-		case 'V':
-			gprintf("PAL50");
-			// set 50Hz mode - incompatible with S-Video cables!
-			vidmode = &TVPal528IntDf;
-			videoMode = SYS_VIDEO_PAL;
-			break;
-
-		//NTSC-J
-		case 'J':
-		case 'K':
-		case 'Q':
-		case 'T':
-			gprintf("NTSC-J");
-			goto region_ntsc;
-			break;
-
-		//NTSC-U
-		default:
-			gprintf("unknown ID");
-		case 'B':
-		case 'N':
-		case 'E':
-			gprintf("NTSC-U");
-		region_ntsc:
-			videoMode = SYS_VIDEO_NTSC;
-			vidmode = &TVNtsc480IntDf;
-			break;
-	}
-
-	//set video mode for the game
-	ClearScreen();
-	if (rmode != vidmode)
-		ConfigureVideo(vidmode);
-
-	return videoMode;
-}
 void BootDvdDrive(void)
 {
 	DVDTableOfContent* tableOfContent = NULL;
@@ -1422,7 +1368,7 @@ void BootDvdDrive(void)
 			DVDCloseHandle();
 
 			s8 oldVideoMode = SYS_GetVideoMode();
-			s8 videoMode = SetVideoModeForDisc(gameID);
+			s8 videoMode = SetVideoModeForTitle(gameID);
 			gprintf("video mode : 0x%02X -> 0x%02X", oldVideoMode, videoMode);
 			if (oldVideoMode != videoMode)
 				SYS_SetVideoMode(videoMode);
@@ -1580,7 +1526,7 @@ void BootDvdDrive(void)
 		//what is even the purpose of this?
 		settime(secs_to_ticks(time(NULL) - 946684800));
 
-		s8 videoMode = SetVideoModeForDisc(gameID);
+		s8 videoMode = SetVideoModeForTitle(gameID);
 
 		//disc related pokes to finish it off
 		//see memory map @ https://wiibrew.org/w/index.php?title=Memory_Map
@@ -1605,7 +1551,8 @@ void BootDvdDrive(void)
 		*(vu32*)0x800030E4 = 0x00008201;				// Console type
 		*(vu32*)0x800030F0 = 0x00000000;				// Apploader parameters
 		*(vu32*)0x8000315C = 0x80800113;				// DI Legacy mode ? OSInit/apploader?
-		*(vu32*)0x80003184 = *(vu32*)0x80000000;		// Enable WC24 by having the game id's the same
+		*(vu32*)0x80003180 = *(vu32*)0x80000000;		// Enable WC24 by having the game id's the same
+		*(vu32*)0x80003184 = 0x80000000;				// Application Type, 0x80 = Disc, 0x81 = NAND
 		*(vu32*)0x8000318C = 0x00000000;				// Title Booted from NAND
 		*(vu32*)0x80003190 = 0x00000000;				// Title Booted from NAND
 
