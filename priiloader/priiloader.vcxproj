@@ -100,6 +100,7 @@
     </BuildLog>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="source\DiscContent.cpp" />
     <ClCompile Include="source\dvd.c" />
     <ClCompile Include="source\error.cpp" />
     <ClCompile Include="source\font.cpp" />
@@ -120,6 +121,7 @@
     <ClCompile Include="source\titles.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\DiscContent.h" />
     <ClInclude Include="include\dvd.h" />
     <ClInclude Include="include\error.h" />
     <ClInclude Include="include\font.h" />
