@@ -27,7 +27,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <unistd.h>
 #include <vector>
 #include <ogc/machine/processor.h>
+
 #include "titles.h"
+#include "Global.h"
+#include "font.h"
+#include "settings.h"
+#include "playlog.h"
+#include "state.h"
 #include "mem2_manager.h"
 #include "dvd.h"
 #include "Input.h"
@@ -47,7 +53,11 @@ const s32 HBC_Titles_Size = (s32)((sizeof(HBC_Titles) / sizeof(HBC_Titles[0])));
 s8 CheckTitleOnSD(u64 id)
 {
 	if (!HAS_SD_FLAG(GetMountedFlags())) //no SD mounted, lets bail out
-		return -1;
+	{
+		gprintf("CheckTitleOnSD : no SD card inserted");
+		return 0;
+	}
+
 	char title_ID[5];
 	//Check app on SD. it might be there. not that it matters cause we can't boot from SD
 	memset(title_ID,0,5);
@@ -399,13 +409,8 @@ s32 LoadListTitles( void )
 					gprintf("WARNING : GetTMDViewSize error %d on title %x-%x",ret,(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
 					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMDSize error on 00000000-00000000!"))*13/2))>>1, 208+32, "WARNING : TMDSize error on %08X-%08X",(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
 					sleep(3);
-					if( !SGetSetting(SETTING_BLACKBACKGROUND))
-						VIDEO_ClearFrameBuffer( rmode, xfb, 0xFF80FF80);
-					else
-						VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
-					VIDEO_WaitVSync();
-					printf("\x1b[5;0H");
-					fflush(stdout);
+
+					ClearScreen();
 					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("loading titles..."))*13/2))>>1, 208+16, "loading titles...");
 					continue;
 				}
@@ -425,13 +430,8 @@ s32 LoadListTitles( void )
 					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMD error on 00000000-00000000!"))*13/2))>>1, 208+32, "WARNING : TMD error on %08X-%08X!",(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
 					sleep(3);
 					mem_free(rTMD);
-					if( !SGetSetting(SETTING_BLACKBACKGROUND))
-						VIDEO_ClearFrameBuffer( rmode, xfb, 0xFF80FF80);
-					else
-						VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
-					VIDEO_WaitVSync();
-					printf("\x1b[5;0H");
-					fflush(stdout);
+					
+					ClearScreen();
 					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("loading titles..."))*13/2))>>1, 208+16, "loading titles...");
 					continue;
 				}
@@ -475,13 +475,9 @@ s32 LoadListTitles( void )
 		sleep(3);
 		return 0;
 	}
-	if( !SGetSetting(SETTING_BLACKBACKGROUND))
-		VIDEO_ClearFrameBuffer( rmode, xfb, 0xFF80FF80);
-	else
-		VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
-	VIDEO_WaitVSync();
-	printf("\x1b[5;0H");
-	fflush(stdout);
+	
+	ClearScreen();
+
 	s8 redraw = true;
 	s16 cur_off = 0;
 	//eventho normally a tv would be able to show 23 titles; some TV's do 60hz in a horrible mannor 
@@ -565,13 +561,7 @@ s32 LoadListTitles( void )
 				break;
 			}
 
-			if( !SGetSetting(SETTING_BLACKBACKGROUND))
-				VIDEO_ClearFrameBuffer( rmode, xfb, 0xFF80FF80);
-			else
-				VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
-			VIDEO_WaitVSync();
-			printf("\x1b[5;0H");
-			fflush(stdout);
+			ClearScreen();
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Loading title..."))*13/2))>>1, 208, "Loading title...");
 
 			//lets start this bitch

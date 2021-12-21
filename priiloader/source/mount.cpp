@@ -33,6 +33,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "settings.h"
 #include "gecko.h"
 
+#define SD_MOUNTPOINT "sd"
+#define SD_UNMOUNTPOINT "sd:"
+#define USB_MOUNTPOINT "usb"
+#define USB_UNMOUNTPOINT "usb:"
+#define NAND_MOUNTPOINT ""
+
 using namespace std;
 
 //we have this since libogc does not support std::mutex & std::unique_lock
@@ -51,7 +57,7 @@ public:
 	}
 };
 
-string __mountPoint = "sd";
+string __mountPoint = SD_MOUNTPOINT;
 static mountChangedCallback __pollCallback = NULL;
 static u8 _init = 0;
 static u8 notMountableFlag = 0;
@@ -61,11 +67,110 @@ static mutex_t mountPointMutex;
 static lwp_t mnt_thread_handle = LWP_THREAD_NULL;
 static bool quit_thread = 0;
 
+void _pollMount(void)
+{
+	MutexLock mountLock(mountPointMutex);
+
+	//sd card removed?
+	if (_sdMounted && !__io_wiisd.isInserted())
+	{
+		fatUnmount(SD_UNMOUNTPOINT);
+		gprintf("SD: Unmounted");
+		__io_wiisd.shutdown();
+		_sdMounted = false;
+	}
+
+	//or usb removed?
+	if (_usbMounted && !__io_usbstorage.isInserted())
+	{
+		fatUnmount(USB_UNMOUNTPOINT);
+		_usbMounted = false;
+		gprintf("USB: Unmounted");
+	}
+
+	//check sd it we can mount it?
+	if (!_sdMounted && __io_wiisd.startup() && __io_wiisd.isInserted() && !(notMountableFlag & StorageDevice::SD))
+	{
+		if (fatMountSimple(SD_MOUNTPOINT, &__io_wiisd))
+		{
+			_sdMounted = true;
+			gprintf("SD: Mounted");
+		}
+		else
+		{
+			notMountableFlag |= StorageDevice::SD;
+			gprintf("SD: Failed to mount");
+		}
+	}
+
+	//or can we mount usb?
+	if (__io_usbstorage.startup() && __io_usbstorage.isInserted() && !_usbMounted && !(notMountableFlag & StorageDevice::USB))
+	{
+		if (fatMountSimple(USB_MOUNTPOINT, &__io_usbstorage))
+		{
+			_usbMounted = true;
+			gprintf("USB: Mounted");
+		}
+		else
+		{
+			notMountableFlag |= StorageDevice::USB;
+			gprintf("USB: Failed to mount");
+		}
+	}
+
+	//check not mountable flags
+	if (notMountableFlag > 0)
+	{
+		if ((notMountableFlag & StorageDevice::USB) && !__io_usbstorage.isInserted())
+		{
+			notMountableFlag &= ~StorageDevice::USB;
+			gdprintf("USB: NM Flag Reset");
+			__io_usbstorage.shutdown();
+		}
+		if ((notMountableFlag & StorageDevice::SD) && !__io_wiisd.isInserted())
+		{
+			//not needed for SD yet but just to be on the safe side
+			notMountableFlag &= ~StorageDevice::SD;
+			gdprintf("SD: NM Flag Reset");
+			__io_wiisd.shutdown();
+		}
+	}
+
+	string oldMountPoint = __mountPoint;
+
+	//verify settings and set mountPoint
+	switch (settings->PreferredMountPoint)
+	{
+		case MOUNT_USB:
+			if (_usbMounted && __mountPoint != USB_MOUNTPOINT)
+				__mountPoint = USB_MOUNTPOINT;
+			break;
+		case MOUNT_SD:
+		case MOUNT_AUTO:
+		default:
+			if (_sdMounted && __mountPoint != SD_MOUNTPOINT)
+				__mountPoint = SD_MOUNTPOINT;
+			else if (!_sdMounted && _usbMounted && __mountPoint != USB_MOUNTPOINT)
+				__mountPoint = USB_MOUNTPOINT;
+			else if (!_usbMounted && !_sdMounted && __mountPoint != "fat")
+				__mountPoint = "fat";
+			break;
+	}
+
+	//something changed, notify client?
+	if (oldMountPoint != __mountPoint)
+	{
+		gprintf("Mount switch to %s", __mountPoint.c_str());
+		if (__pollCallback != NULL)
+			__pollCallback(_sdMounted, _usbMounted);
+	}
+}
+
 void* _mountThread(void* args)
 {
 	while (!quit_thread)
 	{
-		PollMount();		
+		_pollMount();
 		usleep(500);
 	}
 
@@ -99,12 +204,12 @@ void ShutdownMounts()
 
 	//unmount devices
 	if (_sdMounted)
-		fatUnmount("sd:/");
+		fatUnmount(SD_UNMOUNTPOINT);
 	_sdMounted = false;
 	__io_wiisd.shutdown();
 
 	if (_usbMounted)
-		fatUnmount("usb:/");
+		fatUnmount(USB_UNMOUNTPOINT);
 	_usbMounted = false;
 	__io_usbstorage.shutdown();
 
@@ -153,14 +258,14 @@ string BuildPath(const char* path, StorageDevice device)
 	switch (device)
 	{
 		case StorageDevice::NAND:
-			mountPoint = "";
+			mountPoint = NAND_MOUNTPOINT;
 			semiColon = "";
 			break;
 		case StorageDevice::USB:
-			mountPoint = "usb";
+			mountPoint = USB_MOUNTPOINT;
 			break;
 		case StorageDevice::SD:
-			mountPoint = "sd";
+			mountPoint = SD_MOUNTPOINT;
 			break;
 		case StorageDevice::Auto:
 		default:
@@ -171,103 +276,4 @@ string BuildPath(const char* path, StorageDevice device)
 	// "sd" + ":" + "/" + path
 	output = mountPoint + semiColon + backslash + path;
 	return output;
-}
-
-void PollMount(void)
-{
-	MutexLock mountLock(mountPointMutex);
-
-	//sd card removed?
-	if (_sdMounted && !__io_wiisd.isInserted())
-	{
-		fatUnmount("sd:");
-		gprintf("SD: Unmounted");
-		__io_wiisd.shutdown();
-		_sdMounted = false;
-	}
-
-	//or usb removed?
-	if (_usbMounted && !__io_usbstorage.isInserted())
-	{
-		fatUnmount("usb:");
-		_usbMounted = false;
-		gprintf("USB: Unmounted");
-	}
-
-	//check sd it we can mount it?
-	if (!_sdMounted && __io_wiisd.startup() && __io_wiisd.isInserted() && !(notMountableFlag & StorageDevice::SD))
-	{
-		if (fatMountSimple("sd", &__io_wiisd))
-		{
-			_sdMounted = true;
-			gprintf("SD: Mounted");
-		}
-		else
-		{
-			notMountableFlag |= StorageDevice::SD;
-			gprintf("SD: Failed to mount");
-		}
-	}
-
-	//or can we mount usb?
-	if (__io_usbstorage.startup() && __io_usbstorage.isInserted() && !_usbMounted && !(notMountableFlag & StorageDevice::USB))
-	{
-		if (fatMountSimple("usb", &__io_usbstorage))
-		{
-			_usbMounted = true;
-			gprintf("USB: Mounted");
-		}
-		else
-		{
-			notMountableFlag |= StorageDevice::USB;
-			gprintf("USB: Failed to mount");
-		}
-	}
-
-	//check not mountable flags
-	if (notMountableFlag > 0)
-	{
-		if ((notMountableFlag & StorageDevice::USB) && !__io_usbstorage.isInserted())
-		{
-			notMountableFlag &= ~StorageDevice::USB;
-			gdprintf("USB: NM Flag Reset");
-			__io_usbstorage.shutdown();
-		}
-		if ((notMountableFlag & StorageDevice::SD) && !__io_wiisd.isInserted())
-		{
-			//not needed for SD yet but just to be on the safe side
-			notMountableFlag &= ~StorageDevice::SD;
-			gdprintf("SD: NM Flag Reset");
-			__io_wiisd.shutdown();
-		}
-	}
-
-	string oldMountPoint = __mountPoint;
-	
-	//verify settings and set mountPoint
-	switch (settings->PreferredMountPoint)
-	{
-		case MOUNT_USB:
-			if (_usbMounted && __mountPoint != "usb")
-				__mountPoint = "usb";
-			break;
-		case MOUNT_SD:
-		case MOUNT_AUTO:
-		default:
-			if (_sdMounted && __mountPoint != "sd")
-				__mountPoint = "sd";
-			else if (!_sdMounted && _usbMounted && __mountPoint != "usb")
-				__mountPoint = "usb";
-			else if(!_usbMounted && !_sdMounted && __mountPoint != "fat")
-				__mountPoint = "fat";
-			break;
-	}
-	
-	//something changed, notify client?
-	if (oldMountPoint != __mountPoint)
-	{
-		gprintf("Mount switch to %s", __mountPoint.c_str());
-		if(__pollCallback != NULL)
-			__pollCallback(_sdMounted, _usbMounted);
-	}		
 }

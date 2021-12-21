@@ -76,45 +76,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //Bin includes
 #include "loader_bin.h"
 
-//copy of libogc's SYS_*Video functions, untill the new version is released
-#ifndef SYS_VIDEO_NTSC
-#define SRAM_VIDEO_MODE_BITS			0x03
-#define SYS_VIDEO_NTSC					0x00
-#define SYS_VIDEO_PAL					0x01
-#define SYS_VIDEO_MPAL					0x02
-
-extern "C"
-{
-	extern syssram* __SYS_LockSram(void);
-	extern u32 __SYS_UnlockSram(u32 write);
-}
-
-u8 SYS_GetVideoMode(void)
-{
-	u8 mode;
-	syssram* sram;
-
-	sram = __SYS_LockSram();
-	mode = (sram->flags & SRAM_VIDEO_MODE_BITS);
-	__SYS_UnlockSram(0);
-	return mode;
-}
-
-void SYS_SetVideoMode(u8 mode)
-{
-	u32 write;
-	syssram* sram;
-
-	write = 0;
-	sram = __SYS_LockSram();
-	if ((sram->flags & SRAM_VIDEO_MODE_BITS) != mode) {
-		sram->flags = (sram->flags & ~SRAM_VIDEO_MODE_BITS) | (mode & SRAM_VIDEO_MODE_BITS);
-		write = 1;
-	}
-	__SYS_UnlockSram(write);
-}
-#endif
-
 typedef struct _dol_settings 
 {
 	s8 HW_AHBPROT_bit;
@@ -146,7 +107,7 @@ void _mountCallback(bool sd_mounted, bool usb_mounted)
 	_mountChanged = 1;
 }
 
-s32 __IOS_LoadStartupIOS()
+s32 __IOS_LoadStartupIOS( void )
 {
 	return 0;
 }

@@ -45,7 +45,6 @@ extern "C" {
 void InitMounts(mountChangedCallback callback = NULL);
 void ShutdownMounts();
 std::string BuildPath(const char* path, StorageDevice device = StorageDevice::Auto);
-void PollMount(void);
 u8 GetMountedFlags();
 
 #ifdef __cplusplus

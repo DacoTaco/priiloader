@@ -24,13 +24,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define _TITLES_H_
 
 #include <gccore.h>
-#include <wiiuse/wpad.h>
-
-#include "Global.h"
-#include "state.h"
-#include "settings.h"
-#include "playlog.h"
-#include "font.h"
 
 //defines
 #define TITLE_TYPE_INVALID              0x00000000

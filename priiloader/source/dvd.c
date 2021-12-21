@@ -174,7 +174,7 @@ s32 DVDOpenPartition(u32 offset, void* eticket, void* shared_cert_in, u32 shared
 	if (shared_cert_in != NULL && shared_cert_in_len > 0)
 		return -1;
 
-	ioctlv data[4] [[gnu::aligned(64)]];
+	ioctlv data[4] [[gnu::aligned(64)]] = { 0 };
 
 	data[0].data = eticket;
 	data[0].len = (eticket == NULL) ? 0 : 0x02A4;
