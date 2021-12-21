@@ -3042,7 +3042,7 @@ int main(int argc, char **argv)
 #ifdef DEBUG
 	gdprintf("priiloader v%d.%d.%d DEBUG (Sys:%d)(IOS:%d)(%s %s)", VERSION.major, VERSION.minor, VERSION.patch, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
 #elif VERSION_BETA > 0
-	gprintf("priiloader v%d.%d.%d BETA %d (Sys:%d)(IOS:%d)(%s %s)", VERSION.major, VERSION.minor, VERSION.patch, VERSION.beta, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
+	gprintf("priiloader v%d.%d.%d BETA %d (Sys:%d)(IOS:%d)(%s %s)", VERSION.major, VERSION.minor, VERSION.patch, VERSION.sub_version, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
 #endif
 
 	system_state.InMainMenu = 1;
@@ -3158,7 +3158,7 @@ int main(int argc, char **argv)
 			PrintFormat( 0, 16, rmode->viHeight-96, "IOS v%d", (*(vu32*)0x80003140)>>16 );
 			PrintFormat( 0, 16, rmode->viHeight-80, "Systemmenu v%d", SysVersion );
 #if VERSION_BETA > 0
-			PrintFormat( 0, 16, rmode->viHeight - 64, "Priiloader v%d.%d.%d(beta v%d)", VERSION.major, VERSION.minor, VERSION.patch, VERSION.beta);
+			PrintFormat( 0, 16, rmode->viHeight - 64, "Priiloader v%d.%d.%d(beta %d)", VERSION.major, VERSION.minor, VERSION.patch, VERSION.sub_version);
 #else
 			PrintFormat (0, 16, rmode->viHeight - 64, "Priiloader v%d.%d.%d (r0x%08x)", VERSION.major, VERSION.minor, VERSION.patch, GIT_REV);
 #endif

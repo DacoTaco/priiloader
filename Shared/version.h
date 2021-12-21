@@ -43,7 +43,7 @@ typedef struct {
 #define VERSION_MAJOR	0
 #define VERSION_MINOR	10
 #define VERSION_PATCH	0
-#define VERSION_BETA	0
+#define VERSION_BETA	1
 #define VERSION (version_t){ VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, VERSION_BETA }
 #define VERSION_MERGED (unsigned int)((VERSION_MAJOR << 8) | (VERSION_MINOR * 10) | (VERSION_PATCH))
 
