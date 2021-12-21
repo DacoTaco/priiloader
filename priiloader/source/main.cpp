@@ -3503,14 +3503,13 @@ int main(int argc, char **argv)
 
 		if( redraw )
 		{
+			PrintFormat( 0, 16, rmode->viHeight-96, "IOS v%d", (*(vu32*)0x80003140)>>16 );
+			PrintFormat( 0, 16, rmode->viHeight-80, "Systemmenu v%d", SysVersion );
 #if VERSION_BETA > 0
-			PrintFormat( 0, 128, rmode->viHeight-96, "Priiloader v%d.%d.%d(beta v%d)", VERSION.major, VERSION.minor, VERSION.patch, VERSION.beta);
+			PrintFormat( 0, 16, rmode->viHeight - 64, "Priiloader v%d.%d.%d(beta v%d)", VERSION.major, VERSION.minor, VERSION.patch, VERSION.beta);
 #else
-			PrintFormat( 0, 128, rmode->viHeight-96, "Priiloader v%d.%d.%d (r0x%08x)", VERSION.major, VERSION.minor, VERSION.patch, GIT_REV );
+			PrintFormat (0, 16, rmode->viHeight - 64, "Priiloader v%d.%d.%d (r0x%08x)", VERSION.major, VERSION.minor, VERSION.patch, GIT_REV);
 #endif
-			PrintFormat( 0, 16, rmode->viHeight-112, "IOS v%d", (*(vu32*)0x80003140)>>16 );
-			PrintFormat( 0, 16, rmode->viHeight-96, "Systemmenu v%d", SysVersion );			
-			PrintFormat( 0, 16, rmode->viHeight-64, "Priiloader is a mod of Preloader 0.30");
 
 			PrintFormat( cur_off==0, TEXT_OFFSET("System Menu"), 64, "System Menu");
 			PrintFormat( cur_off==1, TEXT_OFFSET("Homebrew Channel"), 80, "Homebrew Channel");
