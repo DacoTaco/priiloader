@@ -1741,6 +1741,7 @@ void InstallLoadDOL( void )
 		if(reload)
 		{
 			gprintf("loading binaries...");
+			PrintFormat(1, ((rmode->viWidth / 2) - ((strlen("loading binaries...")) * 13 / 2)) >> 1, 208 + 16, "loading binaries...");
 			reload = 0;
 			dir = opendir (BuildPath("/apps/", device).c_str());
 			if( dir != NULL )
@@ -1945,6 +1946,7 @@ void InstallLoadDOL( void )
 			ClearScreen();
 			redraw=true;
 		}
+
 		if( redraw )
 		{
 			s16 i= min_pos;

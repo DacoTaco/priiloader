@@ -221,7 +221,6 @@ void ShutdownMounts()
 u8 GetMountedFlags()
 {
 	u8 flags = 0;
-	MutexLock mountLock(mountPointMutex);
 
 	if (_sdMounted)
 		flags |= StorageDevice::SD;
@@ -241,12 +240,8 @@ string BuildPath(const char* path, StorageDevice device)
 	u32 inputLen = 0;
 	const u32 maxInputLen = (MAXPATHLEN + NAME_MAX) - 10;
 
-	MutexLock mountLock(mountPointMutex);
-	if (path == NULL || __mountPoint.length() == 0)
-	{
-		gprintf("path or mountPoint is null");
+	if (path == NULL)
 		return output;
-	}
 	
 	inputLen = strnlen(path, maxInputLen);
 	if (inputLen == 0 || inputLen >= maxInputLen)
@@ -269,8 +264,13 @@ string BuildPath(const char* path, StorageDevice device)
 			break;
 		case StorageDevice::Auto:
 		default:
-			mountPoint = __mountPoint;
+		{
+			if (__mountPoint.length() == 0)
+				mountPoint = "";
+			else
+				mountPoint = __mountPoint;
 			break;
+		}
 	}
 
 	// "sd" + ":" + "/" + path
