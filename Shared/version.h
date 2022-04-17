@@ -45,7 +45,8 @@ typedef struct {
 #define VERSION_PATCH	0
 #define VERSION_BETA	1
 #define VERSION (version_t){ VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, VERSION_BETA }
-#define VERSION_MERGED (unsigned int)((VERSION_MAJOR << 8) | (VERSION_MINOR * 10) | (VERSION_PATCH))
+#define VERSION_MERGED ((u32)(VERSION_MAJOR << 24 | VERSION_MINOR<<16 | VERSION_PATCH<<8 | VERSION_BETA))
+#define VERSION_DEPRECATED (unsigned int)((VERSION_MAJOR << 8) | (VERSION_MINOR * 10) | (VERSION_PATCH))
 
 unsigned char same_version(version_t v1, version_t v2);
 unsigned char smaller_version(version_t v1, version_t v2);
