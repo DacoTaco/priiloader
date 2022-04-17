@@ -140,28 +140,20 @@ u32 SGetSetting( u32 s )
 	{
 		case SETTING_AUTBOOT:
 			return settings->autoboot;
-
 		case SETTING_RETURNTO:
 			return settings->ReturnTo;
-
 		case SETTING_SHUTDOWNTO:
 			return settings->ShutdownTo;
-
 		case SETTING_STOPDISC:
 			return settings->StopDisc;
-
 		case SETTING_LIDSLOTONERROR:
 			return settings->LidSlotOnError;
-
 		case SETTING_IGNORESHUTDOWNMODE:
 			return settings->IgnoreShutDownMode;
-
 		case SETTING_SYSTEMMENUIOS:
 			return settings->SystemMenuIOS;
-
 		case SETTING_USESYSTEMMENUIOS:
 			return settings->UseSystemMenuIOS;
-
 		case SETTING_BLACKBACKGROUND:
 			return settings->BlackBackground;
 		case SETTING_DUMPGECKOTEXT:
