@@ -99,7 +99,7 @@ extern Settings *settings;
 u32 GetSysMenuVersion( void );
 u32 GetSysMenuIOS( void );
 u32 SGetSetting( u32 s );
-void LoadSettings( void );
+LoadSettingsResult LoadSettings( void );
 int SaveSettings( void );
 
 #endif
