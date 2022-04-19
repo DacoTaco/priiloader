@@ -88,12 +88,18 @@ enum PreferredMountPoint {
 	MOUNT_USB
 };
 
+enum LoadSettingsResult {
+	LOADSETTINGS_OK,
+	LOADSETTINGS_FAIL,
+	LOADSETTINGS_INI_CREATED
+};
+
 extern Settings *settings;
 
 u32 GetSysMenuVersion( void );
 u32 GetSysMenuIOS( void );
 u32 SGetSetting( u32 s );
-void LoadSettings( void );
+LoadSettingsResult LoadSettings( void );
 int SaveSettings( void );
 
 #endif

@@ -169,7 +169,7 @@ u32 SGetSetting( u32 s )
 		break;
 	}
 }
-void LoadSettings( void )
+LoadSettingsResult LoadSettings( void )
 {
 	if(settings == NULL)
 	{
@@ -177,7 +177,7 @@ void LoadSettings( void )
 		settings = (Settings*)mem_align( 32, ALIGN32( sizeof( Settings ) ) );
 	}
 	if(settings == NULL)
-		return;
+		return LOADSETTINGS_FAIL;
 	memset( settings, 0, sizeof( Settings ) );
 	
 	s32 fd = ISFS_Open("/title/00000001/00000002/data/loader.ini", ISFS_OPEN_READ );
@@ -185,7 +185,8 @@ void LoadSettings( void )
 	{
 		//file not found create a new one
 		Create_Settings_File();
-		return; // settings was created from scratch. no need to do it all over
+		// settings was created from scratch. no need to do it all over
+		return error == ERROR_NONE ? LOADSETTINGS_INI_CREATED : LOADSETTINGS_FAIL;
 	}
 
 	STACK_ALIGN(fstats,status,sizeof(fstats),32);
@@ -198,14 +199,14 @@ void LoadSettings( void )
 		//recreate settings file
 		ISFS_Delete("/title/00000001/00000002/data/loader.ini");
 		Create_Settings_File();
-		return;
+		return error == ERROR_NONE ? LOADSETTINGS_INI_CREATED : LOADSETTINGS_FAIL;
 	}
 
 	if(ISFS_Read( fd, settings, sizeof( Settings ) )<0)
 	{
 		ISFS_Close( fd );
 		error = ERROR_SETTING_READ;
-		return;
+		return LOADSETTINGS_FAIL;
 	}
 	if( settings->version == 0 || settings->version != VERSION_MERGED || settings->BetaVersion != VERSION_BETA )
 	{
@@ -215,7 +216,7 @@ void LoadSettings( void )
 		ISFS_Write( fd, settings, sizeof( Settings ) );
 	}
 	ISFS_Close( fd );
-	return;
+	return LOADSETTINGS_OK;
 }
 int SaveSettings( void )
 {
