@@ -2862,18 +2862,7 @@ int main(int argc, char **argv)
 	LoadHBCStub();
 	gprintf("\"Magic Priiloader word\": %x - %x",*(vu32*)MAGIC_WORD_ADDRESS_2 ,*(vu32*)MAGIC_WORD_ADDRESS_1);
 
-	bool IsFirstTimeUse = false;
-	switch (LoadSettings())
-	{
-		case LOADSETTINGS_FAIL:
-			// Do nothing, errors are handled later
-			break;
-		case LOADSETTINGS_INI_CREATED:
-			IsFirstTimeUse = true;
-			/* fallthrough */
-		case LOADSETTINGS_OK:
-			break;
-	}
+	bool isFirstTimeUse = LoadSettings() == LOADSETTINGS_INI_CREATED;
 	if(SGetSetting(SETTING_DUMPGECKOTEXT) == 1)
 	{
 		InitMounts(_mountCallback);
@@ -2899,7 +2888,7 @@ int main(int argc, char **argv)
 	Input_ScanPads();
 	
 	//Check reset button state, boot to priiloader if first time
-	if(!IsFirstTimeUse && ((Input_ButtonsDown() & INPUT_BUTTON_B) == 0) && RESET_UNPRESSED == 1 && magicWord == 0)
+	if(!isFirstTimeUse && ((Input_ButtonsDown() & INPUT_BUTTON_B) == 0) && RESET_UNPRESSED == 1 && magicWord == 0)
 	{
 		//Check autoboot settings
 		switch( Bootstate )
