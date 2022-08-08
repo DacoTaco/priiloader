@@ -1280,10 +1280,10 @@ void BootMainSysMenu( void )
 {	
 	//boot info
 	const u64 TitleID=0x0000000100000002LL;
-	u32 tmd_size;
-	u8 tmd_buf[(sizeof(tmd_view) + MAX_NUM_TMD_CONTENTS*sizeof(tmd_view_content))] ATTRIBUTE_ALIGN(32);
-	tmd_view *rTMD = NULL;
-	signed_blob* TMD = NULL;
+	u32 tmdSize;
+	u8* tmdBuff = NULL;
+	signed_blob* signedTmdBlob = NULL;
+	tmd* smTmd = NULL;
 	s8* ticket = NULL;
 
 	//loader & boot file
@@ -1298,39 +1298,43 @@ void BootMainSysMenu( void )
 	s32 fd = 0;
 	try
 	{
-		//expermintal code for getting the needed tmd info. no boot index is in the views but lunatik and i think last file = boot file
-		ret = ES_GetTMDViewSize(TitleID, &tmd_size);
-		if(ret < 0)
+		//get the TMD. we need the TMD, not views, as SM 1.0's boot index != last content
+		ret = ES_GetStoredTMDSize(TitleID, &tmdSize);
+		if (ret < 0 || tmdSize > MAX_SIGNED_TMD_SIZE)
 		{
 			error = ERROR_SYSMENU_GETTMDSIZEFAILED;
-			throw ("GetTMDViewSize error " + std::to_string(ret));
+			throw ("ES_GetStoredTMDSize error " + std::to_string(ret));
 		}
 
-		ret = ES_GetTMDView(TitleID, tmd_buf, tmd_size);
-		if(ret<0)
+		tmdBuff = (u8*)mem_align(32, MAX_SIGNED_TMD_SIZE);
+		if (tmdBuff == NULL)
+		{
+			error = ERROR_MALLOC;
+			throw "BootMainSysMenu: memalign TMD failure";
+		}
+		memset(tmdBuff, 0, MAX_SIGNED_TMD_SIZE);
+
+		ret = ES_GetStoredTMD(TitleID, (signed_blob*)tmdBuff, tmdSize);
+		if (ret < 0)
 		{
 			error = ERROR_SYSMENU_GETTMDFAILED;
-			throw ("GetTMDView error " + std::to_string(ret));
+			throw ("ES_GetStoredTMD error " + std::to_string(ret));
 		}
-
-		rTMD = (tmd_view *)tmd_buf;
+		
+		signedTmdBlob = (signed_blob*)tmdBuff;
+		smTmd = (tmd*)SIGNATURE_PAYLOAD(signedTmdBlob);
 		gdprintf("ios version: %u",(u8)rTMD->sys_version);
 
-		//get main.dol filename
-		/*for(u32 z=0; z < rTMD->num_contents; ++z)
+		if (smTmd->boot_index > smTmd->num_contents)
 		{
-			if( rTMD->contents[z].index == rTMD->num_contents )//rTMD->boot_index )
-			{
-				gdprintf("content[%i] id=%08X type=%u", z, content->cid, content->type | 0x8001 );
-				fileID = rTMD->contents[z].cid;
-				break;
-			}
-		}*/
+			error = ERROR_SYSMENU_GETTMDFAILED;
+			throw ("Invalid boot index " + std::to_string(smTmd->boot_index));
+		}
 
+		//get main.dol filename
 		char file[64] ATTRIBUTE_ALIGN(32);
-		u32 fileID = rTMD->contents[rTMD->num_contents-1].cid;
+		u32 fileID = smTmd->contents[smTmd->boot_index].cid;
 		gprintf("using %08X for booting",fileID);
-
 		if( fileID == 0 )
 		{
 			error = ERROR_SYSMENU_BOOTNOTFOUND;
@@ -1416,7 +1420,7 @@ void BootMainSysMenu( void )
 		}*/
 
 		//Step 2 of IOS handling : ES_Identify if we are on a different ios or if we reloaded ios once already. note that the ES_Identify is only supported by ios > 20
-		if (((u8)IOS_GetVersion() != (u8)rTMD->sys_version) || (system_state.ReloadedIOS) )
+		if (((u8)IOS_GetVersion() != (u8)smTmd->sys_version) || (system_state.ReloadedIOS) )
 		{
 			if (system_state.ReloadedIOS)
 				gprintf("Forced into ES_Identify");
@@ -1457,32 +1461,6 @@ void BootMainSysMenu( void )
 			}
 			ISFS_Close( fd );
 
-			//get the real TMD. we didn't get the real TMD before. the views will fail to be used in identification
-			u32 tmd_size_temp;
-			ret = ES_GetStoredTMDSize(TitleID, &tmd_size_temp);
-			if(ret < 0)
-			{
-				error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
-				__IOS_InitializeSubsystems();
-				throw ("ES_Identify: GetStoredTMDSize error " + std::to_string(ret));
-			}
-			TMD = (signed_blob *)mem_align( 32, ALIGN32(tmd_size_temp) );
-			if(TMD == NULL)
-			{
-				error = ERROR_MALLOC;
-				__IOS_InitializeSubsystems();
-				throw "ES_Identify: memalign TMD failure";
-			}
-			memset(TMD, 0, tmd_size_temp);
-
-			ret = ES_GetStoredTMD(TitleID, TMD, tmd_size_temp);
-			if(ret < 0)
-			{
-				error = ERROR_SYSMENU_ESDIVERFIY_FAILED;
-				__IOS_InitializeSubsystems();
-				throw ("ES_Identify: GetStoredTMD error " + std::to_string(ret));
-			}
-
 			fd = ISFS_Open("/sys/cert.sys",ISFS_OPEN_READ);
 			if(fd < 0 )
 			{
@@ -1511,15 +1489,14 @@ void BootMainSysMenu( void )
 				throw ("ES_Identify: ISFS_Read error " + std::to_string(ret));
 			}
 
-			ret = ES_Identify( (signed_blob *)certificate, certStats->file_length, (signed_blob *)TMD, tmd_size_temp, (signed_blob *)ticket, status->file_length, 0);
+			ret = ES_Identify( (signed_blob *)certificate, certStats->file_length, signedTmdBlob, tmdSize, (signed_blob *)ticket, status->file_length, 0);
 			if( ret < 0 )
 			{	
 				error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
 				__IOS_InitializeSubsystems();
 				throw ("ES_Identify error " + std::to_string(ret));
 			}
-			if(TMD)
-				mem_free(TMD);
+
 			if(ticket)
 				mem_free(ticket);
 		}
@@ -1690,8 +1667,8 @@ void BootMainSysMenu( void )
 		mem_free(loader_addr);
 	if(ticket)
 		mem_free(ticket);
-	if(TMD)
-		mem_free(TMD);
+	if(tmdBuff)
+		mem_free(tmdBuff);
 	if(binary)
 		mem_free(binary);
 	if(fd > 0)
@@ -2070,12 +2047,10 @@ void InstallLoadDOL( void )
 						memset(null,0,1);
 						//write the ahbprot byte and arg count by all at once since ISFS_Write fails like that
 						ISFS_Write(fd,&dol_settings->HW_AHBPROT_bit,sizeof(s16));//s8(AHBPROT)+s8(argument count)+u32(arg lenght) = 6 bytes
-						if(&dol_settings->arg_cli_length != NULL && dol_settings->arg_cli_length > 0)
-							IOS_Write(fd,&dol_settings->arg_cli_length,sizeof(dol_settings->arg_cli_length));
-						//we use IOS_Write + 2 of the 3 checks of ISFS_Write cause ISFS_Write in libogc has an irritating check to see if the address is aligned by 32 
-						//(removed in libogc svn @ 22/07/2011)
+						if(dol_settings->arg_cli_length > 0)
+							ISFS_Write(fd,&dol_settings->arg_cli_length, sizeof(dol_settings->arg_cli_length));
 						if(dol_settings->arg_command_line != NULL && dol_settings->arg_cli_length > 0)
-							IOS_Write(fd,dol_settings->arg_command_line,dol_settings->arg_cli_length);
+							ISFS_Write(fd, dol_settings->arg_command_line, dol_settings->arg_cli_length);
 						ISFS_Close( fd );
 					}
 					PrintFormat( 0, ((rmode->viWidth /2)-((strlen("\"%s\" installed")+strlen(app_list[cur_off].app_name.c_str()))*13/2))>>1, 240, "\"%s\" installed", app_list[cur_off].app_name.c_str());
