@@ -1306,7 +1306,7 @@ void BootMainSysMenu( void )
 		}
 
 		smTmd = (tmd*)SIGNATURE_PAYLOAD(signedTmdBlob);
-		gdprintf("ios version: %u",(u8)rTMD->sys_version);
+		gdprintf("ios version: %u",(u8)smTmd->sys_version);
 
 		if (smTmd->boot_index > smTmd->num_contents)
 		{
@@ -1325,7 +1325,7 @@ void BootMainSysMenu( void )
 		}
 
 		// installing priiloader renamed system menu so we change the app file to have the right name
-		fileID |= 0x10000000;
+		fileID &= 0x1FFFFFFF;
 		sprintf( file, "/title/00000001/00000002/content/%08x.app", fileID );
 
 		fd = ISFS_Open( file, ISFS_OPEN_READ );
