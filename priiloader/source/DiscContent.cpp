@@ -169,7 +169,6 @@ void LaunchWiiDisc(void)
 	if (IOS_GetVersion() != requiredIOS)
 	{
 		gprintf("reloading ios");
-		s8 keepAHBProt = 1;
 
 		ret = DVDClosePartition();
 		partitionOpened = 0;
@@ -178,7 +177,7 @@ void LaunchWiiDisc(void)
 
 		DVDCloseHandle();
 
-		ret = ReloadIos(requiredIOS, &keepAHBProt);
+		ret = ReloadIOS(requiredIOS, 1);
 		if (ret <= 0)
 			throw "Failed to reload IOS (" + std::to_string(ret) + ")";
 

@@ -1094,7 +1094,7 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 
 		if (Ios_to_load > 2 && Ios_to_load < 255)
 		{
-			ReloadIos(Ios_to_load, &bAHBPROT);
+			ReloadIOS(Ios_to_load, bAHBPROT);
 			system_state.ReloadedIOS = 1;
 		}
 
@@ -1281,7 +1281,6 @@ void BootMainSysMenu( void )
 	//boot info
 	const u64 TitleID=0x0000000100000002LL;
 	u32 tmdSize;
-	u8* tmdBuff = NULL;
 	signed_blob* signedTmdBlob = NULL;
 	tmd* smTmd = NULL;
 	s8* ticket = NULL;
@@ -1299,29 +1298,13 @@ void BootMainSysMenu( void )
 	try
 	{
 		//get the TMD. we need the TMD, not views, as SM 1.0's boot index != last content
-		ret = ES_GetStoredTMDSize(TitleID, &tmdSize);
-		if (ret < 0 || tmdSize > MAX_SIGNED_TMD_SIZE)
-		{
-			error = ERROR_SYSMENU_GETTMDSIZEFAILED;
-			throw ("ES_GetStoredTMDSize error " + std::to_string(ret));
-		}
-
-		tmdBuff = (u8*)mem_align(32, MAX_SIGNED_TMD_SIZE);
-		if (tmdBuff == NULL)
-		{
-			error = ERROR_MALLOC;
-			throw "BootMainSysMenu: memalign TMD failure";
-		}
-		memset(tmdBuff, 0, MAX_SIGNED_TMD_SIZE);
-
-		ret = ES_GetStoredTMD(TitleID, (signed_blob*)tmdBuff, tmdSize);
-		if (ret < 0)
+		ret = GetTitleTMD(TitleID, signedTmdBlob, tmdSize);
+		if (ret < 0 )
 		{
 			error = ERROR_SYSMENU_GETTMDFAILED;
-			throw ("ES_GetStoredTMD error " + std::to_string(ret));
+			throw ("GetTitleTMD error " + std::to_string(ret));
 		}
-		
-		signedTmdBlob = (signed_blob*)tmdBuff;
+
 		smTmd = (tmd*)SIGNATURE_PAYLOAD(signedTmdBlob);
 		gdprintf("ios version: %u",(u8)rTMD->sys_version);
 
@@ -1394,14 +1377,8 @@ void BootMainSysMenu( void )
 					error=ERROR_SYSMENU_IOSSTUB;
 					throw "ios stub";
 				}
-				//manual IOS reload since we don't want to startup the whole IOS
-				__ES_Close();
-				__IOS_ShutdownSubsystems();
-				__ES_Init();
-				__IOS_LaunchNewIOS ( ToLoadIOS );
-				//why the hell the es needs 2 init's is beyond me... it just happens (see IOS_ReloadIOS in libogc's ios.c)
-				__ES_Init();
-				system_state.ReloadedIOS = 1;
+
+				ReloadIOS(ToLoadIOS, 1);
 			}
 		}
 		/*
@@ -1641,7 +1618,6 @@ void BootMainSysMenu( void )
 		gprintf("this ain't good");
 
 		//oh ow, this ain't good
-		__IOS_InitializeSubsystems();
 		InitMounts(_mountCallback);
 		mem_free(patch_ptr);
 		mem_free(loader_addr);
@@ -1667,8 +1643,6 @@ void BootMainSysMenu( void )
 		mem_free(loader_addr);
 	if(ticket)
 		mem_free(ticket);
-	if(tmdBuff)
-		mem_free(tmdBuff);
 	if(binary)
 		mem_free(binary);
 	if(fd > 0)

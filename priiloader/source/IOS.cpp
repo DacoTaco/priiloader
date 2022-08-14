@@ -4,6 +4,8 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <string>
+#include <vector>
+#include <algorithm>
 #include <ogc/machine/processor.h>
 
 //Project includes
@@ -12,6 +14,45 @@
 #include "error.h"
 #include "state.h"
 
+//IOS Patching structs
+typedef void (*Iospatcher)(u8* address);
+typedef struct _IosPatch {
+	std::vector<u8> Pattern;
+	Iospatcher Patch;
+} IosPatch;
+
+//IOS Patches
+static const IosPatch AhbProtPatcher = {
+	//Pattern
+	{
+			  0x68, 0x5B,				// ldr r3,[r3,#4]  ; get TMD pointer
+			  0x22, 0xEC, 0x00, 0x52,	// movls r2, 0x1D8
+			  0x18, 0x9B,				// adds r3, r3, r2 ; add offset of access rights field in TMD
+			  0x68, 0x1B,				// ldr r3, [r3]    ; load access rights (haxxme!)
+			  0x46, 0x98,				// mov r8, r3      ; store it for the DVD video bitcheck later
+			  0x07, 0xDB				// lsls r3, r3, #31; check AHBPROT bit
+	},
+	//Apply Patch
+	[](u8* address) {
+		*(u8*)(address + 8) = 0x23;
+		*(u8*)(address + 9) = 0xFF;
+	}
+};
+
+//nand permissions : 42 8b d0 01 25 66 -> 42 8b e0 01 25 66
+static const IosPatch NandAccessPatcher = {
+	//Pattern
+	{
+			  0x42, 0x8B,
+			  0xD0, 0x01,
+			  0x25, 0x66 
+	},
+	//Apply Patch
+	[](u8* address) {
+		*(u8*)(address + 2) = 0xE0;
+		*(u8*)(address + 3) = 0x01;
+	}
+};
 
 bool isIOSstub(u8 ios_number)
 {
@@ -62,60 +103,69 @@ bool isIOSstub(u8 ios_number)
 	mem_free(ios_tmd);
 	return false;
 }
-s32 ReloadIos(s32 Ios_version,s8* bool_ahbprot_after_reload)
+
+s8 PatchIOS(std::vector<IosPatch> patches)
 {
-	//this function would not be possible without tjeuidj releasing his patch. its not that davebaol's patch is less safe, but teuidj's is cleaner. and clean == good
-	if(
-		((bool_ahbprot_after_reload != NULL) && *bool_ahbprot_after_reload > 0)
-		&& read32(0x0d800064) == 0xFFFFFFFF)
-	{
-		if(read16(0x0d8b420a))
-		{
-			//there is more you can do to make more available but meh, not needed
-			write16(0x0d8b420a, 0);
-		}
-		if(!( read16(0x0d8b420a) ) )
-		{
-			static const u16 es_set_ahbprot[] = {
-			  0x685B,          // ldr r3,[r3,#4]  ; get TMD pointer
-			  0x22EC, 0x0052,  // movls r2, 0x1D8
-			  0x189B,          // adds r3, r3, r2 ; add offset of access rights field in TMD
-			  0x681B,          // ldr r3, [r3]    ; load access rights (haxxme!)
-			  0x4698,          // mov r8, r3      ; store it for the DVD video bitcheck later
-			  0x07DB           // lsls r3, r3, #31; check AHBPROT bit
-			};
-			u8* mem_block = (u8*)read32(0x80003130);
-			while((u32)mem_block < 0x93FFFFFF)
-			{
-				u32 address = (u32)mem_block;
-				if (!memcmp(mem_block, es_set_ahbprot, sizeof(es_set_ahbprot)))
-				{
-					//pointers suck but do the trick. the installer uses a more safe method in its official, closed source version.but untill people start nagging ill use pointers
-					*(u8*)(address+8) = 0x23;
-					*(u8*)(address+9) = 0xFF;
-					DCFlushRange((u8 *)((address) >> 5 << 5), (sizeof(es_set_ahbprot) >> 5 << 5) + 64);
-					ICInvalidateRange((u8 *)((address) >> 5 << 5), (sizeof(es_set_ahbprot) >> 5 << 5) + 64);
-					break;
-				}
-				mem_block++;
-			}
-		}
-	}
-	IOS_ReloadIOS(Ios_version);
-	if (bool_ahbprot_after_reload != NULL)
-	{
-		if(read32(0x0d800064) == 0xFFFFFFFF)
-		{
-			*bool_ahbprot_after_reload = 1;
-		}
-		else
-		{
-			*bool_ahbprot_after_reload = 0;
-			system_state.ReloadedIOS = 1;
-		}
-	}
-	if(Ios_version == IOS_GetVersion())
-		return Ios_version;
-	else
+	if (read32(0x0d800064) != 0xFFFFFFFF)
 		return -1;
+
+	if (read16(0x0d8b420a))
+		write16(0x0d8b420a, 0); //there is more you can do to make more available but meh, not needed
+
+	if (read16(0x0d8b420a))
+		return -2;
+
+	if (patches.size() == 0)
+		return 0;
+
+	u8* mem_block = (u8*)read32(0x80003130);
+	u32 patchesFound = 0;
+	while ((u32)mem_block < 0x93FFFFFF)
+	{
+		std::for_each(patches.begin(), patches.end(), [&patchesFound, mem_block](const IosPatch& iosPatch)
+		{
+			s32 patchSize = iosPatch.Pattern.size();
+			if(!memcmp(mem_block, &iosPatch.Pattern[0], patchSize))
+			{
+				iosPatch.Patch(mem_block);
+
+				u8* address = (u8*)(((u32)mem_block) >> 5 << 5);
+				DCFlushRange(address, (patchSize >> 5 << 5) + 64);
+				ICInvalidateRange(address, (patchSize >> 5 << 5) + 64);
+				patchesFound++;
+			}
+		});
+
+		if (patchesFound == patches.size())
+			break;
+
+		mem_block++;
+	}
+
+	return patchesFound;
+}
+
+s32 ReloadIOS(s32 iosToLoad, s8 keepAhbprot)
+{
+	if (keepAhbprot)
+		PatchIOS({ AhbProtPatcher });
+
+	IOS_ReloadIOS(iosToLoad);
+
+	if(system_state.ReloadedIOS == 0)
+		system_state.ReloadedIOS = read32(0x0d800064) != 0xFFFFFFFF;
+
+	if (iosToLoad != IOS_GetVersion())
+		return -1;
+
+	// Any IOS < 28 does not have to required ES calls to get a title TMD, which sucks.
+	// Therefor we will patch in NAND Access so we can load the TMD directly from nand.
+	// Nasty fix, but this fixes System menu 1.0, which uses IOS9
+	if (iosToLoad < 28)
+	{
+		gprintf("IOS < 28, patching in NAND Access");
+		PatchIOS({ NandAccessPatcher });
+	}
+
+	return iosToLoad;
 }

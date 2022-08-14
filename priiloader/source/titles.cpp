@@ -88,6 +88,98 @@ s8 CheckTitleOnSD(u64 id)
 		return 0;
 	}
 }
+
+s32 GetTitleTMD(u64 titleId, signed_blob* &blob, u32 &blobSize)
+{
+	if (blob)
+		mem_free(blob);
+
+	s32 ret = 0;
+	s32 fd = -1;
+	try 
+	{
+		//IOS versions, starting with 28 have ES calls to retrieve the TMD. lets use those
+		if (IOS_GetVersion() >= 28)
+		{
+			//get the TMD. we need the TMD, not views, as SM 1.0's boot index != last content
+			ret = ES_GetStoredTMDSize(titleId, &blobSize);
+			if (ret < 0 || blobSize > MAX_SIGNED_TMD_SIZE)
+				throw ("GetTitleTMD error " + std::to_string(ret));
+
+			blob = (signed_blob*)mem_align(32, MAX_SIGNED_TMD_SIZE);
+			if (blob == NULL)
+				throw "GetTitleTMD: memalign TMD failure";
+
+			memset(blob, 0, MAX_SIGNED_TMD_SIZE);
+
+			ret = ES_GetStoredTMD(titleId, blob, blobSize);
+			if (ret < 0)
+				throw ("GetTitleTMD error " + std::to_string(ret));
+
+			return ret;
+		}
+
+		//Other IOS calls would need direct NAND Access to load the TMD.
+		//so here we go
+		gprintf("GetTitleTMD : Load TMD from nand");
+		STACK_ALIGN(fstats, TMDStatus, sizeof(fstats), 32);		
+		char TMD_Path[ISFS_MAXPATH];
+		memset(TMD_Path, 0, 64);
+		sprintf(TMD_Path, "/title/%08x/%08x/content/title.tmd", TITLE_UPPER(titleId), TITLE_LOWER(titleId));
+		fd = ISFS_Open(TMD_Path, ISFS_OPEN_READ);
+		if (fd < 0)
+		{
+			ret = fd;
+			throw ("GetTitleTMD : failed to open Title TMD. ");
+		}
+
+		ret = ISFS_GetFileStats(fd, TMDStatus);
+		if (ret < 0)
+			throw ("GetTitleTMD : Failed to get TMD information. ");
+
+		blob = (signed_blob*)mem_align(32, MAX_SIGNED_TMD_SIZE);
+		if (blob == NULL)
+			throw "GetTitleTMD: memalign TMD failure";
+
+		memset(blob, 0, MAX_SIGNED_TMD_SIZE);
+
+		ret = ISFS_Read(fd, blob, TMDStatus->file_length);
+		if (ret < 0)
+			throw ("GetTitleTMD : Failed to read TMD data. ");
+
+		ISFS_Close(fd);
+	}
+	catch (const std::string& ex)
+	{
+		gprintf("GetTitleTMD Exception -> %s", ex.c_str());
+		if (blob)
+			mem_free(blob);
+
+		if (fd >= 0)
+			ISFS_Close(fd);
+	}
+	catch (char const* ex)
+	{
+		gprintf("GetTitleTMD Exception -> %s", ex);
+		if (blob)
+			mem_free(blob);
+
+		if (fd >= 0)
+			ISFS_Close(fd);
+	}
+	catch (...)
+	{
+		gprintf("GetTitleTMD Exception was thrown");
+		if (blob)
+			mem_free(blob);
+
+		if (fd >= 0)
+			ISFS_Close(fd);
+	}
+
+	return ret;
+}
+
 s8 GetTitleName(u64 id, u32 app, char* name, u8* _dst_uncode_name) 
 {	
     /*

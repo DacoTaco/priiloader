@@ -51,9 +51,6 @@ void ShowAutoBootError(void)
 		case ERROR_SYSMENU_IOSSTUB:
 			PrintFormat( 0, 16, (rmode->viHeight)-128, "The going to load IOS was detected as Stub!");
 			break;
-		case ERROR_SYSMENU_GETTMDSIZEFAILED:
-			PrintFormat( 0, 16, (rmode->viHeight)-128, "Could not get TMD size!");
-			break;
 		case ERROR_SYSMENU_GETTMDFAILED:
 			PrintFormat( 0, 16, (rmode->viHeight)-128, "Could not get TMD!");
 			break;
@@ -159,7 +156,6 @@ void ShowError ( void )
 			case ERROR_SYSMENU_TIKREADFAILED:
 			case ERROR_SYSMENU_ESDIVERFIY_FAILED:
 			case ERROR_SYSMENU_IOSSTUB:
-			case ERROR_SYSMENU_GETTMDSIZEFAILED:
 			case ERROR_SYSMENU_GETTMDFAILED:
 			case ERROR_SYSMENU_BOOTNOTFOUND:
 			case ERROR_SYSMENU_BOOTOPENFAILED:
@@ -169,10 +165,6 @@ void ShowError ( void )
 			case ERROR_HACKS_TO_LONG:
 				ShowHacksError();
 				break;
-			/*
-			default:
-				PrintFormat( 0, 16, (rmode->viHeight)-144, "Unknown error:%d", error);
-				break;*/
 		}
 	}
 }

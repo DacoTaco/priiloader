@@ -72,6 +72,7 @@ extern const s32 HBC_Titles_Size;
 //functions
 //-------------
 s8 CheckTitleOnSD(u64 id);
+s32 GetTitleTMD(u64 titleId, signed_blob*& blob, u32& blobSize);
 s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name);
 u8 GetTitleRegion(u32 lowerTitleId);
 s8 SetVideoModeForTitle(u32 lowerTitleId);
