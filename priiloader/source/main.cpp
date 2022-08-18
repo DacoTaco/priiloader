@@ -3130,8 +3130,8 @@ int main(int argc, char **argv)
 
 			if(error == ERROR_REFRESH)
 			{
-				PrintFormat( 0, 16, (rmode->viHeight)-144, "                                                             ");
 				PrintFormat( 0, 16, (rmode->viHeight)-128, "                                                             ");
+				PrintFormat( 0, 16, (rmode->viHeight)-114, "                                                             ");
 				error = ERROR_NONE;
 			}
 			else if (error > ERROR_NONE)
