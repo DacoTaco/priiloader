@@ -237,7 +237,7 @@ void SysHackHashSettings( void )
 				{
 					gprintf("no FAT device found");
 				}
-				if ( ( (!HAS_SD_FLAG(GetMountedFlags())) && !__io_wiisd.isInserted() ) && ( (!HAS_USB_FLAG(GetMountedFlags())) && !__io_usbstorage.isInserted() ) )
+				if (( HAS_SD_FLAG(GetMountedFlags()) && !__io_wiisd.isInserted() ) || ( HAS_USB_FLAG(GetMountedFlags()) && !__io_usbstorage.isInserted() ) )
 				{
 					PrintFormat( 0, 103, 64+(max_pos+5)*16, "saving failed : SD/USB error");
 					continue;
