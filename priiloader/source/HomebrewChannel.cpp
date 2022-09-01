@@ -186,7 +186,7 @@ void LoadHBC( void )
 void LoadBootMii( void )
 {
 	//when this was coded on 6th of Oct 2009 Bootmii ios was in IOS slot 254
-	if(isIOSstub(254))
+	if(IsIOSstub(254))
 	{
 		if(rmode != NULL)
 		{
