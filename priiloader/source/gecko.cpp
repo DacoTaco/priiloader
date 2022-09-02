@@ -20,64 +20,69 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <unistd.h>
+#include <string.h>
+#include <gccore.h>
+#include <ogc/usbgecko.h>
+#include <debug.h>
+
 #include "gecko.h"
 #include "mount.h"
 
-u8 GeckoFound = 0;
-u8 DumpDebug = 0;
+static u8 GeckoFound = 0;
+static u8 DumpDebug = 0;
 
-void CheckForGecko( void )
+void InitGDBDebug(void)
 {
-	GeckoFound = usb_isgeckoalive( EXI_CHANNEL_1 );
-	if(GeckoFound)
+	DEBUG_Init(GDBSTUB_DEVICE_USB, 1);
+	return;
+}
+
+void CheckForGecko(void)
+{
+	GeckoFound = usb_isgeckoalive(EXI_CHANNEL_1);
+	if (GeckoFound)
 		usb_flush(EXI_CHANNEL_1);
 	return;
 }
+
 void gprintf( const char *str, ... )
 {
-	if(!GeckoFound && !DumpDebug)
+	if(!GeckoFound && (!DumpDebug || GetMountedFlags() <= 0))
 		return;
 
 	char astr[2048];
 	s32 size = 0;
-	memset(astr,0,sizeof(astr));
+	memset(astr, 0, sizeof(astr));
 
-	//add time & date to string
-	time_t LeTime;
-	//time( &LeTime );
-	// Current date/time based on current system
-	LeTime = time(0);
-	struct tm * localtm;
+	// Current date/time based on current system, converted to tm struct for local timezone
+	time_t LeTime = time(0);
+	struct tm* localtm = localtime(&LeTime);
 
-	// Convert now to tm struct for local timezone
-	localtm = localtime(&LeTime);
-	//cout << "The local date and time is: " << asctime(localtm) << endl;
 	char nstr[2048];
-	memset(nstr,0,2048);
-	snprintf(nstr,2048, "%02d:%02d:%02d : %s\r\n",localtm->tm_hour,localtm->tm_min,localtm->tm_sec, str);
+	memset(nstr, 0, 2048);
+	snprintf(nstr, 2048, "%02d:%02d:%02d : %s\r\n", localtm->tm_hour, localtm->tm_min, localtm->tm_sec, str);
 
 	va_list ap;
-	va_start(ap,str);
-	size = vsnprintf( astr, 2047, nstr, ap );
+	va_start(ap, str);
+	size = vsnprintf(astr, 2047, nstr, ap);
 	va_end(ap);
+	astr[size] = '\0';
 
 	if(GeckoFound)
 	{
 		usb_sendbuffer( 1, astr, size );
 		usb_flush(EXI_CHANNEL_1);
 	}
+
 	if (DumpDebug > 0 && GetMountedFlags() > 0)
 	{
 		FILE* fd = fopen(BuildPath("/prii.log").c_str(), "ab");
 		if(fd != NULL)
 		{
-			//0x0D0A = \r\n
-			if(astr[strnlen(astr,2048)-1] == '\n' && astr[strnlen(astr,2048)-2] != '\r')
-			{
-				astr[strnlen(astr,2048)-1] = '\r';
-				astr[strnlen(astr,2048)] = '\n';
-				astr[strnlen(astr,2047)+1] = '\0';
-			}
 			fwrite(astr,1,size,fd);
 			fclose(fd);
 		}
@@ -86,32 +91,25 @@ void gprintf( const char *str, ... )
 }
 void SetDumpDebug( u8 value )
 {
-	if (value != 1 && value != 0)
-	{
-		DumpDebug = 0;
+	DumpDebug = value > 0 ? 1 : 0;
+	
+	//don't dump or no devices mounted?
+	if (!DumpDebug || GetMountedFlags() <= 0)
 		return;
-	}
-	DumpDebug = value;
-	if (DumpDebug > 0 && GetMountedFlags() > 0)
+	
+	//create file, or re-open and add lining
+	FILE* fd = fopen(BuildPath("/prii.log").c_str(), "ab");
+	if (fd != NULL)
 	{
-		//create file, or re-open and add lining
-		FILE* fd = fopen(BuildPath("/prii.log").c_str(), "ab");
-		if(fd != NULL)
-		{
-			char str[] = "--------gecko_output_enabled------\r\n\0";
-			fwrite(str,1,strlen(str),fd);
-			fclose(fd);
-		}
-		else
-		{
-			//we failed. fuck this shit
-			DumpDebug = 0;
-		}
+		char str[] = "--------gecko_output_enabled------\r\n\0";
+		fwrite(str, 1, strlen(str), fd);
+		fclose(fd);
 	}
-	return;
-}
-void InitGDBDebug( void )
-{
-	DEBUG_Init(GDBSTUB_DEVICE_USB, 1);
+	else
+	{
+		//we failed. fuck this shit
+		DumpDebug = 0;
+	}
+
 	return;
 }

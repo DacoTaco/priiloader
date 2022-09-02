@@ -110,7 +110,6 @@
     <ClCompile Include="source\HomebrewChannel.cpp" />
     <ClCompile Include="source\HTTP_Parser.cpp" />
     <ClCompile Include="source\Input.cpp" />
-    <ClCompile Include="source\IOS.cpp" />
     <ClCompile Include="source\main.cpp" />
     <ClCompile Include="source\mem2_manager.c" />
     <ClCompile Include="source\mount.cpp" />
@@ -125,13 +124,11 @@
     <ClInclude Include="include\dvd.h" />
     <ClInclude Include="include\error.h" />
     <ClInclude Include="include\font.h" />
-    <ClInclude Include="include\gecko.h" />
     <ClInclude Include="include\Global.h" />
     <ClInclude Include="include\hacks.h" />
     <ClInclude Include="include\HomebrewChannel.h" />
     <ClInclude Include="include\HTTP_Parser.h" />
     <ClInclude Include="include\Input.h" />
-    <ClInclude Include="include\IOS.h" />
     <ClInclude Include="include\mem2_manager.h" />
     <ClInclude Include="include\mount.h" />
     <ClInclude Include="include\password.h" />

@@ -846,7 +846,7 @@ void SetSettings( void )
 
 					settings->SystemMenuIOS = (u32)(TitleIDs[IOS_off]&0xFFFFFFFF);
 #ifdef DEBUG
-					isIOSstub(settings->SystemMenuIOS);
+					IsIOSstub(settings->SystemMenuIOS);
 #endif
 
 					redraw=true;
@@ -863,7 +863,7 @@ void SetSettings( void )
 
 					settings->SystemMenuIOS = (u32)(TitleIDs[IOS_off]&0xFFFFFFFF);
 #ifdef DEBUG
-					isIOSstub(settings->SystemMenuIOS);
+					IsIOSstub(settings->SystemMenuIOS);
 #endif
 					redraw=true;
 				}
@@ -1070,15 +1070,15 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		s32 Ios_to_load = 0;
 		if(read32(0x0d800064) == 0xFFFFFFFF )
 			bAHBPROT = HW_AHBPROT_ENABLED;
-		if( !isIOSstub(58) )
+		if( !IsIOSstub(58) )
 		{
 			Ios_to_load = 58;
 		}
-		else if( !isIOSstub(61) )
+		else if( !IsIOSstub(61) )
 		{
 			Ios_to_load = 61;
 		}
-		else if( !isIOSstub(IOS_GetPreferredVersion()) )
+		else if( !IsIOSstub(IOS_GetPreferredVersion()) )
 		{
 			Ios_to_load = IOS_GetPreferredVersion();
 		}
@@ -1371,7 +1371,7 @@ void BootMainSysMenu( void )
 			s32 ToLoadIOS = SGetSetting(SETTING_SYSTEMMENUIOS);
 			if ( ToLoadIOS != (u8)IOS_GetVersion() )
 			{
-				if ( isIOSstub(ToLoadIOS) )
+				if (IsIOSstub(ToLoadIOS) )
 				{
 					Input_Init();
 					error=ERROR_SYSMENU_IOSSTUB;
@@ -1379,6 +1379,15 @@ void BootMainSysMenu( void )
 				}
 
 				ReloadIOS(ToLoadIOS, 1);
+
+				// Any IOS < 28 does not have to required ES calls to get a title TMD, which sucks.
+				// Therefor we will patch in NAND Access so we can load the TMD directly from nand.
+				// Nasty fix, but this fixes System menu 1.0, which uses IOS9
+				if (ToLoadIOS < 28)
+				{
+					gprintf("IOS < 28, patching in NAND Access");
+					PatchIOS({ NandAccessPatcher });
+				}
 			}
 		}
 		/*
@@ -1442,7 +1451,6 @@ void BootMainSysMenu( void )
 			if(fd < 0 )
 			{
 				error = ERROR_SYSMENU_ESDIVERFIY_FAILED;
-				__IOS_InitializeSubsystems();
 				throw ("ES_Identify: ISFS_Open error " + std::to_string(ret));
 			}
 
@@ -1452,7 +1460,6 @@ void BootMainSysMenu( void )
 			if( ret < 0 || certStats->file_length == 0)
 			{
 				error = ERROR_SYSMENU_ESDIVERFIY_FAILED;
-				__IOS_InitializeSubsystems();
 				throw ("ES_Identify: ISFS_GetFileStats error " + std::to_string(ret));
 			}
 
@@ -1462,15 +1469,13 @@ void BootMainSysMenu( void )
 			if(ret < 0 || (u32)ret < certStats->file_length)
 			{
 				error = ERROR_SYSMENU_ESDIVERFIY_FAILED;
-				__IOS_InitializeSubsystems();
 				throw ("ES_Identify: ISFS_Read error " + std::to_string(ret));
 			}
 
 			ret = ES_Identify( (signed_blob *)certificate, certStats->file_length, signedTmdBlob, tmdSize, (signed_blob *)ticket, status->file_length, 0);
-			if( ret < 0 )
+			if (ret < 0)
 			{	
 				error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
-				__IOS_InitializeSubsystems();
 				throw ("ES_Identify error " + std::to_string(ret));
 			}
 
@@ -1643,6 +1648,8 @@ void BootMainSysMenu( void )
 		mem_free(loader_addr);
 	if(ticket)
 		mem_free(ticket);
+	if (signedTmdBlob)
+		mem_free(signedTmdBlob);
 	if(binary)
 		mem_free(binary);
 	if(fd > 0)
@@ -2942,8 +2949,7 @@ int main(int argc, char **argv)
  	{
 		gprintf("\"Magic Priiloader Word\" 'Daco' found!");
 		gprintf("clearing memory of the \"Magic Priiloader Word\"");
-		ClearMagicWord();
-		
+		ClearMagicWord();		
 	}
 	else if(magicWord == MAGIC_WORD_PUNE)
 	{
