@@ -269,7 +269,7 @@ s8 PatchIOS(std::vector<IosPatch> patches)
 	u32 patchesFound = 0;
 	while ((u32)mem_block < 0x93FFFFFF)
 	{
-		std::find_if(patches.begin(), patches.end(), [&patchesFound, mem_block](const IosPatch& iosPatch)
+		auto iterator = std::find_if(patches.begin(), patches.end(), [&patchesFound, mem_block](const IosPatch& iosPatch)
 		{
 			s32 patchSize = iosPatch.Pattern.size();
 			if (memcmp(mem_block, &iosPatch.Pattern[0], patchSize) != 0)
@@ -286,7 +286,7 @@ s8 PatchIOS(std::vector<IosPatch> patches)
 			return true;
 		});
 
-		if (patchesFound == patches.size())
+		if (iterator != patches.end() && patchesFound == patches.size())
 			break;
 
 		mem_block++;
@@ -314,7 +314,7 @@ s8 PatchIOSKernel(std::vector<IosPatch> patches)
 	u8* mem_block = (u8*)SRAMADDR(0xFFFF0000);
 	while ((u32)mem_block < SRAMADDR(0xFFFFFFFF))
 	{
-		std::find_if(patches.begin(), patches.end(), [&patchesFound, mem_block](const IosPatch& iosPatch)
+		auto iterator = std::find_if(patches.begin(), patches.end(), [&patchesFound, mem_block](const IosPatch& iosPatch)
 		{
 			u32 patchSize = iosPatch.Pattern.size();
 			u32 matches = 0;
@@ -337,7 +337,7 @@ s8 PatchIOSKernel(std::vector<IosPatch> patches)
 			return true;
 		});
 
-		if (patchesFound == patches.size())
+		if (iterator != patches.end() && patchesFound == patches.size())
 			break;
 
 		mem_block++;
