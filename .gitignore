@@ -24,5 +24,7 @@ build
 /Shared/gitrev.h
 /priiloader/data/certs.bin
 /priiloader/data/loader.bin
+/priiloader/bootloader*
+/priiloader/OpenDolBoot*
 /Installer/data/priiloader.app
 **/loader.bin

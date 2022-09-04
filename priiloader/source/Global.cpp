@@ -19,25 +19,29 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 */
+#include <stdio.h>
+#include <string.h>
+#include <malloc.h>
+
 //global functions,defines & variables for priiloader
 #include "Global.h"
 #include "settings.h"
 #include "gecko.h"
+#include "mem2_manager.h"
 
-GXRModeObj *rmode = NULL;
-void *xfb = NULL;
+GXRModeObj* rmode;
+void* xfb;
 static u8 vid_init = 0;
 
 void _configureVideoMode(GXRModeObj* videoMode, s8 internalConfig)
 {
-	rmode = videoMode;
-
 	//if xfb is already set, that means we already configured
 	//we reset the whole thing, just in case
 	if (xfb)
 		ShutdownVideo();
 
 	//init video
+	rmode = videoMode;
 	VIDEO_Init();
 
 	//apparently the video likes to be bigger then it actually is on NTSC/PAL60/480p. lets fix that!
@@ -48,7 +52,7 @@ void _configureVideoMode(GXRModeObj* videoMode, s8 internalConfig)
 		GX_AdjustForOverscan(rmode, rmode, 0, rmode->viWidth * 0.035);
 	}
 
-	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
+	xfb = MEM_K0_TO_K1(memalign(32, VIDEO_GetFrameBufferSize(rmode) + 0x100));
 	VIDEO_ClearFrameBuffer(rmode, xfb, COLOR_BLACK);
 	console_init(xfb, 20, 20, rmode->fbWidth, rmode->xfbHeight, rmode->fbWidth * VI_DISPLAY_PIX_SZ);
 	VIDEO_Configure(rmode);
@@ -64,7 +68,6 @@ void _configureVideoMode(GXRModeObj* videoMode, s8 internalConfig)
 
 void ShutdownVideo(void)
 {
-	free(MEM_K1_TO_K0(xfb));
 	//de-init video
 	vu16* const _viReg = (u16*)0xCC002000;
 	if ((_viReg[1] & 0x0001))
@@ -77,6 +80,7 @@ void ShutdownVideo(void)
 		_viReg[1] = 0x00;
 	}
 
+	free(MEM_K1_TO_K0(xfb));
 	vid_init = 0;
 }
 
