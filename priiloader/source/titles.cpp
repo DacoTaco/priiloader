@@ -722,7 +722,7 @@ s32 LoadListTitles( void )
 				}
 			}
 
-			//onlt shutdown video if:
+			//only shutdown video if:
 			// * region mismatched
 			// * not (known) HBC
 			// * titleType == TITLE_TYPE_DOWNLOAD 

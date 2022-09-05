@@ -31,6 +31,7 @@ extern "C" {
 #define gdprintf(...)
 #endif
 
+bool IsUsbGeckoDetected();
 void InitGDBDebug(void);
 void SetDumpDebug(u8 value);
 void CheckForGecko( void );

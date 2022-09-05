@@ -1620,7 +1620,7 @@ int main(int argc, char **argv)
 			//install Priiloader
 			printf("\x1b[2J");
 			fflush(stdout);
-			printf("IOS %d rev %d\r\n\r\n\r\n",IOS_GetVersion(),IOS_GetRevision());
+			printf("\r\nIOS %d rev %d\r\n\r\n\r\n",IOS_GetVersion(),IOS_GetRevision());
 #ifdef BETA
 			printf("\x1b[%d;%dm", 33, 1);
 			printf("\nWARNING : ");
@@ -1658,7 +1658,7 @@ int main(int argc, char **argv)
 		{
 			printf("\x1b[2J");
 			fflush(stdout);
-			printf("IOS %d rev %d\n\n\r\n",IOS_GetVersion(),IOS_GetRevision());
+			printf("\r\nIOS %d rev %d\n\n\r\n",IOS_GetVersion(),IOS_GetRevision());
 			printf("Checking for Priiloader...\r\n");
 			fd = ISFS_Open(copy_app,ISFS_OPEN_RW);
 			if (fd < 0)

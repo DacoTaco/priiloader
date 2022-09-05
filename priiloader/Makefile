@@ -21,7 +21,7 @@ SOURCES		:=	source ../Shared
 LOADER		:=  ../loader
 DATA		:=	data
 INCLUDES	:=  include ../Shared ../loader/include
-ENTRYPOINT	:=	0x80F00000
+ENTRYPOINT	:=	0x81330000
 
 #---------------------------------------------------------------------------------
 # options for code generation
@@ -95,16 +95,18 @@ export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib) \
 					-L$(LIBOGC_LIB)
 
 export OUTPUT	:=	$(CURDIR)/$(TARGET)
-.PHONY: build clean rebuild pre_build post_build
+.PHONY: $(BUILD) clean rebuild pre_build post_build
 #---------------------------------------------------------------------------------
 #lets see what OS we are on
 UNAME := $(shell uname)
 NUMBER := $(shell bash -c 'echo $$RANDOM')
 #build OpenDolBoot
 ifeq ($(UNAME),Linux)
-OPENDOLBOOT := "OpenDolBoot"
+OPENDOLBOOT := OpenDolBoot
+BOOTLOADER	:= bootloader
 else
-OPENDOLBOOT := "OpenDolBoot.exe"
+OPENDOLBOOT := OpenDolBoot.exe
+BOOTLOADER	:= bootloader.exe
 endif
 
 #build order
@@ -125,7 +127,16 @@ pre_build:
 	@echo -----------------------------------------------
 	@echo preparing compilation of priiloader...
 	@echo
-	@test -s $(OPENDOLBOOT) || echo Building $(OPENDOLBOOT) ...; g++ ../tools/OpenDolBoot/source/OpenDolBoot.cpp -o $(OPENDOLBOOT);
+
+ifeq ($(wildcard $(OPENDOLBOOT)),)
+	@echo building $(OPENDOLBOOT)...
+	@g++ ../tools/OpenDolBoot/source/OpenDolBoot.cpp -o ./$(OPENDOLBOOT)
+endif
+
+ifeq ($(wildcard $(BOOTLOADER)),)
+	@make --no-print-directory -C ../tools/bootloader
+	@cp ../tools/bootloader/$(BOOTLOADER) $(BOOTLOADER)
+endif
 
 ifeq ($(wildcard $(LOADER)/loader.bin),)
 	@echo "loader is missing (loader.bin)."
@@ -153,6 +164,8 @@ endif
 
 post_build:
 	@echo -----------------------------------------------
+	@echo creating HBC loadable priiloader 
+	@./bootloader $(OUTPUT).dol $(OUTPUT)_hbc.dol
 	@echo creating priiloader.app for installer
 	@echo
 	@./OpenDolBoot $(OUTPUT).dol ../Installer/data/priiloader.app
@@ -160,7 +173,7 @@ post_build:
 #---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
-	@rm -fr $(BUILD) $(OUTPUT).elf $(OUTPUT).dol $(DATA)/loader.bin
+	@rm -fr $(BUILD) $(OUTPUT).elf $(OUTPUT).dol $(OUTPUT)_hbc.dol $(DATA)/loader.bin $(OPENDOLBOOT) $(BOOTLOADER)
 	
 rebuild : clean $(BUILD)
 
@@ -169,8 +182,8 @@ run:
 #send elf to the wii
 ifneq ($(WIILOAD),)
 	@echo -----------------------------------------------
-	@echo loading $(TARGET).elf
-	@wiiload $(TARGET).elf
+	@echo loading $(OUTPUT)_hbc.dol
+	@wiiload $(OUTPUT)_hbc.dol
 else
 	@echo "wiiload variable not set. skipping sending to homebrew channel (wiiload)"
 endif
