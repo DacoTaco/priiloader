@@ -76,8 +76,6 @@ export OFILES_BIN	:=	$(addsuffix .o,$(BINFILES))
 export OFILES_SOURCES := $(CPPFILES:.cpp=.o) $(CFILES:.c=.o) $(sFILES:.s=.o) $(SFILES:.S=.o)
 export OFILES := $(OFILES_BIN) $(OFILES_SOURCES)
 
-export HFILES := $(addsuffix .h,$(subst .,_,$(BINFILES)))
-
 #---------------------------------------------------------------------------------
 # build a list of include paths
 #---------------------------------------------------------------------------------
@@ -119,8 +117,6 @@ DEPENDS	:=	$(OFILES:.o=.d)
 #---------------------------------------------------------------------------------
 $(OUTPUT).bin: $(OFILES)
 	@$(CC) $(LDFLAGS) -Wl,--oformat=binary $(OFILES) -o $@
-
-$(OFILES_SOURCES) : $(HFILES)
 
 #---------------------------------------------------------------------------------
 # This rule links in binary data with the .jpg extension

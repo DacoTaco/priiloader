@@ -54,7 +54,6 @@ void _configureVideoMode(GXRModeObj* videoMode, s8 internalConfig)
 
 	xfb = MEM_K0_TO_K1(memalign(32, VIDEO_GetFrameBufferSize(rmode) + 0x100));
 	VIDEO_ClearFrameBuffer(rmode, xfb, COLOR_BLACK);
-	console_init(xfb, 20, 20, rmode->fbWidth, rmode->xfbHeight, rmode->fbWidth * VI_DISPLAY_PIX_SZ);
 	VIDEO_Configure(rmode);
 	VIDEO_SetNextFramebuffer(xfb);
 	VIDEO_SetBlack(FALSE);

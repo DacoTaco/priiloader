@@ -227,7 +227,7 @@ s32 ReloadIOS(s32 iosToLoad, s8 keepAhbprot)
 
 	IOS_ReloadIOS(iosToLoad);
 
-	if (keepAhbprot)
+	if (keepAhbprot && IsUsbGeckoDetected())
 		PatchIOSKernel({ DebugRedirectionPatch });
 
 	return (iosToLoad != IOS_GetVersion())

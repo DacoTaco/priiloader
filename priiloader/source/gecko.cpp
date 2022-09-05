@@ -35,6 +35,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 static u8 GeckoFound = 0;
 static u8 DumpDebug = 0;
 
+bool IsUsbGeckoDetected()
+{
+	return GeckoFound;
+}
 void InitGDBDebug(void)
 {
 	DEBUG_Init(GDBSTUB_DEVICE_USB, 1);
