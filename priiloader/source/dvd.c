@@ -79,7 +79,7 @@ void DVDCloseHandle(void)
 
 s32 DVDDiscAvailable(void)
 {
-	return (__diReg[1] & 1);
+	return !(__diReg[1] & 1);
 }
 
 s32 DVDStopDrive(void)
