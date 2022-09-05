@@ -25,4 +25,4 @@ build
 /priiloader/data/certs.bin
 /priiloader/data/loader.bin
 /Installer/data/priiloader.app
-loader/loader.bin
+**/loader.bin
