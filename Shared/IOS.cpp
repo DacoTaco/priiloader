@@ -40,7 +40,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define SRAMADDR(x) (0x0d400000 | ((x) & 0x000FFFFF))
 //note : these are less "safe" then libogc's write8 but libogc forces uncached MEM1 addresses
 //which do not work for mem2...
-#define WRITE8(addr, value) asm("stb %0,0(%1) ; eieio" : : "r"(value), "b"(addr));
+#define WRITE8(addr, value) asm("stb %0,0(%1) ; eieio" : : "r"(value), "b"(addr))
 
 //IOS Patches
 
@@ -222,8 +222,12 @@ s8 IsIOSstub(u8 ios_number)
 
 s32 ReloadIOS(s32 iosToLoad, s8 keepAhbprot)
 {
-	if (keepAhbprot && PatchIOS({ AhbProtPatcher }) == 0)
-		return -1;
+	s32 ret = keepAhbprot
+		? PatchIOS({ AhbProtPatcher })
+		: 1;
+
+	if (ret <= 0)
+		return ret;
 
 	IOS_ReloadIOS(iosToLoad);
 
@@ -231,7 +235,7 @@ s32 ReloadIOS(s32 iosToLoad, s8 keepAhbprot)
 		PatchIOSKernel({ DebugRedirectionPatch });
 
 	return (iosToLoad != IOS_GetVersion())
-		? -2
+		? -100
 		: iosToLoad;
 }
 s8 PatchIOS(std::vector<IosPatch> patches)
