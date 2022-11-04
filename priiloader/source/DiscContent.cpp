@@ -258,12 +258,9 @@ void LaunchWiiDisc(void)
 	*(vu32*)0x80000024 = 0x00000001;				// Version
 	*(vu32*)0x80000028 = 0x01800000;				// Memory Size (Physical) 24MB
 	*(vu32*)0x8000002C = 0x00000023;				// Production Board Model
-	*(vu32*)0x80000030 = 0x00000000;				// Arena Low
-	*(vu32*)0x80000034 = 0x817FEC60;				// Arena High - get from DVD
 	*(vu32*)0x800000CC = videoMode > SYS_VIDEO_NTSC ? 0x00000001 : 0x00000000;	// Video Mode
 	*(vu32*)0x800000E4 = 0x8008f7b8;				// Thread Pointer
 	*(vu32*)0x800000F0 = 0x01800000;				// Dev Debugger Monitor Address
-	*(vu32*)0x800000F4 = 0x8179B500;				// __start ?
 	*(vu32*)0x800000F8 = 0x0E7BE2C0;				// Bus Clock Speed
 	*(vu32*)0x800000FC = 0x2B73A840;				// CPU Clock Speed
 	*(vu32*)0x800030C0 = 0x00000000;				// EXI
