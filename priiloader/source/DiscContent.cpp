@@ -152,6 +152,8 @@ void LaunchWiiDisc(void)
 	if (bootGameInfo == NULL)
 		throw "could not find game info partition";
 
+	//attempt to patch IOS to keep ahbprot when loading a TMD, because opening the partition kinda resets it
+	PatchIOS({ AhbProtPatcher });
 	signed_blob* mTMD = (signed_blob*)tmd_buf;
 	ret = DVDOpenPartition(bootGameInfo->offset, NULL, NULL, 0, mTMD);
 	if (ret <= 0)
@@ -177,9 +179,13 @@ void LaunchWiiDisc(void)
 
 		DVDCloseHandle();
 
-		ret = ReloadIOS(requiredIOS, 1);
+		//our AHBPROT patch from before should make us keep access
+		ret = ReloadIOS(requiredIOS, 0);
 		if (ret <= 0)
 			throw "Failed to reload IOS (" + std::to_string(ret) + ")";
+
+		//attempt to patch IOS to keep ahbprot when loading a TMD, because opening the partition kinda resets it
+		PatchIOS({ AhbProtPatcher });
 
 		ret = DVDInit();
 		if (ret <= 0)

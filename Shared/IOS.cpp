@@ -38,9 +38,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #endif
 
 #define SRAMADDR(x) (0x0d400000 | ((x) & 0x000FFFFF))
-//note : these are less "safe" then libogc's write8 but libogc forces uncached MEM1 addresses
-//which do not work for mem2...
-#define WRITE8(addr, value) asm("stb %0,0(%1) ; eieio" : : "r"(value), "b"(addr))
 
 //IOS Patches
 
@@ -59,8 +56,8 @@ const IosPatch AhbProtPatcher = {
 	//Apply Patch
 	[](u8* address) {
 		gprintf("Found ES_AHBPROT check @ 0x%X, patching...", address);
-		WRITE8(address + 8, 0x23); // li r3, 0xFF.aka, make it look like the TMD had max settings
-		WRITE8(address + 9, 0xFF);
+		WriteRegister8((u32)address + 8, 0x23); // li r3, 0xFF.aka, make it look like the TMD had max settings
+		WriteRegister8((u32)address + 9, 0xFF);
 	}
 };
 
@@ -75,8 +72,8 @@ const IosPatch SetUidPatcher = {
 	//Apply Patch
 	[](u8* address) {
 		gprintf("Found SetUID @ 0x%X, patching...", address);
-		WRITE8(address, 0x46);
-		WRITE8(address + 1, 0xC0);
+		WriteRegister8((u32)address, 0x46);
+		WriteRegister8((u32)address + 1, 0xC0);
 	}
 };
 
@@ -92,8 +89,8 @@ const IosPatch NandAccessPatcher = {
 	//Apply Patch
 	[](u8* address) {
 		gprintf("Found NAND Permission check @ 0x%X, patching...", address);
-		WRITE8(address + 2, 0xE0);
-		WRITE8(address + 3, 0x01);
+		WriteRegister8((u32)address + 2, 0xE0);
+		WriteRegister8((u32)address + 3, 0x01);
 	}
 };
 
@@ -109,7 +106,7 @@ const IosPatch FakeSignOldPatch = {
 	[](u8* address)
 	{
 		gprintf("Found (old)fakesign check @ 0x%X, patching...", address);
-		WRITE8(address + 1, 0x00);
+		WriteRegister8((u32)address + 1, 0x00);
 	}
 };
 
@@ -124,7 +121,7 @@ const IosPatch FakeSignPatch = {
 	[](u8* address)
 	{
 		gprintf("Found fakesign check @ 0x%X, patching...", address);
-		WRITE8(address + 1, 0x00);
+		WriteRegister8((u32)address + 1, 0x00);
 	}
 };
 
@@ -156,7 +153,7 @@ const IosPatch DebugRedirectionPatch = {
 	//Apply Patch
 	[](u8* address)
 	{
-		gprintf("patching DebugRedirectionPatch %p", (0xFFFF0000) | (u32)address);
+		gprintf("patching DebugRedirectionPatch 0x%08X", (0xFFFF0000) | (u32)address);
 		if ((((u32)address) & 0x90000000) != 0)
 			return;
 
@@ -172,10 +169,10 @@ const IosPatch DebugRedirectionPatch = {
 		};
 
 		for (u32 i = 0; i < sizeof(patch); i += 4)
-			write32(((u32)address) + i, *(u32*)&patch[i]);
+			WriteRegister32(((u32)address) + i, *(u32*)&patch[i]);
 
 		//redirect svc handler
-		write32(SRAMADDR(0xFFFF0028), (0xFFFF0000) | (u32)address);
+		WriteRegister32(SRAMADDR(0xFFFF0028), (0xFFFF0000) | (u32)address);
 		DCFlushRange((void*)SRAMADDR(0xFFFF0028), 16);
 		ICInvalidateRange((void*)SRAMADDR(0xFFFF0028), 16);
 	}
@@ -231,7 +228,7 @@ s32 ReloadIOS(s32 iosToLoad, s8 keepAhbprot)
 
 	IOS_ReloadIOS(iosToLoad);
 
-	if (keepAhbprot && IsUsbGeckoDetected())
+	if (ReadRegister32(0x0d800064) > 0 && IsUsbGeckoDetected())
 		PatchIOSKernel({ DebugRedirectionPatch });
 
 	return (iosToLoad != IOS_GetVersion())
@@ -258,18 +255,18 @@ s8 PatchIOS(std::vector<IosPatch> patches)
 	(4:29:32 PM) sven_p:
 		c) load ios kernel from nand and apply patches*/
 
-	if (read32(0x0d800064) != 0xFFFFFFFF)
+	if (ReadRegister32(0x0d800064) != 0xFFFFFFFF)
 		return -1;
 
-	if (read16(0x0d8b420a))
-		write16(0x0d8b420a, 0); //there is more you can do to make more available but meh, not needed
+	if (ReadRegister16(0x0d8b420a))
+		WriteRegister16(0x0d8b420a, 0); //there is more you can do to make more available but meh, not needed
 
-	if (read16(0x0d8b420a))
+	if (ReadRegister16(0x0d8b420a))
 		return -2;
 
 	//look in MEM2
 	gprintf("Patching IOS in MEM2...");
-	u8* mem_block = (u8*)read32(0x80003130);
+	u8* mem_block = (u8*)ReadRegister32(0x80003130);
 	u32 patchesFound = 0;
 	while ((u32)mem_block < 0x93FFFFFF)
 	{
@@ -296,7 +293,7 @@ s8 PatchIOS(std::vector<IosPatch> patches)
 		mem_block++;
 	}
 
-	write16(0x0d8b420a, 1);
+	WriteRegister16(0x0d8b420a, 1);
 	return patchesFound;
 }
 s8 PatchIOSKernel(std::vector<IosPatch> patches)
@@ -304,13 +301,13 @@ s8 PatchIOSKernel(std::vector<IosPatch> patches)
 	if (patches.size() == 0)
 		return 0;
 
-	if (read32(0x0d800064) != 0xFFFFFFFF)
+	if (ReadRegister32(0x0d800064) != 0xFFFFFFFF)
 		return -1;
 
-	if (read16(0x0d8b420a))
-		write16(0x0d8b420a, 0); //there is more you can do to make more available but meh, not needed
+	if (ReadRegister16(0x0d8b420a))
+		WriteRegister16(0x0d8b420a, 0); //there is more you can do to make more available but meh, not needed
 
-	if (read16(0x0d8b420a))
+	if (ReadRegister16(0x0d8b420a))
 		return -2;
 
 	gprintf("Patching IOS kernel...");
@@ -324,7 +321,7 @@ s8 PatchIOSKernel(std::vector<IosPatch> patches)
 			u32 matches = 0;
 			for (matches = 0; matches < patchSize; matches++)
 			{
-				if (read8(((u32)mem_block) + matches) != iosPatch.Pattern[matches])
+				if (ReadRegister8(((u32)mem_block) + matches) != iosPatch.Pattern[matches])
 					break;
 			}
 
@@ -347,6 +344,6 @@ s8 PatchIOSKernel(std::vector<IosPatch> patches)
 		mem_block++;
 	}
 
-	write16(0x0d8b420a, 1);
+	WriteRegister16(0x0d8b420a, 1);
 	return patchesFound;
 }

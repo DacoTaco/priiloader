@@ -1380,7 +1380,7 @@ int main(int argc, char **argv)
 		fflush(stdout);
 		abort_pre_init("\r\n\r\n\r\n\r\nusing a non-valid IOS(%d)",IOS_GetVersion());
 	}
-	if(read32(0x0d800064) != 0xFFFFFFFF)
+	if(ReadRegister32(0x0d800064) != 0xFFFFFFFF)
 	{
 		ReloadIOS(36, 0);
 		if ( ( IOS_GetRevision() < 200 ) || ( IOS_GetRevision() > 0xFF01 ) || ( IOS_GetVersion() != 36 ) )
@@ -1419,7 +1419,7 @@ int main(int argc, char **argv)
 	//we don't need it in dolphin though
 	if (dolphinFd >= 0)
 		gprintf("Dolphin detected. We don't need AHBPROT");
-	else if(read32(0x0d800064) == 0xFFFFFFFF)
+	else if(ReadRegister32(0x0d800064) == 0xFFFFFFFF)
 	{
 		ios_patched = ReloadIOS(IOS_GetVersion(), 1);
 		if(ios_patched < 0)
@@ -1431,11 +1431,11 @@ int main(int argc, char **argv)
 	}
 
 	memset(&wii_state,0,sizeof(init_states));
-	wii_state.AHBPROT = read32(0x0d800064) == 0xFFFFFFFF || dolphinFd >= 0;
+	wii_state.AHBPROT = ReadRegister32(0x0d800064) == 0xFFFFFFFF || dolphinFd >= 0;
 
 	try
 	{
-		if (wii_state.AHBPROT && dolphinFd < 0 && PatchIOS({ SetUidPatcher, NandAccessPatcher, FakeSignOldPatch, FakeSignPatch, EsIdentifyPatch }) < 0)
+		if (wii_state.AHBPROT && dolphinFd < 0 && PatchIOS({ CiosDetector, SetUidPatcher, NandAccessPatcher, FakeSignOldPatch, FakeSignPatch, EsIdentifyPatch }) < 0)
 		{
 			gprintf("HW_AHBPROT isn't detected");
 			printf("\x1b[2J");

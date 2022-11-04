@@ -21,6 +21,9 @@ SOURCES		:=	source ../Shared
 LOADER		:=  ../loader
 DATA		:=	data
 INCLUDES	:=  include ../Shared ../loader/include
+#---------------------------------------------------
+# note : do not change entrypoint without testing booting SM, dol/elf &nd game content.
+# it will fuck one or the other up
 ENTRYPOINT	:=	0x81330000
 
 #---------------------------------------------------------------------------------
