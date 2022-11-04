@@ -1435,7 +1435,7 @@ int main(int argc, char **argv)
 
 	try
 	{
-		if (wii_state.AHBPROT && dolphinFd < 0 && PatchIOS({ CiosDetector, SetUidPatcher, NandAccessPatcher, FakeSignOldPatch, FakeSignPatch, EsIdentifyPatch }) < 0)
+		if (wii_state.AHBPROT && dolphinFd < 0 && PatchIOS({ SetUidPatcher, NandAccessPatcher, FakeSignOldPatch, FakeSignPatch, EsIdentifyPatch }) < 0)
 		{
 			gprintf("HW_AHBPROT isn't detected");
 			printf("\x1b[2J");
