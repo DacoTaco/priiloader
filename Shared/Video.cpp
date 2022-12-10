@@ -41,14 +41,8 @@ const static void _configureVideoMode(GXRModeObj* videoMode, bool initConsole)
 	rmode = videoMode;
 	VIDEO_Init();	
 
-	//setup view size & DMCU
+	//setup view size
 	rmode->viWidth = 672;
-	if(CheckvWii())
-	{
-		//control WiiU's DMCU to turn off(widescreen) or on(regular) pillarboxing
-		write32(0x0d8006a0, CONF_GetAspectRatio() == CONF_ASPECT_16_9 ? 0x30000004 : 0x10000002);
-		mask32(0x0d8006a8, 0, 2);
-	}
 
 	//set correct middlepoint of the screen
 	if (rmode == &TVPal576IntDfScale || rmode == &TVPal576ProgScale) 

@@ -71,6 +71,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "rapidxml.hpp"
 #include "rapidxml_utils.hpp"
 #include "SystemMenu.h"
+#include "vWii.h"
 
 //loader files
 #include "patches.h"
@@ -1113,7 +1114,7 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 
 		gprintf("BootDolFromMem : starting binary... 0x%08X",loader_addr);	
 		ICSync();
-		loader(binary, args, args != NULL, 0);
+		loader(binary, args, args != NULL, BINARY_TYPE_DEFAULT);
 
 		//it failed. FAIL!
 		gprintf("this ain't good");
@@ -2461,7 +2462,52 @@ int main(int argc, char **argv)
 	GetStateFlags(&flags);
 	gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u & checksum %u (gcflag : 0x%08X)", flags.type, flags.discstate, flags.returnto, flags.flags, flags.checksum, GcShutdownFlag);
 	s8 magicWord = CheckMagicWords();
-	
+
+	if (CheckvWii())
+	{
+		ImportWiiUConfig();
+		const WiiUConfig* wiiuConfig = GetWiiUConfig();
+
+		// Read AR from Wii U settings if it exists
+		s32 ar;
+		if (wiiuConfig)
+			ar = wiiuConfig->av.ipl_ar;
+		else
+			ar = CONF_GetAspectRatio();
+
+		// Now set the correct DMCU aspect ratio
+		STM_DMCUWrite(ar ? 0x30000004 : 0x10000002);
+
+		// bit of a hack but BC-NAND clears the boot state, so let's try to guess it
+		if (!IsInitialBoot())
+			Bootstate = TYPE_RETURN;
+		else
+			Bootstate = TYPE_UNKNOWN;
+
+		flags.type = Bootstate;
+		SetBootState(flags.type, flags.flags, flags.returnto, flags.discstate);
+
+		// Check if Wii U side wants to boot into a channel starting with 'PRII'
+		const WiiUArgs* wiiuArgs = GetWiiUArgs();
+		if (wiiuArgs && (wiiuArgs->flags & 0x10) && (wiiuArgs->title_id >> 32) == 0x50524949)
+		{
+			uint32_t magicTid = (uint32_t) wiiuArgs->title_id;
+			//0x4461636f = "Daco" in hex, 0x50756e65 = "Pune", 0x41627261 = "Abra"  
+			if(magicTid == 0x4461636f)
+				magicWord = MAGIC_WORD_DACO;
+			else if(magicTid == 0x50756e65)
+				magicWord = MAGIC_WORD_PUNE;
+			else if(magicTid == 0x41627261)
+				magicWord =  MAGIC_WORD_ABRA;
+
+			// Clear args
+			WiiUArgs newArgs;
+			memset(&newArgs, 0, sizeof(newArgs));
+			newArgs.magic = WIIU_MAGIC;
+			SetWiiUArgs(&newArgs);
+		}
+	}
+
 	// before anything else, poll input devices such as keyboards to see if we should stop autoboot
 	r = Input_Init();
 	gprintf("Input_Init():%d", r );

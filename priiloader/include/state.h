@@ -94,4 +94,5 @@ s32 GetStateFlags( StateFlags* state );
 s32 SetBootState( u8 type , u8 flags , u8 returnto , u8 discstate );
 s8 VerifyNandBootInfo ( void );
 s32 SetNandBootInfo(void);
+bool IsInitialBoot(void);
 #endif
