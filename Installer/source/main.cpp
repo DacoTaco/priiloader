@@ -68,6 +68,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 char original_app[ISFS_MAXPATH];
 char copy_app[ISFS_MAXPATH];
 
+// only used for vwii
+bool is_vwii = false;
+char additional_app[ISFS_MAXPATH];
+char nandloader_app[ISFS_MAXPATH];
+
 char TMD_Path[ISFS_MAXPATH];
 char TMD_Path2[ISFS_MAXPATH];
 
@@ -76,6 +81,13 @@ static u8 tmd_buf[MAX_SIGNED_TMD_SIZE] ATTRIBUTE_ALIGN(32);
 static signed_blob *mTMD;
 static tmd *rTMD;
 static u64 title_id = 0x0000000100000002LL;
+
+// only used for vwii
+u32 nandloader_tmd_size;
+static u8 nandloader_tmd_buf[MAX_SIGNED_TMD_SIZE] ATTRIBUTE_ALIGN(32);
+static signed_blob *mNandloaderTMD;
+static tmd *rNandloaderTMD;
+static u64 nandloader_title_id = 0x0000000100000200ll;
 
 typedef struct
 {
@@ -166,7 +178,22 @@ void abort(const char* msg, ...)
 	VIDEO_WaitVSync();
 	exit(0);
 }
+bool CheckvWiiNandLoader (void)
+{
+	s32 ret;
+	u32 x;
 
+	//check if BC-NAND is installed
+	ret = ES_GetTitleContentsCount(nandloader_title_id, &x);
+
+	if (ret < 0)
+		return false; // title was never installed
+
+	if (x <= 0)
+		return false; // title was installed but deleted via Channel Management
+
+	return true;
+}
 bool CompareSha1Hash(u8 *Data1,u32 Data1_Size,u8 *Data2,u32 Data2_Size)
 {
 	if(Data1 == NULL || Data2 == NULL )
@@ -644,6 +671,7 @@ s8 PatchTMD( u8 delete_mode )
 {
 	Nand_Permissions Perm;
 	memset(&Perm,0,sizeof(Nand_Permissions));
+	STACK_ALIGN(fstats,status,sizeof(fstats),32);
 	u8 SaveTmd = 0;
 	SHA1 sha; // SHA-1 class
 	sha.Reset();
@@ -651,6 +679,7 @@ s8 PatchTMD( u8 delete_mode )
 	u8 *TMD_chk = NULL;
 	s32 fd = 0;
 	s32 r = 0;
+	u8 *AppData;
 #ifdef DEBUG
 	gprintf("Path : %s",TMD_Path);
 #endif
@@ -809,32 +838,144 @@ patch_tmd:
 		}
 		SaveTmd++;
 	}
-	gprintf("checking Boot app SHA1 hash...");
-	gprintf("bootapp ( %d ) SHA1 hash = %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x",rTMD->boot_index
-		,rTMD->contents[rTMD->boot_index].hash[0],rTMD->contents[rTMD->boot_index].hash[1],rTMD->contents[rTMD->boot_index].hash[2],rTMD->contents[rTMD->boot_index].hash[3]
-		,rTMD->contents[rTMD->boot_index].hash[4],rTMD->contents[rTMD->boot_index].hash[5],rTMD->contents[rTMD->boot_index].hash[6],rTMD->contents[rTMD->boot_index].hash[7]
-		,rTMD->contents[rTMD->boot_index].hash[8],rTMD->contents[rTMD->boot_index].hash[9],rTMD->contents[rTMD->boot_index].hash[10],rTMD->contents[rTMD->boot_index].hash[11]
-		,rTMD->contents[rTMD->boot_index].hash[12],rTMD->contents[rTMD->boot_index].hash[13],rTMD->contents[rTMD->boot_index].hash[14],rTMD->contents[rTMD->boot_index].hash[15]
-		,rTMD->contents[rTMD->boot_index].hash[16],rTMD->contents[rTMD->boot_index].hash[17],rTMD->contents[rTMD->boot_index].hash[18],rTMD->contents[rTMD->boot_index].hash[19]);
-	gprintf("generated priiloader SHA1 : ");
-	sha.Reset();
-	sha.Input(priiloader_app, priiloader_app_size);
-	if (!sha.Result(FileHash))
+
+	if (is_vwii)
 	{
-		gprintf("could not compute Hash of Priiloader!");
-		r = -1;
-		goto _return;
-	}
-	if (!memcmp(rTMD->contents[rTMD->boot_index].hash, FileHash, sizeof(FileHash) ) )
-	{
-		gprintf("no SHA hash change needed");
+		// First read the original app (which is now BC-NAND)
+		memset(status, 0, sizeof(fstats));
+		fd = ISFS_Open(original_app,ISFS_OPEN_READ);
+		if (fd < 0)
+		{
+			gprintf("Cannot open original app.");
+			goto _return;
+		}
+		if (ISFS_GetFileStats(fd,status) < 0)
+		{
+			gprintf("Cannot stat original app.");
+			r = -1;
+			goto _return;
+		}
+		AppData = (u8 *)memalign(32,ALIGN32(status->file_length));
+		if (AppData != NULL)
+			r = ISFS_Read(fd,AppData,status->file_length);
+		else
+		{
+			gprintf("Cannot allocate buffer for original app.");
+			r = -1;
+			goto _return;
+		}
+		ISFS_Close(fd);
+		fd = 0;
+		if (r < 0)
+		{
+			free(AppData);
+			AppData = NULL;
+			gprintf("Failed to read original app.");
+			goto _return;
+		}
+
+		// Update hash
+		sha.Reset();
+		sha.Input(AppData, status->file_length);
+		if (!sha.Result(FileHash))
+		{
+			gprintf("could not compute hash of boot content!");
+			r = -1;
+			goto _return;
+		}
+		if (!memcmp(rTMD->contents[rTMD->boot_index].hash, FileHash, sizeof(FileHash) ) )
+		{
+			gprintf("no SHA hash change needed");
+		}
+		else
+		{
+			memcpy(rTMD->contents[rTMD->boot_index].hash,FileHash,sizeof(FileHash));
+			gprintf("%08x %08x %08x %08x %08x",FileHash[0],FileHash[1],FileHash[2],FileHash[3],FileHash[4]);
+			DCFlushRange(rTMD,sizeof(tmd));
+			SaveTmd++;
+		}
+
+		// Check if we already have additional contents
+		if (rTMD->num_contents == 9)
+		{
+			// Move content 1 to the end
+			memcpy(&rTMD->contents[rTMD->num_contents], &rTMD->contents[1], sizeof(tmd_content));
+			rTMD->contents[rTMD->num_contents].index = rTMD->num_contents;
+			rTMD->num_contents++;
+			tmd_size += sizeof(tmd_content);
+
+			// Now replace content 1 with priiloader
+			rTMD->contents[1].cid = 0x20000000 | (rTMD->contents[rTMD->boot_index].cid & 0x0FFFFFFF);
+			rTMD->contents[1].index = 1;
+			rTMD->contents[1].type = 1;
+		}
+		else
+		{
+			// If we have more than 9 contents already make sure content 1 is priiloader
+			if (rTMD->contents[1].cid >> 28 != 2)
+			{
+				// uh oh this is not good, the SM patches expect content 1 to be moved to index 9
+				gprintf("invalid SM tmd!");
+				r = -1;
+				goto _return;
+			}
+		}
+
+		// Update content 1 size
+		if (rTMD->contents[1].size != priiloader_app_size)
+		{
+			rTMD->contents[1].size = priiloader_app_size;
+			SaveTmd++;
+		}
+
+		// Update content 1 hash
+		sha.Reset();
+		sha.Input(priiloader_app, priiloader_app_size);
+		if (!sha.Result(FileHash))
+		{
+			gprintf("could not compute Hash of Priiloader!");
+			r = -1;
+			goto _return;
+		}
+		if (!memcmp(rTMD->contents[1].hash, FileHash, sizeof(FileHash))) 
+		{
+			gprintf("no SHA hash change needed");
+		}
+		else
+		{
+			memcpy(rTMD->contents[1].hash, FileHash, sizeof(FileHash));
+			SaveTmd++;
+		}
 	}
 	else
 	{
-		memcpy(rTMD->contents[rTMD->boot_index].hash,FileHash,sizeof(FileHash));
-		gprintf("%08x %08x %08x %08x %08x",FileHash[0],FileHash[1],FileHash[2],FileHash[3],FileHash[4]);
-		DCFlushRange(rTMD,sizeof(tmd));
-		SaveTmd++;
+		gprintf("checking Boot app SHA1 hash...");
+		gprintf("bootapp ( %d ) SHA1 hash = %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x",rTMD->boot_index
+			,rTMD->contents[rTMD->boot_index].hash[0],rTMD->contents[rTMD->boot_index].hash[1],rTMD->contents[rTMD->boot_index].hash[2],rTMD->contents[rTMD->boot_index].hash[3]
+			,rTMD->contents[rTMD->boot_index].hash[4],rTMD->contents[rTMD->boot_index].hash[5],rTMD->contents[rTMD->boot_index].hash[6],rTMD->contents[rTMD->boot_index].hash[7]
+			,rTMD->contents[rTMD->boot_index].hash[8],rTMD->contents[rTMD->boot_index].hash[9],rTMD->contents[rTMD->boot_index].hash[10],rTMD->contents[rTMD->boot_index].hash[11]
+			,rTMD->contents[rTMD->boot_index].hash[12],rTMD->contents[rTMD->boot_index].hash[13],rTMD->contents[rTMD->boot_index].hash[14],rTMD->contents[rTMD->boot_index].hash[15]
+			,rTMD->contents[rTMD->boot_index].hash[16],rTMD->contents[rTMD->boot_index].hash[17],rTMD->contents[rTMD->boot_index].hash[18],rTMD->contents[rTMD->boot_index].hash[19]);
+		gprintf("generated priiloader SHA1 : ");
+		sha.Reset();
+		sha.Input(priiloader_app, priiloader_app_size);
+		if (!sha.Result(FileHash))
+		{
+			gprintf("could not compute Hash of Priiloader!");
+			r = -1;
+			goto _return;
+		}
+		if (!memcmp(rTMD->contents[rTMD->boot_index].hash, FileHash, sizeof(FileHash) ) )
+		{
+			gprintf("no SHA hash change needed");
+		}
+		else
+		{
+			memcpy(rTMD->contents[rTMD->boot_index].hash,FileHash,sizeof(FileHash));
+			gprintf("%08x %08x %08x %08x %08x",FileHash[0],FileHash[1],FileHash[2],FileHash[3],FileHash[4]);
+			DCFlushRange(rTMD,sizeof(tmd));
+			SaveTmd++;
+		}
 	}
 	if(SaveTmd > 0)
 	{
@@ -1070,194 +1211,237 @@ s8 WritePriiloader( bool priiloader_found )
 	printf("Writing Priiloader app...");
 	gprintf("Writing Priiloader");
 
-	char temp_dest[ISFS_MAXPATH];
-	memset(temp_dest,0,ISFS_MAXPATH);
-	char *ptemp = strstr(original_app,"/");
-	while(ptemp != NULL && strstr(ptemp+1,"/") != NULL)
+	if (is_vwii)
 	{
-		ptemp = strstr(ptemp+1,"/");
-	}
-	if(ptemp == NULL)
-	{
-		gprintf("error WritePriiloader: failed to compile tmp filepath",fd);
-		abort("\nFailed to compile tmp filepath");
-	}
-	if(ptemp[0] == '/')
-	{
-		ptemp = ptemp+1;
-	}
-	sprintf(temp_dest,"/tmp/%s",ptemp);
-	ISFS_Delete(temp_dest);
-	ret = ISFS_CreateFile(temp_dest,SysPerm.attributes,SysPerm.ownerperm,SysPerm.groupperm,SysPerm.otherperm);
-    if (ret < 0)
-    {
-        gprintf("error %d", fd);
-        abort("\nFailed to create file for Priiloader");
-    }
-
-	fd = ISFS_Open(temp_dest,ISFS_OPEN_RW);
-	if (fd < 0)
-	{
-		gprintf("error %d",fd);
-		abort("\nFailed to open file for Priiloader writing");
-	}
-	ret = ISFS_Write(fd, priiloader_app, priiloader_app_size);
-	if (ret < 0 ) //check if the app was writen correctly				
-	{
-		ISFS_Close(fd);
-		ISFS_Delete(copy_app);
-		ISFS_Delete(temp_dest);
-		gprintf("Write failed. ret %d",ret);
-		abort("\nWrite of Priiloader app failed");
-	}
-	ISFS_Close(fd);
-
-	//SHA1 check here
-	fd = ISFS_Open(temp_dest,ISFS_OPEN_READ);
-	if (fd < 0)
-	{
-		ISFS_Delete(copy_app);
-		abort("\nFailed to open file for Priiloader checking");
-	}
-	if (ISFS_GetFileStats(fd,status) < 0)
-	{
-		ISFS_Close(fd);
-		ISFS_Delete(copy_app);
-		abort("Failed to get stats of %s. System Menu Recovered",temp_dest);
-	}
-	else
-	{
-		if ( status->file_length != priiloader_app_size )
+		// Write priiloader to an additional content file for vWii (2XXXXXXX.app)
+		ret = nand_copy(additional_app, (u8 *)priiloader_app,priiloader_app_size,SysPerm);
+		if (ret < 0)
 		{
-			ISFS_Close(fd);
-			ISFS_Delete(copy_app);
-			abort("Written Priiloader app isn't the correct size.System Menu Recovered");
+			ISFS_Delete(additional_app);
+			abort("\nUnable to write Priiloader app. error %d",ret);
 		}
 		else
 		{
-			gprintf("Size Check Success");
-			printf("Size Check Success!\r\n");
+			gprintf("Priiloader app written.");
+			printf("Done!\r\n");
+		}	
+
+		// On vWii we replace the SM boot content with BC-NAND
+		printf("Replacing System Menu app...");
+		ret = nand_copy(nandloader_app,original_app,SysPerm);
+		if (ret < 0)
+		{
+			if (ret == -80)
+			{
+				//checksum issues
+				printf("\x1b[%d;%dm", 33, 1);
+				printf("\nWARNING!!\n  Installer could not calculate the Checksum for the System menu app");
+				printf("\nbut Copy was successfull.\r\n");
+				printf("reverting changes...\r\n");
+				nand_copy(copy_app,original_app,SysPerm);
+				abort("\nUnable to replace the system menu.");
+			}
+			else
+				abort("\nUnable to replace the system menu. error %d",ret);
+		}
+		else
+		{
+			gprintf("System Menu replaced.");
+			printf("Done!\r\n");
 		}
 	}
-	u8 *AppData = (u8 *)memalign(32,ALIGN32(status->file_length));
-	if (AppData)
-		ret = ISFS_Read(fd,AppData,status->file_length);
 	else
 	{
+		char temp_dest[ISFS_MAXPATH];
+		memset(temp_dest,0,ISFS_MAXPATH);
+		char *ptemp = strstr(original_app,"/");
+		while(ptemp != NULL && strstr(ptemp+1,"/") != NULL)
+		{
+			ptemp = strstr(ptemp+1,"/");
+		}
+		if(ptemp == NULL)
+		{
+			gprintf("error WritePriiloader: failed to compile tmp filepath",fd);
+			abort("\nFailed to compile tmp filepath");
+		}
+		if(ptemp[0] == '/')
+		{
+			ptemp = ptemp+1;
+		}
+		sprintf(temp_dest,"/tmp/%s",ptemp);
+		ISFS_Delete(temp_dest);
+		ret = ISFS_CreateFile(temp_dest,SysPerm.attributes,SysPerm.ownerperm,SysPerm.groupperm,SysPerm.otherperm);
+		if (ret < 0)
+		{
+			gprintf("error %d", fd);
+			abort("\nFailed to create file for Priiloader");
+		}
+
+		fd = ISFS_Open(temp_dest,ISFS_OPEN_RW);
+		if (fd < 0)
+		{
+			gprintf("error %d",fd);
+			abort("\nFailed to open file for Priiloader writing");
+		}
+		ret = ISFS_Write(fd, priiloader_app, priiloader_app_size);
+		if (ret < 0 ) //check if the app was writen correctly				
+		{
+			ISFS_Close(fd);
+			ISFS_Delete(copy_app);
+			ISFS_Delete(temp_dest);
+			gprintf("Write failed. ret %d",ret);
+			abort("\nWrite of Priiloader app failed");
+		}
 		ISFS_Close(fd);
-		ISFS_Delete(copy_app);
-		abort("Checksum comparison Failure! MemAlign Failure of AppData\r\n");
-	}
-	ISFS_Close(fd);
-	if (ret < 0)
-	{
+
+		//SHA1 check here
+		fd = ISFS_Open(temp_dest,ISFS_OPEN_READ);
+		if (fd < 0)
+		{
+			ISFS_Delete(copy_app);
+			abort("\nFailed to open file for Priiloader checking");
+		}
+		if (ISFS_GetFileStats(fd,status) < 0)
+		{
+			ISFS_Close(fd);
+			ISFS_Delete(copy_app);
+			abort("Failed to get stats of %s. System Menu Recovered",temp_dest);
+		}
+		else
+		{
+			if ( status->file_length != priiloader_app_size )
+			{
+				ISFS_Close(fd);
+				ISFS_Delete(copy_app);
+				abort("Written Priiloader app isn't the correct size.System Menu Recovered");
+			}
+			else
+			{
+				gprintf("Size Check Success");
+				printf("Size Check Success!\r\n");
+			}
+		}
+		u8 *AppData = (u8 *)memalign(32,ALIGN32(status->file_length));
+		if (AppData)
+			ret = ISFS_Read(fd,AppData,status->file_length);
+		else
+		{
+			ISFS_Close(fd);
+			ISFS_Delete(copy_app);
+			abort("Checksum comparison Failure! MemAlign Failure of AppData\r\n");
+		}
+		ISFS_Close(fd);
+		if (ret < 0)
+		{
+			if (AppData)
+			{
+				free(AppData);
+				AppData = NULL;
+			}
+			ISFS_Delete(copy_app);
+			abort("Checksum comparison Failure! read of priiloader app returned %u\r\n",ret);
+		}
+		if(CompareSha1Hash((u8*)priiloader_app,priiloader_app_size,AppData,status->file_length))
+			printf("Checksum comparison Success!\r\n");
+		else
+		{
+			if (AppData)
+			{
+				free(AppData);
+				AppData = NULL;
+			}
+			ISFS_Delete(copy_app);
+			abort("Checksum comparison Failure!\r\n");
+		}
 		if (AppData)
 		{
 			free(AppData);
 			AppData = NULL;
 		}
-		ISFS_Delete(copy_app);
-		abort("Checksum comparison Failure! read of priiloader app returned %u\r\n",ret);
-	}
-	if(CompareSha1Hash((u8*)priiloader_app,priiloader_app_size,AppData,status->file_length))
-		printf("Checksum comparison Success!\r\n");
-	else
-	{
-		if (AppData)
+		// rename and do a final SHA1 chezck
+		ISFS_Delete(original_app);
+		ret = ISFS_Rename(temp_dest,original_app);
+		if(ret < 0 )
 		{
-			free(AppData);
-			AppData = NULL;
+			gprintf("WritePriiloader : rename returned %d",ret);
+			nand_copy(copy_app,original_app,SysPerm);
+			ISFS_Delete(copy_app);
+			abort("\nFailed to Write Priiloader : error Ren %d",ret);
 		}
-		ISFS_Delete(copy_app);
-		abort("Checksum comparison Failure!\r\n");
-	}
-	if (AppData)
-	{
-		free(AppData);
-		AppData = NULL;
-	}
-	// rename and do a final SHA1 chezck
-	ISFS_Delete(original_app);
-	ret = ISFS_Rename(temp_dest,original_app);
-	if(ret < 0 )
-	{
-		gprintf("WritePriiloader : rename returned %d",ret);
-		nand_copy(copy_app,original_app,SysPerm);
-		ISFS_Delete(copy_app);
-		abort("\nFailed to Write Priiloader : error Ren %d",ret);
-	}
-	printf("Done!!\r\n");
-	gprintf("Wrote Priiloader App.Checking Installation");
-	printf("\nChecking Priiloader Installation...\r\n");
-	memset(status,0,sizeof(fstats));
-	fd = ISFS_Open(original_app,ISFS_OPEN_READ);
-	if (fd < 0)
-	{
-		nand_copy(copy_app,original_app,SysPerm);
-		ISFS_Delete(copy_app);
-		abort("\nFailed to open file for Priiloader checking");
-	}
-	if (ISFS_GetFileStats(fd,status) < 0)
-	{
-		ISFS_Close(fd);
-		nand_copy(copy_app,original_app,SysPerm);
-		abort("Failed to get stats of %s. System Menu Recovered",original_app);
-	}
-	else
-	{
-		if ( status->file_length != priiloader_app_size )
+		printf("Done!!\r\n");
+		gprintf("Wrote Priiloader App.Checking Installation");
+		printf("\nChecking Priiloader Installation...\r\n");
+		memset(status,0,sizeof(fstats));
+		fd = ISFS_Open(original_app,ISFS_OPEN_READ);
+		if (fd < 0)
+		{
+			nand_copy(copy_app,original_app,SysPerm);
+			ISFS_Delete(copy_app);
+			abort("\nFailed to open file for Priiloader checking");
+		}
+		if (ISFS_GetFileStats(fd,status) < 0)
+		{
+			ISFS_Close(fd);
+			nand_copy(copy_app,original_app,SysPerm);
+			abort("Failed to get stats of %s. System Menu Recovered",original_app);
+		}
+		else
+		{
+			if ( status->file_length != priiloader_app_size )
+			{
+				ISFS_Close(fd);
+				nand_copy(copy_app,original_app,SysPerm);
+				ISFS_Delete(copy_app);
+				abort("Written Priiloader app isn't the correct size.System Menu Recovered");
+			}
+			else
+			{
+				gprintf("Size Check Success");
+				printf("Size Check Success!\r\n");
+			}
+		}
+		AppData = (u8 *)memalign(32,ALIGN32(status->file_length));
+		if (AppData != NULL)
+			ret = ISFS_Read(fd,AppData,status->file_length);
+		else
 		{
 			ISFS_Close(fd);
 			nand_copy(copy_app,original_app,SysPerm);
 			ISFS_Delete(copy_app);
-			abort("Written Priiloader app isn't the correct size.System Menu Recovered");
+			abort("Checksum comparison Failure! MemAlign Failure of AppData\r\n");
 		}
+		ISFS_Close(fd);
+		if (ret < 0)
+		{
+			if (AppData)
+			{
+				free(AppData);
+				AppData = NULL;
+			}
+			nand_copy(copy_app,original_app,SysPerm);
+			ISFS_Delete(copy_app);
+			abort("Checksum comparison Failure! read of priiloader app returned %u\r\n",ret);
+		}
+		if(CompareSha1Hash((u8*)priiloader_app,priiloader_app_size,AppData,status->file_length))
+			printf("Checksum comparison Success!\r\n");
 		else
 		{
-			gprintf("Size Check Success");
-			printf("Size Check Success!\r\n");
+			if (AppData)
+			{
+				free(AppData);
+				AppData = NULL;
+			}
+			nand_copy(copy_app,original_app,SysPerm);
+			ISFS_Delete(copy_app);
+			abort("Checksum comparison Failure!\r\n");
 		}
-	}
-	AppData = (u8 *)memalign(32,ALIGN32(status->file_length));
-	if (AppData != NULL)
-		ret = ISFS_Read(fd,AppData,status->file_length);
-	else
-	{
-		ISFS_Close(fd);
-		nand_copy(copy_app,original_app,SysPerm);
-		ISFS_Delete(copy_app);
-		abort("Checksum comparison Failure! MemAlign Failure of AppData\r\n");
-	}
-	ISFS_Close(fd);
-	if (ret < 0)
-	{
 		if (AppData)
 		{
 			free(AppData);
 			AppData = NULL;
 		}
-		nand_copy(copy_app,original_app,SysPerm);
-		ISFS_Delete(copy_app);
-		abort("Checksum comparison Failure! read of priiloader app returned %u\r\n",ret);
 	}
-	if(CompareSha1Hash((u8*)priiloader_app,priiloader_app_size,AppData,status->file_length))
-		printf("Checksum comparison Success!\r\n");
-	else
-	{
-		if (AppData)
-		{
-			free(AppData);
-			AppData = NULL;
-		}
-		nand_copy(copy_app,original_app,SysPerm);
-		ISFS_Delete(copy_app);
-		abort("Checksum comparison Failure!\r\n");
-	}
-	if (AppData)
-	{
-		free(AppData);
-		AppData = NULL;
-	}
+
 	gprintf("Priiloader Update Complete");
 	printf("Done!\r\n\r\n");
 	return 1;
@@ -1305,6 +1489,15 @@ s8 RemovePriiloader ( void )
 	}
 	ret = ISFS_Delete(copy_app);
 	printf("Done!\r\n");
+
+	if (is_vwii)
+	{
+		// Delete the actual Priiloader content on vWii
+		printf("Deleting Priiloader app...");
+		ISFS_Delete(additional_app);
+		printf("Done!\r\n");
+	}
+
 	return 1;
 }
 s8 HaveNandPermissions( void )
@@ -1364,8 +1557,14 @@ int main(int argc, char **argv)
 			abort_pre_init("\r\n\r\n\r\n\r\ncIOSPAGHETTI(Cios Infected) IOS detected");
 		}
 	}
+	is_vwii = CheckvWii();
 
-	printf("IOS %d rev %d\r\n\r\n",IOS_GetVersion(),IOS_GetRevision());
+	printf("IOS %d rev %d",IOS_GetVersion(),IOS_GetRevision());
+	if (is_vwii)
+		printf("\t(vWii detected)\r\n\r\n");
+	else
+		printf("\r\n\r\n");
+
 #if BETAVERSION > 0
 	printf("\t\tPriiloader v%d.%d.%db%d(r0x%08x) Installation/Removal Tool\n\n\n\n", VERSION.major, VERSION.minor, VERSION.patch, VERSION.beta, GIT_REV);
 #else
@@ -1380,11 +1579,9 @@ int main(int argc, char **argv)
 	printf("\t                   Please wait while we init...");
 		
 
-
-	if( CheckvWii() ) 
+	if (is_vwii && !CheckvWiiNandLoader())
 	{
-		printf("\x1b[31;1m");
-		printf("\n\n\tError: vWii detected. please dont run this on a Wii u!");
+		printf("BC-NAND not installed!\n");
 		abort_pre_init("\r\n");
 	}
 
@@ -1528,6 +1725,13 @@ int main(int argc, char **argv)
 		fflush(stdout);
 		abort_pre_init("System Menu version invalid or not vanilla (v%d / 0x%04X)",rTMD->title_version,rTMD->title_version);
 	}
+	// For vWii only the 5.2.0 SM is supported, everything else is untested and probably doesn't work with the builtin hacks
+	if (is_vwii && (rTMD->title_version & 0xFFF0) != 608)
+	{
+		ClearScreen();
+		fflush(stdout);
+		abort_pre_init("System Menu version not supported (v%d / 0x%04X)",rTMD->title_version,rTMD->title_version);
+	}
 	for(u8 i=0; i < rTMD->num_contents; ++i)
 	{
 		if (rTMD->contents[i].index == rTMD->boot_index)
@@ -1549,6 +1753,51 @@ int main(int argc, char **argv)
 	sprintf(copy_app, "/title/%08x/%08x/content/%08x.app",TITLE_UPPER(title_id),TITLE_LOWER(title_id),id);
 	copy_app[33] = '1';
 	gprintf("%s &\r\n%s", original_app, copy_app);
+
+	// For vWii use additional content containing priiloader, which replaces content 1
+	if (is_vwii)
+	{
+		// This is where the priiloader app will be written to (2XXXXXXX.app)
+		memset(additional_app,0,64);
+		strcpy(additional_app, original_app);
+		additional_app[33] = '2';
+
+		// Verify the BC-NAND tmd
+		fd = ES_GetStoredTMDSize(nandloader_title_id,&nandloader_tmd_size);
+		if (fd < 0)
+		{
+			ClearScreen();
+			fflush(stdout);
+			abort_pre_init("Unable to get stored nandloader tmd size");
+		}
+		mNandloaderTMD = (signed_blob *)nandloader_tmd_buf;
+		fd = ES_GetStoredTMD(nandloader_title_id,mNandloaderTMD,nandloader_tmd_size);
+		if (fd < 0)
+		{
+			ClearScreen();
+			fflush(stdout);
+			abort_pre_init("Unable to get stored nandloader tmd");
+		}
+		rNandloaderTMD = (tmd*)SIGNATURE_PAYLOAD(mNandloaderTMD);
+		for(u8 i=0; i < rNandloaderTMD->num_contents; ++i)
+		{
+			if (rNandloaderTMD->contents[i].index == rNandloaderTMD->boot_index)
+			{
+				id = rNandloaderTMD->contents[i].cid;
+				break;
+			}
+		}
+		if (id == 0)
+		{
+			ClearScreen();
+			fflush(stdout);
+			abort_pre_init("Unable to retrieve nandloader booting app");
+		}
+
+		// Write the nandloader app path
+		memset(nandloader_app,0,64);
+		sprintf(nandloader_app, "/title/%08x/%08x/content/%08x.app",TITLE_UPPER(nandloader_title_id),TITLE_LOWER(nandloader_title_id),id);
+	}
 
 	WPAD_Init();
 	PAD_Init();
