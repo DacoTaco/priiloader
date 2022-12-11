@@ -25,7 +25,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <vector>
 #include "../include/OpenDolBoot.h"
 
-void _ShowHelp()
+void ShowHelp()
 {
 	printf("OpenDolBoot Input_Dol_filename [-i] [-n Nandcode_filename] [-h] Output_App_filename \n\n");
 	printf("parameters:\n");
@@ -33,6 +33,34 @@ void _ShowHelp()
 	printf("-n : use the following nand code and not the default nboot.bin\n");
 	printf("-h : display this message\n");
 	exit(0);
+}
+
+void ShowDolInformation(dolhdr* header)
+{
+	if(header == NULL)
+		return;
+	
+	printf("\n\n");
+	printf("Entrypoint: 0x%08X\nBSS Address : 0x%08X\nBSS Size: 0x%08X\n\n", (unsigned int)SwapEndian(header->entrypoint) , (unsigned int)SwapEndian(header->addressBSS) , (unsigned int)SwapEndian(header->sizeBSS) );
+	printf("Text Sections:\n");
+	for(int i = 0;i < 6;i++)
+	{
+		if(header->sizeText[i] && header->addressText[i] && header->offsetText[i])
+		{
+			//valid info. swap and display
+			printf("offset : 0x%08X\taddress : 0x%08X\tsize : 0x%08X\n", (unsigned int)SwapEndian(header->offsetText[i]), (unsigned int)SwapEndian(header->addressText[i]), (unsigned int)SwapEndian(header->sizeText[i]));
+		}
+	}
+	printf("\nData Sections:\n");
+	for(int i = 0;i <= 10;i++)
+	{
+		if(header->sizeData[i] && header->addressData[i] && header->offsetData[i])
+		{
+			//valid info. swap and display
+			printf("offset : 0x%08X\taddress : 0x%08X\tsize : 0x%08X\n", (unsigned int)SwapEndian(header->offsetData[i]), (unsigned int)SwapEndian(header->addressData[i]), (unsigned int)SwapEndian(header->sizeData[i]));
+		}
+	}
+	
 }
 int writeFile(file_info* info)
 {
@@ -95,7 +123,7 @@ int main(int argc, char **argv)
 	printf("DacoTaco's OpenDolboot : Version %s\n\n",VERSION);
 	if(argc < 3)
 	{
-		_ShowHelp();
+		ShowHelp();
 	}
 	std::string inputFile = "";
 	std::string outputFile = "";
@@ -118,18 +146,18 @@ int main(int argc, char **argv)
 				showInfo = true;
 			else if(argument == "-h") // -h / help
 			{
-				_ShowHelp();
+				ShowHelp();
 			}
 			else if(argument != "-n") //all unknown arguments
 			{
 				printf("unknown arg '%s'\n",argument.c_str());
-				_ShowHelp();
+				ShowHelp();
 			}
 		}
 		else if(prev_arg == "-n")
 		{
 			if(nandCodeFile.size() > 0)
-				_ShowHelp();
+				ShowHelp();
 
 			nandCodeFile = argument;	
 		}
@@ -144,14 +172,14 @@ int main(int argc, char **argv)
 		else //there was an unexpected parameter
 		{
 			printf("unexpected arg '%s'\n",argument.c_str());
-			_ShowHelp();
+			ShowHelp();
 		}	
 
 		prev_arg = argument;
 	}
 
 	if(inputFile.size() == 0 || (showInfo == false && outputFile.size() == 0))
-		_ShowHelp();
+		ShowHelp();
 
 	printf("input : %s\n",inputFile.c_str());
 	if(!showInfo)
@@ -172,29 +200,9 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	inputHeader = (dolhdr*)input_file.data;
-
 	if(showInfo)
 	{
-		printf("\n\n");
-		printf("Entrypoint: 0x%08X\nBSS Address : 0x%08X\nBSS Size: 0x%08X\n\n", (unsigned int)SwapEndian(inputHeader->entrypoint) , (unsigned int)SwapEndian(inputHeader->addressBSS) , (unsigned int)SwapEndian(inputHeader->sizeBSS) );
-		printf("Text Sections:\n");
-		for(int i = 0;i < 6;i++)
-		{
-			if(inputHeader->sizeText[i] && inputHeader->addressText[i] && inputHeader->offsetText[i])
-			{
-				//valid info. swap and display
-				printf("offset : 0x%08X\taddress : 0x%08X\tsize : 0x%08X\n", (unsigned int)SwapEndian(inputHeader->offsetText[i]), (unsigned int)SwapEndian(inputHeader->addressText[i]), (unsigned int)SwapEndian(inputHeader->sizeText[i]));
-			}
-		}
-		printf("\nData Sections:\n");
-		for(int i = 0;i <= 10;i++)
-		{
-			if(inputHeader->sizeData[i] && inputHeader->addressData[i] && inputHeader->offsetData[i])
-			{
-				//valid info. swap and display
-				printf("offset : 0x%08X\taddress : 0x%08X\tsize : 0x%08X\n", (unsigned int)SwapEndian(inputHeader->offsetData[i]), (unsigned int)SwapEndian(inputHeader->addressData[i]), (unsigned int)SwapEndian(inputHeader->sizeData[i]));
-			}
-		}
+		ShowDolInformation(inputHeader);
 		free(input_file.data);
 		return 0;
 	}
@@ -220,10 +228,10 @@ int main(int argc, char **argv)
 	printf("doing insanity checks...\n");
 #endif
 
-	if(inputHeader->sizeText[1] && inputHeader->addressText[1] && inputHeader->offsetText[1])
+	if(inputHeader->sizeText[5] && inputHeader->addressText[5] && inputHeader->offsetText[5])
 	{
 		//o ow, text2 is already full. lets quit before we brick ppl
-		printf("Text2 already contains data! quiting out of failsafe...\n");
+		printf("Text5 already contains data! quiting out of failsafe...\n");
 		free(input_file.data);
 		return 1;
 	}
@@ -290,13 +298,9 @@ int main(int argc, char **argv)
 
 
 	if(writeFile(&output_file))
-	{
 		printf("Done! check %s to verify!\n",output_file.filename.c_str());
-	}
 	else
-	{
 		printf("failed to write new data to %s\n",output_file.filename.c_str());
-	}
 
 	free(input_file.data);
 	free(output_file.data);

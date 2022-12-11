@@ -47,6 +47,7 @@ typedef struct {
 	unsigned char* Data;
 } FileInfo;
 
+const unsigned int baseAddress = 0x80004000;
 extern const char loader[];
 extern int loaderSize;
 
@@ -166,17 +167,16 @@ int main(int argc, char** argv)
 		if(ReadFile(&inputFileInfo) < 0 || inputFileInfo.Data == NULL || inputFileInfo.FileSize == 0)
 			throw "failed to read input file";
 
-		const unsigned int baseAddress = 0x80003400;
 		unsigned int _startup[] = {
 			//setup parameters for loader
-			0x3c608000, //lis 3,0x80003400@h
-			0x60633400, //ori 3,3,0x80003400@l
+			0x3c608000, //lis 3,0x80004000@h
+			0x60634000, //ori 3,3,0x80004000@l
 			0x38800000, //li 4,0
 			0x38a00000, //li 5,0
 			0x38c00000, //li 6,0
 			//jump to loader
-			0x3d008000, //lis 8,0x80003430@h
-			0x61083400, //ori 8,8,0x80003430@l
+			0x3d008000, //lis 8,0x80004030@h
+			0x61084030, //ori 8,8,0x80004030@l
 			0x7d0903a6, //mtctr 8
 			0x7d0803a6, //mtlr 8
 			0x4e800020, //blr
