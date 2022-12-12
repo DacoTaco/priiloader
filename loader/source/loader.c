@@ -28,7 +28,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define MAX_ADDRESS 0x817FFEFF
 #endif
 
-void DCFlushRange(void *startaddress,u32 len);
+void DCFlushRangeNoGlobalSync(void *startaddress,u32 len);
 void ICInvalidateRange(void* addr, u32 size);
 void _memcpy(void* dst, void* src, u32 len);
 void _memset(void* src, u32 data, u32 len);
@@ -58,7 +58,7 @@ void _boot (_LDR_PARAMETERS)
 			for(u32 i = 0;i < parameterCount;i++)
 			{	
 				_memcpy((void*)patch->offset,patch->patch,patch->patch_size);
-				DCFlushRange((void*)patch->offset, patch->patch_size);
+				DCFlushRangeNoGlobalSync((void*)patch->offset, patch->patch_size);
 				ICInvalidateRange((void*)patch->offset, patch->patch_size);
 				patch = (offset_patch *)((8 + patch->patch_size) + (u32)patch);
 			}
@@ -130,7 +130,7 @@ u32 _loadApplication(u8* binary, void* parameter)
 				continue;
 				
 			_memset((void*)(shdr->sh_addr | 0x80000000), 0, shdr->sh_size);
-			DCFlushRange((void*)(shdr->sh_addr | 0x80000000),shdr->sh_size);
+			DCFlushRangeNoGlobalSync((void*)(shdr->sh_addr | 0x80000000),shdr->sh_size);
 		}
 		return (ElfHdr->e_entry | 0x80000000);	
 	}
@@ -152,7 +152,7 @@ u32 _loadApplication(u8* binary, void* parameter)
 			if ((!dolfile->sizeText[i]) || (dolfile->addressText[i] < 0x100)) 
 				continue;
 			_memcpy ((void *) dolfile->addressText[i],binary+dolfile->offsetText[i],dolfile->sizeText[i]);
-			DCFlushRange ((void *) dolfile->addressText[i], dolfile->sizeText[i]);
+			DCFlushRangeNoGlobalSync((void *) dolfile->addressText[i], dolfile->sizeText[i]);
 			ICInvalidateRange((void *) dolfile->addressText[i],dolfile->sizeText[i]);
 		}
 
@@ -168,7 +168,7 @@ u32 _loadApplication(u8* binary, void* parameter)
 				dolfile->addressData[i] >= dolfile->addressBSS + dolfile->sizeBSS);
 
 			_memcpy ((void *) dolfile->addressData[i],binary+dolfile->offsetData[i],dolfile->sizeData[i]);
-			DCFlushRange((void *) dolfile->addressData[i],dolfile->sizeData[i]);
+			DCFlushRangeNoGlobalSync((void *) dolfile->addressData[i],dolfile->sizeData[i]);
 		}
 
 		//clear BSS - this is the area containing variables. it is required to clear it so we don't have unexpected results
@@ -183,7 +183,7 @@ u32 _loadApplication(u8* binary, void* parameter)
 				//place IOS reload here if it would be needed. the application should've reloaded IOS before us.
 			}*/
 			_memset ((void *) dolfile->addressBSS, 0, dolfile->sizeBSS);
-			DCFlushRange((void *) dolfile->addressBSS, dolfile->sizeBSS);	
+			DCFlushRangeNoGlobalSync((void *) dolfile->addressBSS, dolfile->sizeBSS);
 		}
 
 		//copy over arguments, but only if the dol is meant to have them
@@ -196,7 +196,7 @@ u32 _loadApplication(u8* binary, void* parameter)
         {
 			void* new_argv = (void*)(dolfile->entrypoint + 8);
 			_memcpy(new_argv, args, sizeof(struct __argv));
-			DCFlushRange(new_argv, sizeof(struct __argv));
+			DCFlushRangeNoGlobalSync(new_argv, sizeof(struct __argv));
         }
 		return(dolfile->entrypoint | 0x80000000);
 	}
@@ -222,39 +222,60 @@ void _memset(void* dst, u32 data, u32 len)
 	return;
 }
 
-asm(R"(.globl DCFlushRange
-DCFlushRange:
-	cmplwi 4, 0   # zero or negative size?
-	blelr
-	clrlwi. 5, 3, 27  # check for lower bits set in address
-	beq 1f
-	addi 4, 4, 0x20 
-1:
-	addi 4, 4, 0x1f
-	srwi 4, 4, 5
-	mtctr 4
-2:
-	dcbf 0, 3
-	addi 3, 3, 0x20
-	bdnz 2b
-	sc
-	blr)");
+asm(".globl DCFlushRangeNoGlobalSync\n"
+	"DCFlushRangeNoGlobalSync:\n"
 
-asm(R"(.globl ICInvalidateRange
-ICInvalidateRange:
-	cmplwi 4, 0   # zero or negative size?
-	blelr
-	clrlwi. 5, 3, 27  # check for lower bits set in address
-	beq 1f
-	addi 4, 4, 0x20 
-1:
-	addi 4, 4, 0x1f
-	srwi 4, 4, 5
-	mtctr 4
-2:
-	icbi 0, 3
-	addi 3, 3, 0x20
-	bdnz 2b
-	sync
-	isync
-	blr)");
+	//zero or negative size?
+	"cmplwi 4, 0\n"
+	"blelr\n"
+
+	//check for lower bits set in address
+	"clrlwi. 5, 3, 27\n"
+	"beq 1f\n"
+	"addi 4, 4, 0x20 \n"
+
+	"1:\n"
+	"addi 4, 4, 0x1f\n"
+	"srwi 4, 4, 5\n"
+	"mtctr 4\n"
+
+	//loop
+	"2: \n"
+	"dcbf 0, 3\n"
+	"addi 3, 3, 0x20\n"
+	"bdnz 2b\n"
+
+	//sync locally and return
+	"sync\n"
+	"isync\n"
+	"blr\n"
+);
+
+asm(".globl ICInvalidateRange\n"
+	"ICInvalidateRange:\n"
+
+	//zero or negative size?
+	"cmplwi 4, 0\n"
+	"blelr\n"
+
+	//check for lower bits set in address
+	"clrlwi. 5, 3, 27\n"
+	"beq 1f\n"
+	"addi 4, 4, 0x20 \n"
+
+	"1:\n"
+	"addi 4, 4, 0x1f\n"
+	"srwi 4, 4, 5\n"
+	"mtctr 4\n"
+
+	//loop
+	"2: \n"
+	"icbi 0, 3\n"
+	"addi 3, 3, 0x20\n"
+	"bdnz 2b\n"
+
+	//sync locally and return
+	"sync\n"
+	"isync\n"
+	"blr\n"
+);
