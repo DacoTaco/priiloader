@@ -15,12 +15,12 @@ include $(DEVKITPPC)/wii_rules
 # SOURCES is a list of directories containing source code
 # INCLUDES is a list of directories containing extra header files
 #---------------------------------------------------------------------------------
-TARGET		:=	$(notdir $(CURDIR))
-BUILD		:=	build
-SOURCES		:=	source ../Shared
-LOADER		:=  ../loader
-DATA		:=	data
-INCLUDES	:=  include ../Shared ../loader/include
+TARGET			:=	$(notdir $(CURDIR))
+BUILD			:=	build
+SOURCES			:=	source ../Shared
+LOADER			:=  ../loader
+DATA			:=	data
+INCLUDES		:=  include ../Shared ../loader/include
 #---------------------------------------------------
 # note : do not change entrypoint without testing booting SM, dol/elf &nd game content.
 # it will fuck one or the other up
@@ -53,12 +53,13 @@ LIBDIRS	:=
 ifneq ($(BUILD),$(notdir $(CURDIR)))
 #---------------------------------------------------------------------------------
 
-export OUTPUT	:=	$(CURDIR)/$(TARGET)
+export OUTPUT		:=	$(CURDIR)/$(TARGET)
+export BASE_OUTPUT	:=	$(CURDIR)/$(TARGET)_base
 
-export VPATH	:=	$(foreach dir,$(SOURCES),$(CURDIR)/$(dir)) \
-					$(foreach dir,$(DATA),$(CURDIR)/$(dir))
+export VPATH		:=	$(foreach dir,$(SOURCES),$(CURDIR)/$(dir)) \
+						$(foreach dir,$(DATA),$(CURDIR)/$(dir))
 
-export DEPSDIR	:=	$(CURDIR)/$(BUILD)
+export DEPSDIR		:=	$(CURDIR)/$(BUILD)
 
 #---------------------------------------------------------------------------------
 # automatically build a list of object files for our project
@@ -166,15 +167,15 @@ else
 endif
 
 post_build:
-	@echo -----------------------------------------------
-	@echo creating priiloader.app for installer
-	@echo
-	@./OpenDolBoot $(OUTPUT).dol ../Installer/data/priiloader.app
+	$(SILENTMSG) -----------------------------------------------
+	$(SILENTMSG) creating priiloader.app for installer
+	$(SILENTMSG)
+	$(SILENTCMD) $(OPENDOLBOOT) $(OUTPUT).dol ../Installer/data/priiloader.app
 
 #---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
-	@rm -fr $(BUILD) $(OUTPUT).elf $(OUTPUT).dol $(OUTPUT)_hbc.dol $(DATA)/loader.bin $(OPENDOLBOOT) $(BOOTLOADER)
+	@rm -fr $(BUILD) $(BASE_OUTPUT).dol $(OUTPUT).elf $(OUTPUT).dol $(DATA)/loader.bin
 	
 rebuild : clean $(BUILD)
 
@@ -183,8 +184,8 @@ run:
 #send elf to the wii
 ifneq ($(WIILOAD),)
 	@echo -----------------------------------------------
-	@echo loading $(OUTPUT)_hbc.dol
-	@wiiload $(OUTPUT)_hbc.dol
+	@echo loading $(OUTPUT).dol
+	@wiiload $(OUTPUT).dol
 else
 	@echo "wiiload variable not set. skipping sending to homebrew channel (wiiload)"
 endif
@@ -197,8 +198,11 @@ DEPENDS	:=	$(OFILES:.o=.d)
 #---------------------------------------------------------------------------------
 # main targets
 #---------------------------------------------------------------------------------
-$(OUTPUT).dol: $(OUTPUT).elf
-$(OUTPUT).elf: $(OFILES)
+$(OUTPUT).dol: $(BASE_OUTPUT).dol
+	$(SILENTMSG) creating $(notdir $@)
+	$(SILENTCMD) ../$(BOOTLOADER) $< $@
+$(BASE_OUTPUT).dol: $(BASE_OUTPUT).elf
+$(BASE_OUTPUT).elf: $(OFILES)
 
 #---------------------------------------------------------------------------------
 # This rule links in the loader project
