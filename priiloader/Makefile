@@ -97,19 +97,20 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES), -iquote $(CURDIR)/$(dir)) \
 export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib) \
 					-L$(LIBOGC_LIB)
 
-export OUTPUT	:=	$(CURDIR)/$(TARGET)
 .PHONY: $(BUILD) clean rebuild pre_build post_build
 #---------------------------------------------------------------------------------
 #lets see what OS we are on
 UNAME := $(shell uname)
 NUMBER := $(shell bash -c 'echo $$RANDOM')
+OPENDOLBOOT	:= ../tools/OpenDolBoot
+BOOTLOADER	:= ../tools/bootloader
 #build OpenDolBoot
 ifeq ($(UNAME),Linux)
-OPENDOLBOOT := OpenDolBoot
-BOOTLOADER	:= bootloader
+export OPENDOLBOOT	:= $(OPENDOLBOOT)/OpenDolBoot
+export BOOTLOADER	:= $(BOOTLOADER)/bootloader
 else
-OPENDOLBOOT := OpenDolBoot.exe
-BOOTLOADER	:= bootloader.exe
+export OPENDOLBOOT	:= $(OPENDOLBOOT)/OpenDolBoot.exe
+export BOOTLOADER	:= $(BOOTLOADER)/bootloader.exe
 endif
 
 #build order
@@ -126,19 +127,18 @@ $(BUILD): pre_build
 	@make --no-print-directory -f $(CURDIR)/Makefile post_build
 
 pre_build:
-	@echo
-	@echo -----------------------------------------------
-	@echo preparing compilation of priiloader...
-	@echo
-
 ifeq ($(wildcard $(OPENDOLBOOT)),)
-	@echo building $(OPENDOLBOOT)...
-	@g++ ../tools/OpenDolBoot/source/OpenDolBoot.cpp -o ./$(OPENDOLBOOT)
+	@echo "opendolboot is missing $(OPENDOLBOOT)."
+	@echo "please run 'make clean' followed by 'make' in the root directory to rebuild priiloader"
+	@echo
+	@exit 1
 endif
 
 ifeq ($(wildcard $(BOOTLOADER)),)
-	@make --no-print-directory -C ../tools/bootloader
-	@cp ../tools/bootloader/$(BOOTLOADER) $(BOOTLOADER)
+	@echo "bootloader is missing $(BOOTLOADER)."
+	@echo "please run 'make clean' followed by 'make' in the root directory to rebuild priiloader"
+	@echo
+	@exit 1
 endif
 
 ifeq ($(wildcard $(LOADER)/loader.bin),)
@@ -167,8 +167,6 @@ endif
 
 post_build:
 	@echo -----------------------------------------------
-	@echo creating HBC loadable priiloader 
-	@./bootloader $(OUTPUT).dol $(OUTPUT)_hbc.dol
 	@echo creating priiloader.app for installer
 	@echo
 	@./OpenDolBoot $(OUTPUT).dol ../Installer/data/priiloader.app

@@ -15,10 +15,11 @@ endif
 .PHONY: $(LOADERPATH) clean
 
 all:
-ifeq ($(wildcard loader.bin),)
-	echo copying loader...
-	@cp $(LOADERPATH) loader.bin
+ifneq ("$(wildcard $(loader.bin))","")
+	@rm loader.bin
 endif
+	@echo copying loader...
+	@cp $(LOADERPATH) loader.bin
 	@echo building $(OUTPUT)...
 	@g++ $(CPPFILES) $(SFILES) -o $(OUTPUT)
 	
