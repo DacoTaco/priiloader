@@ -3,7 +3,13 @@ build
 *.*
 
 # But not these files...
-!.gitignore
+!*.git*
+!*.json
+!*.code-workspace
+!*.xml
+!*.png
+!*.nfo
+!dollz3.exe
 !*.c
 !*.cpp
 !*.hpp

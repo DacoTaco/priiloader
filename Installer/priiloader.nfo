@@ -1,0 +1,329 @@
+priiloader v0.10 by DacoTaco (25/01/2022)
+-------------------------------------------------------------------------------------
+Thanks go to crediar for preloader & source, 
+phpgeek for the app info & (base)installer
+BlackPearl & Bad Uncle for the font merging code. the font headers didn't make sense to me at all :3
+many thanks go to lunatik (dop-mii), wntrmute & Bad_Ad (thanks for the motherboard/infectus)!
+lolwut (Public Relations with the /b/ of the console scene(gbafail) & AHBPROT shit)
+
+also greetings to
+devkitPro team
+#wiidev
+everybody that has helped me
+
+IMPORTANT NOTE:
+-------------------------------------------------------------------------------------
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation version 2.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+
+What is priiloader and what the hell does it do:
+-------------------------------------------------------------------------------------
+What is Priiloader ?
+
+Priiloader is a modded version of preloader. just like preloader, Priiloader places it on boot sequence before the system menu. 
+by this priiloader has the ability to:
+
+    * patch memory just like StartPatch or priiloader. hacks_hash.ini should be in the apps/priiloader folder and can be found on wiibrew
+    * save wii from banner & other kind of bricks that aren't system menu title/ios or boot1/2 related 
+	
+	if autoboot is enabled, hold reset (or B on gc controller or esc on keyboard) while starting the wii to boot priiloader.
+
+
+Hacks:
+-------------------------------------------------------------------------------------
+To install additional System Menu patches, simply copy the "hacks_hash.ini" file
+included with priiloader into the root of your SD card.
+Then,boot into priiloader's settings, and chose to enable or disable the patches
+in the Hack Settings menu. 
+
+Once applied, your patches are placed in NAND, so feel free to erase the file
+on your SD card. 
+
+The format for adding additional hacks, or patches, to your hacks_hash.ini file is simple
+and should explain itself.
+
+see https://wiibrew.org/wiki/Priiloader/hacks for many user created hacks!
+
+
+Uninstall:
+-------------------------------------------------------------------------------------
+run the installer again but this time press the - button
+
+Changelog:
+-------------------------------------------------------------------------------------
+	Priiloader Changelog
+	-------------------------------------
+# v0.10 : Version Kappa
+	* New Features
+		* Add ability to load Wii and gamecube discs
+			* this ignores region of the discs
+		* Add setting to prioritize USB access over SD
+		* Priiloader can now water your plants
+		* Added Support for System Menu 1.0
+		* Show Priiloader after installation
+			* Priiloader will launch when booting System Menu 
+		* Added new hacks
+			* Block disc autoboot
+			* Remove Deflicker
+		* Refactor device access
+			* Priiloader no longer waits for the usb drive to respond when mounting
+		
+	* Fixes & Improvements
+		* Fix launching channels from another region
+		* Refactor the region free hacks on SM < 4.3
+		* Correctly check for the gamecube shutdown flag
+		* Fix clearing bss section with .elf files
+		* Fix typo in installer
+		* Fix launching SM on IOS < 28
+		* Fix dvd active check
+		* Refactor meta.xml parsing
+		* Refactor versioning in priiloader
+		
+# v0.9.1 : Flex Tape time!
+	* Fixes & Improvements
+		* fixed possible caching issue when clearing a dol's BSS
+		* fixed crash when 18 hacks would be shown in the hacks menu
+		* fixed crash when 18 dol/elfs would be shown in the binaries menu
+		* fixed crash when 18 titles would be shown in the launch title menu
+		* fixed loading dol/elf arguments from nand if there are none
+		* fixed some memory leaks		
+		* show error when user tries to enter menu using front buttons but is denied access
+
+# v0.9 : Itsa Prii, can't get rid of mii
+	* Fixes & Improvements
+		* Reworked dol & SysMenu loading code.
+		* We can load -any- dol or elf now
+		* this removes the entrypoint restriction
+		* Fixed setting dol arguments
+		* Reworked the hacks parser & loading code
+		* Changed Priiloader's Nand bootcode
+		* Installer source is open source again
+		* Added decent vWii detection code to the installer
+		* Fixed a few online beta update version display bugs
+		* restart checking controllers if launching HBC failed
+		* libogc upgrade to 2.1.0
+		  * Improved keyboard compatibility
+		  * Improved 420p video output
+		* fixed loading binary arguments
+		* Reduce Priiloader size by loading the certs of NAND	
+	* New Features
+		* Added the first Wii-mini hacks
+		* Added option to use front buttons to navigate
+		* Added offset support in the hacks
+		* Added support for comments in the hacks
+		* Added USB Keyboard support
+		  * Meant for Wii-mini
+		  * Works on all Wii's
+		  * Mapping is as follows :
+			* A = Enter
+			* B = Esc
+			* X = X
+			* Y = Y
+			* Start = Spacebar
+			* Arrow keys : directions
+		  * Hold escape to stop autoboot and enter the menu
+	
+v0.8.2 : Why wont you let me die!
+	* Added support for open HBC
+	* refuse installation on WiiU(vWii) 
+		 using a dirty check from Joostin
+	* added option to shutdown to a certain app 
+		(WHY WOULD YOU WANT THIS)
+	* fixed arguments stuff when booting dol/elf files
+	* Added magic word to force autoboot ( 'Abra' )
+ 
+v0.8.1 : DacoTaco's Wild appearance
+	* Fixed 'Save Settings' in Hacks menu
+	* Fixed small UI issues
+	* Changed rev numbers to GIT hash numbers	
+	
+v0.8 : DacoTaco's meh
+	* Fixed Gc controller when updating
+	* Fixed some DVD drive accessing bugs
+	* Fixed some changelog displaying issues
+	* added support for the new HBC
+	* check apps on USB if SD has none
+	* changed magicword to 0x817FEFF0 (for techinical reasons. old magicwords still work; but it is recommended to switch)
+	* fixed random small bugs
+	* new libogc -> new wiimotes supported
+	* fixed loading compressed dols
+	* fixed title menu crash
+	* fixed installer some more
+	* Dropped language mods.
+	* set black background as default
+	* added argument + ahbprot support for dols
+	* all dols use IOS 58,61 or 38(with ahbprot)
+	* EasterEgg removed
+	* Gecko output will now be dumped to fat:/prii.log
+
+v0.7 : God says bye
+	* fixed SM update bug
+	* fixed title launching on some wii's(part 2, fully working now. patch was passed on to libogc)
+	* fixed listing of binaries when there is no apps folder
+	* refuse to load binaries that wont load anyway
+	* do dvd shutdowns async to increase booting time of dol's & titles
+	* ANOTHER attempt to fix the installer, this time it reloads ios so it kills all ahbprot issues from before.
+	* moved hacks_hash / hacks.ini access back to fat:/apps/priiloader just like preloader
+	
+v0.6 : God is here
+	* Fixed Title Booting on some wii's (issue 130)
+	* Fixed the installer for HBC
+	* Fixed the SHA1 hash production while updating
+	* Fixed Online updating changelog
+	* added/fixed Easter Egg (go find it!)
+	* Added play_rec creation when launching title
+	* made load/install binary load fat:/apps/ folder
+	* Increased USB Support(thanks TT)
+	* Changed the Hacks method (see SVN or hacks page)
+	* change memory management to use mem2 instead giving priiloader a big speedboost
+	
+v0.5 : DacoTaco strikes Back
+	* Redesigned a bit of the installer. it is now using the HW_AHBPROT flag set by HBC and no longer requires
+		a patched ios when run from HBC 1.0.7 or above. if it is run from < 1.0.7 then it still requires a patched IOS36.
+		NOTE : the redesigned part of the installer is closed source for now cause of the used code
+	* Booting a Dol/Title now stops the DVD drive as well
+	* Titles list is now forced to display in english
+	* Added support for Homebrew channel 1.0.7&1.0.8 booting & reloading (in case of a DSI crash)
+	* Added online Updating (full versions and beta versions. also language mods are available)
+	* Added a password backdoor incase you forgot the password.To change the password temporary to "BackDoor" 
+		press on the Password Screen "1" and then 4 times "2" on the Remote or "Y" and 4 times "X" on GC/Classic.
+	* Added System Menu TMD patching for HW_AHBPROT so that applications started by Priiloader can enjoy the fun too
+	* Fixed rare bug when Show Debug info was on and reset was pressed
+	* Fixed some USB stuff
+	* Fixed some title booting stuff (removed & moved to SD titles are not listed anymore)
+	* Fixed the green bar that could show when booting system menu
+	* Fixed .elf binary loading
+	
+v0.4 : Death of the Memory Hog and revenge of the IOSith
+    * Added support of all versions of the EU/US system menus(JP/KR are untested)
+    * New entrypoint. this means : 
+		* Old forwarders should work again
+		* Many other memory related restrictions should be gone. 
+	* Added support for more usb hard drives
+	* Added an option to ask for a password either when entering priiloader menu or doing autoboot. (NOTE : this -CAN- lock you out of your own wii. please be very careful with this)
+	* Added a menu to list all installed Wiiware/VC titles and start one
+	* Added a new magic word to force system menu to be started. (the word is "Pune") 
+	* Added an option to redirect Gecko output to the screen instead of to a USBGecko(NOTE: this slows down priiloader DRASTICLY)
+	* Fixed loads of minor bugs
+
+
+0.3:
+	* Change and fixed IOS Stub detection. All known IOS' are detected like they should. thank you Attila
+	* Changed Autoboot setting so it would start system menu when having just updated/installed Priiloader
+	* Fixed Hacks.ini bug when it was made in linux (or any ini that doesn't have windows' \r\n newlines and uses \n instead)
+	* Fixed Bootstate handling. we should now handle all known bootstates correctly("invalid" bootstate 255 included). all unknown bootstates load priiloader instead
+	* Fixed Bug with USB drives that could crash System menu
+	* Fixed the Wii Blue Light on wiimail issue (when standby, forgot to merge the light init code from phpgeek)
+	* Fixed Background issues when changing colour and not saving settings
+	* Fixed various video related bugs ( out of screen text, text on top of the other, ... )
+	* Fixed some ES_Identify Bugs (in a hacky way) when not using system menu IOS for system menu
+	* Reload Hacks completely when LoadHacks() is called and hacks were already loaded once
+	* Added the checksum function from priiloader to the installer. if the checksum fails it asks the user what to do. it checks when: 
+
+		* Copying (installation of priiloader) the System menu app
+		* Restoring (uninstall of priiloader) the System menu app
+		* after Writing the Priiloader app (the checking installation part) 
+
+	* Added basic HBC Stub Loading. if priiloader (or a dol loaded by priiloader) crashes you can press reset to load HBC
+	* Added possibility to boot System Menu if no wiimote is detected. after 15 seconds priiloader booted press reset to boot system menu 
+	* Added a check when loading/installing binaries to see if the SD/USB is still present or not
+
+	
+0.2:
+	* Fixed bug with USBGecko
+    * Merged the old black theme with the new white one (thanks BlackPearl & Bad Uncle! ). they are changable in the settings
+    * Fix some elf loading
+    * Added a check on boot so some apps can reboot/launch system menu and force priiloader to show up (see magicword.zip)
+    * Fixed random (with very low % to actually happen)crash when loading dol/elf caused by wiimote
+    * Re-added USB support. USB is used if SD is not found
+    * Added Sanity checks when installing priiloader
+    * Fixed Bootstate bug which made the health check pop up when resetting wii(or returning to wii settings)
+    * Stopped priiloader from reloading ios if the chosen IOS = the already loaded IOS (in most cases System menu IOS)
+	* Added Stub IOS Detections when loading bootmii ios or IOS for System Menu. Only IOS 21 seems to be detected as stub...
+	
+0.1:
+	*added autoboot Bootmii IOS
+	*added Bootmii IOS booting option to menu
+	*let Priiloader remount SD on a lot of occasions
+	*try and boot the HAXX Homebrew Channel title ID if JODI isn't found
+	*various file access bug fixes
+	*priiloader no longer needs ES_DIVerify for system menu booting. 
+	 however if a different ios is chosen to run system menu with it still needs the hack/patch
+	*killed the DVD spin bug (crediar forgot to close the dvd drive in ios)
+	*fixed file booting (thx phpgeek)
+	
+	
+	
+	preloader Changelog:
+	---------------------
+0.30:
+	-added SDHC support
+	-added a new option to the "return to" setting; "return to: autoboot"
+	-fixed a bug where enabled autoboot overwrote the "return to preloader" setting
+	-removed netcode, online update check, online update code.
+
+0.29:
+	-added a feature to load the system menu with any IOS version you want.
+	-The installer includes an IOS patcher which when found patches IOS60
+	 so preloader can fully work with system menu 4.0
+	-Moved some text around for better visibility on 4:3 screens
+	-fixed a bug which let the disc endlessly spin when wc24 was enabled
+	 and the wii got turned off
+	-fixed a bug which broke system menu loading when the system got formated
+
+0.28: 
+	-rewrote the hacks parser, it's more solid now
+	 and detects syntax errors much better
+	-added a new font 
+	-optimized the menu layout 
+	-you can now add unlimited offsets/value in one hack entry 
+	-added beta version related code 
+	-added a setting which allows to always turn you Wii off
+	 even when standby is enabled 
+	-fixed that when shutting down from the System Menu,
+	 the Wii always got powered down instead of using the set shutdownmode. 
+	-fixed a bug which prevented updating to a non beta version during beta testing 
+	-fixed a bug in the System Menu hacks scrolling code 
+
+0.27
+	-added a setting to stop the disc when autoboot is disabled 
+	-added a setting to return to preloader when Wii titles
+	 are using the switch off state 
+	-added a setting to show beta updates 
+	-added a setting to disable lighting the drive slot on an error 
+	-added one message to make the online update not look frozen 
+	-errors when parsing the hacks.ini now show the line 
+	-preloader now regards the shutdownmode (OFF/Standby) 
+	-fixed that under certain circumstances hacks from another version were applied 
+	-fixed a settings related bug 
+
+0.26:
+	-added elf-loading (able to load white-linux!) 
+	-added an option to load preloader or the System Menu
+	 when the return-to state is used. 
+	-made the hacks list scrollable, allowing an unlimited amount of hacks 
+	-rewrote the installer 
+	-added some interface improvements 
+	-fixed the online update 
+	-fixed returning to the System Menu, which loaded preloader instead 
+	-fixed shutting down from System Menu, which loaded preloader instead 
+	-fixed a bug in the "Install/Load File" menu that allowed users
+	 to move out of the list 
+	-fixed System Menu loading for all System Menu versions 
+	-fixed the stuck-systemmenuhack-option bug 
+	-fixed the bug that when a nunchuck was connected the System Menu wouldn't load 
+	-fixed a bug which caused the Wii to freeze when power was pressed 
+	-fixed a bug where only the first Wiimote was powered down
+	 when the Wii got turned off

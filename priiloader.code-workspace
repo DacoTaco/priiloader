@@ -1,0 +1,99 @@
+{
+	"folders": [
+		{
+			"name": "root",
+			"path": "."
+		},
+		{
+			"name": "Shared",
+			"path": "Shared"
+		},
+		{
+			"name": "loader",
+			"path": "loader"
+		},
+		{
+			"name": "tools",
+			"path": "tools"
+		},
+		{
+			"name": "Installer",
+			"path": "Installer"
+		},
+		{
+			"name": "priiloader",
+			"path": "priiloader"
+		}
+	],
+	"settings": {
+		"files.exclude": {
+			"**/.git": true,
+			"**/.svn": true,
+			"**/.hg": true,
+			"**/CVS": true,
+			"**/.DS_Store": true,
+			"**/Thumbs.db": true,
+			"**/build": true,
+			"*.elf": true,
+			"*.bin": true,
+			"*.dol": true,
+			"*.zip": true,
+			"*.rar": true,
+			"*.nfo": true,
+		},
+		"C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools",
+		"C_Cpp.default.cStandard": "c17",
+		"C_Cpp.default.cppStandard": "gnu++17",
+		"C_Cpp.default.intelliSenseMode": "gcc-x64",
+		"C_Cpp.default.compilerPath": "${DKP_HOME}/devkitPPC/bin/powerpc-eabi-gcc.exe",
+		"C_Cpp.default.includePath": [
+			"${DKP_HOME}/devkitPPC/**",
+			"${workspaceFolder}/../Shared",
+			"${workspaceFolder}/include",
+			"${workspaceFolder}/source"
+		],
+		"files.associations": {
+			"*.h": "c",
+			"*.hpp": "cpp",
+			"array": "c",
+			"string_view": "c",
+			"initializer_list": "c",
+			"utility": "c",
+			"string": "c",
+			"*.tcc": "c",
+			"numeric": "c",
+			"random": "c",
+			"limits": "c",
+			"system_error": "c",
+			"cmath": "c",
+			"functional": "c",
+			"tuple": "c",
+			"typeinfo": "c",
+			"memory_resource": "c",
+			"atomic": "c",
+			"bit": "c",
+			"deque": "c",
+			"unordered_map": "c",
+			"vector": "c",
+			"algorithm": "c",
+			"memory": "c",
+			"fstream": "c",
+			"istream": "c",
+			"sstream": "c",
+			"stdexcept": "c",
+			"type_traits": "c",
+			"compare": "c",
+			"new": "c",
+			"optional": "c",
+			"ostream": "c",
+			"streambuf": "c"
+		},
+		"editor.insertSpaces": false,
+		"editor.detectIndentation": false,
+	},
+	"extensions": {
+		"recommendations": [
+			"ms-vscode.cpptools",
+		]
+	}
+}
