@@ -41,16 +41,23 @@
 			"*.rar": true,
 			"*.nfo": true,
 		},
-		"C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools",
 		"C_Cpp.default.cStandard": "c17",
 		"C_Cpp.default.cppStandard": "gnu++17",
-		"C_Cpp.default.intelliSenseMode": "gcc-x64",
-		"C_Cpp.default.compilerPath": "${DKP_HOME}/devkitPPC/bin/powerpc-eabi-gcc.exe",
+		"C_Cpp.default.intelliSenseMode": "gcc-x86",
+		"C_Cpp.default.compilerPath": "${DKP_HOME}/devkitPPC/bin/powerpc-eabi-gcc",
+		"C_Cpp.default.defines": [
+			"HW_RVL"
+		],
 		"C_Cpp.default.includePath": [
-			"${DKP_HOME}/devkitPPC/**",
+			"${DKP_HOME}/portlibs/ppc/include/**",
+			"${DKP_HOME}/portlibs/wii/include/**",
+			"${DKP_HOME}/libogc/include/**",
+			"${DKP_HOME}/devkitPPC/powerpc-eabi/include/**",
 			"${workspaceFolder}/../Shared",
+			"${workspaceFolder}/../loader/include",
 			"${workspaceFolder}/include",
-			"${workspaceFolder}/source"
+			"${workspaceFolder}/source",
+			"${workspaceFolder}/build"
 		],
 		"files.associations": {
 			"*.h": "c",
@@ -86,7 +93,8 @@
 			"new": "c",
 			"optional": "c",
 			"ostream": "c",
-			"streambuf": "c"
+			"streambuf": "c",
+			"cstdlib": "c"
 		},
 		"editor.insertSpaces": false,
 		"editor.detectIndentation": false,
@@ -94,6 +102,7 @@
 	"extensions": {
 		"recommendations": [
 			"ms-vscode.cpptools",
+			"zachsez.vcode-ppc"
 		]
 	}
 }
