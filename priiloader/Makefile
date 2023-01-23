@@ -159,7 +159,7 @@ ifeq ($(wildcard ../.git/.),)
 	@echo
 	@echo '#define GIT_REV 0x'$(NUMBER) > ../Shared/gitrev.h
 	@echo '#define GIT_REV_STR "'$(NUMBER)'-no-git"' >> ../Shared/gitrev.h
-	@echo 'Using 0x'$(NUMBER)' as revision, ''$(NUMBER)'-no-git as revision string'
+	@echo 'Using 0x'$(NUMBER)' as revision, '$(NUMBER)'-no-git as revision string'
 else
 	@echo "#define GIT_REV 0x$(shell git rev-parse --verify --short HEAD)" > ../Shared/gitrev.h
 	@echo "#define GIT_REV_STR \"$(shell git describe --always --long --dirty)\"" >> ../Shared/gitrev.h
