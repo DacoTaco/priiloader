@@ -29,7 +29,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <ogc/machine/processor.h>
 
 #include "titles.h"
-#include "Global.h"
+#include "Video.h"
 #include "font.h"
 #include "settings.h"
 #include "playlog.h"

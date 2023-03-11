@@ -10,6 +10,7 @@
 
 //Project includes
 #include "Global.h"
+#include "Video.h"
 #include "mem2_manager.h"
 #include "gecko.h"
 #include "error.h"

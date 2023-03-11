@@ -19,79 +19,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 */
-#include <stdio.h>
-#include <string.h>
-#include <malloc.h>
 
 //global functions,defines & variables for priiloader
 #include "Global.h"
+#include "Video.h"
 #include "settings.h"
 #include "gecko.h"
-#include "mem2_manager.h"
-
-GXRModeObj* rmode;
-void* xfb;
-static u8 vid_init = 0;
-
-void _configureVideoMode(GXRModeObj* videoMode, s8 internalConfig)
-{
-	//if xfb is already set, that means we already configured
-	//we reset the whole thing, just in case
-	if (xfb)
-		ShutdownVideo();
-
-	//init video
-	rmode = videoMode;
-	VIDEO_Init();
-
-	//apparently the video likes to be bigger then it actually is on NTSC/PAL60/480p. lets fix that!
-	if ((internalConfig) &&
-		(rmode->viTVMode == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan()))
-	{
-		//the correct one would be * 0.035 to be sure to get on the Action safe of the screen.
-		GX_AdjustForOverscan(rmode, rmode, 0, rmode->viWidth * 0.035);
-	}
-
-	xfb = MEM_K0_TO_K1(memalign(32, VIDEO_GetFrameBufferSize(rmode) + 0x100));
-	VIDEO_ClearFrameBuffer(rmode, xfb, COLOR_BLACK);
-	VIDEO_Configure(rmode);
-	VIDEO_SetNextFramebuffer(xfb);
-	VIDEO_SetBlack(FALSE);
-	VIDEO_Flush();
-	VIDEO_WaitVSync();
-	if (rmode->viTVMode & VI_NON_INTERLACE)
-		VIDEO_WaitVSync();
-
-	vid_init = 1;
-}
-
-void ShutdownVideo(void)
-{
-	//de-init video
-	vu16* const _viReg = (u16*)0xCC002000;
-	if ((_viReg[1] & 0x0001))
-	{
-		//reset & de-init the regs. at least that should work according to libogc
-		u32 cnt = 0;
-		_viReg[1] = 0x02;
-		while (cnt < 1000) cnt++;
-		gdprintf(_viReg[1]);
-		_viReg[1] = 0x00;
-	}
-
-	free(MEM_K1_TO_K0(xfb));
-	vid_init = 0;
-}
-
-void InitVideo ( void )
-{
-	if (vid_init == 1)
-		return;
-
-	_configureVideoMode(VIDEO_GetPreferredMode(NULL), 1);
-	gdprintf("resolution is %dx%d",rmode->viWidth,rmode->viHeight);
-	return;
-}
 
 void ClearScreen()
 {
@@ -102,12 +35,6 @@ void ClearScreen()
 	VIDEO_WaitVSync();
 	printf("\x1b[5;0H");
 	fflush(stdout);
-	return;
-}
-
-void ConfigureVideoMode(GXRModeObj* videoMode)
-{
-	_configureVideoMode(videoMode, 0);
 	return;
 }
 

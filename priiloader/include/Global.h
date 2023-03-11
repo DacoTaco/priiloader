@@ -24,11 +24,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #ifndef _GLOBAL_H_
 #define _GLOBAL_H_
 
-//DEFINES
-//---------------
-
-#define TEXT_OFFSET(X) ((((rmode->viWidth) / 2 ) - (strnlen((X), 128)*13/2))>>1)
-
 //INCLUDES
 //---------------
 #include <ogc/es.h>
@@ -44,23 +39,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <sdcard/wiisd_io.h>
 #include <fat.h>
 
-//STRUCTS
-//--------------
-
-
-//TYPEDEFS
-//--------------
-
-//VARIABLES
-//--------------
-extern GXRModeObj *rmode;
-extern void *xfb;
-
 //FUNCTIONS
 //---------------
-void InitVideo ( void );
-void ShutdownVideo(void);
-void ConfigureVideoMode(GXRModeObj* videoMode);
 void ClearScreen();
 s8 InitNetwork();
 

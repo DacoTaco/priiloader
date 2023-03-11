@@ -52,6 +52,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "gitrev.h"
 #include "sha1.h"
 #include "Global.h"
+#include "Video.h"
 #include "settings.h"
 #include "state.h"
 #include "error.h"

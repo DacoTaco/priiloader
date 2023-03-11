@@ -50,6 +50,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "sha1.h"
 #include "gecko.h"
 #include "IOS.h"
+#include "Video.h"
+#include "vWii.h"
 
 //rev version
 #include "gitrev.h"
@@ -62,9 +64,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "certs_bin.h"
 #include "su_tmd.h"
 #include "su_tik.h"
-
-static void *xfb = NULL;
-static GXRModeObj *vmode = NULL;
 
 char original_app[ISFS_MAXPATH];
 char copy_app[ISFS_MAXPATH];
@@ -168,21 +167,6 @@ void abort(const char* msg, ...)
 	exit(0);
 }
 
-bool CheckvWii (void) {
-	s32 ret;
-	u32 x;
-
-	//check if the vWii NandLoader is installed ( 0x200 & 0x201)
-	ret = ES_GetTitleContentsCount(0x0000000100000200ll, &x);
-
-	if (ret < 0)
-		return false; // title was never installed
-
-	if (x <= 0)
-		return false; // title was installed but deleted via Channel Management
-
-	return true;
-}
 bool CompareSha1Hash(u8 *Data1,u32 Data1_Size,u8 *Data2,u32 Data2_Size)
 {
 	if(Data1 == NULL || Data2 == NULL )
@@ -1339,6 +1323,15 @@ s8 HaveNandPermissions( void )
 		return true;
 	}
 }
+void ClearScreen()
+{
+	VIDEO_ClearFrameBuffer(rmode, xfb, COLOR_BLACK);
+	VIDEO_WaitVSync();
+	printf("\x1b[2J");
+	fflush(stdout);
+	return;
+}
+
 int main(int argc, char **argv)
 {
 	s8 ios_patched = 0;
@@ -1350,33 +1343,13 @@ int main(int argc, char **argv)
 	if (dolphinFd >= 0) IOS_Close(dolphinFd);
 
 	CheckForGecko();
-	VIDEO_Init();
-
-	vmode = VIDEO_GetPreferredMode(NULL);
-	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(vmode));
-
-	VIDEO_Configure(vmode);
-	VIDEO_SetNextFramebuffer(xfb);
-	VIDEO_SetBlack(false);
-	VIDEO_Flush();
-
-	VIDEO_WaitVSync();
-	if (vmode->viTVMode & VI_NON_INTERLACE) VIDEO_WaitVSync();
-
-	int x = 20, y = 20, w, h;
-	w = vmode->fbWidth - (x * 2);
-	h = vmode->xfbHeight - (y + 20);
-
-	// Initialize the console
-	CON_Init(xfb,x,y,w,h, vmode->fbWidth*VI_DISPLAY_PIX_SZ );
-	printf("\r\n\r\n\r\n");
-	VIDEO_ClearFrameBuffer(vmode, xfb, COLOR_BLACK);
-	gprintf("resolution is %dx%d",vmode->viWidth,vmode->viHeight);
+	InitVideo();
+	gprintf("resolution is %dx%d", rmode->viWidth, rmode->viHeight);
 
 	if( IOS_GetVersion() >= 200 )
 	{
 		gprintf("F\r\nA\r\nI\r\nL\r\n");
-		printf("\x1b[2J");
+		ClearScreen();
 		fflush(stdout);
 		abort_pre_init("\r\n\r\n\r\n\r\nusing a non-valid IOS(%d)",IOS_GetVersion());
 	}
@@ -1386,25 +1359,25 @@ int main(int argc, char **argv)
 		if ( ( IOS_GetRevision() < 200 ) || ( IOS_GetRevision() > 0xFF01 ) || ( IOS_GetVersion() != 36 ) )
 		{
 			gprintf("F\r\nA\r\nI\r\nL\r\n");
-			printf("\x1b[2J");
+			ClearScreen();
 			fflush(stdout);
 			abort_pre_init("\r\n\r\n\r\n\r\ncIOSPAGHETTI(Cios Infected) IOS detected");
 		}
 	}
 
-	printf("\r\nIOS %d rev %d\r\n\r\n",IOS_GetVersion(),IOS_GetRevision());
+	printf("IOS %d rev %d\r\n\r\n",IOS_GetVersion(),IOS_GetRevision());
 #if BETAVERSION > 0
-	printf("Priiloader v%d.%d.%db%d(r0x%08x) Installation/Removal Tool\n\n\n\n\t", VERSION.major, VERSION.minor, VERSION.patch, VERSION.beta, GIT_REV);
+	printf("\t\tPriiloader v%d.%d.%db%d(r0x%08x) Installation/Removal Tool\n\n\n\n", VERSION.major, VERSION.minor, VERSION.patch, VERSION.beta, GIT_REV);
 #else
-	printf("\t\tPriiloader v%d.%d.%d(r0x%08x) Installation / Removal Tool\n\n\n\n\t", VERSION.major, VERSION.minor, VERSION.patch, GIT_REV);
+	printf("\t\tPriiloader v%d.%d.%d(r0x%08x) Installation / Removal Tool\n\n\n\n", VERSION.major, VERSION.minor, VERSION.patch, GIT_REV);
 #endif
 
-	printf("\t\t\t\t\tPLEASE READ THIS CAREFULLY\n\n\t");
-	printf("\t\tTHIS PROGRAM/TOOL COMES WITHOUT ANY WARRANTIES!\n\t");
-	printf("\t\tYOU ACCEPT THAT YOU INSTALL THIS AT YOUR OWN RISK\n\n\n\t");
-	printf("THE AUTHOR(S) CANNOT BE HELD LIABLE FOR ANY DAMAGE IT MIGHT CAUSE\n\n\t");
-	printf("\tIF YOU DO NOT AGREE WITH THESE TERMS TURN YOUR WII OFF\n\n\n\n\t");
-	printf("\t\t\t\t\tPlease wait while we init...");
+	printf("\t                   PLEASE READ THIS CAREFULLY\n");
+	printf("\t         THIS PROGRAM/TOOL COMES WITHOUT ANY WARRANTIES!\n");
+	printf("\t        YOU ACCEPT THAT YOU INSTALL THIS AT YOUR OWN RISK\n");
+	printf("\tTHE AUTHOR(S) CANNOT BE HELD LIABLE FOR ANY DAMAGE IT MIGHT CAUSE\n");
+	printf("\t      IF YOU DO NOT AGREE WITH THESE TERMS TURN YOUR WII OFF\n\n\n\n");
+	printf("\t                   Please wait while we init...");
 		
 
 
@@ -1424,7 +1397,7 @@ int main(int argc, char **argv)
 		ios_patched = ReloadIOS(IOS_GetVersion(), 1);
 		if(ios_patched < 0)
 		{
-			printf("\x1b[2J");
+			ClearScreen();
 			fflush(stdout);
 			abort_pre_init("\r\n\r\nfailed to do AHBPROT magic: error %d\r\n", ios_patched);
 		}
@@ -1438,26 +1411,26 @@ int main(int argc, char **argv)
 		if (wii_state.AHBPROT && dolphinFd < 0 && PatchIOS({ SetUidPatcher, NandAccessPatcher, FakeSignOldPatch, FakeSignPatch, EsIdentifyPatch }) < 0)
 		{
 			gprintf("HW_AHBPROT isn't detected");
-			printf("\x1b[2J");
+			ClearScreen();
 			fflush(stdout);
 			abort_pre_init("HW_AHBPROT isn't Set.\r\n Please check your priiloader/HBC installation!\r\n");
 		}
 	}
 	catch (const std::string& ex)
 	{
-		printf("\x1b[2J");
+		ClearScreen();
 		fflush(stdout);
 		abort_pre_init(ex.c_str());
 	}
 	catch (char const* ex)
 	{
-		printf("\x1b[2J");
+		ClearScreen();
 		fflush(stdout);
 		abort_pre_init(ex);
 	}
 	catch (...)
 	{
-		printf("\x1b[2J");
+		ClearScreen();
 		fflush(stdout);
 		abort_pre_init("Error while patching IOS!");
 	}	
@@ -1482,7 +1455,7 @@ int main(int argc, char **argv)
 		gprintf("ES_Identify : %d",ret);
 		if(ret < 0)
 		{
-			printf("\x1b[2J");
+			ClearScreen();
 			fflush(stdout);
 			abort_pre_init("\n\n\n\nIOS%d isn't ES_Identify patched : error %d.",IOS_GetVersion(),ret);
 		}
@@ -1493,7 +1466,7 @@ int main(int argc, char **argv)
 
 	if (ISFS_Initialize() < 0)
 	{
-		printf("\x1b[2J");
+		ClearScreen();
 		fflush(stdout);
 		abort_pre_init("\n\n\n\nFailed to init ISFS");
 	}
@@ -1511,14 +1484,14 @@ int main(int argc, char **argv)
 			ios_patched++;
 		else
 		{
-			printf("\x1b[2J");
+			ClearScreen();
 			fflush(stdout);
 			abort_pre_init("\r\n\r\n\r\n\r\nFailed to retrieve nand permissions from nand!IOS 36 isn't patched!\r\n");
 		}
 	}
 	else
 	{
-		printf("\x1b[2J");
+		ClearScreen();
 		fflush(stdout);
 		abort_pre_init("\r\n\r\n\r\n\r\nFailed to retrieve nand permissions from nand!IOS 36 isn't patched!\r\n");
 	}
@@ -1536,7 +1509,7 @@ int main(int argc, char **argv)
 	fd = ES_GetStoredTMDSize(title_id,&tmd_size);
 	if (fd < 0)
 	{
-		printf("\x1b[2J");
+		ClearScreen();
 		fflush(stdout);
 		abort_pre_init("Unable to get stored tmd size");
 	}
@@ -1544,14 +1517,14 @@ int main(int argc, char **argv)
 	fd = ES_GetStoredTMD(title_id,mTMD,tmd_size);
 	if (fd < 0)
 	{
-		printf("\x1b[2J");
+		ClearScreen();
 		fflush(stdout);
 		abort_pre_init("Unable to get stored tmd");
 	}
 	rTMD = (tmd*)SIGNATURE_PAYLOAD(mTMD);
 	if(rTMD->title_version > 0x2000)
 	{
-		printf("\x1b[2J");
+		ClearScreen();
 		fflush(stdout);
 		abort_pre_init("System Menu version invalid or not vanilla (v%d / 0x%04X)",rTMD->title_version,rTMD->title_version);
 	}
@@ -1565,7 +1538,7 @@ int main(int argc, char **argv)
 	}
 	if (id == 0)
 	{
-		printf("\x1b[2J");
+		ClearScreen();
 		fflush(stdout);
 		abort_pre_init("Unable to retrieve title booting app");
 	}
@@ -1581,12 +1554,12 @@ int main(int argc, char **argv)
 	PAD_Init();
 	sleepx(5);
 
-	printf("\r\t\t\t   Press (+/A) to install or update Priiloader\r\n\t");
-	printf("\tPress (-/Y) to remove Priiloader and restore system menu\r\n\t");
+	printf("\r\t         Press (+/A) to install or update Priiloader\r\n");
+	printf("\t    Press (-/Y) to remove Priiloader and restore system menu\r\n");
 	if( (ios_patched < 1) && (IOS_GetVersion() != 36 ) )
-		printf("  Hold Down (B) with any above options to use IOS36\r\n\t");
-	printf("\tPress (HOME/Start) to chicken out and quit the installer!\r\n\r\n\t");
-	printf("\t\t\t\t\tEnjoy! DacoTaco \r\n");
+		printf("\t         Hold Down (B) with any above options to use IOS36\r\n");
+	printf("\t    Press (HOME/Start) to chicken out and quit the installer!\r\n\r\n");
+	printf("\t                         Enjoy! DacoTaco \r\n");
 	while(1)
 	{
 		WPAD_ScanPads();
@@ -1606,7 +1579,7 @@ int main(int argc, char **argv)
 					ios_patched++;
 				else
 				{
-					printf("\x1b[2J");
+					ClearScreen();
 					fflush(stdout);
 					printf("\r\n\r\nFailed to retrieve nand permissions from nand!ios 36 isn't patched!\r\n");
 					sleepx(5);
@@ -1618,7 +1591,7 @@ int main(int argc, char **argv)
 		if (pDown & WPAD_BUTTON_PLUS || GCpDown & PAD_BUTTON_A)
 		{
 			//install Priiloader
-			printf("\x1b[2J");
+			ClearScreen();
 			fflush(stdout);
 			printf("\r\nIOS %d rev %d\r\n\r\n\r\n",IOS_GetVersion(),IOS_GetRevision());
 #ifdef BETA
@@ -1656,7 +1629,7 @@ int main(int argc, char **argv)
 		}
 		else if (pDown & WPAD_BUTTON_MINUS || GCpDown & PAD_BUTTON_Y )
 		{
-			printf("\x1b[2J");
+			ClearScreen();
 			fflush(stdout);
 			printf("\r\nIOS %d rev %d\n\n\r\n",IOS_GetVersion(),IOS_GetRevision());
 			printf("Checking for Priiloader...\r\n");
@@ -1679,8 +1652,8 @@ int main(int argc, char **argv)
 		}
 		else if ( GCpDown & PAD_BUTTON_START || pDown & WPAD_BUTTON_HOME) 
 		{
-			VIDEO_ClearFrameBuffer( vmode, xfb, COLOR_BLACK);
-			printf("\x1b[5;0H");
+			VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
+			ClearScreen();
 			fflush(stdout);
 			VIDEO_WaitVSync();
 			abort("Installation canceled");

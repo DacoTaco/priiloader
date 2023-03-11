@@ -28,6 +28,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "error.h"
 #include "settings.h"
 #include "font.h"
+#include "Video.h"
 
 u8 error = 0;
 

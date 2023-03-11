@@ -32,7 +32,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "settings.h"
 #include "mem2_manager.h"
 #include "Input.h"
-#include "Global.h"
+#include "Video.h"
 #include "mount.h"
 
 bool check_pass( char* pass )
