@@ -555,14 +555,14 @@ void SetSettings( void )
 					)
 				{
 					settings->ReturnTo++;
-					if( settings->ReturnTo > RETURNTO_AUTOBOOT )
+					if( settings->ReturnTo > RETURNTO_FILE )
 						settings->ReturnTo = RETURNTO_SYSMENU;
 
 					redraw=true;
 				} else if ( pressed & INPUT_BUTTON_LEFT ) {
 
 					if( settings->ReturnTo == RETURNTO_SYSMENU )
-						settings->ReturnTo = RETURNTO_AUTOBOOT;
+						settings->ReturnTo = RETURNTO_FILE;
 					else
 						settings->ReturnTo--;
 
@@ -950,6 +950,9 @@ void SetSettings( void )
 				break;
 				case RETURNTO_AUTOBOOT:
 					PrintFormat( cur_off==1, 0, 128,    "             Return to:          Autoboot   ");
+				break;
+				case RETURNTO_FILE:
+					PrintFormat( cur_off==1, 0, 128,    "             Return to:    Installed file   ");
 				break;
 				default:
 					gdprintf("SetSettings : unknown return to value %d",settings->ReturnTo);
@@ -2912,6 +2915,10 @@ int main(int argc, char **argv)
 
 					case RETURNTO_AUTOBOOT:
 						Autoboot_System();
+						break;
+
+					case RETURNTO_FILE:
+						AutoBootDol();
 						break;
 
 					default:
