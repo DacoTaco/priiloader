@@ -408,8 +408,6 @@ handle_hacks_s_fail:
 		}
 		if( redraw )
 		{
-			//printf("\x1b[2;0H_hacks:%d Hacks:%d cur_off:%u min_pos:%u max_pos:%u", _hacks.size(), system_hacks.size(), cur_off, min_pos, max_pos  );
-
 			if(_hacks.size() -1 > max_pos && (min_pos != (s32)_hacks.size() - max_pos - 1) )
 				PrintFormat( 0,TEXT_OFFSET("-----More-----"),64+(max_pos+2)*16,"-----More-----");
 			else

@@ -33,9 +33,9 @@ void ClearScreen()
 	else
 		VIDEO_ClearFrameBuffer(rmode, xfb, COLOR_BLACK);
 	VIDEO_WaitVSync();
-	printf("\x1b[5;0H");
+	printf("\x1b[2J");
 	fflush(stdout);
-	return;
+	return;	
 }
 
 s8 InitNetwork()

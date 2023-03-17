@@ -72,7 +72,7 @@ const static void _configureVideoMode(GXRModeObj* videoMode, s8 internalConfig)
 	VIDEO_WaitVSync();
 
 	// Initialise the console, required for printf
-	CON_InitEx(rmode, (rmode->viWidth + rmode->viXOrigin - 640) / 2, (rmode->viHeight + rmode->viYOrigin - 480) / 2, 640, 480);
+	CON_Init(xfb,(rmode->viWidth + rmode->viXOrigin - 640) / 2, (rmode->viHeight + rmode->viYOrigin - 480) / 2,  640, 480, 640*VI_DISPLAY_PIX_SZ );
 
 	VIDEO_ClearFrameBuffer(rmode, xfb, COLOR_BLACK);
 	VIDEO_SetNextFramebuffer(xfb);
