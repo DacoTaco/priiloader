@@ -10,7 +10,8 @@
 #include "elf.h"
 #include "gecko.h"
 
-#define MAGIC_WORD_ADDRESS 0x817FEFF0 //0x8132FFFB
+#define MAGIC_WORD_ADDRESS 0x8132FFFB
+#define MAGIC_WORD_ADDRESS2 0x817FEFF0 //0x8132FFFB
 
 static void *xfb = NULL;
 static GXRModeObj *vmode = NULL;
@@ -263,7 +264,9 @@ void LoadThroughMagicWord()
 	printf("magic word is %x\n",*(vu32*)MAGIC_WORD_ADDRESS);
 	*(vu32*)MAGIC_WORD_ADDRESS = 0x4461636f; // "Daco" , causes priiloader to skip autoboot and load the priiloader menu
 	//*(vu32*)MAGIC_WORD_ADDRESS = 0x50756e65; // "Pune" , causes priiloader to skip autoboot and load Sys Menu
+	*(vu32*)MAGIC_WORD_ADDRESS2 = *(vu32*)MAGIC_WORD_ADDRESS;
 	DCFlushRange((void*)MAGIC_WORD_ADDRESS, 4);
+	DCFlushRange((void*)MAGIC_WORD_ADDRESS2, 4);
 	printf("magic word changed to %x\n",*(vu32*)MAGIC_WORD_ADDRESS);
 
 	printf("resetting...\n");
