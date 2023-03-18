@@ -176,8 +176,22 @@ void LoadHBC( void )
 	ShutdownMounts();
 	Input_Shutdown();
 	gprintf("starting HBC");
+	if(system_state.Init)
+	{
+		VIDEO_SetBlack(true);
+		VIDEO_Flush();
+		VIDEO_WaitVSync();
+	}
+
 	ES_LaunchTitle(TitleID, &views[0]);
+
 	//well that went wrong
+	if(system_state.Init)
+	{
+		VIDEO_SetBlack(false);
+		VIDEO_Flush();
+		VIDEO_WaitVSync();
+	}
 	Input_Init();
 	InitMounts();
 	error = ERROR_BOOT_HBC;
