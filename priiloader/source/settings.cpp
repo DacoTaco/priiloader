@@ -32,7 +32,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "mem2_manager.h"
 
 Settings *settings=NULL;
-static s32 sysver = -1;
 
 static u32 Create_Settings_File( void )
 {
@@ -62,73 +61,6 @@ static u32 Create_Settings_File( void )
 	}
 	ISFS_Close( fd );
 	return 1;
-}
-u32 GetSysMenuVersion( void )
-{
-	if(sysver >= 0)
-		return sysver;
-
-	//Get sysversion from TMD
-	u64 TitleID = 0x0000000100000002LL;
-	u32 tmd_size;
-	s32 r = ES_GetTMDViewSize(TitleID, &tmd_size);
-	if(r<0)
-	{
-		gprintf("SysMenuVersion : GetTMDViewSize error %d",r);
-		return 0;
-	}
-
-	tmd_view *rTMD = (tmd_view*)mem_align( 32, ALIGN32(tmd_size) );
-	if( rTMD == NULL )
-	{
-		gdprintf("SysMenuVersion : memalign failure");
-		return 0;
-	}
-	memset(rTMD,0, tmd_size );
-	r = ES_GetTMDView(TitleID, (u8*)rTMD, tmd_size);
-	if(r<0)
-	{
-		gprintf("SysMenuVersion : GetTMDView error %d",r);
-		mem_free( rTMD );
-		return 0;
-	}	
-	sysver = rTMD->title_version;
-
-	mem_free(rTMD);
-	return sysver;
-}
-
-u32 GetSysMenuIOS( void )
-{
-	//Get sysversion from TMD
-	u64 TitleID = 0x0000000100000002LL;
-	u32 tmd_size;
-
-	s32 r = ES_GetTMDViewSize(TitleID, &tmd_size);
-	if(r<0)
-	{
-		gprintf("GetSysMenuIOS : GetTMDViewSize error %d",r);
-		return 0;
-	}
-
-	tmd_view *rTMD = (tmd_view*)mem_align( 32, ALIGN32(tmd_size) );
-	if( rTMD == NULL )
-	{
-		gdprintf("GetSysMenuIOS : memalign failure");
-		return 0;
-	}
-	memset(rTMD,0, tmd_size );
-	r = ES_GetTMDView(TitleID, (u8*)rTMD, tmd_size);
-	if(r<0)
-	{
-		gprintf("GetSysMenuIOS : GetTMDView error %d",r);
-		mem_free( rTMD );
-		return 0;
-	}
-	u8 IOS = rTMD->title_version;
-
-	mem_free(rTMD);
-	return IOS;
 }
 
 u32 SGetSetting( u32 s )

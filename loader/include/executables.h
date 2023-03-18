@@ -21,6 +21,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 */
 
+#ifndef _EXECUTABLES_H_
+#define _EXECUTABLES_H_
 
 //dol stuff
 typedef struct {
@@ -138,3 +140,5 @@ typedef struct {
 #define SHT_HIPROC      0x7fffffff      /*  specific section header types */
 #define SHT_LOUSER      0x80000000      /* reserved range for application */
 #define SHT_HIUSER      0xffffffff      /*  specific indexes */
+
+#endif

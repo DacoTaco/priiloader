@@ -23,9 +23,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #ifndef _HACKS_H_
 #define _HACKS_H_
 
+#include <vector>
+#include <string>
+
 #include "Global.h"
 #include "mount.h"
-#include <string>
 
 struct system_patch {
 	std::vector<uint8_t> hash;
