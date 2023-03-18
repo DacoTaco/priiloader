@@ -29,6 +29,7 @@ extern void *xfb;
 #define TEXT_OFFSET(X) ((((rmode->viWidth) / 2 ) - (strnlen((X), 128)*13/2))>>1)
 
 void InitVideo(void);
+void InitVideoWithConsole(void);
 void ShutdownVideo(void);
 void ConfigureVideoMode(GXRModeObj* videoMode);
 

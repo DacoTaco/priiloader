@@ -30,7 +30,7 @@ void* xfb = NULL;
 GXRModeObj* rmode;
 static bool _videoInit = false;
 
-const static void _configureVideoMode(GXRModeObj* videoMode, s8 internalConfig)
+const static void _configureVideoMode(GXRModeObj* videoMode, bool initConsole)
 {
 	//if xfb is already set, that means we already configured
 	//we reset the whole thing, just in case
@@ -72,7 +72,8 @@ const static void _configureVideoMode(GXRModeObj* videoMode, s8 internalConfig)
 	VIDEO_WaitVSync();
 
 	// Initialise the console, required for printf
-	CON_Init(xfb,(rmode->viWidth + rmode->viXOrigin - 640) / 2, (rmode->viHeight + rmode->viYOrigin - 480) / 2,  640, 480, 640*VI_DISPLAY_PIX_SZ );
+	if(initConsole)
+		CON_Init(xfb,(rmode->viWidth + rmode->viXOrigin - 640) / 2, (rmode->viHeight + rmode->viYOrigin - 480) / 2,  640, 480, 640*VI_DISPLAY_PIX_SZ );
 
 	VIDEO_ClearFrameBuffer(rmode, xfb, COLOR_BLACK);
 	VIDEO_SetNextFramebuffer(xfb);
@@ -107,17 +108,26 @@ void ShutdownVideo(void)
 	_videoInit = false;
 }
 
-void InitVideo ( void )
+void InitVideoWithConsole(void)
 {
 	if (_videoInit == true)
 		return;
 
-	_configureVideoMode(VIDEO_GetPreferredMode(NULL), 1);
+	_configureVideoMode(VIDEO_GetPreferredMode(NULL), true);
+	return;
+}
+
+void InitVideo (void)
+{
+	if (_videoInit == true)
+		return;
+
+	_configureVideoMode(VIDEO_GetPreferredMode(NULL), false);
 	return;
 }
 
 void ConfigureVideoMode(GXRModeObj* videoMode)
 {
-	_configureVideoMode(videoMode, 0);
+	_configureVideoMode(videoMode, false);
 	return;
 }

@@ -1343,7 +1343,7 @@ int main(int argc, char **argv)
 	if (dolphinFd >= 0) IOS_Close(dolphinFd);
 
 	CheckForGecko();
-	InitVideo();
+	InitVideoWithConsole();
 	gprintf("resolution is %dx%d", rmode->viWidth, rmode->viHeight);
 
 	if( IOS_GetVersion() >= 200 )
