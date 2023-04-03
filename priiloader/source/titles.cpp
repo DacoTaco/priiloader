@@ -703,8 +703,12 @@ s32 LoadListTitles( void )
 
 			gdprintf("waiting for drive to stop...");
 			while(DVDAsyncBusy());
-			VIDEO_SetBlack(1);
-			VIDEO_Flush();
+			if(system_state.Init)
+			{
+				VIDEO_SetBlack(true);
+				VIDEO_Flush();
+				VIDEO_WaitVSync();
+			}
 
 			titleRegion = GetTitleRegion(TITLE_LOWER(titles[cur_off].title_id));
 			regionMatch = VideoRegionMatches(titleRegion);
@@ -755,9 +759,12 @@ s32 LoadListTitles( void )
 			ES_LaunchTitle(titles[cur_off].title_id, &views[0]);
 failure:
 			InitVideo();
-			VIDEO_SetBlack(0);
-			VIDEO_Flush();
-			VIDEO_WaitVSync();
+			if(system_state.Init)
+			{
+				VIDEO_SetBlack(false);
+				VIDEO_Flush();
+				VIDEO_WaitVSync();
+			}
 			Input_Init();
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to Load Title!"))*13/2))>>1, 224, "Failed to Load Title!");
 			while(DVDAsyncBusy());

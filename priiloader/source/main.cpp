@@ -1105,6 +1105,7 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		__IOS_ShutdownSubsystems();
 		if(system_state.Init)
 		{
+			VIDEO_SetBlack(true);
 			VIDEO_Flush();
 			VIDEO_WaitVSync();
 		}
@@ -1116,6 +1117,12 @@ s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 
 		//it failed. FAIL!
 		gprintf("this ain't good");
+		if(system_state.Init)
+		{
+			VIDEO_SetBlack(false);
+			VIDEO_Flush();
+			VIDEO_WaitVSync();
+		}
 		__IOS_InitializeSubsystems();
 		InitMounts(_mountCallback);
 		ISFS_Initialize();
