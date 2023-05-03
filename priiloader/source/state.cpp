@@ -31,6 +31,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "gecko.h"
 
 wii_state system_state;
+const char* _statePath = "/title/00000001/00000002/data/state.dat\0";
 
 s32 CheckBootState( void )
 {
@@ -38,7 +39,7 @@ s32 CheckBootState( void )
 	if(sf == NULL)
 		return 0;
 	memset( sf, 0, sizeof(StateFlags) );
-	s32 fd = ISFS_Open("/title/00000001/00000002/data/state.dat", 1);
+	s32 fd = ISFS_Open(_statePath, ISFS_OPEN_READ);
 	if(fd < 0)
 	{
 		mem_free(sf);
@@ -55,27 +56,31 @@ s32 CheckBootState( void )
 	mem_free( sf );
 	return r;
 }
-StateFlags GetStateFlags( void )
+s32 GetStateFlags( StateFlags* state )
 {
+	if(state == NULL)
+		return -1;
+
 	StateFlags *sf = (StateFlags *)mem_align( 32, ALIGN32(sizeof(StateFlags)) );
-	StateFlags State;
 	memset( sf, 0, sizeof(StateFlags) );
-	s32 fd = ISFS_Open("/title/00000001/00000002/data/state.dat", 1);
+	s32 fd = ISFS_Open(_statePath, ISFS_OPEN_READ);
 	if(fd < 0)
 	{
 		mem_free(sf);
-		return State;
+		return fd;
 	}
+
 	s32 ret = ISFS_Read(fd, sf, sizeof(StateFlags));
 	ISFS_Close(fd);
 	if(ret != sizeof(StateFlags))
 	{
 		mem_free(sf);
-		return State;
+		return ret;
 	}
-	memcpy((StateFlags*)&State,sf,sizeof(StateFlags));
+
+	memcpy(state, sf, sizeof(StateFlags));
 	mem_free( sf );
-	return State;
+	return 0;
 }
 static u32 __CalcChecksum(u32 *buf, int len)
 {
@@ -90,23 +95,20 @@ static u32 __CalcChecksum(u32 *buf, int len)
 s32 ClearState( void )
 {
 	return SetBootState(0,0,0,0);
-
 }
 s32 SetBootState( u8 type , u8 flags , u8 returnto , u8 discstate )
 {
 	StateFlags *sf = (StateFlags *)mem_align( 32, sizeof(StateFlags) );
 	memset( sf, 0, sizeof(StateFlags) );
 
-	s32 fd = ISFS_Open("/title/00000001/00000002/data/state.dat", 1|2 );
+	s32 fd = ISFS_Open(_statePath, ISFS_OPEN_RW );
 	if(fd < 0)
 	{
 		mem_free( sf );
-		ISFS_Close(fd);
 		return -1;
 	}
 	
 	s32 ret = ISFS_Read(fd, sf, sizeof(StateFlags));
-
 	if(ret != sizeof(StateFlags))
 	{
 		mem_free( sf );
@@ -135,7 +137,6 @@ s32 SetBootState( u8 type , u8 flags , u8 returnto , u8 discstate )
 	}
 
 	ISFS_Close(fd);
-
 	mem_free( sf );
 	return 1;
 
@@ -146,7 +147,7 @@ s8 VerifyNandBootInfo ( void )
 	NANDBootInfo *Boot_Info = (NANDBootInfo *)mem_align( 32, sizeof(NANDBootInfo) );
 	memset( Boot_Info, 0, sizeof(NANDBootInfo) );
 
-	s32 fd = ISFS_Open("/shared2/sys/NANDBOOTINFO", 1 );
+	s32 fd = ISFS_Open("/shared2/sys/NANDBOOTINFO", ISFS_OPEN_READ );
 	if(fd < 0)
 	{
 		mem_free( Boot_Info );

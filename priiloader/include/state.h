@@ -47,6 +47,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define DISCSTATE_OPEN			0x03
 
 //additional flags
+#define STATE_FLAG0				0x00
 #define STATE_FLAG1				0x80
 #define STATE_FLAG2				0x40
 #define STATE_FLAG3				0x04
@@ -89,7 +90,7 @@ typedef struct wii_state {
 extern wii_state system_state;
 s32 CheckBootState( void );
 s32 ClearState( void );
-StateFlags GetStateFlags( void );
+s32 GetStateFlags( StateFlags* state );
 s32 SetBootState( u8 type , u8 flags , u8 returnto , u8 discstate );
 s8 VerifyNandBootInfo ( void );
 s32 SetNandBootInfo(void);

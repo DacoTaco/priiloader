@@ -1276,7 +1276,6 @@ void BootDvdDrive(void)
 	Input_Shutdown();
 	ShutdownMounts();
 	USB_Deinitialize();
-	ISFS_Deinitialize();
 
 	BootDiscContent();
 
@@ -2458,7 +2457,8 @@ int main(int argc, char **argv)
 	u32 GcShutdownFlag = *(u32*)0x80003164;
 	gprintf("BootState:%d", Bootstate );
 	memset(&system_state,0,sizeof(wii_state));
-	StateFlags flags = GetStateFlags();
+	StateFlags flags;
+	GetStateFlags(&flags);
 	gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u & checksum %u (gcflag : 0x%08X)", flags.type, flags.discstate, flags.returnto, flags.flags, flags.checksum, GcShutdownFlag);
 	s8 magicWord = CheckMagicWords();
 	

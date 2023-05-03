@@ -83,10 +83,16 @@ void LaunchGamecubeDisc(void)
 	*(vu32*)0x800000CC = videoMode > SYS_VIDEO_NTSC ? 0x00000001 : 0x00000000;
 	DCFlushRange((void*)0x80000000, 0x3200);
 
-	//set bootstate for when we come back
-	SetBootState(TYPE_UNKNOWN, FLAGS_STARTGCGAME, RETURN_TO_MENU, 0);
+	//set bootstate for when we come back & set reset state for gc mode
+	SetBootState(TYPE_UNKNOWN, FLAGS_STARTGCGAME, RETURN_TO_MENU, DISCSTATE_GC);
+	*(u32*)0xcc003024 |= 7;
 
 	gprintf("booting BC...");
+	ISFS_Deinitialize();
+	VIDEO_SetBlack(true);
+	VIDEO_Flush();
+	VIDEO_WaitVSync();
+
 	ret = WII_LaunchTitle(BC_Title_Id);
 	throw "launching BC failed(" + std::to_string(ret) + ")";
 }
@@ -295,6 +301,7 @@ void LaunchWiiDisc(void)
 	gprintf("booting binary (0x%08X)...", dvd_entry);
 	u32 level;
 	__IOS_ShutdownSubsystems();
+	ISFS_Deinitialize();
 	__exception_closeall();
 	_CPU_ISR_Disable(level);
 	mtmsr(mfmsr() & ~0x8000);
