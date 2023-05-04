@@ -61,25 +61,16 @@ s32 GetStateFlags( StateFlags* state )
 	if(state == NULL)
 		return -1;
 
-	StateFlags *sf = (StateFlags *)mem_align( 32, ALIGN32(sizeof(StateFlags)) );
-	memset( sf, 0, sizeof(StateFlags) );
+	memset( state, 0, sizeof(StateFlags) );
 	s32 fd = ISFS_Open(_statePath, ISFS_OPEN_READ);
 	if(fd < 0)
-	{
-		mem_free(sf);
 		return fd;
-	}
 
-	s32 ret = ISFS_Read(fd, sf, sizeof(StateFlags));
+	s32 ret = ISFS_Read(fd, state, sizeof(StateFlags));
 	ISFS_Close(fd);
 	if(ret != sizeof(StateFlags))
-	{
-		mem_free(sf);
 		return ret;
-	}
-
-	memcpy(state, sf, sizeof(StateFlags));
-	mem_free( sf );
+	
 	return 0;
 }
 static u32 __CalcChecksum(u32 *buf, int len)
