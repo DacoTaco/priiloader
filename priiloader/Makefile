@@ -109,6 +109,9 @@ BOOTLOADER	:= ../tools/bootloader
 ifeq ($(UNAME),Linux)
 export OPENDOLBOOT	:= $(OPENDOLBOOT)/OpenDolBoot
 export BOOTLOADER	:= $(BOOTLOADER)/bootloader
+else ifeq ($(UNAME),Darwin)
+export OPENDOLBOOT	:= $(OPENDOLBOOT)/OpenDolBoot
+export BOOTLOADER	:= $(BOOTLOADER)/bootloader
 else
 export OPENDOLBOOT	:= $(OPENDOLBOOT)/OpenDolBoot.exe
 export BOOTLOADER	:= $(BOOTLOADER)/bootloader.exe

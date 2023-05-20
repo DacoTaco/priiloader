@@ -1,28 +1,30 @@
-
 TARGET		:=	$(notdir $(CURDIR))
 SOURCES		:=	.
-LOADERPATH	:=	"../../loader/loader.bin"
+LOADERPATH	:=	../../loader/loader.bin
 
-CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
-SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.S))) $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
+BIN2S := bin2s
+UNAME := $(shell uname)
 
 ifeq ($(UNAME),Linux)
-OUTPUT := $(TARGET)
+  OUTPUT := $(TARGET)
+else ifeq ($(UNAME),Darwin)
+  OUTPUT := $(TARGET)
+  BIN2S_FLAGS  := --apple-llvm
 else
-OUTPUT := $(TARGET)
+  OUTPUT := $(TARGET).exe
 endif
 
-.PHONY: $(LOADERPATH) clean
+.PHONY: clean
 
-all:
-ifneq ("$(wildcard $(loader.bin))","")
-	@rm loader.bin
-endif
-	@echo copying loader...
-	@cp $(LOADERPATH) loader.bin
-	@echo building $(OUTPUT)...
-	@g++ $(CPPFILES) $(SFILES) -o $(OUTPUT)
-	
+all: $(OUTPUT)
+
+loader.bin.s: $(LOADERPATH)
+	@$(BIN2S) $(BIN2S_FLAGS) -H loader.bin.h $< > $@
+
+$(OUTPUT): bootloader.cpp loader.bin.s
+	@g++ $^ -o $@
+
 clean:
 	@echo cleaning...
-	@rm -fr $(OUTPUT) loader.bin
+	@rm -fr $(OUTPUT) loader.bin.s loader.bin.h
+
