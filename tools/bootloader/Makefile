@@ -1,9 +1,13 @@
 TARGET		:=	$(notdir $(CURDIR))
-SOURCES		:=	.
+SOURCES		:=	source
 LOADERPATH	:=	../../loader/loader.bin
 
-BIN2S := bin2s
-UNAME := $(shell uname)
+BIN2S 		:= bin2s
+UNAME 		:= $(shell uname)
+CPPFILES 	:= $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.cpp))
+SFILES      := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.S)) $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.s))
+LOADER_SFILE:= $(SOURCES)/loader.bin.s
+LOADER_HFILE:= $(SOURCES)/loader.bin.h
 
 ifeq ($(UNAME),Linux)
   OUTPUT := $(TARGET)
@@ -18,13 +22,13 @@ endif
 
 all: $(OUTPUT)
 
-loader.bin.s: $(LOADERPATH)
-	@$(BIN2S) $(BIN2S_FLAGS) -H loader.bin.h $< > $@
+$(LOADER_SFILE): $(LOADERPATH)
+	@$(BIN2S) $(BIN2S_FLAGS) -H $(LOADER_HFILE) $< > $@
 
-$(OUTPUT): bootloader.cpp loader.bin.s
+$(OUTPUT): $(CPPFILES) $(SFILES) $(LOADER_SFILE)
 	@g++ $^ -o $@
 
 clean:
 	@echo cleaning...
-	@rm -fr $(OUTPUT) loader.bin.s loader.bin.h
+	@rm -fr $(OUTPUT) $(LOADER_SFILE) $(LOADER_HFILE)
 
