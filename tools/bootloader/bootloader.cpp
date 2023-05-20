@@ -25,6 +25,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <vector>
 
 #include "executables.h"
+#include "loader.bin.h"
 
 #ifdef WIN32
 #include <windows.h>
@@ -48,8 +49,6 @@ typedef struct {
 } FileInfo;
 
 const unsigned int baseAddress = 0x80004000;
-extern const char loader[];
-extern int loaderSize;
 
 int WriteFile(FileInfo* info)
 {
@@ -184,7 +183,7 @@ int main(int argc, char** argv)
 			0x00000000, //padding
 		};
 
-		outputFileInfo.FileSize = ALIGN32(sizeof(dolhdr)) + sizeof(_startup) + inputFileInfo.FileSize + ALIGN16(loaderSize);
+		outputFileInfo.FileSize = ALIGN32(sizeof(dolhdr)) + sizeof(_startup) + inputFileInfo.FileSize + ALIGN16(loader_bin_size);
 		outputFileInfo.Data = (unsigned char*)malloc(outputFileInfo.FileSize);
 		if (outputFileInfo.Data == NULL)
 			throw "failed to allocate memory";
@@ -202,8 +201,8 @@ int main(int argc, char** argv)
 		unsigned int loaderAddress = SwapEndian(dolHdr->addressText[0]) + SwapEndian(dolHdr->sizeText[0]);
 		dolHdr->addressText[1] = SwapEndian(loaderAddress);
 		dolHdr->offsetText[1] = SwapEndian(SwapEndian(dolHdr->offsetText[0]) + SwapEndian(dolHdr->sizeText[0]));
-		dolHdr->sizeText[1] = SwapEndian(ALIGN16(loaderSize));
-		memcpy(&outputFileInfo.Data[SwapEndian(dolHdr->offsetText[1])], loader, loaderSize);
+		dolHdr->sizeText[1] = SwapEndian(ALIGN16(loader_bin_size));
+		memcpy(&outputFileInfo.Data[SwapEndian(dolHdr->offsetText[1])], loader_bin, loader_bin_size);
 
 		//add input file
 		unsigned int binaryAddress = SwapEndian(dolHdr->addressText[1]) + SwapEndian(dolHdr->sizeText[1]);
