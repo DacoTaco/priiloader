@@ -6,7 +6,7 @@ BIN2S 		:= bin2s
 UNAME 		:= $(shell uname)
 CPPFILES 	:= $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.cpp))
 SFILES      := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.S)) $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.s))
-LOADER_SFILE:= $(SOURCES)/loader.bin.s
+LOADER_SFILE:= $(SOURCES)/loader.bin.S
 LOADER_HFILE:= $(SOURCES)/loader.bin.h
 
 ifeq ($(UNAME),Linux)
