@@ -102,7 +102,6 @@ export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib) \
 #---------------------------------------------------------------------------------
 #lets see what OS we are on
 UNAME := $(shell uname)
-NUMBER := $(shell bash -c 'echo $$RANDOM')
 OPENDOLBOOT	:= ../tools/OpenDolBoot
 BOOTLOADER	:= ../tools/bootloader
 #build OpenDolBoot
@@ -117,57 +116,71 @@ export OPENDOLBOOT	:= $(OPENDOLBOOT)/OpenDolBoot.exe
 export BOOTLOADER	:= $(BOOTLOADER)/bootloader.exe
 endif
 
+ifeq ($(wildcard ../.git/.),)
+export NUMBER 		:= $(shell bash -c 'echo $$RANDOM')
+export NUMBERSTR	:= $(NUMBER)-dirty
+else
+export NUMBER		:= $(shell git rev-parse --verify --short HEAD)
+export NUMBERSTR	:= $(shell git describe --always --long --dirty)
+endif
+
+export VERSIONLINE	:= \#define GIT_REV 0x$(NUMBER)
+export VERSIONSTR	:= \#define GIT_REV_STR \"$(NUMBERSTR)\"
+ifneq ($(wildcard ../Shared/gitrev.h),)
+export READVERSION	:= $(shell head -n 1 ../Shared/gitrev.h)
+endif
+
 #build order
 all: $(BUILD) run
 
 #actual build script
 $(BUILD): pre_build
-	@echo
-	@echo -----------------------------------------------
-	@echo compiling priiloader...	
-	@echo 
+	$(SILENTMSG)
+	$(SILENTMSG) -----------------------------------------------
+	$(SILENTMSG) compiling priiloader...	
+	$(SILENTMSG) 
 	@[ -d $@ ] || mkdir -p $@
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 	@make --no-print-directory -f $(CURDIR)/Makefile post_build
 
 pre_build:
 ifeq ($(wildcard $(OPENDOLBOOT)),)
-	@echo "opendolboot is missing $(OPENDOLBOOT)."
-	@echo "please run 'make clean' followed by 'make' in the root directory to rebuild priiloader"
-	@echo
+	$(SILENTMSG) "opendolboot is missing $(OPENDOLBOOT)."
+	$(SILENTMSG) "please run 'make clean' followed by 'make' in the root directory to rebuild priiloader"
+	$(SILENTMSG)
 	@exit 1
 endif
 
 ifeq ($(wildcard $(BOOTLOADER)),)
-	@echo "bootloader is missing $(BOOTLOADER)."
-	@echo "please run 'make clean' followed by 'make' in the root directory to rebuild priiloader"
-	@echo
+	$(SILENTMSG) "bootloader is missing $(BOOTLOADER)."
+	$(SILENTMSG) "please run 'make clean' followed by 'make' in the root directory to rebuild priiloader"
+	$(SILENTMSG)
 	@exit 1
 endif
 
 ifeq ($(wildcard $(LOADER)/loader.bin),)
-	@echo "loader is missing (loader.bin)."
-	@echo "please run 'make clean' followed by 'make' in the root directory to rebuild priiloader"
-	@echo
+	$(SILENTMSG) "loader is missing (loader.bin)."
+	$(SILENTMSG) "please run 'make clean' followed by 'make' in the root directory to rebuild priiloader"
+	$(SILENTMSG)
 	@exit 1
 endif
 
 ifeq ($(wildcard ../.git/.),)
-	@echo
-	@echo
-	@echo !!!!!!WARNING!!!!!!!
-	@echo --------------------
-	@echo NOT BUILDING FROM GIT CHECKOUT. REV NUMBERS WILL NOT MAKE ANY SENSE
-	@echo
-	@echo
-	@echo '#define GIT_REV 0x'$(NUMBER) > ../Shared/gitrev.h
-	@echo '#define GIT_REV_STR "'$(NUMBER)'-no-git"' >> ../Shared/gitrev.h
-	@echo 'Using 0x'$(NUMBER)' as revision, '$(NUMBER)'-no-git as revision string'
-else
-	@echo "#define GIT_REV 0x$(shell git rev-parse --verify --short HEAD)" > ../Shared/gitrev.h
-	@echo "#define GIT_REV_STR \"$(shell git describe --always --long --dirty)\"" >> ../Shared/gitrev.h
-	@echo "Using 0x$(shell git rev-parse --verify --short HEAD) as revision, \"$(shell git describe --always --long --dirty)\" as revision string"
+	$(SILENTMSG)
+	$(SILENTMSG)
+	$(SILENTMSG) !!!!!!WARNING!!!!!!!
+	$(SILENTMSG) --------------------
+	$(SILENTMSG) NOT BUILDING FROM GIT CHECKOUT. REV NUMBERS WILL NOT MAKE ANY SENSE
+	$(SILENTMSG)
+	$(SILENTMSG)
 endif
+
+ifneq ($(VERSIONLINE),$(READVERSION))
+	$(SILENTMSG) writing versions to file
+	$(SILENTMSG) "$(VERSIONLINE)" > ../Shared/gitrev.h
+	$(SILENTMSG) "$(VERSIONSTR)" >> ../Shared/gitrev.h
+endif
+	$(SILENTMSG) "Using 0x$(NUMBER) as revision, $(NUMBERSTR) as revision string"
 
 post_build:
 	$(SILENTMSG) -----------------------------------------------
@@ -177,7 +190,7 @@ post_build:
 
 #---------------------------------------------------------------------------------
 clean:
-	@echo clean ...
+	$(SILENTMSG) clean ...
 	@rm -fr $(BUILD) $(BASE_OUTPUT).dol $(OUTPUT).elf $(OUTPUT).dol $(DATA)/loader.bin
 	
 rebuild : clean $(BUILD)
@@ -186,11 +199,11 @@ rebuild : clean $(BUILD)
 run:
 #send elf to the wii
 ifneq ($(WIILOAD),)
-	@echo -----------------------------------------------
-	@echo loading $(OUTPUT).dol
+	$(SILENTMSG) -----------------------------------------------
+	$(SILENTMSG) loading $(OUTPUT).dol
 	@wiiload $(OUTPUT).dol
 else
-	@echo "wiiload variable not set. skipping sending to homebrew channel (wiiload)"
+	$(SILENTMSG) "wiiload variable not set. skipping sending to homebrew channel (wiiload)"
 endif
 
 #---------------------------------------------------------------------------------
@@ -212,7 +225,7 @@ $(BASE_OUTPUT).elf: $(OFILES)
 #---------------------------------------------------------------------------------
 loader: loader.bin.o
 loader.bin.o : ../$(LOADER)/loader.bin #this path is relative from the a path in $(SOURCES)
-	@echo $(notdir $<)
+	$(SILENTMSG) $(notdir $<)
 	$(bin2o)
 
 #---------------------------------------------------------------------------------
@@ -220,17 +233,17 @@ loader.bin.o : ../$(LOADER)/loader.bin #this path is relative from the a path in
 #---------------------------------------------------------------------------------
 %.bin.o	:	%.bin
 #---------------------------------------------------------------------------------
-	@echo $(notdir $<)
+	$(SILENTMSG) $(notdir $<)
 	$(bin2o)
 
 %.tik.o	:	%.tik
 #---------------------------------------------------------------------------------
-	@echo $(notdir $<)
+	$(SILENTMSG) $(notdir $<)
 	$(bin2o)
 
 %.tmd.o	:	%.tmd
 #---------------------------------------------------------------------------------
-	@echo $(notdir $<)
+	$(SILENTMSG) $(notdir $<)
 	$(bin2o)
 
 -include $(DEPENDS)
