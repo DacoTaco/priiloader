@@ -80,14 +80,15 @@ asm(R"(isync
         andc 3,3,4
         mtsrr1 3
         rfi)");
+		__builtin_unreachable();
 	}
 	else
 	{
 		asm("isync");
 		//jump to entrypoint
 		((void (*)())(ep))();
+		__builtin_unreachable();
 	}	
-	return;
 }
 
 u32 _loadApplication(u8* binary, void* parameter)
