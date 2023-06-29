@@ -30,6 +30,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "mem2_manager.h"
 #include "gecko.h"
 
+#define HW_VISOLID (*(vu32*) 0xcd800024)
+
 wii_state system_state;
 const char* _statePath = "/title/00000001/00000002/data/state.dat\0";
 
@@ -192,4 +194,12 @@ s32 SetNandBootInfo(void)
 	}
 	ISFS_Close(fd);
 	return 1;
+}
+
+bool IsInitialBoot(void)
+{
+	// On initial boot the Y-component of VISOLID is set to 0x10
+	// The system menu uses this to determine if this is the first boot
+	// It then sets the Y component to 0x11
+	return ((HW_VISOLID >> 8) & 0xff) == 0x10;
 }

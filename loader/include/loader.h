@@ -24,9 +24,15 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #ifndef _LOADER_H_
 #define _LOADER_H_
 
+enum {
+	BINARY_TYPE_DEFAULT,
+	BINARY_TYPE_SYSTEM_MENU,
+	BINARY_TYPE_SYSTEM_MENU_VWII,
+};
+
 //NOTE : its a bit odd, but in the loader its parameters are defined by this define.
 //if you want to change the parameters, do it here so it'll change everywhere else (typedef + implementation)
-#define _LDR_PARAMETERS void* binary, void* parameter, u32 parameterCount, u8 isSystemMenu
+#define _LDR_PARAMETERS void* binary, void* parameter, u32 parameterCount, u8 binaryType
 typedef void (*loader_t)(_LDR_PARAMETERS);
 
 #endif

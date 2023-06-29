@@ -24,6 +24,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #ifndef _EXECUTABLES_H_
 #define _EXECUTABLES_H_
 
+#include <stdint.h>
+#include <assert.h>
+
 //dol stuff
 typedef struct {
 	unsigned int offsetText[7];
@@ -140,5 +143,69 @@ typedef struct {
 #define SHT_HIPROC      0x7fffffff      /*  specific section header types */
 #define SHT_LOUSER      0x80000000      /* reserved range for application */
 #define SHT_HIUSER      0xffffffff      /*  specific indexes */
+
+//Ancast stuff
+
+// Magic number
+#define ANCAST_MAGIC 0xEFA282D9
+
+// The location in memory where PPC ancast images are booted from
+#define ESPRESSO_ANCAST_LOCATION_PHYS 0x01330000
+#define ESPRESSO_ANCAST_LOCATION_VIRT 0x81330000
+
+// The image type
+enum AncastImageType
+{
+	ANCAST_IMAGE_TYPE_ESPRESSO_WIIU = 0x11,
+	ANCAST_IMAGE_TYPE_ESPRESSO_WII = 0x13,
+	ANCAST_IMAGE_TYPE_STARBUCK_NAND = 0x21,
+	ANCAST_IMAGE_TYPE_STARBUCK_SD = 0x22,
+};
+
+// The console type of the image
+enum AncastConsoleType
+{
+	ANCAST_CONSOLE_TYPE_DEV = 0x01,
+	ANCAST_CONSOLE_TYPE_RETAIL = 0x02,
+};
+
+// Start of each header
+typedef struct AncastHeaderBlock
+{
+	u32 magic;
+	u32 unknown;
+	u32 header_block_size;
+	u8 padding[0x14];
+} AncastHeaderBlock;
+static_assert(sizeof(AncastHeaderBlock) == 0x20);
+
+// Signature block for type 1
+typedef struct AncastSignatureBlockv1
+{
+	u32 signature_type;
+	u8 signature[0x38];
+	u8 padding[0x44];
+} AncastSignatureBlockv1;
+
+// General info about the image
+typedef struct AncastInfoBlock
+{
+	u32 unknown;
+	u32 image_type;
+	u32 console_type;
+	u32 body_size;
+	u8 body_hash[0x14];
+	u32 version;
+	u8 padding[0x38];
+} AncastInfoBlock;
+
+// The header of espresso ancast images
+typedef struct EspressoAncastHeader
+{
+	AncastHeaderBlock header_block;
+	AncastSignatureBlockv1 signature_block;
+	AncastInfoBlock info_block;
+} EspressoAncastHeader;
+static_assert(sizeof(EspressoAncastHeader) == 0x100);
 
 #endif

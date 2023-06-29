@@ -40,8 +40,8 @@ void _boot (_LDR_PARAMETERS)
 	if(binary == NULL || (parameter == NULL && parameterCount > 0))
 		return;
 
-	u32 ep = _loadApplication(binary,(isSystemMenu)?NULL:parameter);
-	if( !ep || (isSystemMenu && ep != 0x80003400))
+	u32 ep = _loadApplication(binary,(binaryType == BINARY_TYPE_DEFAULT)?parameter:NULL);
+	if( !ep || (binaryType == BINARY_TYPE_SYSTEM_MENU && ep != 0x80003400))
 		return;
 
 	//nintendo related pokes. TT/f0f claims these make official dols work
@@ -49,7 +49,7 @@ void _boot (_LDR_PARAMETERS)
 	*(vu32*)0x800000FC = 0x2B73A840;				// CPU Clock Speed
 	*(vu32*)0x8000315C = 0x80800113;				// DI Legacy mode ?
 
-	if(isSystemMenu)
+	if (binaryType == BINARY_TYPE_SYSTEM_MENU || binaryType == BINARY_TYPE_SYSTEM_MENU_VWII)
 	{
 		/* apply offset patches*/
 		if(parameter != NULL && parameterCount > 0)
@@ -64,36 +64,70 @@ void _boot (_LDR_PARAMETERS)
 			}
 		}
 
-		mtmsr(mfmsr() & ~0x8000);
-		mtmsr(mfmsr() | 0x2002);
-		
-		//unstub asm code by crediar. basically sets the SRR0 & SRR1
-		//the rfi sets the machine state and starts executing @ SRR0
-asm(R"(isync
-#set MSR[DR:IR] = 00, jump to STUB
-        lis 3,0x3400@h
-        ori 3,3,0x3400@l
-        mtsrr0 3
+		if(binaryType == BINARY_TYPE_SYSTEM_MENU)
+		{
+			mtmsr(mfmsr() & ~0x8000);
+			mtmsr(mfmsr() | 0x2002);
+			
+			//unstub asm code by crediar. basically sets the SRR0 & SRR1
+			//the rfi sets the machine state and starts executing @ SRR0
+			asm(R"(isync
+				#set MSR[DR:IR] = 00, jump to STUB
+				lis 3,0x3400@h
+				ori 3,3,0x3400@l
+				mtsrr0 3
 
-        mfmsr 3
-        li 4,0x30
-        andc 3,3,4
-        mtsrr1 3
-        rfi)");
+				mfmsr 3
+				li 4,0x30
+				andc 3,3,4
+				mtsrr1 3
+				rfi)");
+		}
+		else if (binaryType == BINARY_TYPE_SYSTEM_MENU_VWII)
+		{
+			// Running the entire stub of the vWii SM again crashes
+			// This is a minimal version of this stub which directly jumps to the vWii SM entry
+			asm("isync\n"
+
+				// Write 0 to 0x800000f4 (usually 0x000000f4 without address translation)
+				"lis 3, 0x800000f4@h\n"
+				"lis 4, 0x0\n"
+				"stw 4, 0x800000f4@l(3)\n"
+
+				// Load the entry address into SSR0
+				"lis 3, 0x81330400@h\n"
+				"ori 3, 3, 0x81330400@l\n"
+				"mtsrr0 3\n"
+
+				// Prepare machine state
+				"lis 4, 0x0\n"
+				// Enable FP
+				"addi 4, 4, 0x2000\n"
+				// Enable IR and DR
+				"ori 4, 4, 0x30\n"
+				// Write machine state into SRR1
+				"mtsrr1 4\n"
+
+				// load SRR1 into MSR and jump to SRR0
+				"rfi"
+			);
+		}
+
 		__builtin_unreachable();
 	}
-	else
+	else // BINARY_TYPE_DEFAULT
 	{
 		asm("isync");
 		//jump to entrypoint
 		((void (*)())(ep))();
 		__builtin_unreachable();
-	}	
+	}
 }
 
 u32 _loadApplication(u8* binary, void* parameter)
 {
 	Elf32_Ehdr *ElfHdr = (Elf32_Ehdr *)binary;
+	EspressoAncastHeader *AncastHdr = (EspressoAncastHeader *)binary;
 	struct __argv *args = (struct __argv *)parameter;
 
 	if( ElfHdr->e_ident[EI_MAG0] == 0x7F &&
@@ -134,6 +168,19 @@ u32 _loadApplication(u8* binary, void* parameter)
 			DCFlushRangeNoGlobalSync((void*)(shdr->sh_addr | 0x80000000),shdr->sh_size);
 		}
 		return (ElfHdr->e_entry | 0x80000000);	
+	}
+	// Note that ancast images passed to the loader need to be already decrypted
+	else if (AncastHdr->header_block.magic == ANCAST_MAGIC)
+	{
+		void *dest = (void *)ESPRESSO_ANCAST_LOCATION_VIRT;
+		u32 totalImageSize = AncastHdr->info_block.body_size + sizeof(EspressoAncastHeader);
+
+		// Copy the ancast image to the location
+		_memcpy(dest, binary, totalImageSize);
+		DCFlushRangeNoGlobalSync(dest, totalImageSize);
+
+		// Set the entrypoint to the body
+		return ESPRESSO_ANCAST_LOCATION_VIRT + sizeof(EspressoAncastHeader);
 	}
 	else
 	{

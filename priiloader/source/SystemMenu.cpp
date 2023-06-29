@@ -38,6 +38,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "state.h"
 #include "patches.h"
 #include "Video.h"
+#include "vWii.h"
 
 //files
 #include "loader_bin.h"
@@ -115,6 +116,170 @@ u32 GetSysMenuVersion( void )
 
 	mem_free(rTMD);
 	return sysver;
+}
+
+static bool DecryptvWiiSysMenu(void* data)
+{
+	dolhdr* dol = (dolhdr*) data;
+
+	// The ancast image will be in the first data section
+	EspressoAncastHeader* anc = (EspressoAncastHeader*) ((u32) data + dol->offsetData[0]);
+
+	// Verify the ancast image
+	if (anc->header_block.magic != ANCAST_MAGIC)
+	{
+		gprintf("invalid ancast magic");
+		return false;
+	}
+
+	if (anc->header_block.header_block_size != sizeof(AncastHeaderBlock))
+	{
+		gprintf("invalid ancast header block");
+		return false;
+	}
+
+	if (anc->signature_block.signature_type != 0x01)
+	{
+		gprintf("invalid ancast signature type");
+		return false;
+	}
+
+	if (anc->info_block.image_type != ANCAST_IMAGE_TYPE_ESPRESSO_WII)
+	{
+		gprintf("invalid ancast image type");
+		return false;
+	}
+
+	if (anc->info_block.console_type != ANCAST_CONSOLE_TYPE_RETAIL)
+	{
+		gprintf("invalid ancast console type");
+		return false;
+	}
+
+	// Verify body hash
+	SHA1 sha;
+	sha.Reset();
+	sha.Input((u8 *)(anc + 1), anc->info_block.body_size);
+	unsigned int hash[5];
+	if (!sha.Result(hash))
+	{
+		gprintf("failed to calculate ancast hash");
+		return false;
+	}
+	if (memcmp(anc->info_block.body_hash, hash, sizeof(hash)) != 0)
+	{
+		gprintf("invalid ancast hash");
+		return false;
+	}
+
+	// Initialize the AES engine
+	if (AES_Init() < 0)
+	{
+		gprintf("failed to init aes");
+		return false;
+	}
+
+	// Decrypt the ancast body
+	static const u8 vwii_ancast_retail_key[0x10] = { 0x2e, 0xfe, 0x8a, 0xbc, 0xed, 0xbb, 0x7b, 0xaa, 0xe3, 0xc0, 0xed, 0x92, 0xfa, 0x29, 0xf8, 0x66 };
+	static const u8 vwii_ancast_iv[0x10] = { 0x59, 0x6d, 0x5a, 0x9a, 0xd7, 0x05, 0xf9, 0x4f, 0xe1, 0x58, 0x02, 0x6f, 0xea, 0xa7, 0xb8, 0x87 };
+	if (AES_Decrypt(vwii_ancast_retail_key, sizeof(vwii_ancast_retail_key), vwii_ancast_iv, sizeof(vwii_ancast_iv), anc + 1, anc + 1, anc->info_block.body_size) < 0)
+	{
+		gprintf("failed to decrypt ancast body");
+		return false;
+	}
+
+	AES_Close();
+	return true;
+}
+
+static void PatchvWiiSysMenu(u8* mem_block, u32 max_address)
+{
+	// These are necessary builtin patches to the vWii System Menu to make it boot with Priiloader
+
+	// Patch out IPC wait
+	static u32 ipc_wait_hash[] = { 0x546007bd, 0x4182fff4 };
+	static u32 ipc_wait_patch[] = { 0x546007bd, 0x60000000 };
+	for(u32 add = 0; add + (u32)mem_block < max_address; add++)
+	{
+		if (!memcmp(mem_block + add, ipc_wait_hash, sizeof(ipc_wait_hash)))
+		{
+			memcpy((u8 *)mem_block + add, ipc_wait_patch, sizeof(ipc_wait_patch) );
+			DCFlushRange((u8 *)((add+(u32)mem_block) >> 5 << 5), (sizeof(ipc_wait_patch) >> 5 << 5) + 64);
+			break;
+		}
+	}
+
+	// ES_OpenActiveTitleContent(1 -> 9)
+	// This is necessary since what was previously content 1 is now priiloader
+	// and the original content 1 was moved to the end (which is now 9)
+	static u32 active_content_hash_jp[] = { 0x38600001, 0x482ad159 };
+	static u32 active_content_hash_us[] = { 0x38600001, 0x482836f9 };
+	static u32 active_content_hash_eu[] = { 0x38600001, 0x48283785 };
+	static u32 active_content_patch[] = { 0x38600009 };
+	u32* active_content_hash;
+	u32 active_content_hash_size;
+	switch (GetSysMenuVersion() & 0xf)
+	{
+	case 0: // jp
+		active_content_hash = active_content_hash_jp;
+		active_content_hash_size = sizeof(active_content_hash_jp);
+		break;
+	case 1: // us
+		active_content_hash = active_content_hash_us;
+		active_content_hash_size = sizeof(active_content_hash_us);
+		break;
+	case 2: // eu
+		active_content_hash = active_content_hash_eu;
+		active_content_hash_size = sizeof(active_content_hash_eu);
+		break;
+	default:
+		error = ERROR_SYSMENU_GENERAL;
+		throw "invalid system menu region";
+	}
+
+	for(u32 add = 0; add + (u32)mem_block < max_address; add++)
+	{
+		if (!memcmp(mem_block + add, active_content_hash, active_content_hash_size))
+		{
+			memcpy((u8 *)mem_block + add, active_content_patch, sizeof(active_content_patch) );
+			DCFlushRange((u8 *)((add+(u32)mem_block) >> 5 << 5), (sizeof(active_content_patch) >> 5 << 5) + 64);
+			break;
+		}
+	}
+
+	// nop out __VIInit since that's handled by BC-NAND now
+	// Due to a VI bug? on vWii, letting SM call `__VIInit` again results in all sorts of issues
+	// (black screens, green bars, freezes)
+	static u32 vi_init_hash_jp[] = { 0x9421ffe0, 0x7c0802a6, 0x3c80816b };
+	static u32 vi_init_hash_us_eu[] = { 0x9421ffe0, 0x7c0802a6, 0x3c808168 };
+	static u32 vi_init_patch[] = { 0x4e800020 };
+	u32* vi_init_hash;
+	u32 vi_init_hash_size;
+	switch (GetSysMenuVersion() & 0xf)
+	{
+	case 0: // jp
+		vi_init_hash = vi_init_hash_jp;
+		vi_init_hash_size = sizeof(vi_init_hash_jp);
+		break;
+	case 1: // us
+	case 2: // eu
+		vi_init_hash = vi_init_hash_us_eu;
+		vi_init_hash_size = sizeof(vi_init_hash_us_eu);
+		break;
+	default:
+		error = ERROR_SYSMENU_GENERAL;
+		throw "invalid system menu region";
+	}
+
+	for(u32 add = 0; add + (u32)mem_block < max_address; add++)
+	{
+		if (!memcmp(mem_block + add, vi_init_hash, vi_init_hash_size))
+		{
+			memcpy((u8 *)mem_block + add, vi_init_patch, sizeof(vi_init_patch) );
+			DCFlushRange((u8 *)((add+(u32)mem_block) >> 5 << 5), (sizeof(vi_init_patch) >> 5 << 5) + 64);
+			break;
+		}
+	}
 }
 
 void BootMainSysMenu( void )
@@ -199,6 +364,17 @@ void BootMainSysMenu( void )
 			throw "failed to read binary";
 		}
 		ISFS_Close(fd);
+
+		// If this is a vWii menu, it needs to be decrypted first
+		if (smTmd->vwii_title)
+		{
+			gprintf("decrypting vwii sysmenu");
+			if (!DecryptvWiiSysMenu(binary))
+			{
+				error = ERROR_SYSMENU_GENERAL;
+				throw "failed to decrypt vwii menu";
+			}
+		}
 
 		gprintf("loading hacks");
 		LoadSystemHacks(StorageDevice::NAND);
@@ -433,6 +609,14 @@ void BootMainSysMenu( void )
 			} //end for loop of all patches of hack[i]
 		} // end general hacks loop*/
 
+		// Apply vWii specific patches which are always required for the menu to boot from priiloader
+		if (smTmd->vwii_title)
+		{
+			gprintf("applying vWii patches");
+
+			PatchvWiiSysMenu(mem_block, max_address);
+		}
+
 		//prepare loader
 		loader_addr = (void*)mem_align(32,loader_bin_size);
 		if(!loader_addr)
@@ -457,12 +641,13 @@ void BootMainSysMenu( void )
 		__STM_Close();
 		__IPC_Reinitialize();
 		__IOS_ShutdownSubsystems();
-		__exception_closeall();			
+		__exception_closeall();
 		gprintf("launching sys menu... 0x%08X",loader_addr);
 		
 		//loader
 		ICSync();
-		loader(binary, patch_ptr, patch_cnt, 1);
+		const u8 binaryType = smTmd->vwii_title ? BINARY_TYPE_SYSTEM_MENU_VWII : BINARY_TYPE_SYSTEM_MENU;
+		loader(binary, patch_ptr, patch_cnt, binaryType);
 		gprintf("this ain't good");
 
 		//oh ow, this ain't good
