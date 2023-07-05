@@ -37,6 +37,8 @@
 			"**/*.elf": true,
 			"**/*.bin": true,
 			"**/*.dol": true,
+			"**/*.rpx": true,
+			"**/*.wuhb": true,
 			"**/*.zip": true,
 			"**/*.rar": true,
 			"**/bootloader.exe": true,
