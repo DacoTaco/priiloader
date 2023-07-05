@@ -13,9 +13,9 @@ TOPDIR ?= $(CURDIR)
 # APP_SHORTNAME sets the short name of the application
 # APP_AUTHOR sets the author of the application
 #-------------------------------------------------------------------------------
-APP_NAME	:= Priiloader Wii U Forwarder
-APP_SHORTNAME	:= Priiloader Forwarder
-APP_AUTHOR	:= DacoTaco, GaryOderNichts
+APP_NAME      	:= Boot to Priiloader
+APP_SHORTNAME 	:= Priiloader Forwarder
+APP_AUTHOR		:= GaryOderNichts, DacoTaco
 
 include $(DEVKITPRO)/wut/share/wut_rules
 
@@ -35,10 +35,10 @@ BUILD		:=	build
 SOURCES		:=	source
 DATA		:=	data
 INCLUDES	:=	include
-CONTENT		:=
-ICON		:=
-TV_SPLASH	:=
-DRC_SPLASH	:=
+CONTENT		:= 
+ICON		:=	images/wuhb-icon.png
+TV_SPLASH	:=	images/tv-splash.png
+DRC_SPLASH	:=	images/drc-splash.png
 
 #-------------------------------------------------------------------------------
 # options for code generation

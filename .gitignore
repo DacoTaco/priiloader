@@ -3,6 +3,8 @@ build
 *.*
 
 # But not these files...
+!*.xml
+!*.psd
 !*.git*
 !*.json
 !*.code-workspace
