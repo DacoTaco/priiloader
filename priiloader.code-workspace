@@ -6,23 +6,27 @@
 		},
 		{
 			"name": "Shared",
-			"path": "Shared"
+			"path": "src/Shared"
 		},
 		{
 			"name": "loader",
-			"path": "loader"
+			"path": "src/loader"
+		},
+		{
+			"name": "Installer",
+			"path": "src/Installer"
+		},
+		{
+			"name": "priiloader",
+			"path": "src/priiloader"
 		},
 		{
 			"name": "tools",
 			"path": "tools"
 		},
 		{
-			"name": "Installer",
-			"path": "Installer"
-		},
-		{
-			"name": "priiloader",
-			"path": "priiloader"
+			"name": "docs",
+			"path": "docs"
 		}
 	],
 	"settings": {

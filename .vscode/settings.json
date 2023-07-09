@@ -1,9 +1,7 @@
 {
   "files.exclude": {
-      "loader" : true,
-      "priiloader" : true,
-      "Installer" : true,
       "tools" : true,
-      "Shared" : true
+      "src" : true,
+	  "docs" : true
 	},
 }

@@ -29,10 +29,6 @@ build
 !*MakeFile
 
 # But do ignore these:
-/Shared/gitrev.h
-/priiloader/data/certs.bin
-/priiloader/data/loader.bin
-/priiloader/bootloader*
-/priiloader/OpenDolBoot*
-/Installer/data/priiloader.app
+/src/Shared/gitrev.h
+/src/priiloader/data/loader.bin
 **/loader.bin

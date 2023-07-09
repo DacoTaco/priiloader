@@ -1,6 +1,6 @@
 TARGET		:=	$(notdir $(CURDIR))
 SOURCES		:=	source
-LOADERPATH	:=	../../loader/loader.bin
+LOADERPATH	:=	../../src/loader/loader.bin
 
 BIN2S 		:= bin2s
 UNAME 		:= $(shell uname)
