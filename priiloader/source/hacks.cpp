@@ -102,6 +102,7 @@ bool GetLine(bool reading_nand, std::string& line)
 			throw "error allocating buffer";
 		}
 		memset(buf,0,max_size+1);
+		DCFlushRange(buf, max_size+1);
 
 		//read untill we have a newline or reach EOF
 		while (
@@ -131,6 +132,10 @@ bool GetLine(bool reading_nand, std::string& line)
 				err.append(" (" + std::to_string(ret) + ")");
 				throw err;
 			}
+
+			//flush memory so we are not hitting cache with the read data
+			//we do +1 so any null terminator is also flushed
+			DCFlushRange((void*)addr, ALIGN32(ret+1));
 			read_cnt += ret;
 
 			if(strnlen(buf,max_size+1) >= max_size)
