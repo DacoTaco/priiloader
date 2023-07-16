@@ -210,38 +210,37 @@ void LoadBootMii( void )
 		}
 		return;
 	}
-	if ( !HAS_SD_FLAG(GetMountedFlags()) )
+
+	//only check files if mounted. this allows autoboot to work, which hasn't mounted anything yet
+	if(GetMountedFlags() > 0)
 	{
-		if(rmode != NULL)
+		if ( !HAS_SD_FLAG(GetMountedFlags()) )
 		{
 			PrintFormat( 1, TEXT_OFFSET("Could not mount SD card"), 208, "Could not mount SD card");
 			sleep(5);
+			return;
 		}
-		return;
-	}
-	FILE* BootmiiFile = fopen(BuildPath("/bootmii/armboot.bin", StorageDevice::SD).c_str(),"r");
-	if (!BootmiiFile)
-	{
-		if(rmode != NULL)
+
+		FILE* BootmiiFile = fopen(BuildPath("/bootmii/armboot.bin", StorageDevice::SD).c_str(),"r");
+		if (!BootmiiFile)
 		{
+			gprintf("LoadBootMii: /bootmii/armboot.bin not found");
 			PrintFormat( 1, TEXT_OFFSET("Could not find sd:/bootmii/armboot.bin"), 208, "Could not find sd:/bootmii/armboot.bin");
 			sleep(5);
+			return;
 		}
-		return;
-	}
-	fclose(BootmiiFile);
-		
-	/*BootmiiFile = fopen(BuildPath("/bootmii/ppcboot.elf", StorageDevice::Device_SD).c_str(),"r");
-	if(!BootmiiFile)
-	{
-		if(rmode != NULL)
-		{	
+		fclose(BootmiiFile);
+			
+		/*BootmiiFile = fopen(BuildPath("/bootmii/ppcboot.elf", StorageDevice::Device_SD).c_str(),"r");
+		if(!BootmiiFile)
+		{
 			PrintFormat( 1, TEXT_OFFSET("Could not find sd:/bootmii/ppcboot.elf"), 208, "Could not find sd:/bootmii/ppcboot.elf");
 			sleep(5);
+			return;
 		}
-		return;
+		fclose(BootmiiFile);*/
 	}
-	fclose(BootmiiFile);*/
+	
 	u8 currentIOS = IOS_GetVersion();
 	Input_Shutdown();
 	ShutdownMounts();
