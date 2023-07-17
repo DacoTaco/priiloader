@@ -3,8 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
-#include "../../Shared/sha1.h"
-#include "../../Shared/version.h"
+#include "../../src/Shared/sha1.h"
+#include "../../src/Shared/version.h"
 
 #ifdef WIN32
 #include <windows.h>
