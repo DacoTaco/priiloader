@@ -18,7 +18,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 //defines
-//#define BETA 1
+//#define RC 1
 #define TITLE_UPPER(x) (u32)(x >> 32)
 #define TITLE_LOWER(x) (u32)(x & 0xFFFFFFFF)
 #define ALIGN32(x) (((x) + 31) & ~31)
@@ -41,7 +41,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <ogc/ios.h>
 #include <ogc/usbgecko.h>
 
-#ifdef BETA
+#ifdef RC
 #include <debug.h>
 #endif
 #include <ogc/es.h>
@@ -1565,8 +1565,8 @@ int main(int argc, char **argv)
 	else
 		printf("\r\n\r\n");
 
-#if BETAVERSION > 0
-	printf("\t\tPriiloader v%d.%d.%db%d(r0x%08x) Installation/Removal Tool\n\n\n\n", VERSION.major, VERSION.minor, VERSION.patch, VERSION.beta, GIT_REV);
+#if RCVERSION > 0
+	printf("\t\tPriiloader v%d.%d.%dRC%d(r0x%08x) Installation/Removal Tool\n\n\n\n", VERSION.major, VERSION.minor, VERSION.patch, VERSION.sub_version, GIT_REV);
 #else
 	printf("\t\tPriiloader v%d.%d.%d(r0x%08x) Installation / Removal Tool\n\n\n\n", VERSION.major, VERSION.minor, VERSION.patch, GIT_REV);
 #endif
@@ -1843,25 +1843,22 @@ int main(int argc, char **argv)
 			ClearScreen();
 			fflush(stdout);
 			printf("\r\nIOS %d rev %d\r\n\r\n\r\n",IOS_GetVersion(),IOS_GetRevision());
-#ifdef BETA
+#ifdef RC
 			printf("\x1b[%d;%dm", 33, 1);
 			printf("\nWARNING : ");
 			printf("\x1b[%d;%dm", 37, 1);
-			printf("this is a beta version. are you SURE you want to install this?\nA to confirm, Home/Start to abort\r\n");
+			printf("this is a Release Canidate. are you SURE you want to install this?\nA to confirm, Home/Start to abort\r\n");
 			sleepx(1);
 			if(!UserYesNoStop())
-			{
 				abort("user command");
-			}
 #endif
 			bool _Prii_Found = CheckForPriiloader();
 			CopyTicket();
 			WritePriiloader(_Prii_Found);
 			ret = PatchTMD(0);
 			if(ret < 0)
-			{
 				abort("\npatching TMD error %d!\r\n",ret);
-			}
+
 			if(_Prii_Found)
 			{
 				printf("Deleting extra priiloader files...\r\n");

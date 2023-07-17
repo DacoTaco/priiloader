@@ -42,7 +42,7 @@ static u32 Create_Settings_File( void )
 	s32 fd = 0;
 	ISFS_CreateFile("/title/00000001/00000002/data/loader.ini", 0, 3, 3, 3);
 	//set a few default settings
-	settings->BetaVersion = VERSION_BETA;
+	settings->RCVersion = VERSION_RC;
 	settings->version = VERSION_MERGED;
 	settings->UseSystemMenuIOS = 1;
 	settings->autoboot = AUTOBOOT_SYS;
@@ -94,8 +94,8 @@ u32 SGetSetting( u32 s )
 			return settings->PasscheckPriiloader;
 		case SETTING_PASSCHECKMENU:
 			return settings->PasscheckMenu;
-		case SETTING_SHOWBETAUPDATES:
-			return settings->ShowBetaUpdates;
+		case SETTING_SHOWRCUPDATES:
+			return settings->ShowRCUpdates;
 		default:
 			return 0;
 		break;
@@ -140,10 +140,10 @@ LoadSettingsResult LoadSettings( void )
 		error = ERROR_SETTING_READ;
 		return LOADSETTINGS_FAIL;
 	}
-	if( settings->version == 0 || settings->version != VERSION_MERGED || settings->BetaVersion != VERSION_BETA )
+	if( settings->version == 0 || settings->version != VERSION_MERGED || settings->RCVersion != VERSION_RC )
 	{
 		settings->version = VERSION_MERGED;
-		settings->BetaVersion = VERSION_BETA;
+		settings->RCVersion = VERSION_RC;
 		ISFS_Seek( fd, 0, 0 );
 		ISFS_Write( fd, settings, sizeof( Settings ) );
 	}

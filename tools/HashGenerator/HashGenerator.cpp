@@ -19,15 +19,15 @@
 typedef struct {
 	unsigned int prod_version;
 	unsigned prod_sha1_hash[5];
-	unsigned int beta_version;
-	unsigned int beta_number;
-	unsigned beta_sha1_hash[5];
+	unsigned int rc_version;
+	unsigned int rc_number;
+	unsigned rc_sha1_hash[5];
 } UpdateStructV1;
 
 void Display_Parameters(void)
 {
 	printf("parameters:\n");
-	printf("HashGenerator [stable_dol_path] stable_version [beta_dol_path] beta_version beta_number\n\n");
+	printf("HashGenerator [stable_dol_path] stable_version [rc_dol_path] rc_version rc_number\n\n");
 	printf("versioning is in x.x.x format\n");
 	printf("-h : display this message\n");
 }
@@ -69,8 +69,8 @@ char WriteV1UpdateFile(UpdateStructV1* update)
 	{
 		printf("the machine is %s endian. a endian swap is needed before writing\n", Data_Need_Swapping() ? "Little" : "Big");
 		//swap hash to big endian 
-		endian_swap(update->beta_version);
-		endian_swap(update->beta_number);
+		endian_swap(update->rc_version);
+		endian_swap(update->rc_number);
 		endian_swap(update->prod_version);
 	}
 
@@ -176,16 +176,16 @@ int main(int argc, char **argv)
 	sleep(2);*/
 
 	char* InputProdFile = argv[1];
-	char* InputBetaFile = argv[3];
+	char* InputRCFile = argv[3];
 	unsigned int prodSHA1Hash[5];
-	unsigned int betaSHA1Hash[5];
+	unsigned int rcSHA1Hash[5];
 	int major;
 	int minor;
 	int patch;
 	version_t version;
-	version_t beta_version;
+	version_t rc_version;
 	memset(&version, 0, sizeof(version_t));
-	memset(&beta_version, 0, sizeof(version_t));
+	memset(&rc_version, 0, sizeof(version_t));
 	if (sscanf(argv[2], "%d.%d.%d", &major, &minor, &patch) != 3 || major > 254 || minor > 254 || patch > 254)
 	{
 		printf("Invalid prod version");
@@ -200,17 +200,17 @@ int main(int argc, char **argv)
 		printf("Invalid prod version");
 		goto _exit;
 	}
-	beta_version.major = major & 0xFF;
-	beta_version.minor = minor & 0xFF;
-	beta_version.patch = patch & 0xFF;
-	beta_version.sub_version = atoi((const char*)argv[5]);
+	rc_version.major = major & 0xFF;
+	rc_version.minor = minor & 0xFF;
+	rc_version.patch = patch & 0xFF;
+	rc_version.sub_version = atoi((const char*)argv[5]);
 
 	printf("calculating Hash of -STABLE- dol version %u.%u.%u...\n", version.major, version.minor, version.patch);
 	if( CalculateBinaryHash(InputProdFile, prodSHA1Hash) < 0)
 		goto _exit;
 
-	printf("calculating Hash of -BETA- dol version %u.%u.%u beta %u...\n", beta_version.major, beta_version.minor, beta_version.patch, beta_version.sub_version);
-	if( CalculateBinaryHash(InputBetaFile, betaSHA1Hash) < 0)
+	printf("calculating Hash of -RC- dol version %u.%u.%u RC %u...\n", rc_version.major, rc_version.minor, rc_version.patch, rc_version.sub_version);
+	if( CalculateBinaryHash(InputRCFile, rcSHA1Hash) < 0)
 		goto _exit;
 
 	if (Data_Need_Swapping())
@@ -220,7 +220,7 @@ int main(int argc, char **argv)
 		for (int i = 0; i < 5; i++)
 		{
 			endian_swap(prodSHA1Hash[i]);
-			endian_swap(betaSHA1Hash[i]);
+			endian_swap(rcSHA1Hash[i]);
 		}
 	}
 
@@ -233,9 +233,9 @@ int main(int argc, char **argv)
 	}
 	memset(UpdateFile, 0, sizeof(UpdateStruct));
 	memcpy(UpdateFile->prod_sha1_hash, prodSHA1Hash, sizeof(UpdateFile->prod_sha1_hash));
-	memcpy(UpdateFile->beta_sha1_hash, betaSHA1Hash, sizeof(UpdateFile->beta_sha1_hash));
+	memcpy(UpdateFile->rc_sha1_hash, rcSHA1Hash, sizeof(UpdateFile->rc_sha1_hash));
 	UpdateFile->prod_version = version;
-	UpdateFile->beta_version = beta_version;
+	UpdateFile->rc_version = rc_version;
 	if (WriteUpdateFile(UpdateFile) < 0)
 	{
 		free(UpdateFile);
@@ -252,10 +252,10 @@ int main(int argc, char **argv)
 	}
 	memset(UpdateFileV1, 0, sizeof(UpdateStructV1));
 	memcpy(UpdateFileV1->prod_sha1_hash, prodSHA1Hash, sizeof(UpdateFileV1->prod_sha1_hash));
-	memcpy(UpdateFileV1->beta_sha1_hash, betaSHA1Hash, sizeof(UpdateFileV1->beta_sha1_hash));
+	memcpy(UpdateFileV1->rc_sha1_hash, rcSHA1Hash, sizeof(UpdateFileV1->rc_sha1_hash));
 	UpdateFileV1->prod_version = (unsigned int)((version.major << 8) | (version.minor*10) | (version.patch));
-	UpdateFileV1->beta_version = (unsigned int)((beta_version.major << 8) | (beta_version.minor * 10) | (beta_version.patch));
-	UpdateFileV1->beta_number = beta_version.sub_version;
+	UpdateFileV1->rc_version = (unsigned int)((rc_version.major << 8) | (rc_version.minor * 10) | (rc_version.patch));
+	UpdateFileV1->rc_number = rc_version.sub_version;
 	if (WriteV1UpdateFile(UpdateFileV1) < 0)
 	{
 		free(UpdateFileV1);

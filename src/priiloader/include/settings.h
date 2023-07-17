@@ -34,14 +34,14 @@ typedef struct {
 	u8 StopDisc;
 	u8 LidSlotOnError;
 	u8 IgnoreShutDownMode;
-	u32 BetaVersion;
+	u32 RCVersion;
 	u8 SystemMenuIOS;
 	u8 UseSystemMenuIOS;
 	u8 BlackBackground;
 	u8 DumpGeckoText;
 	u8 PasscheckPriiloader;
 	u8 PasscheckMenu;
-	u8 ShowBetaUpdates;
+	u8 ShowRCUpdates;
 	u8 PreferredMountPoint;
 } ATTRIBUTE_ALIGN(32) Settings;
 
@@ -52,14 +52,14 @@ enum {
 		SETTING_STOPDISC,
 		SETTING_LIDSLOTONERROR,
 		SETTING_IGNORESHUTDOWNMODE,
-		SETTING_BETAVERSION,
+		SETTING_RCVERSION,
 		SETTING_SYSTEMMENUIOS,
 		SETTING_USESYSTEMMENUIOS,
 		SETTING_BLACKBACKGROUND,
 		SETTING_DUMPGECKOTEXT,
 		SETTING_PASSCHECKPRII,
 		SETTING_PASSCHECKMENU,
-		SETTING_SHOWBETAUPDATES,
+		SETTING_SHOWRCUPDATES,
 };
 
 enum {

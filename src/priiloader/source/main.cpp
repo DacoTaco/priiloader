@@ -757,17 +757,17 @@ void SetSettings( void )
 				}
 				break;
 			}
-			case 10: //download beta updates
+			case 10: //download rc updates
 			{
 				if ( pressed & INPUT_BUTTON_LEFT				|| 
 					 pressed & INPUT_BUTTON_RIGHT				|| 
 					 pressed & INPUT_BUTTON_A
 					)
 				{
-					if ( settings->ShowBetaUpdates )
-						settings->ShowBetaUpdates = 0;
+					if ( settings->ShowRCUpdates )
+						settings->ShowRCUpdates = 0;
 					else
-						settings->ShowBetaUpdates = 1;
+						settings->ShowRCUpdates = 1;
 					redraw=true;
 				}
 				break;		
@@ -1000,8 +1000,8 @@ void SetSettings( void )
 			PrintFormat( cur_off==7, 0, 128+(16*6), "    Protect Priiloader:          %s", settings->PasscheckPriiloader?"on ":"off");
 			PrintFormat( cur_off==8, 0, 128+(16*7), "      Protect Autoboot:          %s", settings->PasscheckMenu?"on ":"off");
 			PrintFormat( cur_off==9, 0, 128+(16*8), "     Dump Gecko output:          %s", settings->DumpGeckoText?"on ":"off");
-			PrintFormat( cur_off==10,0, 128+(16*9), "     Show Beta Updates:          %s", settings->ShowBetaUpdates?"on ":"off");
-			PrintFormat( cur_off==11,0, 128+(16*10), "    Default fat device:          %s", fatDevice.c_str());
+			PrintFormat( cur_off==10,0, 128+(16*9), "       Show RC Updates:          %s", settings->ShowRCUpdates?"on ":"off");
+			PrintFormat( cur_off==11,0, 128+(16*10),"    Default fat device:          %s", fatDevice.c_str());
 			PrintFormat( cur_off==12,0, 128+(16*11),"   Use System Menu IOS:          %s", settings->UseSystemMenuIOS?"on ":"off");
 			if(!settings->UseSystemMenuIOS)
 			{
@@ -2007,25 +2007,25 @@ void CheckForUpdate()
 //----------------------------------------
 	file_size = 0;
 	u8* Data = NULL;
-	u8 DownloadedBeta = 0;
-	u8 BetaUpdates = 0;
+	u8 DownloadedRC = 0;
+	u8 RCUpdates = 0;
 	u8 VersionUpdates = 0;
 	u8* Changelog = NULL;
 	u8 redraw = 1;
 	s8 cur_off = 0;
 	ClearScreen();
 	//make a nice list of the updates
-	if ( smaller_version(VERSION, UpdateFile.prod_version) || (same_version(VERSION, UpdateFile.prod_version) && VERSION_BETA > 0) )
+	if ( smaller_version(VERSION, UpdateFile.prod_version) || (same_version(VERSION, UpdateFile.prod_version) && VERSION_RC > 0) )
 		VersionUpdates = 1;
 	//to make the if short :
-	// - beta updates should be enabled
-	// - the current betaversion should be less then the online beta
-	// - the current version should < the beta OR the version == the beta IF a beta is installed
+	// - rc updates should be enabled
+	// - the current RCversion should be less then the online rc
+	// - the current version should < the rc OR the version == the rc IF a rc is installed
 	if ( 
-		SGetSetting(SETTING_SHOWBETAUPDATES) && 
-		( (smaller_version(VERSION, UpdateFile.beta_version) && VERSION_BETA == 0) || (same_version(VERSION, UpdateFile.beta_version) && VERSION_BETA < UpdateFile.beta_version.sub_version)) )
+		SGetSetting(SETTING_SHOWRCUPDATES) && 
+		( (smaller_version(VERSION, UpdateFile.rc_version) && VERSION_RC == 0) || (same_version(VERSION, UpdateFile.rc_version) && VERSION_RC < UpdateFile.rc_version.sub_version)) )
 	{
-		BetaUpdates = 1;
+		RCUpdates = 1;
 	}
 
 	while(1)
@@ -2037,19 +2037,19 @@ void CheckForUpdate()
 			else
 				PrintFormat( cur_off == 0, 16, 64+(16*1), "No version updates\n");
 
-			if (SGetSetting(SETTING_SHOWBETAUPDATES))
+			if (SGetSetting(SETTING_SHOWRCUPDATES))
 			{
-				if ( BetaUpdates )
-					PrintFormat( cur_off==1, 16, 64+(16*2), "Update to v%d.%d.%d beta %d", UpdateFile.beta_version.major, UpdateFile.beta_version.minor, UpdateFile.beta_version.patch, UpdateFile.beta_version.sub_version);
+				if ( RCUpdates )
+					PrintFormat( cur_off==1, 16, 64+(16*2), "Update to v%d.%d.%d rc %d", UpdateFile.rc_version.major, UpdateFile.rc_version.minor, UpdateFile.rc_version.patch, UpdateFile.rc_version.sub_version);
 				else
-					PrintFormat( cur_off==1, 16, 64+(16*2), "No Beta update\n");
+					PrintFormat( cur_off==1, 16, 64+(16*2), "No RC update\n");
 			}	
 
 			PrintFormat( 0, TEXT_OFFSET("A(A) Download Update"), rmode->viHeight-80, "A(A) Download Update");
 			PrintFormat( 0, TEXT_OFFSET("B(B) Cancel Update"), rmode->viHeight-64, "B(B) Cancel Update");
 			redraw = 0;
 
-			if (VersionUpdates == 0 && BetaUpdates == 0)
+			if (VersionUpdates == 0 && RCUpdates == 0)
 			{
 				sleep(2);
 				return;
@@ -2068,12 +2068,12 @@ void CheckForUpdate()
 		{
 			if(cur_off == 0 && VersionUpdates == 1)
 			{
-				DownloadedBeta = 0;
+				DownloadedRC = 0;
 				break;
 			}
-			else if (cur_off == 1 && BetaUpdates == 1)
+			else if (cur_off == 1 && RCUpdates == 1)
 			{
-				DownloadedBeta = 1;
+				DownloadedRC = 1;
 				break;
 			}
 			redraw = 1;
@@ -2083,7 +2083,7 @@ void CheckForUpdate()
 			cur_off--;
 			if(cur_off < 0)
 			{
-				if (SGetSetting(SETTING_SHOWBETAUPDATES))
+				if (SGetSetting(SETTING_SHOWRCUPDATES))
 				{	
 					
 						cur_off = 1;			
@@ -2098,7 +2098,7 @@ void CheckForUpdate()
 		if ( pressed & INPUT_BUTTON_DOWN )
 		{
 			cur_off++;
-			if (SGetSetting(SETTING_SHOWBETAUPDATES))
+			if (SGetSetting(SETTING_SHOWRCUPDATES))
 			{
 				if(cur_off > 1)
 					cur_off = 0;
@@ -2115,7 +2115,7 @@ void CheckForUpdate()
 //Download changelog and ask to proceed or not
 //------------------------------------------------------
 	gprintf("downloading changelog...");
-	if(DownloadedBeta)
+	if(DownloadedRC)
 	{
 		file_size = HttpGet("www.dacotaco.com", "/priiloader/changelog_beta.txt", Changelog, NULL);
 	}
@@ -2224,12 +2224,12 @@ void CheckForUpdate()
 //The choice is made. lets download what the user wanted :)
 //--------------------------------------------------------------
 	ClearScreen();
-	gprintf("downloading %s",DownloadedBeta?"beta":"update");
-	if(DownloadedBeta)
+	gprintf("downloading %s",DownloadedRC?"rc":"update");
+	if(DownloadedRC)
 	{
-		PrintFormat( 1, TEXT_OFFSET("downloading   .   beta   ..."), 208, "downloading %d.%d.%d beta %d...", UpdateFile.beta_version.major, UpdateFile.beta_version.minor, UpdateFile.beta_version.patch, UpdateFile.beta_version.sub_version);
+		PrintFormat( 1, TEXT_OFFSET("downloading   .   rc   ..."), 208, "downloading %d.%d.%d rc %d...", UpdateFile.rc_version.major, UpdateFile.rc_version.minor, UpdateFile.rc_version.patch, UpdateFile.rc_version.sub_version);
 		file_size = HttpGet("www.dacotaco.com", "/priiloader/Priiloader_Beta.dol", Data, NULL);
-		//download beta
+		//download rc
 	}
 	else
 	{
@@ -2278,7 +2278,7 @@ void CheckForUpdate()
 			FileHash[4]);
 		}
 		gprintf("Online : ");
-		if (!DownloadedBeta)
+		if (!DownloadedRC)
 		{
 			gprintf("%08X %08X %08X %08X %08X"
 					,UpdateFile.prod_sha1_hash[0]
@@ -2290,27 +2290,27 @@ void CheckForUpdate()
 		else
 		{
 			gprintf("%08X %08X %08X %08X %08X"
-					,UpdateFile.beta_sha1_hash[0]
-					,UpdateFile.beta_sha1_hash[1]
-					,UpdateFile.beta_sha1_hash[2]
-					,UpdateFile.beta_sha1_hash[3]
-					,UpdateFile.beta_sha1_hash[4]);
+					,UpdateFile.rc_sha1_hash[0]
+					,UpdateFile.rc_sha1_hash[1]
+					,UpdateFile.rc_sha1_hash[2]
+					,UpdateFile.rc_sha1_hash[3]
+					,UpdateFile.rc_sha1_hash[4]);
 		}
 
 		if (
-			( !DownloadedBeta && (
+			( !DownloadedRC && (
 			UpdateFile.prod_sha1_hash[0] == FileHash[0] &&
 			UpdateFile.prod_sha1_hash[1] == FileHash[1] &&
 			UpdateFile.prod_sha1_hash[2] == FileHash[2] &&
 			UpdateFile.prod_sha1_hash[3] == FileHash[3] &&
 			UpdateFile.prod_sha1_hash[4] == FileHash[4] ) ) ||
 
-			( DownloadedBeta && (
-			UpdateFile.beta_sha1_hash[0] == FileHash[0] &&
-			UpdateFile.beta_sha1_hash[1] == FileHash[1] &&
-			UpdateFile.beta_sha1_hash[2] == FileHash[2] &&
-			UpdateFile.beta_sha1_hash[3] == FileHash[3] &&
-			UpdateFile.beta_sha1_hash[4] == FileHash[4] ) ) )
+			( DownloadedRC && (
+			UpdateFile.rc_sha1_hash[0] == FileHash[0] &&
+			UpdateFile.rc_sha1_hash[1] == FileHash[1] &&
+			UpdateFile.rc_sha1_hash[2] == FileHash[2] &&
+			UpdateFile.rc_sha1_hash[3] == FileHash[3] &&
+			UpdateFile.rc_sha1_hash[4] == FileHash[4] ) ) )
 		{
 			gprintf("Hash check complete. booting file...");
 		}
@@ -2326,8 +2326,8 @@ void CheckForUpdate()
 //Load the dol
 //---------------------------------------------------
 		ClearScreen();
-		if(DownloadedBeta)
-			PrintFormat( 1, TEXT_OFFSET("loading   .   beta   ..."), 208, "loading %d.%d.%d beta %d...", UpdateFile.beta_version.major, UpdateFile.beta_version.minor, UpdateFile.beta_version.patch, UpdateFile.beta_version.sub_version);
+		if(DownloadedRC)
+			PrintFormat( 1, TEXT_OFFSET("loading   .   rc   ..."), 208, "loading %d.%d.%d rc %d...", UpdateFile.rc_version.major, UpdateFile.rc_version.minor, UpdateFile.rc_version.patch, UpdateFile.rc_version.sub_version);
 		else
 			PrintFormat( 1, TEXT_OFFSET("loading   .  ..."), 208, "loading %d.%d.%d ...", UpdateFile.prod_version.major, UpdateFile.prod_version.minor, UpdateFile.prod_version.patch);
 
@@ -2678,8 +2678,8 @@ int main(int argc, char **argv)
 	_sync();
 #ifdef DEBUG
 	gdprintf("priiloader v%d.%d.%d DEBUG (Sys:%d)(IOS:%d)(%s %s)", VERSION.major, VERSION.minor, VERSION.patch, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
-#elif VERSION_BETA > 0
-	gprintf("priiloader v%d.%d.%d BETA %d (Sys:%d)(IOS:%d)(%s %s)", VERSION.major, VERSION.minor, VERSION.patch, VERSION.sub_version, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
+#elif VERSION_RC > 0
+	gprintf("priiloader v%d.%d.%d RC %d (Sys:%d)(IOS:%d)(%s %s)", VERSION.major, VERSION.minor, VERSION.patch, VERSION.sub_version, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
 #endif
 
 	system_state.InMainMenu = 1;
@@ -2794,8 +2794,8 @@ int main(int argc, char **argv)
 		{
 			PrintFormat( 0, 16, rmode->viHeight-96, "IOS v%d", (*(vu32*)0x80003140)>>16 );
 			PrintFormat( 0, 16, rmode->viHeight-80, "Systemmenu v%d", SysVersion );
-#if VERSION_BETA > 0
-			PrintFormat( 0, 16, rmode->viHeight - 64, "Priiloader v%d.%d.%d(beta %d)", VERSION.major, VERSION.minor, VERSION.patch, VERSION.sub_version);
+#if VERSION_RC > 0
+			PrintFormat( 0, 16, rmode->viHeight - 64, "Priiloader v%d.%d.%d(rc %d)", VERSION.major, VERSION.minor, VERSION.patch, VERSION.sub_version);
 #else
 			PrintFormat (0, 16, rmode->viHeight - 64, "Priiloader v%d.%d.%d (r0x%08x)", VERSION.major, VERSION.minor, VERSION.patch, GIT_REV);
 #endif
