@@ -2795,7 +2795,7 @@ int main(int argc, char **argv)
 			PrintFormat( 0, 16, rmode->viHeight-96, "IOS v%d", (*(vu32*)0x80003140)>>16 );
 			PrintFormat( 0, 16, rmode->viHeight-80, "Systemmenu v%d", SysVersion );
 #if VERSION_RC > 0
-			PrintFormat( 0, 16, rmode->viHeight - 64, "Priiloader v%d.%d.%d(rc %d)", VERSION.major, VERSION.minor, VERSION.patch, VERSION.sub_version);
+			PrintFormat( 0, 16, rmode->viHeight - 64, "Priiloader v%d.%d.%d(RC%d)", VERSION.major, VERSION.minor, VERSION.patch, VERSION.sub_version);
 #else
 			PrintFormat (0, 16, rmode->viHeight - 64, "Priiloader v%d.%d.%d (r0x%08x)", VERSION.major, VERSION.minor, VERSION.patch, GIT_REV);
 #endif

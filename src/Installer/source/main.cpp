@@ -1842,7 +1842,7 @@ int main(int argc, char **argv)
 			//install Priiloader
 			ClearScreen();
 			fflush(stdout);
-			printf("\r\nIOS %d rev %d\r\n\r\n\r\n",IOS_GetVersion(),IOS_GetRevision());
+			printf("IOS %d rev %d\r\n\r\n\r\n",IOS_GetVersion(),IOS_GetRevision());
 #ifdef RC
 			printf("\x1b[%d;%dm", 33, 1);
 			printf("\nWARNING : ");

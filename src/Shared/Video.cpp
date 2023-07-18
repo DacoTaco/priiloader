@@ -30,6 +30,10 @@ void* xfb = NULL;
 GXRModeObj* rmode;
 static bool _videoInit = false;
 
+//Console height is the minimum height minus the first line (overscan)
+#define CONSOLE_HEIGHT		(480-32)
+#define CONSOLE_WIDTH		(640)
+
 const static void _configureVideoMode(GXRModeObj* videoMode, bool initConsole)
 {
 	//if xfb is already set, that means we already configured
@@ -67,7 +71,7 @@ const static void _configureVideoMode(GXRModeObj* videoMode, bool initConsole)
 
 	// Initialise the console, required for printf
 	if(initConsole)
-		CON_Init(xfb,(rmode->viWidth + rmode->viXOrigin - 640) / 2, (rmode->viHeight + rmode->viYOrigin - 480) / 2,  640, 480, 640*VI_DISPLAY_PIX_SZ );
+		CON_Init(xfb,(rmode->viWidth + rmode->viXOrigin - CONSOLE_WIDTH) / 2, (rmode->viHeight + rmode->viYOrigin - CONSOLE_HEIGHT) / 2, CONSOLE_WIDTH, CONSOLE_HEIGHT, CONSOLE_WIDTH*VI_DISPLAY_PIX_SZ );
 
 	VIDEO_ClearFrameBuffer(rmode, xfb, COLOR_BLACK);
 	VIDEO_SetNextFramebuffer(xfb);

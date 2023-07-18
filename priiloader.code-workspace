@@ -60,6 +60,7 @@
 			"${DKP_HOME}/portlibs/wii/include/**",
 			"${DKP_HOME}/libogc/include/**",
 			"${DKP_HOME}/devkitPPC/powerpc-eabi/include/**",
+			"${workspaceFolder}",
 			"${workspaceFolder}/../Shared",
 			"${workspaceFolder}/../loader/include",
 			"${workspaceFolder}/include",
