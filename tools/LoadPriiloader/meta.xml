@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<app version="1">
+  <name>loadPriiloader</name>
+  <coder>DacoTaco</coder>
+  <version>Priiloader_0.8.2</version>
+  <release_date>20230000000000</release_date>
+  <short_description>Priiloader Menu Loader</short_description> 
+  <long_description>Loads Priiloader Menu without holding the buttons.
+Compatible with Wii, Wii Mini and vWii.</long_description> 
+  <no_ios_reload/>
+</app>

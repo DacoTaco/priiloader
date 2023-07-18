@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<app version="1">
+  <name>Priiloader Installer</name>
+  <coder>DacoTaco</coder>
+  <version>0.10.0</version>
+  <release_date>20220905100000</release_date>
+  <short_description>Preloader Mod</short_description> 
+  <long_description>Priiloader is the follow up from Crediar's Preloader.
+	This Installer can install or remove a priiloader installation. After installation you can access Priiloader by holding the Reset button as you power on your Wii.		
+	Priiloader is an app that replaces the first part of the System Menu that gets booted. This allows it to load before the actual Wii Menu.	
+		
+	WARNING: If you update, install or uninstall any System Menu it REMOVES Priiloader and you should reinstall it immediately to stay protect</long_description> 
+  <no_ios_reload/>
+</app>

@@ -1,0 +1,7 @@
+{
+  "files.exclude": {
+      "tools" : true,
+      "src" : true,
+	  "docs" : true
+	},
+}

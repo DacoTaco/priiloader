@@ -1,0 +1,129 @@
+{
+	"folders": [
+		{
+			"name": "root",
+			"path": "."
+		},
+		{
+			"name": "Shared",
+			"path": "src/Shared"
+		},
+		{
+			"name": "loader",
+			"path": "src/loader"
+		},
+		{
+			"name": "Installer",
+			"path": "src/Installer"
+		},
+		{
+			"name": "priiloader",
+			"path": "src/priiloader"
+		},
+		{
+			"name": "tools",
+			"path": "tools"
+		},
+		{
+			"name": "docs",
+			"path": "docs"
+		}
+	],
+	"settings": {
+		"files.exclude": {
+			"**/.git": true,
+			"**/.svn": true,
+			"**/.hg": true,
+			"**/CVS": true,
+			"**/.DS_Store": true,
+			"**/Thumbs.db": true,
+			"**/build": true,
+			"**/*.elf": true,
+			"**/*.bin": true,
+			"**/*.dol": true,
+			"**/*.rpx": true,
+			"**/*.wuhb": true,
+			"**/*.zip": true,
+			"**/*.rar": true,
+			"**/bootloader.exe": true,
+			"**/OpenDolBoot.exe": true,
+		},
+		"C_Cpp.default.cStandard": "c17",
+		"C_Cpp.default.cppStandard": "gnu++17",
+		"C_Cpp.default.intelliSenseMode": "gcc-x86",
+		"C_Cpp.default.compilerPath": "${DKP_HOME}/devkitPPC/bin/powerpc-eabi-gcc",
+		"C_Cpp.default.defines": [
+			"HW_RVL"
+		],
+		"C_Cpp.default.includePath": [
+			"${DKP_HOME}/portlibs/ppc/include/**",
+			"${DKP_HOME}/portlibs/wii/include/**",
+			"${DKP_HOME}/libogc/include/**",
+			"${DKP_HOME}/devkitPPC/powerpc-eabi/include/**",
+			"${workspaceFolder}",
+			"${workspaceFolder}/../Shared",
+			"${workspaceFolder}/../loader/include",
+			"${workspaceFolder}/include",
+			"${workspaceFolder}/source",
+			"${workspaceFolder}/build"
+		],
+		"files.associations": {
+			"*.h": "c",
+			"*.hpp": "cpp",
+			"array": "c",
+			"string_view": "c",
+			"initializer_list": "c",
+			"utility": "c",
+			"string": "c",
+			"*.tcc": "c",
+			"numeric": "c",
+			"random": "c",
+			"limits": "c",
+			"system_error": "c",
+			"cmath": "c",
+			"functional": "c",
+			"tuple": "c",
+			"typeinfo": "c",
+			"memory_resource": "c",
+			"atomic": "c",
+			"bit": "c",
+			"deque": "c",
+			"unordered_map": "c",
+			"vector": "c",
+			"algorithm": "c",
+			"memory": "c",
+			"fstream": "c",
+			"istream": "c",
+			"sstream": "c",
+			"stdexcept": "c",
+			"type_traits": "c",
+			"compare": "c",
+			"new": "c",
+			"optional": "c",
+			"ostream": "c",
+			"streambuf": "c",
+			"cstdlib": "c",
+			"cctype": "cpp",
+			"clocale": "cpp",
+			"concepts": "cpp",
+			"cstdarg": "cpp",
+			"cstddef": "cpp",
+			"cstdint": "cpp",
+			"cstdio": "cpp",
+			"cwchar": "cpp",
+			"cwctype": "cpp",
+			"exception": "cpp",
+			"iterator": "cpp",
+			"iosfwd": "cpp",
+			"numbers": "cpp"
+		},
+		"editor.insertSpaces": false,
+		"editor.detectIndentation": false,
+	},
+	"extensions": {
+		"recommendations": [
+			"ms-vscode.cpptools",
+			"zachsez.vcode-ppc"
+		]
+	}
+}

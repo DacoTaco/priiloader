@@ -1,27 +1,34 @@
-
 TARGET		:=	$(notdir $(CURDIR))
-SOURCES		:=	.
-LOADERPATH	:=	"../../loader/loader.bin"
+SOURCES		:=	source
+LOADERPATH	:=	../../src/loader/loader.bin
 
-CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
-SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.S))) $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
+BIN2S 		:= bin2s
+UNAME 		:= $(shell uname)
+CPPFILES 	:= $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.cpp))
+SFILES      := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.S)) $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.s))
+LOADER_SFILE:= $(SOURCES)/loader.bin.S
+LOADER_HFILE:= $(SOURCES)/loader.bin.h
 
 ifeq ($(UNAME),Linux)
-OUTPUT := $(TARGET)
+  OUTPUT := $(TARGET)
+else ifeq ($(UNAME),Darwin)
+  OUTPUT := $(TARGET)
+  BIN2S_FLAGS  := --apple-llvm
 else
-OUTPUT := $(TARGET)
+  OUTPUT := $(TARGET).exe
 endif
 
-.PHONY: $(LOADERPATH) clean
+.PHONY: clean
 
-all:
-ifeq ($(wildcard loader.bin),)
-	echo copying loader...
-	@cp $(LOADERPATH) loader.bin
-endif
-	@echo building $(OUTPUT)...
-	@g++ $(CPPFILES) $(SFILES) -o $(OUTPUT)
-	
+all: $(OUTPUT)
+
+$(LOADER_SFILE): $(LOADERPATH)
+	@$(BIN2S) $(BIN2S_FLAGS) -H $(LOADER_HFILE) $< > $@
+
+$(OUTPUT): $(CPPFILES) $(SFILES) $(LOADER_SFILE)
+	@g++ $^ -o $@
+
 clean:
 	@echo cleaning...
-	@rm -fr $(OUTPUT) loader.bin
+	@rm -fr $(OUTPUT) $(LOADER_SFILE) $(LOADER_HFILE)
+

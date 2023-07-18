@@ -30,3 +30,6 @@ Priiloader itself needs no hacked IOS at all (hell, we recommend using unpatched
 
 # Can I contact you guys elsewhere? #
 Yes, you can! I (Daco) can be found in #priiloader and #wiidev on efnet.org, or on [Github](https://github.com/DacoTaco). 
+
+# Donations
+If you like priiloader and wish to support me you can donate on [ko-fi](https://ko-fi.com/dacotaco)
