@@ -12,6 +12,9 @@
 
 #define MAGIC_WORD_ADDRESS 0x8132FFFB
 #define MAGIC_WORD_ADDRESS2 0x817FEFF0 //0x8132FFFB
+//Console height is the minimum height minus the first line (overscan)
+#define CONSOLE_HEIGHT		(480-32)
+#define CONSOLE_WIDTH		(640)
 
 static void *xfb = NULL;
 static GXRModeObj *vmode = NULL;
@@ -271,6 +274,8 @@ void LoadThroughMagicWord()
 
 	printf("resetting...\n");
 	sleep(2);
+	VIDEO_ClearFrameBuffer(vmode, xfb, COLOR_BLACK);
+	VIDEO_SetBlack(true);
 	SYS_ResetSystem(SYS_RETURNTOMENU,0,0);
 }
 //---------------------------------------------------------------------------------
@@ -279,27 +284,44 @@ int main(int argc, char **argv) {
 
 	CheckForGecko();
 	// Initialise the video system
-	VIDEO_Init();
-
+	//init video
 	vmode = VIDEO_GetPreferredMode(NULL);
-	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(vmode));
+	VIDEO_Init();	
 
+	//setup view size
+	vmode->viWidth = 672;
+
+	//set correct middlepoint of the screen
+	if (vmode == &TVPal576IntDfScale || vmode == &TVPal576ProgScale) 
+	{
+		vmode->viXOrigin = (VI_MAX_WIDTH_PAL - vmode->viWidth) / 2;
+		vmode->viYOrigin = (VI_MAX_HEIGHT_PAL - vmode->viHeight) / 2;
+	} 
+	else 
+	{
+		vmode->viXOrigin = (VI_MAX_WIDTH_NTSC - vmode->viWidth) / 2;
+		vmode->viYOrigin = (VI_MAX_HEIGHT_NTSC - vmode->viHeight) / 2;
+	}
+
+	xfb = memalign(32, VIDEO_GetFrameBufferSize(vmode) + 0x100);
+	DCInvalidateRange(xfb, VIDEO_GetFrameBufferSize(vmode) + 0x100);
+	xfb = MEM_K0_TO_K1(xfb);
+
+	VIDEO_SetBlack(true);
 	VIDEO_Configure(vmode);
+	VIDEO_Flush();
+	VIDEO_WaitVSync();
+
+	// Initialise the console
+	CON_Init(xfb,(vmode->viWidth + vmode->viXOrigin - CONSOLE_WIDTH) / 2, (vmode->viHeight + vmode->viYOrigin - CONSOLE_HEIGHT) / 2, CONSOLE_WIDTH, CONSOLE_HEIGHT, CONSOLE_WIDTH*VI_DISPLAY_PIX_SZ );
+
+	VIDEO_ClearFrameBuffer(vmode, xfb, COLOR_BLACK);
 	VIDEO_SetNextFramebuffer(xfb);
 	VIDEO_SetBlack(false);
 	VIDEO_Flush();
-
 	VIDEO_WaitVSync();
-	if (vmode->viTVMode & VI_NON_INTERLACE) VIDEO_WaitVSync();
-
-	int x = 20, y = 20, w, h;
-	w = vmode->fbWidth - (x * 2);
-	h = vmode->xfbHeight - (y + 20);
-
-	// Initialize the console
-	CON_InitEx(vmode, x, y, w, h);
-
-	VIDEO_ClearFrameBuffer(vmode, xfb, COLOR_BLACK);
+	if (vmode->viTVMode & VI_NON_INTERLACE)
+		VIDEO_WaitVSync();
     
 	// This function initialises the attached controllers
 	WPAD_Init();

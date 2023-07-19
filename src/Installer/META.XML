@@ -9,6 +9,6 @@
 	This Installer can install or remove a priiloader installation. After installation you can access Priiloader by holding the Reset button as you power on your Wii.		
 	Priiloader is an app that replaces the first part of the System Menu that gets booted. This allows it to load before the actual Wii Menu.	
 		
-	WARNING: If you update, install or uninstall any System Menu it REMOVES Priiloader and you should reinstall it immediately to stay protect</long_description> 
+	WARNING: If you update, install or uninstall any System Menu it REMOVES Priiloader and you should reinstall it immediately to stay protected.</long_description> 
   <no_ios_reload/>
 </app>
