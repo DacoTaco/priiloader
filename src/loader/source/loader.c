@@ -127,7 +127,8 @@ void _boot (_LDR_PARAMETERS)
 u32 _loadApplication(u8* binary, void* parameter)
 {
 	Elf32_Ehdr *ElfHdr = (Elf32_Ehdr *)binary;
-	EspressoAncastHeader *AncastHdr = (EspressoAncastHeader *)binary;
+	dolhdr *dolfile = (dolhdr *)binary;
+	EspressoAncastHeader *AncastHdr = (EspressoAncastHeader *)((u32)binary + dolfile->offsetData[0]);
 	struct __argv *args = (struct __argv *)parameter;
 
 	if( ElfHdr->e_ident[EI_MAG0] == 0x7F &&
@@ -176,7 +177,7 @@ u32 _loadApplication(u8* binary, void* parameter)
 		u32 totalImageSize = AncastHdr->info_block.body_size + sizeof(EspressoAncastHeader);
 
 		// Copy the ancast image to the location
-		_memcpy(dest, binary, totalImageSize);
+		_memcpy(dest, AncastHdr, totalImageSize);
 		DCFlushRangeNoGlobalSync(dest, totalImageSize);
 
 		// Set the entrypoint to the body
@@ -184,8 +185,6 @@ u32 _loadApplication(u8* binary, void* parameter)
 	}
 	else
 	{
-		dolhdr *dolfile;
-		dolfile = (dolhdr *)binary;
 		u8 set_bss = (dolfile->addressBSS > 0x80003400 && dolfile->addressBSS + dolfile->sizeBSS < MAX_ADDRESS);
 
 		//entrypoint & BSS checking
