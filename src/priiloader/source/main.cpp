@@ -943,16 +943,16 @@ void SetSettings( void )
 			switch( settings->ReturnTo )
 			{
 				case RETURNTO_SYSMENU:
-					PrintFormat( cur_off==1, 0, 128,    "             Return to:          System Menu");
+					PrintFormat( cur_off==1, 0, 128,    "             Return to:          System Menu    ");
 				break;
 				case RETURNTO_PRIILOADER:
-					PrintFormat( cur_off==1, 0, 128,    "             Return to:          Priiloader  ");
+					PrintFormat( cur_off==1, 0, 128,    "             Return to:          Priiloader     ");
 				break;
 				case RETURNTO_AUTOBOOT:
-					PrintFormat( cur_off==1, 0, 128,    "             Return to:          Autoboot   ");
+					PrintFormat( cur_off==1, 0, 128,    "             Return to:          Autoboot       ");
 				break;
 				case RETURNTO_FILE:
-					PrintFormat( cur_off==1, 0, 128,    "             Return to:    Installed file   ");
+					PrintFormat( cur_off==1, 0, 128,    "             Return to:          Installed File ");
 				break;
 				default:
 					gdprintf("SetSettings : unknown return to value %d",settings->ReturnTo);

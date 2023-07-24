@@ -137,8 +137,7 @@ const IosPatch EsIdentifyPatch = {
 	//Apply Patch
 	[](u8* address) {
 		gprintf("patching EsIdentify");
-		*(u8*)(address + 4) = 0x00;
-		*(u8*)(address + 5) = 0x00;
+		WriteRegister16((u32)address+4, 0);
 	}
 };
 
