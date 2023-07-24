@@ -396,6 +396,7 @@ void BootMainSysMenu( void )
 				}
 
 				ReloadIOS(ToLoadIOS, 1);
+				PatchIOS({EsIdentifyPatch});
 
 				// Any IOS < 28 does not have to required ES calls to get a title TMD, which sucks.
 				// Therefor we will patch in NAND Access so we can load the TMD directly from nand.
