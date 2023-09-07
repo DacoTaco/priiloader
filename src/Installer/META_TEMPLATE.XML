@@ -2,7 +2,7 @@
 <app version="1">
   <name>Priiloader Installer</name>
   <coder>DacoTaco</coder>
-  <version>0.10.0</version>
+  <version>%PRIILOADER_VERSION%</version>
   <release_date>20220905100000</release_date>
   <short_description>Preloader Mod</short_description> 
   <long_description>Priiloader is the follow up from Crediar's Preloader.

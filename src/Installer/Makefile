@@ -17,9 +17,10 @@ include $(DEVKITPPC)/wii_rules
 #---------------------------------------------------------------------------------
 TARGET		:=	$(notdir $(CURDIR))
 BUILD		:=	build
-SOURCES		:=	source ../Shared
+SHARED		:=	../Shared
+SOURCES		:=	source $(SHARED)
 DATA		:=	data  
-INCLUDES	:=	include ../Shared
+INCLUDES	:=	include $(SHARED)
 
 #---------------------------------------------------------------------------------
 # MS Visual Studio Style Fix
@@ -98,21 +99,26 @@ export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib) \
 					-L$(LIBOGC_LIB)
 
 export OUTPUT	:=	$(CURDIR)/$(TARGET)
-.PHONY: $(BUILD) clean rebuild
+.PHONY: $(BUILD) clean rebuild GenerateVersion
 
 #---------------------------------------------------------------------------------
 #build order
 all: $(BUILD) run
 
+include $(SHARED)/GitVersion.mk
+
+META.XML: $(SHARED)/gitrev.h
+	$(SILENTCMD)sed 's/%PRIILOADER_VERSION%/$(NUMBERSTR)/g' META_TEMPLATE.XML > $@
+
 #run
-$(BUILD):
+$(BUILD): GenerateVersion META.XML
 	@[ -d $@ ] || mkdir -p $@
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
 #---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
-	@rm -fr $(BUILD) $(OUTPUT).elf $(OUTPUT).dol
+	@rm -fr $(BUILD) $(OUTPUT).elf $(OUTPUT).dol META.XML
 	
 rebuild : clean $(BUILD)
 

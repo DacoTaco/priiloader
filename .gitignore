@@ -22,6 +22,7 @@ build
 !*.vcproj
 !*.vcxproj
 !*.
+!*.mk
 !*.ini
 !*.sln
 !*.dll
@@ -29,6 +30,6 @@ build
 !*MakeFile
 
 # But do ignore these:
-/src/Shared/gitrev.h
-/src/priiloader/data/loader.bin
+*gitrev.h
+*meta.xml
 **/loader.bin

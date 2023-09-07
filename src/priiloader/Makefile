@@ -17,10 +17,11 @@ include $(DEVKITPPC)/wii_rules
 #---------------------------------------------------------------------------------
 TARGET			:=	$(notdir $(CURDIR))
 BUILD			:=	build
-SOURCES			:=	source ../Shared
+SHARED			:=	../Shared
+SOURCES			:=	source $(SHARED)
 LOADER			:=  ../loader
 DATA			:=	data
-INCLUDES		:=  include ../Shared ../loader/include
+INCLUDES		:=  include $(SHARED) ../loader/include
 #---------------------------------------------------
 # note : do not change entrypoint without testing booting SM, dol/elf &nd game content.
 # it will fuck one or the other up
@@ -98,7 +99,7 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES), -iquote $(CURDIR)/$(dir)) \
 export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib) \
 					-L$(LIBOGC_LIB)
 
-.PHONY: $(BUILD) clean rebuild pre_build post_build
+.PHONY: $(BUILD) clean rebuild pre_build post_build GenerateVersion
 #---------------------------------------------------------------------------------
 #lets see what OS we are on
 UNAME := $(shell uname)
@@ -116,22 +117,10 @@ export OPENDOLBOOT	:= $(OPENDOLBOOT)/OpenDolBoot.exe
 export BOOTLOADER	:= $(BOOTLOADER)/bootloader.exe
 endif
 
-ifeq ($(wildcard ../../.git/.),)
-export NUMBER 		:= $(shell bash -c 'echo $$RANDOM')
-export NUMBERSTR	:= $(NUMBER)-dirty
-else
-export NUMBER		:= $(shell git rev-parse --verify --short HEAD)
-export NUMBERSTR	:= $(shell git describe --always --long --dirty)
-endif
-
-export VERSIONLINE	:= \#define GIT_REV 0x$(NUMBER)
-export VERSIONSTR	:= \#define GIT_REV_STR \"$(NUMBERSTR)\"
-ifneq ($(wildcard ../Shared/gitrev.h),)
-export READVERSION	:= $(shell head -n 1 ../Shared/gitrev.h)
-endif
-
 #build order
 all: $(BUILD) run
+
+include $(SHARED)/GitVersion.mk
 
 #actual build script
 $(BUILD): pre_build
@@ -143,7 +132,7 @@ $(BUILD): pre_build
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 	@make --no-print-directory -f $(CURDIR)/Makefile post_build
 
-pre_build:
+pre_build: GenerateVersion
 ifeq ($(wildcard $(OPENDOLBOOT)),)
 	$(SILENTMSG) "opendolboot is missing $(OPENDOLBOOT)."
 	$(SILENTMSG) "please run 'make clean' followed by 'make' in the root directory to rebuild priiloader"
@@ -164,23 +153,6 @@ ifeq ($(wildcard $(LOADER)/loader.bin),)
 	$(SILENTMSG)
 	@exit 1
 endif
-
-ifeq ($(wildcard ../../.git/.),)
-	$(SILENTMSG)
-	$(SILENTMSG)
-	$(SILENTMSG) !!!!!!WARNING!!!!!!!
-	$(SILENTMSG) --------------------
-	$(SILENTMSG) NOT BUILDING FROM GIT CHECKOUT. REV NUMBERS WILL NOT MAKE ANY SENSE
-	$(SILENTMSG)
-	$(SILENTMSG)
-endif
-
-ifneq ($(VERSIONLINE),$(READVERSION))
-	$(SILENTMSG) writing versions to file
-	$(SILENTMSG) "$(VERSIONLINE)" > ../Shared/gitrev.h
-	$(SILENTMSG) "$(VERSIONSTR)" >> ../Shared/gitrev.h
-endif
-	$(SILENTMSG) "Using 0x$(NUMBER) as revision, $(NUMBERSTR) as revision string"
 
 post_build:
 	$(SILENTMSG) -----------------------------------------------
