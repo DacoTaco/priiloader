@@ -1,9 +1,11 @@
 ifeq ($(wildcard ../../.git/.),)
 export NUMBER 		:= $(shell bash -c 'echo $$RANDOM')
 export NUMBERSTR	:= $(NUMBER)-dirty
+export GITTAG		:= 0.0.0
 else
 export NUMBER		:= $(shell git rev-parse --verify --short HEAD)
 export NUMBERSTR	:= $(shell git describe --always --long)
+export GITTAG		:= $(shell git describe)
 endif
 
 export VERSIONLINE	:= \#define GIT_REV 0x$(NUMBER)
