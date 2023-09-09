@@ -47,6 +47,7 @@
 			"**/*.rar": true,
 			"**/bootloader.exe": true,
 			"**/OpenDolBoot.exe": true,
+			"**/META.XML": true,
 		},
 		"C_Cpp.default.cStandard": "c17",
 		"C_Cpp.default.cppStandard": "gnu++17",

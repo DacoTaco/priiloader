@@ -108,7 +108,7 @@ all: $(BUILD) run
 include $(SHARED)/GitVersion.mk
 
 META.XML: $(SHARED)/gitrev.h
-	$(SILENTCMD)sed 's/%PRIILOADER_VERSION%/$(NUMBERSTR)/g' META_TEMPLATE.XML > $@
+	$(SILENTCMD)sed 's/%PRIILOADER_VERSION%/$(NUMBERSTR)/g' META_TEMPLATE.XML | sed 's/%PRIILOADER_BUILDDATE%/$(shell date '+%Y%m%d%H%M%S')/g' > $@
 
 #run
 $(BUILD): GenerateVersion META.XML
