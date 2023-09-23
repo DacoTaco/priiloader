@@ -65,7 +65,7 @@ bool check_pass( char* pass )
 void InstallPassword( void )
 {
 	char *pbuf=NULL;
-	unsigned int psize=0;
+	unsigned int psize;
 	char *ptr;
 	char* password = NULL;
 	char* file = NULL;
@@ -270,7 +270,6 @@ void password_check( void )
 	char* file = NULL;
 
 	s32 cpfd = 0;
-	unsigned int cpsize = 0;
 	cpfd = ISFS_Open("/title/00000001/00000002/data/password.txt", 1 );
 	if( cpfd < 0 )
 	{
@@ -284,26 +283,20 @@ void password_check( void )
 		return;
 	}
 	ISFS_GetFileStats( cpfd, cpstatus);
-	cpsize = cpstatus->file_length;
 	mem_free( cpstatus );
 
-	cpbuf = (char*)mem_align( 32, ALIGN32(cpsize) );
+	cpbuf = (char*)mem_align( 32, ALIGN32(cpstatus->file_length+1) );
 	if( cpbuf == NULL )
 	{
 		error = ERROR_MALLOC;
 		return;
 	}
-	memset( cpbuf, 0, cpsize );
-	ISFS_Read( cpfd, cpbuf, cpsize );
+	memset( cpbuf, 0, cpstatus->file_length );
+	ISFS_Read( cpfd, cpbuf, cpstatus->file_length );
 	ISFS_Close( cpfd );
 
-	cpbuf[cpsize] = 0;
-	char se[5];
-	if( strpbrk(cpbuf , "\r\n") )
-		sprintf(se, "\r\n");
-	else
-		sprintf(se, "\n");
-
+	char se[5] = {0};
+	sprintf(se, (strpbrk(cpbuf , "\r\n") != NULL) ? "\r\n" : "\n");
 	ptr = strtok(cpbuf, se);
 	while (ptr != NULL)
 	{
@@ -314,6 +307,13 @@ void password_check( void )
 		ptr = strtok (NULL, se);
 		if(file != NULL && password != NULL)
 			break;
+	}
+
+	if(password == NULL)
+	{
+		error = ERROR_SETTING_OPEN;
+		mem_free(cpbuf);
+		return;
 	}
 
 	// global vars for checks
@@ -341,9 +341,7 @@ void password_check( void )
 		char_status[i] = 0;
 	}
 	if(file == NULL)
-	{
  		file = (char*)"wii_secure.dol";
-	}
 
 	path = BuildPath("/%s");
 	path.replace(path.find("%s"), 2, file);
@@ -581,10 +579,8 @@ void password_check( void )
 		}
 	}
 
-	if( cpbuf )
-	{
+	if(cpbuf)
 		mem_free(cpbuf);
-	}
 	return;
 }
 
