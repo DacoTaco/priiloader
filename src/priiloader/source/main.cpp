@@ -2162,12 +2162,12 @@ void CheckForUpdate()
 		PrintFormat( 0, TEXT_OFFSET("A(A)  Proceed(Download)"), rmode->viHeight-80, "A(A)  Proceed(Download)");
 		PrintFormat( 0, TEXT_OFFSET("B(B)  Cancel Update    "), rmode->viHeight-64, "B(B)  Cancel Update    ");
 
-		u32 pressed = 0;
+		u32 pressed;
 		while(1)
 		{
 			Input_ScanPads();
 
-			pressed  = Input_ButtonsDown();
+			pressed = Input_ButtonsDown();
 			if ( pressed & INPUT_BUTTON_A )
 			{
 				mem_free(Changelog);

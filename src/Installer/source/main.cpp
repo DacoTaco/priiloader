@@ -593,7 +593,7 @@ void Delete_Priiloader_Files( u8 mode )
 		default:
 			break;
 	}
-	s32 ret = 0;
+	s32 ret;
 	static char file_path[ISFS_MAXPATH] ATTRIBUTE_ALIGN(32);
 	memset(file_path,0,ISFS_MAXPATH);
 	if(password)
@@ -1159,7 +1159,7 @@ bool CheckForPriiloader( void )
 }
 s8 WritePriiloader( bool priiloader_found )
 {
-	s32 ret = 0;
+	s32 ret;
 	s32 fd = 0;
 	Nand_Permissions SysPerm;
 	if(priiloader_found == false)
@@ -1322,22 +1322,19 @@ s8 WritePriiloader( bool priiloader_found )
 			}
 		}
 		u8 *AppData = (u8 *)memalign(32,ALIGN32(status->file_length));
-		if (AppData)
-			ret = ISFS_Read(fd,AppData,status->file_length);
-		else
+		if (AppData == NULL)
 		{
 			ISFS_Close(fd);
 			ISFS_Delete(copy_app);
 			abort("Checksum comparison Failure! MemAlign Failure of AppData\r\n");
 		}
+
+		ret = ISFS_Read(fd,AppData,status->file_length);
 		ISFS_Close(fd);
 		if (ret < 0)
 		{
-			if (AppData)
-			{
-				free(AppData);
-				AppData = NULL;
-			}
+			free(AppData);
+			AppData = NULL;
 			ISFS_Delete(copy_app);
 			abort("Checksum comparison Failure! read of priiloader app returned %u\r\n",ret);
 		}
@@ -1345,19 +1342,14 @@ s8 WritePriiloader( bool priiloader_found )
 			printf("Checksum comparison Success!\r\n");
 		else
 		{
-			if (AppData)
-			{
-				free(AppData);
-				AppData = NULL;
-			}
+			free(AppData);
+			AppData = NULL;
 			ISFS_Delete(copy_app);
 			abort("Checksum comparison Failure!\r\n");
 		}
-		if (AppData)
-		{
-			free(AppData);
-			AppData = NULL;
-		}
+
+		free(AppData);
+		AppData = NULL;
 		// rename and do a final SHA1 chezck
 		ISFS_Delete(original_app);
 		ret = ISFS_Rename(temp_dest,original_app);
@@ -1401,23 +1393,20 @@ s8 WritePriiloader( bool priiloader_found )
 			}
 		}
 		AppData = (u8 *)memalign(32,ALIGN32(status->file_length));
-		if (AppData != NULL)
-			ret = ISFS_Read(fd,AppData,status->file_length);
-		else
+		if (AppData == NULL)
 		{
 			ISFS_Close(fd);
 			nand_copy(copy_app,original_app,SysPerm);
 			ISFS_Delete(copy_app);
 			abort("Checksum comparison Failure! MemAlign Failure of AppData\r\n");
 		}
+
+		ret = ISFS_Read(fd,AppData,status->file_length);
 		ISFS_Close(fd);
 		if (ret < 0)
 		{
-			if (AppData)
-			{
-				free(AppData);
-				AppData = NULL;
-			}
+			free(AppData);
+			AppData = NULL;
 			nand_copy(copy_app,original_app,SysPerm);
 			ISFS_Delete(copy_app);
 			abort("Checksum comparison Failure! read of priiloader app returned %u\r\n",ret);
@@ -1426,20 +1415,15 @@ s8 WritePriiloader( bool priiloader_found )
 			printf("Checksum comparison Success!\r\n");
 		else
 		{
-			if (AppData)
-			{
-				free(AppData);
-				AppData = NULL;
-			}
+			free(AppData);
+			AppData = NULL;
 			nand_copy(copy_app,original_app,SysPerm);
 			ISFS_Delete(copy_app);
 			abort("Checksum comparison Failure!\r\n");
 		}
-		if (AppData)
-		{
-			free(AppData);
-			AppData = NULL;
-		}
+		
+		free(AppData);
+		AppData = NULL;
 	}
 
 	gprintf("Priiloader Update Complete");
@@ -1487,7 +1471,7 @@ s8 RemovePriiloader ( void )
 			abort("\nUnable to restore the system menu! (ret = %d)",ret);
 		}
 	}
-	ret = ISFS_Delete(copy_app);
+	ISFS_Delete(copy_app);
 	printf("Done!\r\n");
 
 	if (is_vwii)
@@ -1529,7 +1513,7 @@ int main(int argc, char **argv)
 {
 	s8 ios_patched = 0;
 	init_states wii_state;
-	s32 ret = 0;
+	s32 ret;
 	s32 dolphinFd = -1; 
 	
 	dolphinFd = IOS_Open("/dev/dolphin", IPC_OPEN_NONE); 
@@ -1580,10 +1564,7 @@ int main(int argc, char **argv)
 		
 
 	if (is_vwii && !CheckvWiiNandLoader())
-	{
-		printf("BC-NAND not installed!\n");
-		abort_pre_init("\r\n");
-	}
+		abort_pre_init("\r\nBC-NAND not installed!\r\n");
 
 	//patch and reload IOS so we don't end up with possible shit from the loading application ( looking at you HBC! >_< )
 	//we don't need it in dolphin though
@@ -1865,7 +1846,7 @@ int main(int argc, char **argv)
 				Delete_Priiloader_Files(1);
 				abort("\n\nUpdate done!\r\n");
 			}
-			else if(!_Prii_Found)
+			else
 			{
 				printf("Attempting to delete leftover files...\r\n");
 				Delete_Priiloader_Files(0);
