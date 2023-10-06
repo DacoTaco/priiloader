@@ -1,5 +1,6 @@
+<p align="center" width="100%">
   <img width="720" alt="fidget spinner" src="https://raw.githubusercontent.com/DacoTaco/priiloader/master/Images/Logo.png">
-</center>
+</p>
 
 ---
 
