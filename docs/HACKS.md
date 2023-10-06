@@ -289,7 +289,7 @@ This enables access to Memos, Wii Mail, and Address Book.
     
 This hack would disable vWii System Settings overwrite that usually happens after vWii's reboot. Second thing it does is fix shutdown when standby mode is enabled.
 If enabled [Always enable WiiConnect24 on boot] hack will not work.You can enable WC24 and Standby manually.
-More info about it [HERE](https://NEW_LINK_TO_FAQ).
+More info about it [HERE](./FAQ.md#how-to-use-permanent-wii-system-settings-on-vwii).
 </details>
 
 <details>
