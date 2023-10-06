@@ -25,19 +25,24 @@ The **[Always enable WiiConnect24 on boot]** is not needed and should not be ena
 
 Almost all of the Wii Settings stuff is working properly with **[Permanent vWii System Settings]** hack.
     
-***IMPORTANT: Running WiiU Wii VC will result in a SYSCONF (system settings) overwrite.<br>Hopefully, someone will find a solution for this in the future.***
+***IMPORTANT: Running WiiU Wii VC will result in a SYSCONF (system settings) overwrite.  
+Hopefully, someone will find a solution for this in the future.***
 
 - **WiiConnect24**
 You can enable WiiConnect24 and Standby Connection manually.
 
 - **EULA and Country changing**
-The Wii version of EULA (usually hidden channel) must be downloaded and installed.<br>(It is region-specific and available to download from NUS)<br>It will enable accepting EULA for WiiUs with no NNID/PNID and changing the WC24/Wii country/region.
+The Wii version of EULA (usually hidden channel) must be downloaded and installed.
+(It is region-specific and available to download from NUS)
+It will enable accepting EULA for WiiUs with no NNID/PNID and changing the WC24/Wii country/region.
 
 - **Internet Settings**
 Internet connection list gets overwritten when vWii boots (Only the primary one is copied)
 IOSU directly writes the settings to `/shared2/sys/net/02/config.dat` 
 Changing LAN connection settings works, but it gets overwritten on reboot.
-Changing WiFi connection settings or searching for a new WiFi connection ends in an endless loop.<br><br>*Not much we can do here...*
+Changing WiFi connection settings or searching for a new WiFi connection ends in an endless loop.
+
+*Not much we can do here...*
 
 - **Wii System Update**
 If you start the Wii Update, it can end in an endless loop. (If you don't have the **[Block Online Updates]** hack enabled) If you don't have [evWii](https://github.com/GaryOderNichts/evwii) installed, and power off enabled, the only thing to do is pull out the power cord.
