@@ -40,8 +40,8 @@ Yes, you can! You can find me (@DacoTaco) in `#priiloader` and `#wiidev` on efne
 
 ## I need more info?
 That is not a real question, but here:
-* [Priiloader FAQ](https://github.com/DacoTaco/priiloader/blob/master/docs/HACKS.md)
-* [About Hacks](https://github.com/DacoTaco/priiloader/blob/master/docs/HACKS.md)
+* [Priiloader FAQ](./docs/FAQ.md)
+* [About Hacks](./docs/HACKS.md)
 * [Hacks Testing](https://github.com/DacoTaco/priiloader/discussions/354)
 
 ## ☕Donations
