@@ -21,17 +21,24 @@ Paste it at the end of the `hacks_hash.ini` file.
 
 ## How to use Permanent Wii System Settings on vWii?
 
-The **[Always enable WiiConnect24 on boot]** is not needed and should not be enabled when using the **[Permanent vWii System Settings]** hack.  
+The **[Always enable WiiConnect24 on boot]** is not needed and will not be enabled when using the **[Permanent vWii System Settings]** hack.  
 
 Almost all of the Wii Settings stuff is working properly with **[Permanent vWii System Settings]** hack.  
     
 ***IMPORTANT: Running WiiU Wii VC will result in a SYSCONF (system settings) overwrite.  
 Hopefully, someone will find a solution for this in the future.***  
 
-- **WiiConnect24**  
+**WiiConnect24**  
 You can enable WiiConnect24 and Standby Connection manually.
 
-- **EULA and Country changing**  
+**Standby Mode**  
+The System Menu was fixed to shut down when using *Power Off* while Standby is enabled.  
+Without the fix, it would just do the *Return to SM* instead of shutting down, since there is no real vWii Standby Mode on WiiU.  
+  
+*Using *Power Off* when running games or other titles will still do the *Return to SM* instead of shutting down.  
+Currently, there is no known way to fix this.*
+
+**EULA and Country changing**  
 The Wii version of EULA (usually hidden channel) must be downloaded and installed.  
 (It is region-specific and available to download from NUS)  
 It will enable accepting EULA for WiiUs with no NNID/PNID and changing the WC24/Wii country/region.
@@ -44,10 +51,11 @@ It will enable accepting EULA for WiiUs with no NNID/PNID and changing the WC24/
 
 *Not much we can do here...*
 
-- **Wii System Update**  
-If you start the Wii Update, it can end in an endless loop. (If you don't have the **[Block Online Updates]** hack enabled) If you don't have [evWii](https://github.com/GaryOderNichts/evwii) installed, and power off enabled, the only thing to do is pull out the power cord.
+**Wii System Update**  
+If you start the Wii Update, it can end in an endless loop. (If you don't have the **[Block Online Updates]** hack enabled)  
+If you don't have [evWii](https://github.com/GaryOderNichts/evwii) installed, and power off enabled, the only thing to do is pull out the power cord.
 
-- **Format Wii System Memory**  
+**Format Wii System Memory**  
 Yup, it works. It will also leave hidden channels installed, and WC24 configuration too.
 
 ***All other settings work as they should.***
@@ -62,4 +70,4 @@ When Auto-booting to the System Menu while booting from Aroma via the Wii Menu i
 The app will need an update to work with Priiloader but can be used to change the theme before the Priiloader is installed.
 
 - **vWii only - USB Loader GX currently has graphical glitches with the Channel Banners when Priiloader is installed**  
-The developer fixed the bug, and the update for it will be released in the future. To  load the games before the USB Loader GX update comes out, you can go to the loader's GUI settings and set `Game Window Mode` to `Rotating Disc` (Which allows you to access game settings and start the game)
+The developer fixed the bug, and the update for it will be released in the future. To load the games before the USB Loader GX update comes out, you can go to the loader's GUI settings and set `Game Window Mode` to `Rotating Disc` (Which allows you to access game settings and start the game)
