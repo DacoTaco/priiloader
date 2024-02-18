@@ -25,9 +25,10 @@ INCLUDES	:=	include
 # options for code generation
 #---------------------------------------------------------------------------------
 
-CFLAGS		=	-Os $(INCLUDE) -save-temps -fno-asynchronous-unwind-tables -fno-builtin
-CXXFLAGS	=	$(CFLAGS)
-LDFLAGS		=	-nostartfiles -Wl,-Map,$(notdir $@).map
+CFLAGS		= -Os $(INCLUDE) -save-temps -fno-asynchronous-unwind-tables -fno-builtin
+CXXFLAGS	= $(CFLAGS)
+CPPFLAGS 	= $(MACHDEP) $(INCLUDE)
+LDFLAGS		= -nostartfiles -Wl,-Map,$(notdir $@).map
 
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project
