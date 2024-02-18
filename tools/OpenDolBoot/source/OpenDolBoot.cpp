@@ -21,17 +21,18 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string>
+#include <string.h>
 #include <vector>
 #include "../include/OpenDolBoot.h"
+#include "../include/nandloader.bin.h"
 
 void ShowHelp()
 {
-	printf("OpenDolBoot Input_Dol_filename [-i] [-n Nandcode_filename] [-h] Output_App_filename \n\n");
+	printf("OpenDolBoot [input] [options] [output] \n\n");
 	printf("parameters:\n");
-	printf("-i : display info about the dol file and exit (no other parameters are required when using -i)\n");
-	printf("-n : use the following nand code and not the default nboot.bin\n");
-	printf("-h : display this message\n");
+	printf("-i\t\t: display info about the dol file and exit (no other parameters are required when using -i)\n");
+	printf("-n <nandcode>\t: use the following nand code and not the default nboot.bin\n");
+	printf("-h\t\t: display this message\n");
 	exit(0);
 }
 
@@ -220,8 +221,9 @@ int main(int argc, char **argv)
 	else
 	{
 		nand_info.filename = "internal";
-		nand_info.file_size = _nboot_size;
-		nand_info.data = (unsigned char*)_nboot;
+		nand_info.file_size = nandloader_bin_size;
+		nand_info.data = (unsigned char*) malloc (nandloader_bin_size);
+		memcpy(nand_info.data, (unsigned char*)nandloader_bin, nand_info.file_size);
 	}
 
 #ifdef DEBUG
@@ -233,8 +235,10 @@ int main(int argc, char **argv)
 		//o ow, text2 is already full. lets quit before we brick ppl
 		printf("Text5 already contains data! quiting out of failsafe...\n");
 		free(input_file.data);
+		free(nand_info.data);
 		return 1;
 	}
+	
 	if(nandCodeFile.size() == 0)
 	{
 		Nandcode* nboot = (Nandcode*)nand_info.data;
@@ -256,6 +260,7 @@ int main(int argc, char **argv)
 	{
 		printf("failed to alloc output file\n");
 		free(input_file.data);
+		free(nand_info.data);
 		return 1;
 	}
 	memset(output_file.data,0,output_file.file_size);
@@ -304,5 +309,6 @@ int main(int argc, char **argv)
 
 	free(input_file.data);
 	free(output_file.data);
+	free(nand_info.data);
 	return 0;
 }

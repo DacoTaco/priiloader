@@ -33,3 +33,6 @@ build
 *gitrev.h
 *meta.xml
 **/loader.bin
+**/*.bin.h
+**/*.bin.S
+**/nandloader.bin
