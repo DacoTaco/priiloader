@@ -21,10 +21,17 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <string>
 #include <vector>
-#include "../include/OpenDolBoot.h"
+#include <memory>
+#include <unistd.h>
+#include "../include/dolHeader.h"
+#include "../include/FileInfo.hpp"
+#include "../include/NandLoaderInjector.hpp"
 #include "../include/nandloader.bin.h"
+
+const std::string internalFileName = "internal";
+const unsigned int nandLoaderLocation = 0x80003400;
 
 void ShowHelp()
 {
@@ -33,91 +40,34 @@ void ShowHelp()
 	printf("-i\t\t: display info about the dol file and exit (no other parameters are required when using -i)\n");
 	printf("-n <nandcode>\t: use the following nand code and not the default nboot.bin\n");
 	printf("-h\t\t: display this message\n");
-	exit(0);
 }
-
-void ShowDolInformation(dolhdr* header)
+void ShowDolInformation(std::unique_ptr<FileInfo>& input)
 {
+	dolHeader* header = (dolHeader*)input->Data;
 	if(header == NULL)
 		return;
-	
-	printf("\n\n");
-	printf("Entrypoint: 0x%08X\nBSS Address : 0x%08X\nBSS Size: 0x%08X\n\n", (unsigned int)SwapEndian(header->entrypoint) , (unsigned int)SwapEndian(header->addressBSS) , (unsigned int)SwapEndian(header->sizeBSS) );
+
+	printf("input: %s\n", input->GetFilename());
+	printf("Entrypoint: 0x%08X\nBSS Address : 0x%08X\nBSS Size: 0x%08X\n\n", (unsigned int)ForceBigEndian(header->entrypoint) , (unsigned int)ForceBigEndian(header->addressBSS) , (unsigned int)ForceBigEndian(header->sizeBSS) );
 	printf("Text Sections:\n");
 	for(int i = 0;i < 6;i++)
 	{
 		if(header->sizeText[i] && header->addressText[i] && header->offsetText[i])
 		{
 			//valid info. swap and display
-			printf("offset : 0x%08X\taddress : 0x%08X\tsize : 0x%08X\n", (unsigned int)SwapEndian(header->offsetText[i]), (unsigned int)SwapEndian(header->addressText[i]), (unsigned int)SwapEndian(header->sizeText[i]));
+			printf("offset : 0x%08X\taddress : 0x%08X\tsize : 0x%08X\n", (unsigned int)ForceBigEndian(header->offsetText[i]), (unsigned int)ForceBigEndian(header->addressText[i]), (unsigned int)ForceBigEndian(header->sizeText[i]));
 		}
 	}
+
 	printf("\nData Sections:\n");
 	for(int i = 0;i <= 10;i++)
 	{
 		if(header->sizeData[i] && header->addressData[i] && header->offsetData[i])
 		{
 			//valid info. swap and display
-			printf("offset : 0x%08X\taddress : 0x%08X\tsize : 0x%08X\n", (unsigned int)SwapEndian(header->offsetData[i]), (unsigned int)SwapEndian(header->addressData[i]), (unsigned int)SwapEndian(header->sizeData[i]));
+			printf("offset : 0x%08X\taddress : 0x%08X\tsize : 0x%08X\n", (unsigned int)ForceBigEndian(header->offsetData[i]), (unsigned int)ForceBigEndian(header->addressData[i]), (unsigned int)ForceBigEndian(header->sizeData[i]));
 		}
 	}
-	
-}
-int writeFile(file_info* info)
-{
-	if(info == NULL)
-		return -1;
-
-	FILE* file;
-	file = fopen(info->filename.c_str(),"wb+");
-	if(!file)
-		return -2;
-
-	fwrite(info->data,1,info->file_size,file);
-	fclose(file);
-	return 1;
-}
-int readFile(std::string filename, file_info* info)
-{
-	if(filename.size() == 0 || info == NULL)
-		return -1;
-	
-	FILE* file;
-	unsigned char* data = NULL;
-	unsigned int size = 0;
-#ifdef DEBUG
-	printf("reading %s ...\n",filename.c_str());
-#endif
-	file = fopen(filename.c_str(),"rb");
-	if(!file)
-		return -2;
-
-	fseek(file , 0 , SEEK_END);
-	size = ftell(file);
-	rewind(file);
-
-	// allocate memory to contain the whole file:
-	data = (unsigned char*) malloc (size);
-	if (data == NULL) 
-	{
-		printf("Memory error");
-		fclose(file);
-		return -3;
-	}
-	memset(data,0,size);
-	//copy the file into the buffer:
-	if (fread(data,1,size,file) != size) 
-	{
-		fclose(file);
-		free(data);
-		return -4;
-	}
-	fclose(file);	
-	info->filename = filename;
-	info->data = data;
-	info->file_size = size;
-	
-	return 1;
 }
 int main(int argc, char **argv)
 {
@@ -125,190 +75,111 @@ int main(int argc, char **argv)
 	if(argc < 3)
 	{
 		ShowHelp();
-	}
-	std::string inputFile = "";
-	std::string outputFile = "";
-	std::string nandCodeFile = "";
-	std::vector<std::string> argumentList;
-	bool showInfo = false;
-	//load arguments except for the first, which is just the executable path
-	for(int i = 1; i < argc;i++)
-	{
-		argumentList.push_back(argv[i]);
-	}	
-
-	std::string prev_arg = "";
-	for(unsigned int i = 0; i < argumentList.size();i++)
-	{
-		std::string argument = argumentList[i];
-		if(argument[0] == '-')
-		{
-			if(argument == "-i")
-				showInfo = true;
-			else if(argument == "-h") // -h / help
-			{
-				ShowHelp();
-			}
-			else if(argument != "-n") //all unknown arguments
-			{
-				printf("unknown arg '%s'\n",argument.c_str());
-				ShowHelp();
-			}
-		}
-		else if(prev_arg == "-n")
-		{
-			if(nandCodeFile.size() > 0)
-				ShowHelp();
-
-			nandCodeFile = argument;	
-		}
-		else if(inputFile.size() == 0)
-		{
-			inputFile = argument;
-		}
-		else if(showInfo == false && outputFile.size() == 0)
-		{
-			outputFile = argument;
-		}
-		else //there was an unexpected parameter
-		{
-			printf("unexpected arg '%s'\n",argument.c_str());
-			ShowHelp();
-		}	
-
-		prev_arg = argument;
-	}
-
-	if(inputFile.size() == 0 || (showInfo == false && outputFile.size() == 0))
-		ShowHelp();
-
-	printf("input : %s\n",inputFile.c_str());
-	if(!showInfo)
-	{
-		printf("output : %s\n",outputFile.c_str());
-		if(nandCodeFile.size() > 0)
-			printf("using nandcode file : %s\n",nandCodeFile.c_str());	
-	}
-
-	//get input file info
-	dolhdr* inputHeader;
-	dolhdr* outputHeader;
-	file_info input_file;
-	file_info output_file;
-	if(readFile(inputFile,&input_file) < 0)
-	{
-		printf("failed to read input file\n");
-		return 1;
-	}
-	inputHeader = (dolhdr*)input_file.data;
-	if(showInfo)
-	{
-		ShowDolInformation(inputHeader);
-		free(input_file.data);
 		return 0;
 	}
 
-	file_info nand_info;
-	if(nandCodeFile.size() > 0)
+	try
 	{
-		if(readFile(nandCodeFile,&nand_info) < 0)
+		std::string inputFile = "";
+		std::string outputFile = "";
+		std::string nandCodeFile = "";
+		std::vector<std::string> argumentList;
+		bool showInfo = false;
+		//load arguments except for the first, which is just the executable path
+		for(int i = 1; i < argc;i++)
 		{
-			printf("failed to read nand file\n");
-			free(input_file.data);
-			return 1;
-		}
-	}
-	else
-	{
-		nand_info.filename = "internal";
-		nand_info.file_size = nandloader_bin_size;
-		nand_info.data = (unsigned char*) malloc (nandloader_bin_size);
-		memcpy(nand_info.data, (unsigned char*)nandloader_bin, nand_info.file_size);
-	}
+			argumentList.push_back(argv[i]);
+		}	
 
-#ifdef DEBUG
-	printf("doing insanity checks...\n");
-#endif
-
-	if(inputHeader->sizeText[5] && inputHeader->addressText[5] && inputHeader->offsetText[5])
-	{
-		//o ow, text2 is already full. lets quit before we brick ppl
-		printf("Text5 already contains data! quiting out of failsafe...\n");
-		free(input_file.data);
-		free(nand_info.data);
-		return 1;
-	}
-	
-	if(nandCodeFile.size() == 0)
-	{
-		Nandcode* nboot = (Nandcode*)nand_info.data;
-		if (SwapEndian16(nboot->upper_entrypoint) != ( SwapEndian(inputHeader->entrypoint) >> 16) || SwapEndian16(nboot->lower_entrypoint) != ( SwapEndian(inputHeader->entrypoint) & 0x0000FFFF ))
+		std::string prev_arg = "";
+		for(unsigned int i = 0; i < argumentList.size();i++)
 		{
-			printf("different nboot to dol entrypoint detected! Changing\n\t0x%04X%04X\tto\t0x%04X%04X\n",
-				SwapEndian16(nboot->upper_entrypoint),SwapEndian16(nboot->lower_entrypoint),
-				SwapEndian16(inputHeader->entrypoint & 0x0000FFFF), SwapEndian16(inputHeader->entrypoint >> 16));
-			nboot->upper_entrypoint = (unsigned short)(inputHeader->entrypoint & 0x0000FFFF);
-			nboot->lower_entrypoint = (unsigned short)(inputHeader->entrypoint >> 16);
+			std::string argument = argumentList[i];
+			if(argument[0] == '-')
+			{
+				if(argument == "-i")
+					showInfo = true;
+				else if(argument == "-h") // -h / help
+				{
+					ShowHelp();
+					return 0;
+				}
+				else if(argument != "-n") //all unknown arguments
+				{
+					printf("unknown arg '%s'\n",argument.c_str());
+					ShowHelp();
+				}
+			}
+			else if(prev_arg == "-n")
+			{
+				if(nandCodeFile.size() > 0)
+					ShowHelp();
+
+				nandCodeFile = argument;	
+			}
+			else if(inputFile.size() == 0)
+			{
+				inputFile = argument;
+			}
+			else if(showInfo == false && outputFile.size() == 0)
+			{
+				outputFile = argument;
+			}
+			else //there was an unexpected parameter
+			{
+				printf("unexpected arg '%s'\n",argument.c_str());
+				ShowHelp();
+				return 0;
+			}	
+
+			prev_arg = argument;
 		}
-	}
 
-	//set & allocate new file data
-	output_file.file_size = input_file.file_size + nand_info.file_size;
-	output_file.filename = outputFile;
-	output_file.data = (unsigned char*)malloc(output_file.file_size);
-	if(output_file.data == NULL)
-	{
-		printf("failed to alloc output file\n");
-		free(input_file.data);
-		free(nand_info.data);
-		return 1;
-	}
-	memset(output_file.data,0,output_file.file_size);
-	outputHeader = (dolhdr*)output_file.data;
-	memcpy(outputHeader,inputHeader,sizeof(dolhdr));
-
-
-	//set dolheader data
-	outputHeader->addressText[0] = SwapEndian(0x80003400);
-	outputHeader->offsetText[0] = SwapEndian(0x00000100);
-	outputHeader->sizeText[0] = SwapEndian(nand_info.file_size);
-	for(int i = 0;i < 5;i++)
-	{
-		if(inputHeader->sizeText[i] && inputHeader->addressText[i] && inputHeader->offsetText[i])
+		if(inputFile.size() == 0 || (showInfo == false && outputFile.size() == 0))
 		{
-			//valid info. move it over
-			printf("moving text section #%d...\n",i);
-			outputHeader->addressText[i+1] = inputHeader->addressText[i];
-			outputHeader->sizeText[i+1] = inputHeader->sizeText[i];
-			outputHeader->offsetText[i+1] = SwapEndian(SwapEndian(inputHeader->offsetText[i]) + nand_info.file_size);
+			ShowHelp();
+			return 0;	
 		}
-	}
-
-	for(int i = 0;i <= 10;i++)
-	{
-		if(inputHeader->sizeData[i] && inputHeader->addressData[i] && inputHeader->offsetData[i])
+		
+		//get input file info
+		auto input = std::make_unique<FileInfo>(inputFile);
+		input->ReadFile();
+		if(showInfo)
 		{
-			//valid info. move it over
-			printf("moving data section #%d...\n",i);
-			outputHeader->addressData[i] = inputHeader->addressData[i];
-			outputHeader->sizeData[i] = inputHeader->sizeData[i];
-			outputHeader->offsetData[i] = SwapEndian(SwapEndian(inputHeader->offsetData[i]) + nand_info.file_size);
+			ShowDolInformation(input);
+			return 0;
 		}
+
+		//set & allocate new file data
+		auto output = std::make_unique<FileInfo>(outputFile);
+		auto nandLoaderInjector = std::make_unique<NandLoaderInjector>();
+		if(nandCodeFile.size() == 0)
+		{
+			nandLoaderInjector->InjectNandLoader(input, output);
+		}
+		else
+		{
+			auto nandLoader = std::make_unique<FileInfo>(nandCodeFile);
+			nandLoader->ReadFile();
+			nandLoaderInjector->InjectNandLoader(input, nandLoader, output);
+		}
+
+		output->WriteFile();
+		printf("Done! check %s to verify!\n", output->GetFilename());
+		return 0;
 	}
-	printf("copying binary data...\n");
-	memcpy(output_file.data + 0x100,nand_info.data,nand_info.file_size);
-	memcpy(	output_file.data + SwapEndian(outputHeader->offsetText[1]),
-			input_file.data + SwapEndian(inputHeader->offsetText[0]),
-			input_file.file_size - sizeof(dolhdr));
+	catch (const std::string& ex)
+	{
+		printf(ex.c_str());
+	}
+	catch (char const* ex)
+	{
+		printf(ex);
+	}
+	catch (...)
+	{
+		printf("exception was thrown, please report this.");
+	}
 
-
-	if(writeFile(&output_file))
-		printf("Done! check %s to verify!\n",output_file.filename.c_str());
-	else
-		printf("failed to write new data to %s\n",output_file.filename.c_str());
-
-	free(input_file.data);
-	free(output_file.data);
-	free(nand_info.data);
-	return 0;
+	return 1;
 }

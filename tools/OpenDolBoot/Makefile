@@ -17,14 +17,6 @@ SFILES		:=	$(foreach dir,$(SOURCES),$(wildcard $(dir)/*.S))
 INCLUDE		:=	$(foreach dir,$(INCLUDES), -iquote $(CURDIR)/$(dir)) \
 					$(foreach dir,$(LIBDIRS),-I$(dir)/include)
 
-#windows, msys, mingw,...
-ifeq ($(HOST), WIN32)
-OUTPUT 		:=	$(TARGET).exe
-ifneq ($(MINGW_AVAIL),)
-PREFIX	:=	x86_64-w64-mingw32-
-endif
-endif
-
 #default commands/settings
 SILENTMSG	=	@echo 
 BIN2S 		=	bin2s
@@ -35,6 +27,15 @@ CXX			=	$(PREFIX)g++
 LD			=	$(PREFIX)ld
 ifeq ($(OUTPUT),)
 OUTPUT		:=	$(TARGET)
+endif
+
+#windows, msys, mingw,...
+ifeq ($(HOST), WIN32)
+OUTPUT 		:=	$(TARGET).exe
+ifneq ($(MINGW_AVAIL),)
+PREFIX	:=	x86_64-w64-mingw32-
+CFLAGS	+=	-lws2_32
+endif
 endif
 
 .PHONY: all clean
@@ -52,4 +53,4 @@ $(NANDLDR_SSRC): $(NANDLDR_PATH)
 	@$(BIN2S) $(BIN2S_FLAGS) -H $(NANDLDR_HSRC) $< > $@
 
 $(OUTPUT): $(CPPFILES) $(CFILES) $(SFILES) $(NANDLDR_SSRC)
-	@$(CXX) $(INCLUDE) $^ -o $@
+	@$(CXX) $(INCLUDE) $^ -o $@ $(CFLAGS)

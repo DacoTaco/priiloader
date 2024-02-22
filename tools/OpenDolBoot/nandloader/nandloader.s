@@ -24,8 +24,10 @@
 .align 2
 _start:
 	b 		_main
-
+	
 parameters:
+version:
+	.long	0x00000001
 entrypoint:
 	.long	0x81000000
 
