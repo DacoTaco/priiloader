@@ -22,7 +22,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <vector> 
+#include <vector>
 #include <memory>
 
 #include "../include/NandLoaderInjector.hpp"
@@ -40,9 +40,9 @@ void NandLoaderInjector::InjectNandLoader(std::unique_ptr<FileInfo>& input, std:
 	printf("nandloader : %s\n", nandLoader->GetFilename());	
 
 	const auto headerSize = sizeof(dolHeader);
-	auto inputHeader = (dolHeader*)input->Data;
-	if(inputHeader->sizeText[6] && inputHeader->addressText[6] && inputHeader->offsetText[6])
-		throw "Text5 already contains data! quiting out of failsafe...";
+	auto inputHeader = (dolHeader*)&input->Data[0];
+	if(inputHeader->sizeText[6] || inputHeader->addressText[6] || inputHeader->offsetText[6])
+		throw "All text segments already contains data! quiting out of failsafe...";
 
 	for(auto i = 0; i < 6;i++)
 	{
@@ -50,11 +50,17 @@ void NandLoaderInjector::InjectNandLoader(std::unique_ptr<FileInfo>& input, std:
 			throw "Binary already contains nandloader";
 	}
 
-	output->AllocateMemory(input->GetFileSize() + nandLoader->GetFileSize());
-	dolHeader* outputHeader = (dolHeader*)output->Data;
-	memcpy(outputHeader, inputHeader, headerSize);
+	//copy header data
+  	std::copy(input->Data.begin(), input->Data.begin() + headerSize, std::back_inserter(output->Data));
+	
+	//copy in nandloader & set header
+	std::copy(nandLoader->Data.begin(), nandLoader->Data.end(), std::back_inserter(output->Data));
 
-	//set dolheader data
+	//copy in other binary data
+	std::copy(input->Data.begin() + headerSize, input->Data.end(), std::back_inserter(output->Data));
+
+	//set output header
+	dolHeader* outputHeader = (dolHeader*)&output->Data[0];
 	outputHeader->addressText[0] = ForceBigEndian(nandLoaderLocation);
 	outputHeader->offsetText[0] = ForceBigEndian(headerSize);
 	outputHeader->sizeText[0] = ForceBigEndian(nandLoader->GetFileSize());
@@ -81,27 +87,18 @@ void NandLoaderInjector::InjectNandLoader(std::unique_ptr<FileInfo>& input, std:
 		outputHeader->sizeData[i] = inputHeader->sizeData[i];
 		outputHeader->offsetData[i] = SwapEndian(SwapEndian(inputHeader->offsetData[i]) + nandLoader->GetFileSize());
 	}
-
-	printf("copying binary data...\n");
-	memcpy(output->Data + headerSize, nandLoader->Data, nandLoader->GetFileSize());
-	memcpy(output->Data + ForceBigEndian(outputHeader->offsetText[1]),
-			input->Data + ForceBigEndian(inputHeader->offsetText[0]),
-			input->GetFileSize() - headerSize);
 }
 
 void NandLoaderInjector::InjectNandLoader(std::unique_ptr<FileInfo>& input, std::unique_ptr<FileInfo>& output)
 {
-	auto nandLoader = std::make_unique<FileInfo>(internalFileName);
-	nandLoader->AllocateMemory(nandloader_bin_size);
-	memcpy(nandLoader->Data, (unsigned char*)nandloader_bin, nandloader_bin_size);
-
-	NandLoader* loader = (NandLoader*)nandLoader->Data;
-	auto inputHeader = (dolHeader*)input->Data;
+	auto nandLoader = std::make_unique<FileInfo>(internalFileName, nandloader_bin, nandloader_bin_size);
+	NandLoader* loader = (NandLoader*)&nandLoader->Data[0];
+	auto inputHeader = (dolHeader*)&input->Data[0];
 	if (ForceBigEndian(loader->Entrypoint) != ForceBigEndian(inputHeader->entrypoint))
 	{
 		printf("different nboot to dol entrypoint detected! Changing\n\t0x%08X\tto\t0x%08X\n", ForceBigEndian(loader->Entrypoint), ForceBigEndian(inputHeader->entrypoint));
 		loader->Entrypoint = inputHeader->entrypoint;
 	}
 
-	return NandLoaderInjector::InjectNandLoader(input, nandLoader, output);
+	NandLoaderInjector::InjectNandLoader(input, nandLoader, output);
 }

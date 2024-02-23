@@ -23,7 +23,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <stdlib.h>
 #include <string>
 #include <vector>
-#include <memory>
 #include <unistd.h>
 #include "../include/dolHeader.h"
 #include "../include/FileInfo.hpp"
@@ -43,9 +42,9 @@ void ShowHelp()
 }
 void ShowDolInformation(std::unique_ptr<FileInfo>& input)
 {
-	dolHeader* header = (dolHeader*)input->Data;
+	dolHeader* header = (dolHeader*)&input->Data[0];
 	if(header == NULL)
-		return;
+		throw "Invalid dol header read";
 
 	printf("input: %s\n", input->GetFilename());
 	printf("Entrypoint: 0x%08X\nBSS Address : 0x%08X\nBSS Size: 0x%08X\n\n", (unsigned int)ForceBigEndian(header->entrypoint) , (unsigned int)ForceBigEndian(header->addressBSS) , (unsigned int)ForceBigEndian(header->sizeBSS) );
@@ -143,7 +142,6 @@ int main(int argc, char **argv)
 		
 		//get input file info
 		auto input = std::make_unique<FileInfo>(inputFile);
-		input->ReadFile();
 		if(showInfo)
 		{
 			ShowDolInformation(input);
@@ -151,7 +149,7 @@ int main(int argc, char **argv)
 		}
 
 		//set & allocate new file data
-		auto output = std::make_unique<FileInfo>(outputFile);
+		auto output = std::make_unique<FileInfo>(outputFile, false);
 		auto nandLoaderInjector = std::make_unique<NandLoaderInjector>();
 		if(nandCodeFile.size() == 0)
 		{
@@ -160,7 +158,6 @@ int main(int argc, char **argv)
 		else
 		{
 			auto nandLoader = std::make_unique<FileInfo>(nandCodeFile);
-			nandLoader->ReadFile();
 			nandLoaderInjector->InjectNandLoader(input, nandLoader, output);
 		}
 

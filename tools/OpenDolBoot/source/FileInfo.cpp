@@ -23,27 +23,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <stdlib.h>
 #include <string.h>
 #include <vector>
+#include <memory>
 #include "../include/FileInfo.hpp"
-
-FileInfo::FileInfo(const std::string filename)
-{
-	FileName = filename;
-	Data = NULL;
-}
-
-FileInfo::~FileInfo()
-{
-	if(Data != NULL)
-	{
-		free(Data);
-		Data = NULL;
-		FileSize = 0;	
-	}
-}
 
 unsigned int FileInfo::GetFileSize()
 {
-	return FileSize;
+	return Data.size();
 }
 
 const char* FileInfo::GetFilename()
@@ -51,61 +36,45 @@ const char* FileInfo::GetFilename()
 	return FileName.c_str();
 }
 
-void FileInfo::AllocateMemory(const unsigned int size)
+FileInfo::FileInfo(const std::string& filename, bool readData)
 {
-	if(Data != NULL)
-	{
-		free(Data);
-		Data = NULL;
-	}
-
-	Data = (unsigned char*)malloc(size);
-	if(Data == NULL)
-		throw "failed to alloc memory";	
-	
-	memset(Data, 0, size);
-	FileSize = size;
-}
-
-void FileInfo::ReadFile()
-{
-	if(FileName.size() == 0)
+	if(filename.size() == 0)
 		throw "invalid filename";
 	
-	FILE* file = fopen(FileName.c_str(), "rb");
-	if(!file)
-		throw "failed to open " + FileName;	
+	FileName = filename;
+	if(!readData)
+		return;
 
-	fseek(file, 0, SEEK_END);
-	FileSize = ftell(file);
-	rewind(file);
+	//open a pointer that is managed by c++, that does fopen to create it, and fclose when it goes out of scope
+	auto file = std::unique_ptr<std::FILE, int(*)(std::FILE*)>(std::fopen(FileName.c_str(), "rb"), &std::fclose);
+	if(file == nullptr)
+		throw "failed to open " + FileName;
 
-	// allocate memory to contain the whole file:
-	Data = (unsigned char*)malloc(FileSize);
-	if (Data == NULL)
-	{
-		fclose(file);
-		throw "failed to alloc memory";	
-	}
+	std::fseek(file.get(), 0, SEEK_END);
+    auto fileSize = std::ftell(file.get());
+    std::rewind(file.get());
 
-	memset(Data, 0, FileSize);
 	//copy the file into the buffer:
-	if (fread(Data, 1, FileSize, file) != FileSize) 
-	{
-		fclose(file);
-		throw "failed to read file data";	
-	}
+	Data.resize(fileSize);
+    if (fread(&Data[0], 1, fileSize, file.get()) != fileSize) 
+        throw "failed to read file data";    
+}
 
-	fclose(file);	
+FileInfo::FileInfo(const std::string& filename, const unsigned char* data, const unsigned int size)
+{
+	if(filename.size() == 0)
+		throw "invalid filename";
+	
+	FileName = filename;
+	Data = std::vector<unsigned char>((unsigned char*)data, ((unsigned char*)data) + size);
 }
 
 void FileInfo::WriteFile()
 {
-	FILE* file = fopen(FileName.c_str(), "wb+");
-	if(!file)
-		throw "failed to open " + FileName;	
-
-	fwrite(Data, 1, FileSize, file);
-	fclose(file);
+	//open a pointer that is managed by c++, that does fopen to create it, and fclose when it goes out of scope
+	auto file = std::unique_ptr<std::FILE, int(*)(std::FILE*)>(std::fopen(FileName.c_str(), "wb"), &std::fclose);
+	if(file == nullptr)
+		throw "failed to open " + FileName + " for writing";
+	
+	std::fwrite(&Data[0], 1, Data.size(), file.get());
 }
-

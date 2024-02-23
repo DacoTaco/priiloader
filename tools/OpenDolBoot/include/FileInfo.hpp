@@ -25,15 +25,17 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 class FileInfo 
 {	
-		unsigned int FileSize;
 		std::string FileName;
 	public:
-		explicit FileInfo(std::string filename);
-		~FileInfo();
-		unsigned char* Data;
+		explicit FileInfo(const std::string& filename) : FileInfo(filename, true){}
+		explicit FileInfo(const std::string& filename, bool readData);
+		explicit FileInfo(const std::string& filename, const unsigned char* data, const unsigned int size);
+		~FileInfo()
+		{
+			Data.clear();
+		}
+		std::vector<unsigned char> Data;
 		const char* GetFilename();
 		unsigned int GetFileSize();
-		void AllocateMemory(unsigned int);
 		void WriteFile();
-		void ReadFile();
 };
