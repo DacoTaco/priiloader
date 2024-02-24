@@ -26,6 +26,8 @@ _start:
 	b 		_main
 	
 parameters:
+magic_identifier:
+	.long	0xC4951034
 version:
 	.long	0x00000001
 entrypoint:

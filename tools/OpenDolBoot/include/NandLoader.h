@@ -20,8 +20,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #pragma once
 
+#define NANDLDR_MAGIC	0xC4951034
+
 typedef struct {
 	unsigned int Startup;
+	unsigned int Identifier;
 	unsigned int Version;
 	unsigned int Entrypoint;
 	unsigned char Code[];

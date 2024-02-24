@@ -50,6 +50,13 @@ void NandLoaderInjector::InjectNandLoader(std::unique_ptr<FileInfo>& input, std:
 			throw "Binary already contains nandloader";
 	}
 
+	NandLoader* loader = (NandLoader*)&nandLoader->Data[0];
+	if (ForceBigEndian(loader->Identifier) == NANDLDR_MAGIC && (ForceBigEndian(loader->Entrypoint) != ForceBigEndian(inputHeader->entrypoint)))
+	{
+		printf("different nboot to dol entrypoint detected! Changing\n\t0x%08X\tto\t0x%08X\n", ForceBigEndian(loader->Entrypoint), ForceBigEndian(inputHeader->entrypoint));
+		loader->Entrypoint = inputHeader->entrypoint;
+	}
+	
 	//copy header data
   	std::copy(input->Data.begin(), input->Data.begin() + headerSize, std::back_inserter(output->Data));
 	
@@ -92,13 +99,5 @@ void NandLoaderInjector::InjectNandLoader(std::unique_ptr<FileInfo>& input, std:
 void NandLoaderInjector::InjectNandLoader(std::unique_ptr<FileInfo>& input, std::unique_ptr<FileInfo>& output)
 {
 	auto nandLoader = std::make_unique<FileInfo>(internalFileName, nandloader_bin, nandloader_bin_size);
-	NandLoader* loader = (NandLoader*)&nandLoader->Data[0];
-	auto inputHeader = (dolHeader*)&input->Data[0];
-	if (ForceBigEndian(loader->Entrypoint) != ForceBigEndian(inputHeader->entrypoint))
-	{
-		printf("different nboot to dol entrypoint detected! Changing\n\t0x%08X\tto\t0x%08X\n", ForceBigEndian(loader->Entrypoint), ForceBigEndian(inputHeader->entrypoint));
-		loader->Entrypoint = inputHeader->entrypoint;
-	}
-
 	NandLoaderInjector::InjectNandLoader(input, nandLoader, output);
 }
