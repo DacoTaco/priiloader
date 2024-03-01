@@ -30,10 +30,7 @@ class FileInfo
 		explicit FileInfo(const std::string& filename) : FileInfo(filename, true){}
 		explicit FileInfo(const std::string& filename, bool readData);
 		explicit FileInfo(const std::string& filename, const unsigned char* data, const unsigned int size);
-		~FileInfo()
-		{
-			Data.clear();
-		}
+		~FileInfo(){}
 		std::vector<unsigned char> Data;
 		const char* GetFilename();
 		unsigned int GetFileSize();

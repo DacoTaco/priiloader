@@ -40,6 +40,9 @@
 			"**/build": true,
 			"**/*.elf": true,
 			"**/*.bin": true,
+			"**/*.bin.s": true,
+			"**/*.bin.S": true,
+			"**/*.bin.h": true,
 			"**/*.dol": true,
 			"**/*.rpx": true,
 			"**/*.wuhb": true,
@@ -116,7 +119,10 @@
 			"exception": "cpp",
 			"iterator": "cpp",
 			"iosfwd": "cpp",
-			"numbers": "cpp"
+			"numbers": "cpp",
+			"cstring": "cpp",
+			"iostream": "cpp",
+			"cinttypes": "cpp"
 		},
 		"editor.insertSpaces": false,
 		"editor.detectIndentation": false,
