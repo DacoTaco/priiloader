@@ -124,12 +124,105 @@ void _boot (_LDR_PARAMETERS)
 	}
 }
 
+u32 _loadElf(Elf32_Ehdr *ElfHdr, u8* binary)
+{
+	for( s32 i=0; i < ElfHdr->e_phnum; ++i )
+	{
+		Elf32_Phdr* phdr = (Elf32_Phdr*)(binary + (ElfHdr->e_phoff + sizeof( Elf32_Phdr ) * i));
+		if(phdr->p_type != PT_LOAD || phdr->p_filesz == 0)
+			continue;
+
+		//PT_LOAD Segment, aka static program data
+		u8* address = (u8*)(0x3FFFFFFF & phdr->p_paddr | 0x80000000 );
+		_memcpy(address, binary + phdr->p_offset , phdr->p_filesz);
+		DCFlushRangeNoGlobalSync(address, phdr->p_memsz);
+
+		if(phdr->p_flags & PF_X)
+			ICInvalidateRange (address, phdr->p_memsz);
+	}
+
+	//according to dhewg the section headers are totally un-needed (infact, they break a few elf loading)
+	//this has to do with not clearing the SHT_NOBITS area's (BSS or memory used for uninitialised data)
+	for( s32 i=0; i < ElfHdr->e_shnum; ++i )
+	{
+		Elf32_Shdr *shdr = (Elf32_Shdr*)(binary + (ElfHdr->e_shoff + sizeof( Elf32_Shdr ) * i));
+
+		//useless check - null section = no purpose
+		//if( shdr->sh_type == SHT_NULL )
+		//	continue;
+
+		if (shdr->sh_type != SHT_NOBITS)
+			continue;
+			
+		_memset((void*)(shdr->sh_addr | 0x80000000), 0, shdr->sh_size);
+		DCFlushRangeNoGlobalSync((void*)(shdr->sh_addr | 0x80000000),shdr->sh_size);
+	}
+	return (ElfHdr->e_entry & 0x3FFFFFFF) | 0x80000000;	
+}
+
+u32 _loadDol(dolhdr * hdr, u8* binary, struct __argv * args)
+{
+	//copy text sections
+	for (s8 i = 0; i < 6; i++) 
+	{
+		if ((!hdr->sizeText[i]) || (hdr->addressText[i] < 0x100)) 
+			continue;
+		_memcpy ((void *) hdr->addressText[i],binary+hdr->offsetText[i],hdr->sizeText[i]);
+		DCFlushRangeNoGlobalSync((void *) hdr->addressText[i], hdr->sizeText[i]);
+		ICInvalidateRange((void *) hdr->addressText[i],hdr->sizeText[i]);
+	}
+
+	//copy data sections
+	u8 set_bss = (hdr->addressBSS > 0x80003400 && hdr->addressBSS + hdr->sizeBSS < MAX_ADDRESS);
+	for (s8 i = 0; i < 11; i++) 
+	{
+		if ((!hdr->sizeData[i]) || (hdr->addressData[i] < 0x100)) 
+			continue;
+
+		set_bss = 
+			set_bss && 
+			(hdr->addressData[i]+hdr->sizeData[i] <= hdr->addressBSS ||
+			hdr->addressData[i] >= hdr->addressBSS + hdr->sizeBSS);
+
+		_memcpy ((void *) hdr->addressData[i],binary+hdr->offsetData[i],hdr->sizeData[i]);
+		DCFlushRangeNoGlobalSync((void *) hdr->addressData[i],hdr->sizeData[i]);
+	}
+
+	//clear BSS - this is the area containing variables. it is required to clear it so we don't have unexpected results
+	//cleared before copying the sections kills SM as it has its BSS in the middle of its data sections (nice!)
+	//however, not clearing it might cause issues with loader homebrew and their high entrypoints 
+	if( set_bss )
+	{
+		//BSS is in mem2 which means its better to reload ios & then load app (tantric's words)
+		/*currently unused cause this is done for wiimc. however reloading ios also loses ahbprot/dvd access...
+		if( hdr->addressBSS >= 0x90000000 )
+		{
+			//place IOS reload here if it would be needed. the application should've reloaded IOS before us.
+		}*/
+		_memset ((void *) hdr->addressBSS, 0, hdr->sizeBSS);
+		DCFlushRangeNoGlobalSync((void *) hdr->addressBSS, hdr->sizeBSS);
+	}
+
+	//copy over arguments, but only if the dol is meant to have them
+	//devkitpro dol's have a magic word set & room in them to have the argument struct copied over them
+	//some others, not so much (like some bad compressed dols)
+	if (
+		( args != NULL && args->argvMagic == ARGV_MAGIC) && //our arguments are valid
+		( *(vu32*)(hdr->entrypoint + 4 | 0x80000000) == ARGV_MAGIC ) //dol supports them too
+		)
+	{
+		void* new_argv = (void*)(hdr->entrypoint + 8);
+		_memcpy(new_argv, args, sizeof(struct __argv));
+		DCFlushRangeNoGlobalSync(new_argv, 8 + sizeof(struct __argv));
+	}
+	return(hdr->entrypoint | 0x80000000);
+}
+
 u32 _loadApplication(u8* binary, void* parameter)
 {
 	Elf32_Ehdr *ElfHdr = (Elf32_Ehdr *)binary;
 	dolhdr *dolfile = (dolhdr *)binary;
 	EspressoAncastHeader *AncastHdr = (EspressoAncastHeader *)((u32)binary + dolfile->offsetData[0]);
-	struct __argv *args = (struct __argv *)parameter;
 
 	if( ElfHdr->e_ident[EI_MAG0] == 0x7F &&
 		ElfHdr->e_ident[EI_MAG1] == 'E' &&
@@ -137,38 +230,9 @@ u32 _loadApplication(u8* binary, void* parameter)
 		ElfHdr->e_ident[EI_MAG3] == 'F' )
 	{
 		if( (ElfHdr->e_entry | 0x80000000) < 0x80003400 && (ElfHdr->e_entry | 0x80000000) >= MAX_ADDRESS )
-		{
 			return 0;
-		}
 
-		for( s32 i=0; i < ElfHdr->e_phnum; ++i )
-		{
-			Elf32_Phdr* phdr = (Elf32_Phdr*)(binary + (ElfHdr->e_phoff + sizeof( Elf32_Phdr ) * i));
-			ICInvalidateRange ((void*)(phdr->p_vaddr | 0x80000000),phdr->p_filesz);
-			if(phdr->p_type != PT_LOAD )
-				continue;
-
-			//PT_LOAD Segment, aka static program data
-			_memcpy((void*)(phdr->p_vaddr | 0x80000000), binary + phdr->p_offset , phdr->p_filesz);
-		}
-
-		//according to dhewg the section headers are totally un-needed (infact, they break a few elf loading)
-		//this has to do with not clearing the SHT_NOBITS area's (BSS or memory used for uninitialised data)
-		for( s32 i=0; i < ElfHdr->e_shnum; ++i )
-		{
-			Elf32_Shdr *shdr = (Elf32_Shdr*)(binary + (ElfHdr->e_shoff + sizeof( Elf32_Shdr ) * i));
-
-			//useless check - null section = no purpose
-			//if( shdr->sh_type == SHT_NULL )
-			//	continue;
-
-			if (shdr->sh_type != SHT_NOBITS)
-				continue;
-				
-			_memset((void*)(shdr->sh_addr | 0x80000000), 0, shdr->sh_size);
-			DCFlushRangeNoGlobalSync((void*)(shdr->sh_addr | 0x80000000),shdr->sh_size);
-		}
-		return (ElfHdr->e_entry | 0x80000000);	
+		return _loadElf(ElfHdr, binary);
 	}
 	// Note that ancast images passed to the loader need to be already decrypted
 	else if (AncastHdr->header_block.magic == ANCAST_MAGIC)
@@ -185,67 +249,11 @@ u32 _loadApplication(u8* binary, void* parameter)
 	}
 	else
 	{
-		u8 set_bss = (dolfile->addressBSS > 0x80003400 && dolfile->addressBSS + dolfile->sizeBSS < MAX_ADDRESS);
-
 		//entrypoint & BSS checking
 		if( (dolfile->entrypoint | 0x80000000) < 0x80003400 || (dolfile->entrypoint | 0x80000000) >= MAX_ADDRESS )
-		{
 			return 0;
-		}
 
-		//copy text sections
-		for (s8 i = 0; i < 6; i++) 
-		{
-			if ((!dolfile->sizeText[i]) || (dolfile->addressText[i] < 0x100)) 
-				continue;
-			_memcpy ((void *) dolfile->addressText[i],binary+dolfile->offsetText[i],dolfile->sizeText[i]);
-			DCFlushRangeNoGlobalSync((void *) dolfile->addressText[i], dolfile->sizeText[i]);
-			ICInvalidateRange((void *) dolfile->addressText[i],dolfile->sizeText[i]);
-		}
-
-		//copy data sections
-		for (s8 i = 0; i < 11; i++) 
-		{
-			if ((!dolfile->sizeData[i]) || (dolfile->addressData[i] < 0x100)) 
-				continue;
-
-			set_bss = 
-				set_bss && 
-				(dolfile->addressData[i]+dolfile->sizeData[i] <= dolfile->addressBSS ||
-				dolfile->addressData[i] >= dolfile->addressBSS + dolfile->sizeBSS);
-
-			_memcpy ((void *) dolfile->addressData[i],binary+dolfile->offsetData[i],dolfile->sizeData[i]);
-			DCFlushRangeNoGlobalSync((void *) dolfile->addressData[i],dolfile->sizeData[i]);
-		}
-
-		//clear BSS - this is the area containing variables. it is required to clear it so we don't have unexpected results
-		//cleared before copying the sections kills SM as it has its BSS in the middle of its data sections (nice!)
-		//however, not clearing it might cause issues with loader homebrew and their high entrypoints 
-		if( set_bss )
-		{
-			//BSS is in mem2 which means its better to reload ios & then load app (tantric's words)
-			/*currently unused cause this is done for wiimc. however reloading ios also loses ahbprot/dvd access...
-			if( dolfile->addressBSS >= 0x90000000 )
-			{
-				//place IOS reload here if it would be needed. the application should've reloaded IOS before us.
-			}*/
-			_memset ((void *) dolfile->addressBSS, 0, dolfile->sizeBSS);
-			DCFlushRangeNoGlobalSync((void *) dolfile->addressBSS, dolfile->sizeBSS);
-		}
-
-		//copy over arguments, but only if the dol is meant to have them
-		//devkitpro dol's have a magic word set & room in them to have the argument struct copied over them
-		//some others, not so much (like some bad compressed dols)
-		if (
-			( args != NULL && args->argvMagic == ARGV_MAGIC) && //our arguments are valid
-			( *(vu32*)(dolfile->entrypoint + 4 | 0x80000000) == ARGV_MAGIC ) //dol supports them too
-			)
-        {
-			void* new_argv = (void*)(dolfile->entrypoint + 8);
-			_memcpy(new_argv, args, sizeof(struct __argv));
-			DCFlushRangeNoGlobalSync(new_argv, sizeof(struct __argv));
-        }
-		return(dolfile->entrypoint | 0x80000000);
+		return _loadDol(dolfile, binary, (struct __argv *)parameter);
 	}
 	return 0;
 }
