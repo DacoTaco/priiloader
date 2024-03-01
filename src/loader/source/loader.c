@@ -167,13 +167,13 @@ u32 _loadDol(dolhdr * hdr, u8* binary, struct __argv * args)
 	{
 		if ((!hdr->sizeText[i]) || (hdr->addressText[i] < 0x100)) 
 			continue;
-		_memcpy ((void *) hdr->addressText[i],binary+hdr->offsetText[i],hdr->sizeText[i]);
+		_memcpy ((void *) hdr->addressText[i], binary+hdr->offsetText[i], hdr->sizeText[i]);
 		DCFlushRangeNoGlobalSync((void *) hdr->addressText[i], hdr->sizeText[i]);
-		ICInvalidateRange((void *) hdr->addressText[i],hdr->sizeText[i]);
+		ICInvalidateRange((void *) hdr->addressText[i], hdr->sizeText[i]);
 	}
 
 	//copy data sections
-	u8 set_bss = (hdr->addressBSS > 0x80003400 && hdr->addressBSS + hdr->sizeBSS < MAX_ADDRESS);
+	u8 set_bss = hdr->sizeBSS > 0 && hdr->addressBSS > 0x80003400 && (hdr->addressBSS + hdr->sizeBSS < MAX_ADDRESS);
 	for (s8 i = 0; i < 11; i++) 
 	{
 		if ((!hdr->sizeData[i]) || (hdr->addressData[i] < 0x100)) 
