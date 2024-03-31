@@ -20,8 +20,8 @@ INCLUDE		:=	$(foreach dir,$(INCLUDES), -iquote $(CURDIR)/$(dir)) \
 #default commands/settings
 SILENTMSG	=	@echo 
 BIN2S 		=	bin2s
-CFLAGS		=	-Os -s -static -static-libstdc++ -static-libgcc
-CXXFLAGS	= 	$(CFLAGS)
+CFLAGS		=	-Os -s
+CXXFLAGS	= 	-std=c++14
 CC			=	$(PREFIX)gcc
 CXX			=	$(PREFIX)g++
 LD			=	$(PREFIX)ld
@@ -29,12 +29,20 @@ ifeq ($(OUTPUT),)
 OUTPUT		:=	$(TARGET)
 endif
 
+#for everything except mac, we will try and build a single, statically linked exe
+#macos doesn't support it : https://stackoverflow.com/questions/5259249/creating-static-mac-os-x-c-build
+ifneq ($(HOST),Darwin)
+CFLAGS		+=	-static -static-libstdc++ -static-libgcc
+else
+BIN2S_FLAGS	:= --apple-llvm
+endif
+
 #windows, msys, mingw,...
 ifeq ($(HOST), WIN32)
 OUTPUT 		:=	$(TARGET).exe
 ifneq ($(MINGW_AVAIL),)
-PREFIX	:=	x86_64-w64-mingw32-
-CFLAGS	+=	-lws2_32
+PREFIX		:=	x86_64-w64-mingw32-
+CFLAGS		+=	-lws2_32
 endif
 endif
 
@@ -53,4 +61,4 @@ $(NANDLDR_SSRC): $(NANDLDR_PATH)
 	@$(BIN2S) $(BIN2S_FLAGS) -H $(NANDLDR_HSRC) $< > $@
 
 $(OUTPUT): $(CPPFILES) $(CFILES) $(SFILES) $(NANDLDR_SSRC)
-	@$(CXX) $(INCLUDE) $^ -o $@ $(CFLAGS)
+	@$(CXX) $(INCLUDE) $^ -o $@ $(CFLAGS) $(CXXFLAGS)
