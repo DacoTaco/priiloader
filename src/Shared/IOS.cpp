@@ -136,7 +136,7 @@ const IosPatch EsIdentifyPatch = {
 
 	//Apply Patch
 	[](u8* address) {
-		gprintf("patching EsIdentify");
+		gprintf("Found EsIdentify check @ 0x%X, patching...", address);
 		WriteRegister16((u32)address+4, 0);
 	}
 };

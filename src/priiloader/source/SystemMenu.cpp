@@ -380,7 +380,9 @@ void BootMainSysMenu( void )
 		LoadSystemHacks(StorageDevice::NAND);
 
 		Input_Shutdown();
-		gprintf("input shutdown");
+		ShutdownMounts();
+		USB_Deinitialize();
+		gprintf("subsystems shutdown");
 
 		//Step 1 of IOS handling : Reloading IOS if needed;
 		if( !SGetSetting( SETTING_USESYSTEMMENUIOS ) )
@@ -395,8 +397,10 @@ void BootMainSysMenu( void )
 					throw "ios stub";
 				}
 
+				ISFS_Deinitialize();
 				ReloadIOS(ToLoadIOS, 1);
-				PatchIOS({EsIdentifyPatch});
+				ISFS_Initialize();
+				system_state.ReloadedIOS = 1;
 
 				// Any IOS < 28 does not have to required ES calls to get a title TMD, which sucks.
 				// Therefor we will patch in NAND Access so we can load the TMD directly from nand.
@@ -490,6 +494,8 @@ void BootMainSysMenu( void )
 				throw ("ES_Identify: ISFS_Read error " + std::to_string(ret));
 			}
 
+			//attempt to patch ESIdentify & Fakesign. we adjusted the SM TMD, so fakesign is needed to let ES accept it
+			PatchIOS({FakeSignPatch, FakeSignOldPatch, EsIdentifyPatch});
 			ret = ES_Identify( (signed_blob *)certificate, certStats->file_length, signedTmdBlob, tmdSize, (signed_blob *)ticket, status->file_length, 0);
 			if (ret < 0)
 			{	
@@ -628,10 +634,6 @@ void BootMainSysMenu( void )
 		ICInvalidateRange(loader_addr, loader_bin_size);
 		loader = (loader_t)loader_addr;
 
-		ShutdownMounts();
-		USB_Deinitialize();
-
-		ISFS_Deinitialize();
 		if(system_state.Init)
 		{
 			VIDEO_SetBlack(true);
