@@ -20,7 +20,7 @@
   * Re-added online updating
   * Added our own installer (phpgeek's)
   * Re-added the old black theme
-  * Added a check on boot so some apps can reboot/launch system menu and force priiloader to show up or start system menu
+  * Added a check on boot so some apps can reboot/launch system menu and force Priiloader to show up or start system menu
   * Added start of Wiiware/VC titles
   * HBC stub loading 
   * Hacks can either be added with their offset, or with a hash value to allow for version-agnostic patches
@@ -43,8 +43,9 @@ Yes, you can! You can find me (@DacoTaco) in `#priiloader` and `#wiidev` on efne
 ## I need more info?
 That is not a real question, but here:
 * [Priiloader FAQ](./docs/FAQ.md)
-* [About Hacks](./docs/HACKS.md)
-* [Hacks Testing](https://github.com/DacoTaco/priiloader/discussions/354)
+* [About Priiloader Hacks](./docs/HACKS.md)
+* [List of Priiloader Hacks](./docs/HACKSLIST.md)
+* [General Priiloader Testing and Hack Creation Discussion](https://github.com/DacoTaco/priiloader/discussions/354)
 
 ## ☕Donations
 If you like Priiloader and wish to support me you can donate on [ko-fi](https://ko-fi.com/dacotaco)
