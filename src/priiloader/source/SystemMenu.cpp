@@ -181,7 +181,7 @@ static bool DecryptvWiiSysMenu(void* data)
 
 	// Decrypt the ancast body
 	static const u8 vwii_ancast_retail_key[0x10] = { 0x2e, 0xfe, 0x8a, 0xbc, 0xed, 0xbb, 0x7b, 0xaa, 0xe3, 0xc0, 0xed, 0x92, 0xfa, 0x29, 0xf8, 0x66 };
-	static const u8 vwii_ancast_iv[0x10] = { 0x59, 0x6d, 0x5a, 0x9a, 0xd7, 0x05, 0xf9, 0x4f, 0xe1, 0x58, 0x02, 0x6f, 0xea, 0xa7, 0xb8, 0x87 };
+	static u8 vwii_ancast_iv[0x10] = { 0x59, 0x6d, 0x5a, 0x9a, 0xd7, 0x05, 0xf9, 0x4f, 0xe1, 0x58, 0x02, 0x6f, 0xea, 0xa7, 0xb8, 0x87 };
 	if (AES_Decrypt(vwii_ancast_retail_key, sizeof(vwii_ancast_retail_key), vwii_ancast_iv, sizeof(vwii_ancast_iv), anc + 1, anc + 1, anc->info_block.body_size) < 0)
 	{
 		gprintf("failed to decrypt ancast body");
@@ -380,7 +380,9 @@ void BootMainSysMenu( void )
 		LoadSystemHacks(StorageDevice::NAND);
 
 		Input_Shutdown();
-		gprintf("input shutdown");
+		ShutdownMounts();
+		USB_Deinitialize();
+		gprintf("subsystems shutdown");
 
 		//Step 1 of IOS handling : Reloading IOS if needed;
 		if( !SGetSetting( SETTING_USESYSTEMMENUIOS ) )
@@ -395,8 +397,10 @@ void BootMainSysMenu( void )
 					throw "ios stub";
 				}
 
+				ISFS_Deinitialize();
 				ReloadIOS(ToLoadIOS, 1);
-				PatchIOS({EsIdentifyPatch});
+				ISFS_Initialize();
+				system_state.ReloadedIOS = 1;
 
 				// Any IOS < 28 does not have to required ES calls to get a title TMD, which sucks.
 				// Therefor we will patch in NAND Access so we can load the TMD directly from nand.
@@ -490,6 +494,8 @@ void BootMainSysMenu( void )
 				throw ("ES_Identify: ISFS_Read error " + std::to_string(ret));
 			}
 
+			//attempt to patch ESIdentify & Fakesign. we adjusted the SM TMD, so fakesign is needed to let ES accept it
+			PatchIOS({FakeSignPatch, FakeSignOldPatch, EsIdentifyPatch});
 			ret = ES_Identify( (signed_blob *)certificate, certStats->file_length, signedTmdBlob, tmdSize, (signed_blob *)ticket, status->file_length, 0);
 			if (ret < 0)
 			{	
@@ -628,10 +634,6 @@ void BootMainSysMenu( void )
 		ICInvalidateRange(loader_addr, loader_bin_size);
 		loader = (loader_t)loader_addr;
 
-		ShutdownMounts();
-		USB_Deinitialize();
-
-		ISFS_Deinitialize();
 		if(system_state.Init)
 		{
 			VIDEO_SetBlack(true);
