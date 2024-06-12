@@ -33,6 +33,55 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 const std::string internalFileName = "internal";
 const unsigned int nandLoaderLocation = 0x80003400;
 
+void NandLoaderInjector::RemoveNandLoader(std::unique_ptr<FileInfo>& input)
+{
+	auto nandLoaderSize = 0;
+	auto nandLoaderOffset = 0;
+	const auto headerSize = sizeof(dolHeader);
+	std::vector<unsigned char> newData;
+
+	//copy header data
+  	std::copy(input->Data.begin(), input->Data.begin() + headerSize, std::back_inserter(newData));
+	auto header = (dolHeader*)&newData[0];
+
+	for(auto i = 0; i < MAX_TEXT_SECTIONS;i++)
+	{
+		if(ForceBigEndian(header->addressText[i]) != nandLoaderLocation && nandLoaderOffset == 0)
+			continue;
+
+		if(nandLoaderOffset == 0)
+		{
+			nandLoaderSize = BigEndianToHost(header->sizeText[i]);
+			nandLoaderOffset = BigEndianToHost(header->offsetText[i]);
+		}
+		else
+		{
+			//move text section up one
+			header->offsetText[i-1] = header->offsetText[i] - (BigEndianToHost(header->offsetText[i]) > nandLoaderOffset ? ForceBigEndian(nandLoaderSize) : 0);
+			header->sizeText[i-1] = header->sizeText[i];
+			header->addressText[i-1] = header->addressText[i];
+		}
+
+		header->addressText[i] = 0;
+		header->offsetText[i] = 0;
+		header->sizeText[i] = 0;
+	}
+
+	if(nandLoaderOffset == 0)
+		return;
+
+	for(auto i = 0;i < MAX_DATA_SECTIONS;i++)
+	{
+		if(BigEndianToHost(header->offsetData[i]) > nandLoaderOffset)
+			header->offsetData[i] = header->offsetData[i] - ForceBigEndian(nandLoaderSize);
+	}
+
+	std::copy(input->Data.begin() + headerSize, input->Data.begin() + nandLoaderOffset, std::back_inserter(newData));
+	std::copy(input->Data.begin() + nandLoaderOffset + nandLoaderSize, input->Data.end(), std::back_inserter(newData));
+	input->Data.clear();
+	input->Data = newData;
+}
+
 void NandLoaderInjector::InjectNandLoader(std::unique_ptr<FileInfo>& input, std::unique_ptr<FileInfo>& nandLoader, std::unique_ptr<FileInfo>& output)
 {
 	printf("input : %s\n",input->GetFilename());
@@ -44,7 +93,7 @@ void NandLoaderInjector::InjectNandLoader(std::unique_ptr<FileInfo>& input, std:
 	if(inputHeader->sizeText[6] || inputHeader->addressText[6] || inputHeader->offsetText[6])
 		throw "All text segments already contains data! quiting out of failsafe...";
 
-	for(auto i = 0; i < 6;i++)
+	for(auto i = 0; i < MAX_TEXT_SECTIONS;i++)
 	{
 		if(ForceBigEndian(inputHeader->addressText[i]) == nandLoaderLocation)
 			throw "Binary already contains nandloader";
@@ -71,7 +120,7 @@ void NandLoaderInjector::InjectNandLoader(std::unique_ptr<FileInfo>& input, std:
 	outputHeader->addressText[0] = ForceBigEndian(nandLoaderLocation);
 	outputHeader->offsetText[0] = ForceBigEndian(headerSize);
 	outputHeader->sizeText[0] = ForceBigEndian(nandLoader->GetFileSize());
-	for(int i = 0;i < 6;i++)
+	for(int i = 0;i < MAX_TEXT_SECTIONS;i++)
 	{
 		if(!inputHeader->sizeText[i] || !inputHeader->addressText[i] || !inputHeader->offsetText[i])
 			continue;
@@ -83,7 +132,7 @@ void NandLoaderInjector::InjectNandLoader(std::unique_ptr<FileInfo>& input, std:
 		outputHeader->offsetText[i+1] = SwapEndian(SwapEndian(inputHeader->offsetText[i]) + nandLoader->GetFileSize());
 	}
 
-	for(int i = 0;i <= 10;i++)
+	for(int i = 0;i < MAX_DATA_SECTIONS;i++)
 	{
 		if(!inputHeader->sizeData[i] || !inputHeader->addressData[i] || !inputHeader->offsetData[i])
 			continue;

@@ -31,16 +31,22 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #endif
 #define IsBigEndian() (htonl(47) == 47)
 #define ForceBigEndian(x) (IsBigEndian() ? x : SwapEndian(x))
+#define BigEndianToHost(x) (!IsBigEndian() ? SwapEndian(x) : x)
+
+#define MAX_TEXT_SECTIONS	7
+#define MAX_DATA_SECTIONS	11
 
 typedef struct {
-	unsigned int offsetText[7];
-	unsigned int offsetData[11];
-	unsigned int addressText[7];
-	unsigned int addressData[11];
-	unsigned int sizeText[7];
-	unsigned int sizeData[11];
+	unsigned int offsetText[MAX_TEXT_SECTIONS];
+	unsigned int offsetData[MAX_DATA_SECTIONS];
+	unsigned int addressText[MAX_TEXT_SECTIONS];
+	unsigned int addressData[MAX_DATA_SECTIONS];
+	unsigned int sizeText[MAX_TEXT_SECTIONS];
+	unsigned int sizeData[MAX_DATA_SECTIONS];
 	unsigned int addressBSS;
 	unsigned int sizeBSS;
 	unsigned int entrypoint;
 	int padding1[7];
 } dolHeader;
+
+static_assert(sizeof(dolHeader) == 0x100);

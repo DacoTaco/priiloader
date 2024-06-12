@@ -26,11 +26,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include "FileInfo.hpp"
 
-#define VERSION "0.3"
+#define VERSION "0.4"
 
 class NandLoaderInjector 
 {	
 	public:
+		void RemoveNandLoader(std::unique_ptr<FileInfo>& input);
 		void InjectNandLoader(std::unique_ptr<FileInfo>& input, std::unique_ptr<FileInfo>& output);
 		void InjectNandLoader(std::unique_ptr<FileInfo>& input, std::unique_ptr<FileInfo>& nandloader, std::unique_ptr<FileInfo>& output);
 };

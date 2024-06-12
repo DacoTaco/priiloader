@@ -39,6 +39,7 @@ void ShowHelp()
 	printf("-i\t\t: display info about the dol file and exit (no other parameters are required when using -i)\n");
 	printf("-n <nandcode>\t: use the following nand code and not the default nboot.bin\n");
 	printf("-h\t\t: display this message\n");
+	printf("-f\t\t: force nandcode, overwriting any code detected in the dol file\n");
 }
 void ShowDolInformation(std::unique_ptr<FileInfo>& input)
 {
@@ -84,6 +85,7 @@ int main(int argc, char **argv)
 		std::string nandCodeFile = "";
 		std::vector<std::string> argumentList;
 		bool showInfo = false;
+		bool overwriteNandLoader = false;
 		//load arguments except for the first, which is just the executable path
 		for(int i = 1; i < argc;i++)
 		{
@@ -98,6 +100,8 @@ int main(int argc, char **argv)
 			{
 				if(argument == "-i")
 					showInfo = true;
+				else if(argument == "-f")
+					overwriteNandLoader = true;
 				else if(argument == "-h") // -h / help
 				{
 					ShowHelp();
@@ -148,9 +152,14 @@ int main(int argc, char **argv)
 			return 0;
 		}
 
-		//set & allocate new file data
-		auto output = std::make_unique<FileInfo>(outputFile, false);
+		//if the overwrite flag was set, we will attempt to remove the nandloader of the input
+		//this will make it possible to always inject our own code
 		auto nandLoaderInjector = std::make_unique<NandLoaderInjector>();
+		if(overwriteNandLoader)
+			nandLoaderInjector->RemoveNandLoader(input);
+
+		//set & allocate new file data
+		auto output = std::make_unique<FileInfo>(outputFile, false);	
 		if(nandCodeFile.size() == 0)
 		{
 			nandLoaderInjector->InjectNandLoader(input, output);

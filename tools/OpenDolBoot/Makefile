@@ -61,4 +61,5 @@ $(NANDLDR_SSRC): $(NANDLDR_PATH)
 	@$(BIN2S) $(BIN2S_FLAGS) -H $(NANDLDR_HSRC) $< > $@
 
 $(OUTPUT): $(CPPFILES) $(CFILES) $(SFILES) $(NANDLDR_SSRC)
+	@echo $@ ...
 	@$(CXX) $(INCLUDE) $^ -o $@ $(CFLAGS) $(CXXFLAGS)
