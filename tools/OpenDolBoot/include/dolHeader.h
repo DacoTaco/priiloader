@@ -21,9 +21,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #pragma once
 
 #ifdef WIN32
-#include <winsock.h>
+#include <winsock2.h>
 #include <windows.h>
-#define sleep(x) Sleep(x*1000)
 #define SwapEndian(x) _byteswap_ulong(x)
 #else
 #include <arpa/inet.h>

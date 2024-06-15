@@ -40,6 +40,7 @@ endif
 #windows, msys, mingw,...
 ifeq ($(HOST), WIN32)
 OUTPUT 		:=	$(TARGET).exe
+CFLAGS		+=	-DWIN32
 ifneq ($(MINGW_AVAIL),)
 PREFIX		:=	x86_64-w64-mingw32-
 CFLAGS		+=	-lws2_32
