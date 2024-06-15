@@ -57,7 +57,9 @@ void NandLoaderInjector::RemoveNandLoader(std::unique_ptr<FileInfo>& input)
 		else
 		{
 			//move text section up one
-			header->offsetText[i-1] = header->offsetText[i] - (BigEndianToHost(header->offsetText[i]) > nandLoaderOffset ? ForceBigEndian(nandLoaderSize) : 0);
+			auto offset = BigEndianToHost(header->offsetText[i]);
+			offset = offset - (offset > nandLoaderOffset ? nandLoaderSize : 0);
+			header->offsetText[i-1] = ForceBigEndian(offset);
 			header->sizeText[i-1] = header->sizeText[i];
 			header->addressText[i-1] = header->addressText[i];
 		}
@@ -72,8 +74,11 @@ void NandLoaderInjector::RemoveNandLoader(std::unique_ptr<FileInfo>& input)
 
 	for(auto i = 0;i < MAX_DATA_SECTIONS;i++)
 	{
-		if(BigEndianToHost(header->offsetData[i]) > nandLoaderOffset)
-			header->offsetData[i] = header->offsetData[i] - ForceBigEndian(nandLoaderSize);
+		auto offset = BigEndianToHost(header->offsetData[i]);
+		if( offset <= nandLoaderOffset)
+			continue;
+		
+		header->offsetData[i] = ForceBigEndian(offset - nandLoaderSize);
 	}
 
 	std::copy(input->Data.begin() + headerSize, input->Data.begin() + nandLoaderOffset, std::back_inserter(newData));
