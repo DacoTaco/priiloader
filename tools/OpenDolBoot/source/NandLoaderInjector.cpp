@@ -100,12 +100,12 @@ void NandLoaderInjector::InjectNandLoader(std::unique_ptr<FileInfo>& input, std:
 
 	for(auto i = 0; i < MAX_TEXT_SECTIONS;i++)
 	{
-		if(ForceBigEndian(inputHeader->addressText[i]) == nandLoaderLocation)
+		if(BigEndianToHost(inputHeader->addressText[i]) == nandLoaderLocation)
 			throw "Binary already contains nandloader";
 	}
 
 	NandLoader* loader = (NandLoader*)&nandLoader->Data[0];
-	if (ForceBigEndian(loader->Identifier) == NANDLDR_MAGIC && (ForceBigEndian(loader->Entrypoint) != ForceBigEndian(inputHeader->entrypoint)))
+	if (BigEndianToHost(loader->Identifier) == NANDLDR_MAGIC && (BigEndianToHost(loader->Entrypoint) != BigEndianToHost(inputHeader->entrypoint)))
 	{
 		printf("different nboot to dol entrypoint detected! Changing\n\t0x%08X\tto\t0x%08X\n", ForceBigEndian(loader->Entrypoint), ForceBigEndian(inputHeader->entrypoint));
 		loader->Entrypoint = inputHeader->entrypoint;
@@ -134,7 +134,7 @@ void NandLoaderInjector::InjectNandLoader(std::unique_ptr<FileInfo>& input, std:
 		printf("moving text section #%d...\n",i);
 		outputHeader->addressText[i+1] = inputHeader->addressText[i];
 		outputHeader->sizeText[i+1] = inputHeader->sizeText[i];
-		outputHeader->offsetText[i+1] = SwapEndian(SwapEndian(inputHeader->offsetText[i]) + nandLoader->GetFileSize());
+		outputHeader->offsetText[i+1] = ForceBigEndian(BigEndianToHost(inputHeader->offsetText[i]) + nandLoader->GetFileSize());
 	}
 
 	for(int i = 0;i < MAX_DATA_SECTIONS;i++)
@@ -146,7 +146,7 @@ void NandLoaderInjector::InjectNandLoader(std::unique_ptr<FileInfo>& input, std:
 		printf("copying data section #%d...\n",i);
 		outputHeader->addressData[i] = inputHeader->addressData[i];
 		outputHeader->sizeData[i] = inputHeader->sizeData[i];
-		outputHeader->offsetData[i] = SwapEndian(SwapEndian(inputHeader->offsetData[i]) + nandLoader->GetFileSize());
+		outputHeader->offsetData[i] = ForceBigEndian(BigEndianToHost(inputHeader->offsetData[i]) + nandLoader->GetFileSize());
 	}
 }
 
