@@ -88,7 +88,6 @@ void LaunchGamecubeDisc(void)
 	*(u32*)0xcc003024 |= 7;
 
 	gprintf("booting BC...");
-	ISFS_Deinitialize();
 	VIDEO_SetBlack(true);
 	VIDEO_Flush();
 	VIDEO_WaitVSync();
