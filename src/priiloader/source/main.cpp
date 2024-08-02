@@ -2458,9 +2458,9 @@ int main(int argc, char **argv)
 	u32 GcShutdownFlag = *(u32*)0x80003164;
 	gprintf("BootState:%d", Bootstate );
 	memset(&system_state,0,sizeof(wii_state));
-	StateFlags flags;
-	GetStateFlags(&flags);
-	gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u & checksum %u (gcflag : 0x%08X)", flags.type, flags.discstate, flags.returnto, flags.flags, flags.checksum, GcShutdownFlag);
+	STACK_ALIGN(StateFlags, flags, sizeof(StateFlags), 32);
+	GetStateFlags(flags);
+	gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u & checksum %u (gcflag : 0x%08X)", flags->type, flags->discstate, flags->returnto, flags->flags, flags->checksum, GcShutdownFlag);
 	s8 magicWord = CheckMagicWords();
 
 	if (CheckvWii())
@@ -2484,8 +2484,8 @@ int main(int argc, char **argv)
 		else
 			Bootstate = TYPE_UNKNOWN;
 
-		flags.type = Bootstate;
-		SetBootState(flags.type, flags.flags, flags.returnto, flags.discstate);
+		flags->type = Bootstate;
+		SetBootState(flags->type, flags->flags, flags->returnto, flags->discstate);
 
 		// Check if Wii U side wants to boot into a channel starting with 'PRII'
 		const WiiUArgs* wiiuArgs = GetWiiUArgs();
@@ -2597,7 +2597,7 @@ int main(int argc, char **argv)
 				}
 				break;
 			case TYPE_UNKNOWN: //255 or -1, only seen when shutting down from MIOS or booting dol from HBC. it is actually an invalid value	
-				if (flags.flags == FLAGS_STARTGCGAME && GcShutdownFlag != 0) //&& temp.discstate != 2)
+				if (flags->flags == FLAGS_STARTGCGAME && GcShutdownFlag != 0) //&& temp.discstate != 2)
 				{
 					//if the flag is 0x82 & the GcShutdown flag is set, its probably shutdown from mios. in that case system menu 
 					//will handle it perfectly (and i quote from SM's OSreport : "Shutdown system from GC!")
