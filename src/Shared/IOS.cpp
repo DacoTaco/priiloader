@@ -265,8 +265,14 @@ s8 PatchIOS(std::vector<IosPatch> patches)
 
 	//look in MEM2
 	gprintf("Patching IOS in MEM2...");
-	u8* mem_block = (u8*)ReadRegister32(0x80003130);
 	u32 patchesFound = 0;
+	u8* mem_block = (u8*)ReadRegister32(0x80003130);
+	u32 mem_length = 0x93FFFFFF - (u32)mem_block;
+	if(mem_length > 0x03FFFFFF)
+		mem_length = 0x100;
+	ICInvalidateRange(mem_block, mem_length);
+	DCFlushRange(mem_block, mem_length);
+	
 	while ((u32)mem_block < 0x93FFFFFF)
 	{
 		auto iterator = std::find_if(patches.begin(), patches.end(), [&patchesFound, mem_block](const IosPatch& iosPatch)
