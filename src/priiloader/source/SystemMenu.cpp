@@ -660,12 +660,6 @@ void BootMainSysMenu( void )
 			VIDEO_Flush();
 			VIDEO_WaitVSync();
 		}
-		
-		InitMounts(_mountCallback);
-		mem_free(patch_ptr);
-		mem_free(loader_addr);
-		ISFS_Initialize();
-		Input_Init();
 	}
 	catch (const std::string& ex)
 	{
@@ -693,6 +687,7 @@ void BootMainSysMenu( void )
 	if(fd > 0)
 		ISFS_Close( fd );
 	Input_Init();
+	InitMounts(_mountCallback);
 
 	return;
 }
