@@ -180,7 +180,7 @@ s32 GetTitleTMD(u64 titleId, signed_blob* &blob, u32 &blobSize)
 	return ret;
 }
 
-s8 GetTitleName(u64 id, u32 app, char* name, u8* _dst_uncode_name) 
+s8 GetTitleName(u64 id, u32 app, char* name, u8* unicodeName) 
 {	
     /*
 		languages:
@@ -200,151 +200,151 @@ s8 GetTitleName(u64 id, u32 app, char* name, u8* _dst_uncode_name)
 		but what we should be doing otherwise : 
 		int lang = CONF_GetLanguage();
     */
+	const int languages = 10;
 	const int lang = CONF_LANG_ENGLISH;
-	s32 r;
-	u8 return_unicode_name = (_dst_uncode_name == NULL)? 0 : 1;
+	s32 ret = 0;
+	u32 cnt ATTRIBUTE_ALIGN(32) = 0;
+	IMET *imetHeader = NULL;
+	tikview *ticketViews = NULL;
 
-    char file[64] ATTRIBUTE_ALIGN(32);
-    sprintf(file, "/title/%08x/%08x/content/%08x.app", (u32)(id >> 32), (u32)(id & 0xFFFFFFFF), app);
-	gdprintf("GetTitleName : %s",file);
-	u32 cnt ATTRIBUTE_ALIGN(32);
-	cnt = 0;
-	IMET *data = (IMET *)mem_align(32, ALIGN32( sizeof(IMET) ) );
-	if(data == NULL)
+	try
 	{
-		gprintf("GetTitleName : IMET header align failure");
-		return -1;
-	}
-	memset(data,0,sizeof(IMET) );
-	r = ES_GetNumTicketViews(id, &cnt);
-	if(r < 0)
-	{
-		gprintf("GetTitleName : GetNumTicketViews error %d!",r);
-		mem_free(data);
-		return -1;
-	}
-	tikview *views = (tikview *)mem_align( 32, sizeof(tikview)*cnt );
-	if(views == NULL)
-	{
-		mem_free(data);
-		return -2;
-	}
-	r = ES_GetTicketViews(id, views, cnt);
-	if (r < 0)
-	{
-		gprintf("GetTitleName : GetTicketViews error %d ",r);
-		mem_free(data);
-		mem_free(views);
-		return -3;
-	}
+		imetHeader = (IMET *)mem_align(32, ALIGN32( sizeof(IMET) ) );
+		if(imetHeader == NULL)
+			throw "failed to alloc IMET header";
+		
+		memset(imetHeader,0,sizeof(IMET) );
+		ret = ES_GetNumTicketViews(id, &cnt);
+		if(ret < 0)
+			throw "GetNumTicketViews " + std::to_string(ret);
 
-	s32 fh = ES_OpenTitleContent(id, views, 0);
-	if (fh == -106)
-	{
-		CheckTitleOnSD(id);
-		mem_free(data);
-		mem_free(views);
-		return -106;
-	}
-	else if(fh < 0)
-	{
-		//ES method failed. remove tikviews from memory and fall back on ISFS method
-		gprintf("GetTitleName : ES_OpenTitleContent error %d",fh);
-		mem_free(views);
-		fh = ISFS_Open(file, ISFS_OPEN_READ);
-		// fuck failed. lets check SD & GTFO
-		if (fh == -106)
+		ticketViews = (tikview *)mem_align( 32, sizeof(tikview)*cnt );
+		if(ticketViews == NULL)
+			throw "Failed to alloc ticket views";
+
+		ret = ES_GetTicketViews(id, ticketViews, cnt);
+		if(ret < 0)
+			throw "ES_GetTicketViews " + std::to_string(ret);
+
+		s32 fh = ES_OpenTitleContent(id, ticketViews, 0);
+		if(fh == -106)
 		{
 			CheckTitleOnSD(id);
-			mem_free(data);
-			return -106;
+			ret = -106;
+			goto return_getTitle;
 		}
-		else if (fh < 0)
-		{
-			mem_free(data);
-			gprintf("open %s error %d",file,fh);
-			return -5;
-		}
-		// read the completed IMET header
-		r = ISFS_Read(fh, data, sizeof(IMET));
-		if (r < 0) {
-			gprintf("IMET read error %d",r);
-			ISFS_Close(fh);
-			mem_free(data);
-			return -6;
-		}
-		ISFS_Close(fh);
-	}
-	else
-	{
-		//ES method
-		r = ES_ReadContent(fh,(u8*)data,sizeof(IMET));
-		if (r < 0) {
-			gprintf("GetTitleName : ES_ReadContent error %d",r);
-			ES_CloseContent(fh);
-			mem_free(data);
-			mem_free(views);
-			return -8;
-		}
-		//free data and let it point to IMET_data so everything else can work just fine
-		ES_CloseContent(fh);
-		mem_free(views);
-	}
-	char str[10][84];
-	char str_unprocessed[10][84];
-	//clear any memory that is in the place of the array cause we dont want any confusion here
-	memset(str,0,10*84);
-	if(return_unicode_name)
-		memset(str_unprocessed,0,10*84);
-	if(data->imet == 0x494d4554) // check if its a valid imet header
-	{
-		for(u8 y =0;y <= 9;y++)
-		{
-			u8 p = 0;
-			u8 up = 0;
-			for(u8 j=0;j<83;j++)
-			{
-				if(data->names[y][j] < 0x20)
-					if(return_unicode_name && data->names[y][j] == 0x00)
-						str_unprocessed[y][up++] = data->names[y][j];
-					else
-						continue;
-				else if(data->names[y][j] > 0x7E)
-					continue;
-				else
-				{
-					str[y][p++] = data->names[y][j];
-					str_unprocessed[y][up++] = data->names[y][j];
-				}
-			}
-			str[y][83] = '\0';
 
-		}
-		mem_free(data);
-	}
-	else
-	{
-		gprintf("invalid IMET header for 0x%08x/0x%08x", (u32)(id >> 32), (u32)(id & 0xFFFFFFFF));
-		mem_free(data);
-		return -9;
-	}
-	if(str[lang][0] != '\0')
-	{
-		gdprintf("GetTitleName : title %s",str[lang]);
-		memcpy(name, str[lang], strnlen(str[lang], 84));
-		if (return_unicode_name && str_unprocessed[lang][1] != '\0')
+		switch(fh >= 0)
 		{
-			memcpy(_dst_uncode_name,&str_unprocessed[lang][0],83);
+			//ES method
+			case true:
+			{
+				ret = ES_ReadContent(fh, (u8*)imetHeader, sizeof(IMET));
+				ES_CloseContent(fh);
+				if (ret < 0) 
+					throw "IMET ES_ReadContent " + std::to_string(ret);
+				break;
+			}
+
+			//ES method failed. remove tikviews from memory and fall back on ISFS method
+			case false:
+			default:
+			{
+				gprintf("GetTitleName : ES_OpenTitleContent error %d",fh);
+				char file[64] ATTRIBUTE_ALIGN(32);
+				sprintf(file, "/title/%08x/%08x/content/%08x.app", TITLE_UPPER(id), TITLE_LOWER(id), app);
+				gdprintf("GetTitleName : %s",file);
+
+				fh = ISFS_Open(file, ISFS_OPEN_READ);
+				// fuck failed. lets check SD & GTFO
+				if(fh < 0)
+				{
+					if (fh != -106)
+						throw "IMET ISFS_Open " + std::to_string(ret);
+
+					CheckTitleOnSD(id);
+					ret = -106;
+					goto return_getTitle;
+				}
+
+				// read the completed IMET header
+				ret = ISFS_Read(fh, imetHeader, sizeof(IMET));
+				ISFS_Close(fh);
+				if (ret < 0) 
+					throw "IMET ISFS_Read " + std::to_string(ret);
+				break;
+			}
 		}
-		else if(return_unicode_name)
-			gprintf("WARNING : empty unprocessed string");
+
+		mem_free(ticketViews);
+		
+		// check if its a valid imet header
+		if(imetHeader->imet != 0x494d4554) 
+			throw "Invalid IMET header for " + std::to_string(TITLE_UPPER(id)) + "/" + std::to_string(TITLE_LOWER(id));
+
+		char str[languages][MAX_TITLE_NAME];
+		char str_unprocessed[languages][MAX_TITLE_NAME];
+		//clear any memory that is in the place of the array cause we dont want any confusion here
+		memset(str, 0, sizeof(str));
+		memset(str_unprocessed, 0, sizeof(str_unprocessed));
+
+		for(u8 language = 0; language < languages; language++)
+		{
+			u8 strIndex = 0;
+			for(u8 charIndex = 0; charIndex < MAX_TITLE_NAME; charIndex++)
+			{
+				char titleChar = imetHeader->names[language][charIndex];
+				//filter out any non-printable characters
+				if((titleChar < 0x20 && titleChar != 0x00) || titleChar > 0x7E)
+					continue;
+
+				str[language][strIndex] = imetHeader->names[language][charIndex];
+				str_unprocessed[language][strIndex++] = imetHeader->names[language][charIndex];
+			}
+			str[language][MAX_TITLE_NAME] = '\0';
+		}
+
+		mem_free(imetHeader);
+
+		if(str[lang][0] != '\0')
+		{
+			gdprintf("GetTitleName : title %s",str[lang]);
+			s32 nameLength = strnlen(str[lang], MAX_TITLE_NAME-1);
+			memcpy(name, str[lang], nameLength);
+			str[lang][nameLength+1] = '\0';
+
+			if(unicodeName != NULL)
+			{
+				if (str_unprocessed[lang][1] != '\0')
+					memcpy(unicodeName, &str_unprocessed[lang][0], MAX_TITLE_NAME);
+				else
+					gprintf("WARNING : empty unprocessed string");
+			}
+			
+		}
+		else
+			gprintf("GetTitleName: no name found");
 	}
-	else
-		gprintf("GetTitleName: no name found");
-	memset(str,0,10*84);
-	memset(str_unprocessed,0,10*84);
-	mem_free(data);
-	return 1;
+	catch (char const* ex)
+	{
+		gprintf("GetTitleName Exception : %s",ex);
+		ret = -1;
+	}
+	catch (const std::string& ex)
+	{
+		gprintf("GetTitleName Exception : %s",ex);
+		ret = -1;
+	}
+	catch(...)
+	{	
+		gprintf("GetTitleName General Exception");
+		ret = -2;
+	}
+
+return_getTitle:
+	mem_free(imetHeader);
+	mem_free(ticketViews);
+	return ret;
 }
 
 u8 GetTitleRegion(u32 lowerTitleId)
@@ -484,7 +484,7 @@ s32 LoadListTitles( void )
 	GoBackInfo.name_ascii = "<-- Go Back";
 	titles.push_back(GoBackInfo);
 	tmd_view *rTMD;
-	char temp_name[256];
+	char temp_name[MAX_TITLE_NAME];
 	char title_ID[5];
 	for(u32 i = 0;i < count;i++)
 	{	
@@ -528,12 +528,12 @@ s32 LoadListTitles( void )
 					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("loading titles..."))*13/2))>>1, 208+16, "loading titles...");
 					continue;
 				}
-				memset(temp_name,0,sizeof(temp_name));
+				memset(temp_name, 0, sizeof(temp_name));
 				sprintf(temp_name,"????????");
 				title_info temp;
 				temp.title_id = 0;
 				temp.name_ascii.clear();
-				memset(temp.name_unicode,0,84);
+				memset(temp.name_unicode, 0, MAX_TITLE_NAME);
 				temp.content_id = 0;
 				ret = GetTitleName(rTMD->title_id,rTMD->contents[0].cid,temp_name,temp.name_unicode);
 				if ( ret != -106 )
@@ -541,14 +541,11 @@ s32 LoadListTitles( void )
 					temp.title_id = rTMD->title_id;
 					temp.name_ascii = temp_name;
 					temp.content_id = rTMD->contents[0].cid;
-					//gprintf("0x%02X%02X%02X%02X",temp.name_unicode[0],temp.name_unicode[1],temp.name_unicode[2],temp.name_unicode[3]);
 					titles.push_back(temp);
 					gprintf("LoadListTitles : added %d , title id %08X/%08X(%s)",titles.size()-1,TITLE_UPPER(temp.title_id),TITLE_LOWER(temp.title_id),temp.name_ascii.c_str());
 				}
-				if(rTMD)
-				{
-					mem_free(rTMD);
-				}
+				
+				mem_free(rTMD);
 				//break;
 			}
 			case TITLE_TYPE_ESSENTIAL:	// IOS, MIOS, BC, System Menu
