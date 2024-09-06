@@ -44,12 +44,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define TITLE_NTSC_J                    1
 #define TITLE_PAL                       2
 
+#define MAX_TITLE_NAME					84
+
 //structs & classes
 //-------------------
 typedef struct {
 	u64 title_id;
 	std::string name_ascii;
-	u8 name_unicode[84];
+	u8 name_unicode[MAX_TITLE_NAME];
 	u32 content_id;
 } title_info;
 
