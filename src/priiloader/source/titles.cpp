@@ -301,7 +301,7 @@ s8 GetTitleName(u64 id, u32 app, char* name, u8* unicodeName)
 				str[language][strIndex] = imetHeader->names[language][charIndex];
 				str_unprocessed[language][strIndex++] = imetHeader->names[language][charIndex];
 			}
-			str[language][MAX_TITLE_NAME] = '\0';
+			str[language][MAX_TITLE_NAME-1] = '\0';
 		}
 
 		mem_free(imetHeader);
