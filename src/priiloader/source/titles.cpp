@@ -644,7 +644,7 @@ s32 LoadListTitles( void )
 			ClearScreen();
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Loading title..."))*13/2))>>1, 208, "Loading title...");
 
-			//lets start this bitch
+			//lets start this bitch // TODO: split out into LaunchTitle()
 			if(DVDDiscAvailable())
 			{
 				gprintf("LoadListTitles : excecuting StopDisc Async...");
@@ -655,17 +655,18 @@ s32 LoadListTitles( void )
 				gprintf("LoadListTitles : Skipping StopDisc -> no drive or disc in drive");
 			}
 			
+			u64 selectedTitleID = titles[cur_off].title_id;
 			s8 regionMatch = 1;
 			s8 titleRegion = 0;
 			u32 cnt ATTRIBUTE_ALIGN(32) = 0;
 			STACK_ALIGN(tikview,views,4,32);
 
-			if (ES_GetNumTicketViews(titles[cur_off].title_id, &cnt) < 0)
+			if (ES_GetNumTicketViews(selectedTitleID, &cnt) < 0)
 			{
 				gprintf("GetNumTicketViews failure");
 				goto failure;
 			}
-			if (ES_GetTicketViews(titles[cur_off].title_id, views, cnt) < 0 )
+			if (ES_GetTicketViews(selectedTitleID, views, cnt) < 0 )
 			{
 				gprintf("ES_GetTicketViews failure!");
 				goto failure;
@@ -676,7 +677,7 @@ s32 LoadListTitles( void )
 				ISFS_Delete(PLAYRECPATH);
 				//and create it with the new info :)
 				std::string id;
-				id.push_back(titles[cur_off].title_id & 0xFFFFFFFF);
+				id.push_back(TITLE_LOWER(selectedTitleID));
 				Playlog_Update(id.c_str(), titles[cur_off].name_unicode);
 			}
 			else
@@ -698,7 +699,7 @@ s32 LoadListTitles( void )
 				VIDEO_WaitVSync();
 			}
 
-			titleRegion = GetTitleRegion(TITLE_LOWER(titles[cur_off].title_id));
+			titleRegion = GetTitleRegion(TITLE_LOWER(selectedTitleID));
 			regionMatch = VideoRegionMatches(titleRegion);
 
 			//if our region mismatched, we need to also verify against our list of known HBC channels
@@ -706,7 +707,7 @@ s32 LoadListTitles( void )
 			{
 				for (s32 hbcIndex = 0; hbcIndex < HBC_Titles_Size; hbcIndex++)
 				{
-					if (HBC_Titles[hbcIndex].title_id == titles[cur_off].title_id)
+					if (HBC_Titles[hbcIndex].title_id == selectedTitleID)
 					{
 						regionMatch = 1;
 						break;
@@ -719,9 +720,9 @@ s32 LoadListTitles( void )
 			// * not (known) HBC
 			// * titleType == TITLE_TYPE_DOWNLOAD 
 			// * TITLE_GAMEID_TYPE(gameId) != H,W or O
-			if (!regionMatch && TITLE_UPPER(titles[cur_off].title_id) == TITLE_TYPE_DOWNLOAD)
+			if (!regionMatch && TITLE_UPPER(selectedTitleID) == TITLE_TYPE_DOWNLOAD)
 			{
-				switch (TITLE_GAMEID_TYPE(TITLE_LOWER(titles[cur_off].title_id)))
+				switch (TITLE_GAMEID_TYPE(TITLE_LOWER(selectedTitleID)))
 				{
 					case 'C':
 					case 'E':
@@ -744,7 +745,7 @@ s32 LoadListTitles( void )
 				}
 			}
 
-			ES_LaunchTitle(titles[cur_off].title_id, &views[0]);
+			ES_LaunchTitle(selectedTitleID, &views[0]);
 failure:
 			InitVideo();
 			if(system_state.Init)
