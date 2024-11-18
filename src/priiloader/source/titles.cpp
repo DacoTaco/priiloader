@@ -234,22 +234,15 @@ s8 GetTitleName(u64 id, u32 app, char* name, u8* unicodeName)
 			goto return_getTitle;
 		}
 
-		switch(fh >= 0)
+		if (fh >= 0)
 		{
 			//ES method
-			case true:
-			{
 				ret = ES_ReadContent(fh, (u8*)imetHeader, sizeof(IMET));
 				ES_CloseContent(fh);
 				if (ret < 0) 
 					throw "IMET ES_ReadContent " + std::to_string(ret);
-				break;
-			}
-
+		} else {
 			//ES method failed. remove tikviews from memory and fall back on ISFS method
-			case false:
-			default:
-			{
 				gprintf("GetTitleName : ES_OpenTitleContent error %d",fh);
 				char file[64] ATTRIBUTE_ALIGN(32);
 				sprintf(file, "/title/%08x/%08x/content/%08x.app", TITLE_UPPER(id), TITLE_LOWER(id), app);
@@ -272,8 +265,6 @@ s8 GetTitleName(u64 id, u32 app, char* name, u8* unicodeName)
 				ISFS_Close(fh);
 				if (ret < 0) 
 					throw "IMET ISFS_Read " + std::to_string(ret);
-				break;
-			}
 		}
 
 		mem_free(ticketViews);
