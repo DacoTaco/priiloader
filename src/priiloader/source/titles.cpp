@@ -393,13 +393,13 @@ s8 VideoRegionMatches(s8 titleRegion)
 
 s8 SetVideoModeForTitle(u32 lowerTitleId)
 {
-	//always set video, 
+	//always set video when launching disc
 	s8 titleRegion = GetTitleRegion(lowerTitleId);
 	GXRModeObj* vidmode = rmode;
 	s8 videoMode = 0;
 	switch (titleRegion)
 	{
-		//PAL
+		// i am unsure if always setting interlaced is correct here
 		case TITLE_PAL:
 			gprintf("PAL50");
 			// set 50Hz mode - incompatible with S-Video cables!
@@ -735,6 +735,7 @@ s32 LoadListTitles( void )
 					case 'Q':
 						gprintf("LoadListTitles : Region Mismatch ! %d -> %d", VI_TVMODE_FMT(rmode->viTVMode), titleRegion);
 						ShutdownVideo();
+						// calling SetVideoModeForTitle to force video mode here would inexplicably revert (correct) 480p to 480i sometimes; see issue #376
 						break;
 					case 'H':
 					case 'O':

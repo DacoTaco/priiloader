@@ -79,7 +79,7 @@ void LaunchGamecubeDisc(void)
 	s8 videoMode = SetVideoModeForTitle(gameID);
 	gprintf("video mode : 0x%02X -> 0x%02X", oldVideoMode, videoMode);
 	if (oldVideoMode != videoMode)
-		SYS_SetVideoMode(videoMode);
+		SYS_SetVideoMode(videoMode); // most gc games tested require this
 	*(vu32*)0x800000CC = videoMode > SYS_VIDEO_NTSC ? 0x00000001 : 0x00000000;
 	DCFlushRange((void*)0x80000000, 0x3200);
 
