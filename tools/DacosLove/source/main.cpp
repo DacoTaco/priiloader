@@ -580,7 +580,7 @@ void InstallLoadDOL(void)
 				sleep(5);
 				return;
 			}
-			if (VI_TVMODE_FMT(rmode->viTVMode) == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan())
+			if (VI_TVMODE_ISFMT(rmode->viTVMode, VI_NTSC) || CONF_GetEuRGB60() || CONF_GetProgressiveScan())
 			{
 				//ye, those tv's want a special treatment again >_>
 				max_pos = 14;

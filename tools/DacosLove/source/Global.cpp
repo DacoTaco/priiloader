@@ -39,7 +39,7 @@ void InitVideo ( void )
 		rmode = VIDEO_GetPreferredMode(NULL);
 
 	//apparently the video likes to be bigger then it actually is on NTSC/PAL60/480p. lets fix that!
-	if( VI_TVMODE_FMT(rmode->viTVMode) == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
+	if( VI_TVMODE_ISFMT(rmode->viTVMode, VI_NTSC) || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
 	{
 		//the correct one would be * 0.035 to be sure to get on the Action safe of the screen.
 		GX_AdjustForOverscan(rmode, rmode, 0, rmode->viWidth * 0.026 ); 
@@ -55,7 +55,7 @@ void InitVideo ( void )
 	VIDEO_Flush();
 
 	VIDEO_WaitVSync();
-	if(VI_TVMODE_MODE(rmode->viTVMode) == VI_NON_INTERLACE)
+	if(VI_TVMODE_ISMODE(rmode->viTVMode, VI_NON_INTERLACE))
 		VIDEO_WaitVSync();
 	vid_init = 1;
 	gdprintf("resolution is %dx%d",rmode->viWidth,rmode->viHeight);

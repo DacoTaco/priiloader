@@ -204,7 +204,7 @@ void SysHackHashSettings( void )
 			}
 
 			//ye, those tv's want a special treatment again >_>
-			if (VI_TVMODE_FMT(rmode->viTVMode) == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan())
+			if (VI_TVMODE_ISFMT(rmode->viTVMode, VI_NTSC) || CONF_GetEuRGB60() || CONF_GetProgressiveScan())
 				max_pos = 14;
 			else
 				max_pos = 17;
@@ -1499,7 +1499,7 @@ void InstallLoadDOL( void )
 			}
 
 			//ye, those tv's want a special treatment again >_>
-			if( VI_TVMODE_FMT(rmode->viTVMode) == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
+			if( VI_TVMODE_ISFMT(rmode->viTVMode, VI_NTSC) || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
 				max_pos = 14;
 			else
 				max_pos = 19;
@@ -2131,7 +2131,7 @@ void CheckForUpdate()
 		u8 line = 0;
 		u8 min_line = 0;
 		u8 max_line = 0;
-		if( VI_TVMODE_FMT(rmode->viTVMode) == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
+		if( VI_TVMODE_ISFMT(rmode->viTVMode, VI_NTSC) || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
 			max_line = 12;
 		else
 			max_line = 17;
