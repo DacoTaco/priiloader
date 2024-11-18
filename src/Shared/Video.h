@@ -26,6 +26,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 extern GXRModeObj *rmode;
 extern void *xfb;
 
+// upstream these macros into libogc imo to complement VI_TVMODE (https://libogc.devkitpro.org/video__types_8h.html)
+#define VI_TVMODE_FMT(viTVMode)   (viTVMode >> 2)    // = VI_NTSC / VI_PAL / VI_MPAL / VI_DEBUG / VI_DEBUG_PAL / VI_EURGB60
+#define VI_TVMODE_MODE(viTVMode)  (viTVMode & 0b11)  // = VI_INTERLACE / VI_NON_INTERLACE / VI_PROGRESSIVE
+
 #define TEXT_OFFSET(X) ((((rmode->viWidth) / 2 ) - (strnlen((X), 128)*13/2))>>1)
 
 void InitVideo(void);

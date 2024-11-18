@@ -78,7 +78,7 @@ const static void _configureVideoMode(GXRModeObj* videoMode, bool initConsole)
 	VIDEO_SetBlack(false);
 	VIDEO_Flush();
 	VIDEO_WaitVSync();
-	if (rmode->viTVMode & VI_NON_INTERLACE)
+	if (VI_TVMODE_MODE(rmode->viTVMode) == VI_NON_INTERLACE)
 		VIDEO_WaitVSync();
 
 	_videoInit = true;

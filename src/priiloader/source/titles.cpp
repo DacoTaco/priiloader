@@ -385,7 +385,7 @@ u8 GetTitleRegion(u32 lowerTitleId)
 
 s8 VideoRegionMatches(s8 titleRegion)
 {
-	switch (rmode->viTVMode)
+	switch (VI_TVMODE_FMT(rmode->viTVMode))
 	{
 		case VI_NTSC:
 		case VI_DEBUG:
@@ -572,7 +572,7 @@ s32 LoadListTitles( void )
 	//eventho normally a tv would be able to show 23 titles; some TV's do 60hz in a horrible mannor 
 	//making title 23 out of the screen just like the main menu
 	s16 max_pos;
-	if( rmode->viTVMode == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
+	if( VI_TVMODE_FMT(rmode->viTVMode) == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
 	{
 		//ye, those tv's want a special treatment again >_>
 		max_pos = 14;
@@ -741,7 +741,7 @@ s32 LoadListTitles( void )
 					case 'N':
 					case 'P':
 					case 'Q':
-						gprintf("LoadListTitles : Region Mismatch ! %d -> %d", rmode->viTVMode, titleRegion);
+						gprintf("LoadListTitles : Region Mismatch ! %d -> %d", VI_TVMODE_FMT(rmode->viTVMode), titleRegion);
 						ShutdownVideo();
 						break;
 					case 'H':
