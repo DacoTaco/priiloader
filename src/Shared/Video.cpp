@@ -64,6 +64,11 @@ const static void _configureVideoMode(GXRModeObj* videoMode, bool initConsole)
 	DCInvalidateRange(xfb, VIDEO_GetFrameBufferSize(rmode) + 0x100);
 	xfb = MEM_K0_TO_K1(xfb);
 
+	// set video mode register
+	*(vu32*)0x800000CC = VI_TVMODE_FMT(rmode->viTVMode);
+	DCFlushRange((void*)0x800000CC, 4);
+
+	//set video mode
 	VIDEO_SetBlack(true);
 	VIDEO_Configure(rmode);
 	VIDEO_Flush();
