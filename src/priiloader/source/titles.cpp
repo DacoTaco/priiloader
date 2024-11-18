@@ -394,15 +394,23 @@ s8 SetVideoModeForTitle(u32 lowerTitleId)
 {
 	//always set video when launching disc
 	s8 titleRegion = GetTitleRegion(lowerTitleId);
-	GXRModeObj* vidmode = rmode;
+	bool confProg = (CONF_GetProgressiveScan() > 0) && VIDEO_HaveComponentCable();
+	bool confPAL60 = CONF_GetEuRGB60() > 0;
+	GXRModeObj* rmodeNew = rmode;
 	s8 videoMode = 0;
 	switch (titleRegion)
 	{
-		// i am unsure if always setting interlaced is correct here
 		case TITLE_PAL:
-			gprintf("PAL50");
-			// set 50Hz mode - incompatible with S-Video cables!
-			vidmode = &TVPal528IntDf;
+			if (confProg) {          // 480p60
+				rmodeNew = &TVEurgb60Hz480Prog;
+				gprintf("PAL60 480p");
+			} else if (confPAL60) {  // 480i60
+				rmodeNew = &TVEurgb60Hz480IntDf;
+				gprintf("PAL60 480i");
+			} else {                 // 576i50 (incompatible with S-Video cables!)
+				rmodeNew = &TVPal528IntDf;
+				gprintf("PAL50 576i");
+			}
 			videoMode = SYS_VIDEO_PAL;
 			break;
 
@@ -414,8 +422,15 @@ s8 SetVideoModeForTitle(u32 lowerTitleId)
 		case TITLE_NTSC:
 			gprintf("NTSC-U");
 		region_ntsc:
+			if (confProg) {          // 480p60
+				rmodeNew = &TVNtsc480Prog;
+				gprintf("NTSC 480p");
+			} else {                 // 480i60
+				rmodeNew = &TVNtsc480IntDf;
+				gprintf("NTSC 480i");
+			}
 			videoMode = SYS_VIDEO_NTSC;
-			vidmode = &TVNtsc480IntDf;
+			gprintf("NTSC");
 			break;
 		default:
 			gprintf("unknown titleRegion");
@@ -423,8 +438,8 @@ s8 SetVideoModeForTitle(u32 lowerTitleId)
 	}
 
 	//set video mode for the game
-	if (rmode != vidmode && !VideoRegionMatches(titleRegion))
-		ConfigureVideoMode(vidmode);
+	if (rmode != rmodeNew && !VideoRegionMatches(titleRegion))
+		ConfigureVideoMode(rmodeNew);
 
 	return videoMode;
 }
