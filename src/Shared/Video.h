@@ -22,13 +22,24 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include <gctypes.h>
 #include <ogc/gx_struct.h>
+#include <ogc/video_types.h>
 
 extern GXRModeObj *rmode;
 extern void *xfb;
 
-// upstream these macros into libogc imo to complement VI_TVMODE (https://libogc.devkitpro.org/video__types_8h.html)
+// upstream these macros into libogc to complement VI_TVMODE (https://libogc.devkitpro.org/video__types_8h.html)
+#ifndef VI_TVMODE_FMT
 #define VI_TVMODE_FMT(viTVMode)   (viTVMode >> 2)    // = VI_NTSC / VI_PAL / VI_MPAL / VI_DEBUG / VI_DEBUG_PAL / VI_EURGB60
+#endif
+#ifndef VI_TVMODE_MODE
 #define VI_TVMODE_MODE(viTVMode)  (viTVMode & 0b11)  // = VI_INTERLACE / VI_NON_INTERLACE / VI_PROGRESSIVE
+#endif
+#ifndef VI_TVMODE_ISFMT
+#define VI_TVMODE_ISFMT(viTVMode, fmt)    (VI_TVMODE_FMT(viTVMode) == fmt)
+#endif
+#ifndef VI_TVMODE_ISMODE
+#define VI_TVMODE_ISMODE(viTVMode, mode)  (VI_TVMODE_MODE(viTVMode) == mode)
+#endif
 
 #define TEXT_OFFSET(X) ((((rmode->viWidth) / 2 ) - (strnlen((X), 128)*13/2))>>1)
 
