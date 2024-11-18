@@ -80,8 +80,6 @@ void LaunchGamecubeDisc(void)
 	gprintf("video mode : 0x%02X -> 0x%02X", oldVideoMode, videoMode);
 	if (oldVideoMode != videoMode)
 		SYS_SetVideoMode(videoMode); // most gc games tested require this
-	*(vu32*)0x800000CC = videoMode > SYS_VIDEO_NTSC ? 0x00000001 : 0x00000000;
-	DCFlushRange((void*)0x80000000, 0x3200);
 
 	//set bootstate for when we come back & set reset state for gc mode
 	SetBootState(TYPE_UNKNOWN, FLAGS_STARTGCGAME, RETURN_TO_MENU, DISCSTATE_GC);
@@ -255,7 +253,7 @@ void LaunchWiiDisc(void)
 	//what is even the purpose of this?
 	settime(secs_to_ticks(time(NULL) - 946684800));
 
-	s8 videoMode = SetVideoModeForTitle(gameID);
+	SetVideoModeForTitle(gameID);
 
 	//disc related pokes to finish it off
 	//see memory map @ https://wiibrew.org/w/index.php?title=Memory_Map
@@ -264,7 +262,7 @@ void LaunchWiiDisc(void)
 	*(vu32*)0x80000024 = 0x00000001;				// Version
 	*(vu32*)0x80000028 = 0x01800000;				// Memory Size (Physical) 24MB
 	*(vu32*)0x8000002C = 0x00000023;				// Production Board Model
-	*(vu32*)0x800000CC = videoMode > SYS_VIDEO_NTSC ? 0x00000001 : 0x00000000;	// Video Mode
+													// Video Mode (set by ConfigureVideoMode)
 	*(vu32*)0x800000E4 = 0x8008f7b8;				// Thread Pointer
 	*(vu32*)0x800000F0 = 0x01800000;				// Dev Debugger Monitor Address
 	*(vu32*)0x800000F8 = 0x0E7BE2C0;				// Bus Clock Speed
