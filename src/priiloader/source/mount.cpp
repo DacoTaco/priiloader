@@ -184,6 +184,7 @@ void InitMounts(mountChangedCallback callback)
 	if (_init)
 		return;
 
+	fatInitDefault();
 	LWP_MutexInit(&mountPointMutex, false);
 	quit_thread = false;
 	LWP_CreateThread(&mnt_thread_handle, _mountThread, NULL, NULL, 16 * 1024, 50);
