@@ -295,13 +295,13 @@ s8 GetTitleName(u64 id, u32 app, char* name, u8* unicodeName)
 			{
 				char titleChar = imetHeader->names[language][charIndex];
 				//filter out any non-printable characters
-				if((titleChar < 0x20 && titleChar != 0x00) || titleChar > 0x7E)
+				if(titleChar < 0x20 || titleChar > 0x7E)
 					continue;
 
-				str[language][strIndex] = imetHeader->names[language][charIndex];
-				str_unprocessed[language][strIndex++] = imetHeader->names[language][charIndex];
+				str[language][strIndex] = titleChar;
+				str_unprocessed[language][strIndex++] = titleChar;
 			}
-			str[language][MAX_TITLE_NAME] = '\0';
+			str[language][MAX_TITLE_NAME-1] = '\0';
 		}
 
 		mem_free(imetHeader);
