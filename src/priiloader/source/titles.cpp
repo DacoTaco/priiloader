@@ -234,22 +234,15 @@ s8 GetTitleName(u64 id, u32 app, char* name, u8* unicodeName)
 			goto return_getTitle;
 		}
 
-		switch(fh >= 0)
+		if (fh >= 0)
 		{
 			//ES method
-			case true:
-			{
 				ret = ES_ReadContent(fh, (u8*)imetHeader, sizeof(IMET));
 				ES_CloseContent(fh);
 				if (ret < 0) 
 					throw "IMET ES_ReadContent " + std::to_string(ret);
-				break;
-			}
-
+		} else {
 			//ES method failed. remove tikviews from memory and fall back on ISFS method
-			case false:
-			default:
-			{
 				gprintf("GetTitleName : ES_OpenTitleContent error %d",fh);
 				char file[64] ATTRIBUTE_ALIGN(32);
 				sprintf(file, "/title/%08x/%08x/content/%08x.app", TITLE_UPPER(id), TITLE_LOWER(id), app);
@@ -272,8 +265,6 @@ s8 GetTitleName(u64 id, u32 app, char* name, u8* unicodeName)
 				ISFS_Close(fh);
 				if (ret < 0) 
 					throw "IMET ISFS_Read " + std::to_string(ret);
-				break;
-			}
 		}
 
 		mem_free(ticketViews);
@@ -385,7 +376,7 @@ u8 GetTitleRegion(u32 lowerTitleId)
 
 s8 VideoRegionMatches(s8 titleRegion)
 {
-	switch (rmode->viTVMode)
+	switch (VI_TVMODE_FMT(rmode->viTVMode))
 	{
 		case VI_NTSC:
 		case VI_DEBUG:
@@ -402,13 +393,13 @@ s8 VideoRegionMatches(s8 titleRegion)
 
 s8 SetVideoModeForTitle(u32 lowerTitleId)
 {
-	//always set video, 
+	//always set video when launching disc
 	s8 titleRegion = GetTitleRegion(lowerTitleId);
 	GXRModeObj* vidmode = rmode;
 	s8 videoMode = 0;
 	switch (titleRegion)
 	{
-		//PAL
+		// i am unsure if always setting interlaced is correct here
 		case TITLE_PAL:
 			gprintf("PAL50");
 			// set 50Hz mode - incompatible with S-Video cables!
@@ -572,7 +563,7 @@ s32 LoadListTitles( void )
 	//eventho normally a tv would be able to show 23 titles; some TV's do 60hz in a horrible mannor 
 	//making title 23 out of the screen just like the main menu
 	s16 max_pos;
-	if( rmode->viTVMode == VI_NTSC || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
+	if( VI_TVMODE_ISFMT(rmode->viTVMode, VI_NTSC) || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
 	{
 		//ye, those tv's want a special treatment again >_>
 		max_pos = 14;
@@ -653,7 +644,7 @@ s32 LoadListTitles( void )
 			ClearScreen();
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Loading title..."))*13/2))>>1, 208, "Loading title...");
 
-			//lets start this bitch
+			//lets start this bitch // TODO: split out into LaunchTitle()
 			if(DVDDiscAvailable())
 			{
 				gprintf("LoadListTitles : excecuting StopDisc Async...");
@@ -664,17 +655,18 @@ s32 LoadListTitles( void )
 				gprintf("LoadListTitles : Skipping StopDisc -> no drive or disc in drive");
 			}
 			
+			u64 selectedTitleID = titles[cur_off].title_id;
 			s8 regionMatch = 1;
 			s8 titleRegion = 0;
 			u32 cnt ATTRIBUTE_ALIGN(32) = 0;
 			STACK_ALIGN(tikview,views,4,32);
 
-			if (ES_GetNumTicketViews(titles[cur_off].title_id, &cnt) < 0)
+			if (ES_GetNumTicketViews(selectedTitleID, &cnt) < 0)
 			{
 				gprintf("GetNumTicketViews failure");
 				goto failure;
 			}
-			if (ES_GetTicketViews(titles[cur_off].title_id, views, cnt) < 0 )
+			if (ES_GetTicketViews(selectedTitleID, views, cnt) < 0 )
 			{
 				gprintf("ES_GetTicketViews failure!");
 				goto failure;
@@ -685,7 +677,7 @@ s32 LoadListTitles( void )
 				ISFS_Delete(PLAYRECPATH);
 				//and create it with the new info :)
 				std::string id;
-				id.push_back(titles[cur_off].title_id & 0xFFFFFFFF);
+				id.push_back(TITLE_LOWER(selectedTitleID));
 				Playlog_Update(id.c_str(), titles[cur_off].name_unicode);
 			}
 			else
@@ -707,7 +699,7 @@ s32 LoadListTitles( void )
 				VIDEO_WaitVSync();
 			}
 
-			titleRegion = GetTitleRegion(TITLE_LOWER(titles[cur_off].title_id));
+			titleRegion = GetTitleRegion(TITLE_LOWER(selectedTitleID));
 			regionMatch = VideoRegionMatches(titleRegion);
 
 			//if our region mismatched, we need to also verify against our list of known HBC channels
@@ -715,7 +707,7 @@ s32 LoadListTitles( void )
 			{
 				for (s32 hbcIndex = 0; hbcIndex < HBC_Titles_Size; hbcIndex++)
 				{
-					if (HBC_Titles[hbcIndex].title_id == titles[cur_off].title_id)
+					if (HBC_Titles[hbcIndex].title_id == selectedTitleID)
 					{
 						regionMatch = 1;
 						break;
@@ -728,9 +720,9 @@ s32 LoadListTitles( void )
 			// * not (known) HBC
 			// * titleType == TITLE_TYPE_DOWNLOAD 
 			// * TITLE_GAMEID_TYPE(gameId) != H,W or O
-			if (!regionMatch && TITLE_UPPER(titles[cur_off].title_id) == TITLE_TYPE_DOWNLOAD)
+			if (!regionMatch && TITLE_UPPER(selectedTitleID) == TITLE_TYPE_DOWNLOAD)
 			{
-				switch (TITLE_GAMEID_TYPE(TITLE_LOWER(titles[cur_off].title_id)))
+				switch (TITLE_GAMEID_TYPE(TITLE_LOWER(selectedTitleID)))
 				{
 					case 'C':
 					case 'E':
@@ -741,8 +733,9 @@ s32 LoadListTitles( void )
 					case 'N':
 					case 'P':
 					case 'Q':
-						gprintf("LoadListTitles : Region Mismatch ! %d -> %d", rmode->viTVMode, titleRegion);
+						gprintf("LoadListTitles : Region Mismatch ! %d -> %d", VI_TVMODE_FMT(rmode->viTVMode), titleRegion);
 						ShutdownVideo();
+						// calling SetVideoModeForTitle to force video mode here would inexplicably revert (correct) 480p to 480i sometimes; see issue #376
 						break;
 					case 'H':
 					case 'O':
@@ -753,7 +746,7 @@ s32 LoadListTitles( void )
 				}
 			}
 
-			ES_LaunchTitle(titles[cur_off].title_id, &views[0]);
+			ES_LaunchTitle(selectedTitleID, &views[0]);
 failure:
 			InitVideo();
 			if(system_state.Init)

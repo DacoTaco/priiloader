@@ -320,7 +320,7 @@ int main(int argc, char **argv) {
 	VIDEO_SetBlack(false);
 	VIDEO_Flush();
 	VIDEO_WaitVSync();
-	if (vmode->viTVMode & VI_NON_INTERLACE)
+	if (VI_TVMODE_ISMODE(vmode->viTVMode, VI_NON_INTERLACE))
 		VIDEO_WaitVSync();
     
 	// This function initialises the attached controllers
