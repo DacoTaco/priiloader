@@ -286,11 +286,10 @@ s8 GetTitleName(u64 id, u32 app, char* name, u8* unicodeName)
 			{
 				char titleChar = imetHeader->names[language][charIndex];
 				//filter out any non-printable characters
-				if(titleChar < 0x20 || titleChar > 0x7E)
-					continue;
-
-				str[language][strIndex] = titleChar;
-				str_unprocessed[language][strIndex++] = titleChar;
+				if(titleChar >= 0x20 && titleChar <= 0x7E)
+					str[language][strIndex++] = titleChar;
+				
+				str_unprocessed[language][charIndex] = titleChar;
 			}
 			str[language][MAX_TITLE_NAME-1] = '\0';
 		}
@@ -520,7 +519,6 @@ s32 LoadListTitles( void )
 					continue;
 				}
 				memset(temp_name, 0, sizeof(temp_name));
-				sprintf(temp_name,"????????");
 				title_info temp;
 				temp.title_id = 0;
 				temp.name_ascii.clear();
@@ -529,6 +527,8 @@ s32 LoadListTitles( void )
 				ret = GetTitleName(rTMD->title_id,rTMD->contents[0].cid,temp_name,temp.name_unicode);
 				if ( ret != -106 )
 				{
+					if(temp_name[0] == '\0')
+						sprintf(temp_name,"????????");
 					temp.title_id = rTMD->title_id;
 					temp.name_ascii = temp_name;
 					temp.content_id = rTMD->contents[0].cid;
