@@ -429,6 +429,140 @@ s8 SetVideoModeForTitle(u32 lowerTitleId)
 	return videoMode;
 }
 
+s32 LaunchTitle(u64 titleId, u8* titleName)
+{
+	s32 ret = 0;
+	s8 regionMatch = 1;
+	s8 titleRegion = 0;
+	u32 cnt ATTRIBUTE_ALIGN(32) = 0;
+	STACK_ALIGN(tikview,views,4,32);
+
+	try
+	{
+		//lets start this bitch
+		if(DVDDiscAvailable())
+		{
+			gprintf("LaunchTitle : excecuting StopDisc Async...");
+			DVDStopDriveAsync();
+		}
+		else
+		{
+			gprintf("LaunchTitle : Skipping StopDisc -> no drive or disc in drive");
+		}
+
+		if (ES_GetNumTicketViews(titleId, &cnt) < 0)
+			throw "GetNumTicketViews failure";
+
+		if (ES_GetTicketViews(titleId, views, cnt) < 0 )
+			throw "ES_GetTicketViews failure!";
+			
+		if(titleName != NULL && wcslen((wchar_t*)titleName))
+		{
+			//kill play_rec.dat if its already there...
+			ISFS_Delete(PLAYRECPATH);
+			//and create it with the new info :)
+			std::string id;
+			id.push_back(TITLE_LOWER(titleId));
+			Playlog_Update(id.c_str(), titleName);
+		}
+		else
+		{
+			gprintf("no title name to use in play_rec");
+		}
+		net_wc24cleanup();
+		ClearState();
+		SetNandBootInfo();
+		Input_Shutdown();
+		ShutdownMounts();
+
+		gdprintf("waiting for drive to stop...");
+		while(DVDAsyncBusy());
+		if(system_state.Init)
+		{
+			VIDEO_SetBlack(true);
+			VIDEO_Flush();
+			VIDEO_WaitVSync();
+		}
+
+		titleRegion = GetTitleRegion(TITLE_LOWER(titleId));
+		regionMatch = VideoRegionMatches(titleRegion);
+
+		//if our region mismatched, we need to also verify against our list of known HBC channels
+		if (!regionMatch)
+		{
+			for (s32 hbcIndex = 0; hbcIndex < HBC_Titles_Size; hbcIndex++)
+			{
+				if (HBC_Titles[hbcIndex].title_id == titleId)
+				{
+					regionMatch = 1;
+					break;
+				}
+			}
+		}
+
+		//only shutdown video if:
+		// * region mismatched
+		// * not (known) HBC
+		// * titleType == TITLE_TYPE_DOWNLOAD 
+		// * TITLE_GAMEID_TYPE(gameId) != H,W or O
+		if (!regionMatch && TITLE_UPPER(titleId) == TITLE_TYPE_DOWNLOAD)
+		{
+			switch (TITLE_GAMEID_TYPE(TITLE_LOWER(titleId)))
+			{
+				case 'C':
+				case 'E':
+				case 'F':
+				case 'J':
+				case 'L':
+				case 'M':
+				case 'N':
+				case 'P':
+				case 'Q':
+					gprintf("LaunchTitle : Region Mismatch ! %d -> %d", VI_TVMODE_FMT(rmode->viTVMode), titleRegion);
+					ShutdownVideo();
+					// calling SetVideoModeForTitle to force video mode here would inexplicably revert (correct) 480p to 480i sometimes; see issue #376
+					break;
+				case 'H':
+				case 'O':
+				case 'W':
+				case 'X':
+				default:
+					break;
+			}
+		}
+
+		ret = ES_LaunchTitle(titleId, &views[0]);
+
+		//failed to launch title
+		InitVideo();
+		if(system_state.Init)
+		{
+			VIDEO_SetBlack(false);
+			VIDEO_Flush();
+			VIDEO_WaitVSync();
+		}
+		Input_Init();
+	}
+	catch (char const* ex)
+	{
+		gprintf("LaunchTitle Exception : %s",ex);
+		ret = -1;
+	}
+	catch (const std::string& ex)
+	{
+		gprintf("LaunchTitle Exception : %s",ex);
+		ret = -1;
+	}
+	catch(...)
+	{	
+		gprintf("LaunchTitle General Exception");
+		ret = -2;
+	}
+
+	while(DVDAsyncBusy());
+	return ret;
+}
+
 s32 LoadListTitles( void )
 {
 	PrintFormat( 1, ((rmode->viWidth /2)-((strlen("loading titles..."))*13/2))>>1, 208+16, "loading titles...");
@@ -644,120 +778,9 @@ s32 LoadListTitles( void )
 			ClearScreen();
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Loading title..."))*13/2))>>1, 208, "Loading title...");
 
-			//lets start this bitch // TODO: split out into LaunchTitle()
-			if(DVDDiscAvailable())
-			{
-				gprintf("LoadListTitles : excecuting StopDisc Async...");
-				DVDStopDriveAsync();
-			}
-			else
-			{
-				gprintf("LoadListTitles : Skipping StopDisc -> no drive or disc in drive");
-			}
-			
-			u64 selectedTitleID = titles[cur_off].title_id;
-			s8 regionMatch = 1;
-			s8 titleRegion = 0;
-			u32 cnt ATTRIBUTE_ALIGN(32) = 0;
-			STACK_ALIGN(tikview,views,4,32);
+			LaunchTitle(titles[cur_off].title_id, titles[cur_off].name_unicode);
 
-			if (ES_GetNumTicketViews(selectedTitleID, &cnt) < 0)
-			{
-				gprintf("GetNumTicketViews failure");
-				goto failure;
-			}
-			if (ES_GetTicketViews(selectedTitleID, views, cnt) < 0 )
-			{
-				gprintf("ES_GetTicketViews failure!");
-				goto failure;
-			}
-			if(wcslen((wchar_t*)titles[cur_off].name_unicode))
-			{
-				//kill play_rec.dat if its already there...
-				ISFS_Delete(PLAYRECPATH);
-				//and create it with the new info :)
-				std::string id;
-				id.push_back(TITLE_LOWER(selectedTitleID));
-				Playlog_Update(id.c_str(), titles[cur_off].name_unicode);
-			}
-			else
-			{
-				gprintf("no title name to use in play_rec");
-			}
-			net_wc24cleanup();
-			ClearState();
-			SetNandBootInfo();
-			Input_Shutdown();
-			ShutdownMounts();
-
-			gdprintf("waiting for drive to stop...");
-			while(DVDAsyncBusy());
-			if(system_state.Init)
-			{
-				VIDEO_SetBlack(true);
-				VIDEO_Flush();
-				VIDEO_WaitVSync();
-			}
-
-			titleRegion = GetTitleRegion(TITLE_LOWER(selectedTitleID));
-			regionMatch = VideoRegionMatches(titleRegion);
-
-			//if our region mismatched, we need to also verify against our list of known HBC channels
-			if (!regionMatch)
-			{
-				for (s32 hbcIndex = 0; hbcIndex < HBC_Titles_Size; hbcIndex++)
-				{
-					if (HBC_Titles[hbcIndex].title_id == selectedTitleID)
-					{
-						regionMatch = 1;
-						break;
-					}
-				}
-			}
-
-			//only shutdown video if:
-			// * region mismatched
-			// * not (known) HBC
-			// * titleType == TITLE_TYPE_DOWNLOAD 
-			// * TITLE_GAMEID_TYPE(gameId) != H,W or O
-			if (!regionMatch && TITLE_UPPER(selectedTitleID) == TITLE_TYPE_DOWNLOAD)
-			{
-				switch (TITLE_GAMEID_TYPE(TITLE_LOWER(selectedTitleID)))
-				{
-					case 'C':
-					case 'E':
-					case 'F':
-					case 'J':
-					case 'L':
-					case 'M':
-					case 'N':
-					case 'P':
-					case 'Q':
-						gprintf("LoadListTitles : Region Mismatch ! %d -> %d", VI_TVMODE_FMT(rmode->viTVMode), titleRegion);
-						ShutdownVideo();
-						// calling SetVideoModeForTitle to force video mode here would inexplicably revert (correct) 480p to 480i sometimes; see issue #376
-						break;
-					case 'H':
-					case 'O':
-					case 'W':
-					case 'X':
-					default:
-						break;
-				}
-			}
-
-			ES_LaunchTitle(selectedTitleID, &views[0]);
-failure:
-			InitVideo();
-			if(system_state.Init)
-			{
-				VIDEO_SetBlack(false);
-				VIDEO_Flush();
-				VIDEO_WaitVSync();
-			}
-			Input_Init();
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to Load Title!"))*13/2))>>1, 224, "Failed to Load Title!");
-			while(DVDAsyncBusy());
 			sleep(3);
 			redraw = true;
 		}			
