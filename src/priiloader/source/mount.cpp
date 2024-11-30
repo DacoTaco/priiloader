@@ -59,13 +59,17 @@ public:
 
 string __mountPoint = SD_MOUNTPOINT;
 static mountChangedCallback __pollCallback = NULL;
-static u8 _init = 0;
+static bool _init = false;
+static bool _fatInit = false;
 static u8 notMountableFlag = 0;
 static bool _sdMounted = false;
 static bool _usbMounted = false;
 static mutex_t mountPointMutex;
 static lwp_t mnt_thread_handle = LWP_THREAD_NULL;
 static bool quit_thread = 0;
+
+//this tells libdvm to not mount usb automatically, because they can be *very* slow in mounting...
+unsigned g_dvmOgcUsbMount = 0;
 
 void _pollMount(void)
 {
@@ -168,6 +172,24 @@ void _pollMount(void)
 
 void* _mountThread(void* args)
 {
+	if(!_fatInit)
+	{
+		_fatInit = true;
+		fatInitDefault();	
+	}
+	
+	if(GetDeviceOpTab(SD_UNMOUNTPOINT) != NULL)
+	{
+		gprintf("SD: Mounted(libdvm)");
+		_sdMounted = true;
+	}
+
+	if(GetDeviceOpTab(USB_UNMOUNTPOINT) != NULL)
+	{
+		gprintf("USB: Mounted(libdvm)");
+		_usbMounted = true;
+	}
+
 	while (!quit_thread)
 	{
 		_pollMount();
@@ -184,11 +206,10 @@ void InitMounts(mountChangedCallback callback)
 	if (_init)
 		return;
 
-	fatInitDefault();
 	LWP_MutexInit(&mountPointMutex, false);
 	quit_thread = false;
 	LWP_CreateThread(&mnt_thread_handle, _mountThread, NULL, NULL, 16 * 1024, 50);
-	_init = 1;
+	_init = true;
 }
 
 void ShutdownMounts()
@@ -216,7 +237,7 @@ void ShutdownMounts()
 
 	__pollCallback = NULL;
 	notMountableFlag = 0;
-	_init = 0;
+	_init = false;
 }
 
 u8 GetMountedFlags()
