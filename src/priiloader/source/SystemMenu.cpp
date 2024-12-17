@@ -22,13 +22,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <gccore.h>
 #include <malloc.h>
 #include <string.h>
+#include <ogc/sha.h>
 
 #include "gecko.h"
 #include "error.h"
 #include "SystemMenu.h"
 #include "mem2_manager.h"
 #include "executables.h"
-#include "sha1.h"
 #include "loader.h"
 #include "hacks.h"
 #include "titles.h"
@@ -157,11 +157,17 @@ static bool DecryptvWiiSysMenu(void* data)
 	}
 
 	// Verify body hash
-	SHA1 sha;
-	sha.Reset();
-	sha.Input((u8 *)(anc + 1), anc->info_block.body_size);
-	unsigned int hash[5];
-	if (!sha.Result(hash))
+		sha_context shaContext ATTRIBUTE_ALIGN(32);
+	u32 hash[5] ATTRIBUTE_ALIGN(32) = {};
+	SHA_Init();
+	SHA_InitializeContext(&shaContext);
+
+	//copy data into buffer that is 64byte aligned
+	auto buffer = mem_align(64, anc->info_block.body_size);
+	memcpy(buffer, (u8 *)(anc + 1), anc->info_block.body_size);
+	auto ret = SHA_Calculate(&shaContext, buffer, anc->info_block.body_size, hash);
+	mem_free(buffer);
+	if (ret < 0)
 	{
 		gprintf("failed to calculate ancast hash");
 		return false;
@@ -171,6 +177,7 @@ static bool DecryptvWiiSysMenu(void* data)
 		gprintf("invalid ancast hash");
 		return false;
 	}
+	SHA_Close();
 
 	// Initialize the AES engine
 	if (AES_Init() < 0)
