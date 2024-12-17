@@ -214,24 +214,33 @@ s32 HttpGet(const char* host, const char* file, u8*& dataPtr, int* externalSocke
 		memset(dataPtr, 0, dataSize);
 	}
 
-	memset(buffer, 0, bufferSize);
-	for (int i = 0;;)
+	ret = 0;
+	while(1)
 	{
-		u32 len = bufferSize - i;
-		if (dataSize > 0 && len > dataSize)
-			len = dataSize;
+		u32 len = bufferSize;
+		void* netBuffer = buffer;
+		if(dataSize > 0)
+		{
+			netBuffer = dataPtr + dataRead;
+			len = dataSize - dataRead;
+		}
+		else
+			memset(buffer, 0, bufferSize);
 
-		bytesTransfered = net_recv(socket, &buffer[i], len, 0);
+		bytesTransfered = net_recv(socket, netBuffer, len, 0);
+		//connection closed or no more data
 		if (bytesTransfered <= 0)
 		{
 			if (dataSize > 0)
 				ret = -12;
-			else
-				ret = dataRead;
 
-			goto _return;
+			break;
 		}
 
+		DCFlushRange(netBuffer, bytesTransfered);
+		DCInvalidateRange(netBuffer, bytesTransfered);
+
+		//reallocate dataPtr as we read from it if we dont know the expected size
 		if (dataSize <= 0)
 		{
 			if (dataPtr == NULL)
@@ -242,27 +251,23 @@ s32 HttpGet(const char* host, const char* file, u8*& dataPtr, int* externalSocke
 			{
 				dataPtr = (u8*)mem_realloc(dataPtr, dataRead + bytesTransfered);
 			}
+
+			memcpy(dataPtr + dataRead, buffer, bytesTransfered);
+			DCFlushRange(dataPtr + dataRead, bytesTransfered);
+			DCInvalidateRange(dataPtr + dataRead, bytesTransfered);
 		}
 
-		memcpy(dataPtr + dataRead, buffer + i, bytesTransfered);
 		dataRead += bytesTransfered;
-
-		i += bytesTransfered;
-		if (i >= bufferSize)
-		{
-			i = 0;
-			memset(buffer, 0, bufferSize);
-		}
-
 		if (dataSize > 0 && dataRead >= dataSize)
 			break;
 	}
 
-	ret = dataRead;
+	if(ret >= 0)
+		ret = dataRead;
 
 _return:
 	if (ret <= 0 && dataPtr != NULL)
-		mem_free(dataPtr);
+		mem_free(dataPtr);	
 
 	if (externalSocket != NULL && socket > 0)
 	{

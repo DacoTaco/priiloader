@@ -147,7 +147,7 @@ bool AddMem2Area (u32 size, const int index)
 	}
 
 	SYS_SetArena2Hi(mem2_areas[index].heap_ptr);
-	__lwp_heap_init(&mem2_areas[index].heap, mem2_areas[index].heap_ptr, size, 64);
+	__lwp_heap_init(&mem2_areas[index].heap, mem2_areas[index].heap_ptr, size, 32);
 	mem2_areas[index].size = size;
 	return true;
 }

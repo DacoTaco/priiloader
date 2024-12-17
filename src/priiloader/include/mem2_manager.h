@@ -11,12 +11,12 @@
 #define _MEM2MANAGER_H_
 #include <ogc/system.h>
 
-#define mem_malloc(size) mem2_malloc(size,OTHER_AREA)
-#define mem_free(x) if(x != NULL) { mem2_free(x,OTHER_AREA);x=NULL; }
-#define mem_align(align,size) mem2_memalign(align,size,OTHER_AREA)
-#define mem_realloc(oldPtr, newSize) mem2_realloc(oldPtr, newSize, OTHER_AREA)
-#define mem_realign(align, oldPtr, newSize) mem2_realign(align, oldPtr, newSize, OTHER_AREA);
 #define ALIGN32(x) (((x) + 31) & ~31)
+#define mem_malloc(size) mem2_malloc(ALIGN32(size),OTHER_AREA)
+#define mem_free(x) if(x != NULL) { mem2_free(x,OTHER_AREA);x=NULL; }
+#define mem_align(align,size) mem2_memalign(align,ALIGN32(size),OTHER_AREA)
+#define mem_realloc(oldPtr, newSize) mem2_realloc(oldPtr, ALIGN32(newSize), OTHER_AREA)
+#define mem_realign(align, oldPtr, newSize) mem2_realign(align, oldPtr, ALIGN32(newSize), OTHER_AREA);
 
 #ifndef ATTRIBUTE_ALIGN
 #define ATTRIBUTE_ALIGN(v)							[[gnu::aligned(v)]]

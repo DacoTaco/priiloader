@@ -122,7 +122,7 @@ s32 GetTitleTMD(u64 titleId, signed_blob* &blob, u32 &blobSize)
 		//Other IOS calls would need direct NAND Access to load the TMD.
 		//so here we go
 		gprintf("GetTitleTMD : Load TMD from nand");
-		STACK_ALIGN(fstats, TMDStatus, sizeof(fstats), 32);		
+		STACK_ALIGN(fstats, TMDStatus, sizeof(fstats), 32);
 		char TMD_Path[ISFS_MAXPATH];
 		memset(TMD_Path, 0, 64);
 		sprintf(TMD_Path, "/title/%08x/%08x/content/title.tmd", TITLE_UPPER(titleId), TITLE_LOWER(titleId));

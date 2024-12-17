@@ -33,9 +33,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <stdarg.h>
 #include <unistd.h>
 #include <string>
+#include <string_view>
 
 #include <gccore.h>
 #include <wiiuse/wpad.h>
+#include <ogc/sha.h>
 #include <ogc/usb.h>
 #include <ogc/machine/processor.h>
 #include <ogc/machine/asm.h>
@@ -50,7 +52,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //Project files
 #include "Input.h"
 #include "gitrev.h"
-#include "sha1.h"
 #include "Global.h"
 #include "Video.h"
 #include "settings.h"
@@ -1025,7 +1026,7 @@ _exit:
 	mem_free(TitleIDs);
 	return;
 }
-s8 BootDolFromMem( u8 *binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
+s8 BootDolFromMem(void* binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 {
 	if(binary == NULL)
 		return -1;
@@ -1954,201 +1955,209 @@ void CheckForUpdate()
 		sleep(5);
 		return;
 	}
-	gprintf("done");
-	s32 file_size = 0;
+
 //start update
 //---------------
 	UpdateStruct UpdateFile;
+	s32 file_size = 0;
 	u8* buffer = NULL;
 
-	file_size = HttpGet("www.dacotaco.com", "/priiloader/versionV2.bin", buffer, NULL);
-	s16 httpReply = GetLastHttpReply();
-	if( file_size < 0 && httpReply >= 400 && httpReply <= 500)
+	try
 	{
-		gprintf("falling back to .dat");
-		file_size = HttpGet("www.dacotaco.com", "/priiloader/versionV2.dat", buffer, NULL);
+		file_size = HttpGet("www.dacotaco.com", "/priiloader/versionV2.bin", buffer, NULL);
+		s16 httpReply = GetLastHttpReply();
+		if( file_size < 0 && httpReply >= 400 && httpReply <= 500)
+		{
+			gprintf("falling back to .dat");
+			file_size = HttpGet("www.dacotaco.com", "/priiloader/versionV2.dat", buffer, NULL);
+		}
+
+		switch(file_size)
+		{
+			case -1:
+			case -2:
+			case -3:
+			case -4:
+				throw "update file error: connection error " + std::to_string(file_size);
+				break;
+			case -7:
+				throw "update file error: HTTP " + std::to_string(GetLastHttpReply());
+				break;
+			default:
+				if(file_size < 0)
+					throw "update file error: " + std::to_string(file_size);
+
+				if(file_size != (s32)sizeof(UpdateStruct) || buffer == NULL)
+					throw "update file error: invalid size of no data";
+
+				break;
+		}
+
+		memcpy(&UpdateFile,buffer,sizeof(UpdateStruct));
+	}
+	catch (const std::string& ex)
+	{
+		gprintf("CheckForUpdate Exception -> %s",ex.c_str());
+	}
+	catch (char const* ex)
+	{
+		gprintf("CheckForUpdate Exception -> %s",ex);
+	}
+	catch(...)
+	{
+		gprintf("CheckForUpdate Exception was thrown");
 	}
 
-	if ( file_size <= 0 || file_size != (s32)sizeof(UpdateStruct) || buffer == NULL)
+	mem_free(buffer);
+	auto shaHash = UpdateFile.prod_sha1_hash;
+	u32 emptyHash[5] = { 0 };
+	if(memcmp(shaHash, emptyHash, sizeof(emptyHash)) == 0)
 	{
+		gprintf("update file is empty");
 		PrintFormat( 1, TEXT_OFFSET("error getting versions from server"), 224, "error getting versions from server");
-		if (file_size < -9)
-		{
-			//free pointer
-			mem_free(buffer);
-		}
-		if (file_size < 0 && file_size > -4)
-		{
-			//errors connecting to server
-			gprintf("connection failure. error %d",file_size);
-		}
-		else if (file_size == -7)
-		{
-			gprintf("CheckForUpdate : HTTP Error %d!",GetLastHttpReply());
-		}
-		else if ( file_size < 0 )
-		{
-			gprintf("CheckForUpdate : HttpGet error %d",file_size);
-		}
-		else if (file_size != (s32)sizeof(UpdateStruct))
-		{
-			gprintf("CheckForUpdate : file_size != UpdateStruct");
-		}
-		sleep(5);
-		mem_free(buffer);
+		sleep(5);		
 		net_deinit();
 		return;
-	}
-	memcpy(&UpdateFile,buffer,sizeof(UpdateStruct));
-	mem_free(buffer);
+	}	
 
-
-//generate update list if any
-//----------------------------------------
+	//generate update list if any
+	//----------------------------------------
 	file_size = 0;
-	u8* Data = NULL;
-	u8 DownloadedRC = 0;
-	u8 RCUpdates = 0;
-	u8 VersionUpdates = 0;
-	u8* Changelog = NULL;
 	u8 redraw = 1;
 	s8 cur_off = 0;
-	ClearScreen();
+	s8 max_off = SGetSetting(SETTING_SHOWRCUPDATES) ? 1 : 0;
+	s8 downloadVersion = 0;
+	const s8 installVersion = 1;
+	const s8 installRC = 2;
 	//make a nice list of the updates
-	if ( smaller_version(VERSION, UpdateFile.prod_version) || (same_version(VERSION, UpdateFile.prod_version) && VERSION_RC > 0) )
-		VersionUpdates = 1;
+	bool isCurrentRCVersion = VERSION_RC > 0;
+	bool VersionUpdates = smaller_version(VERSION, UpdateFile.prod_version) || (same_version(VERSION, UpdateFile.prod_version) && isCurrentRCVersion);
+
 	//to make the if short :
 	// - rc updates should be enabled
 	// - the current RCversion should be less then the online rc
 	// - the current version should < the rc OR the version == the rc IF a rc is installed
-	if ( 
-		SGetSetting(SETTING_SHOWRCUPDATES) && 
-		( (smaller_version(VERSION, UpdateFile.rc_version) && VERSION_RC == 0) || (same_version(VERSION, UpdateFile.rc_version) && VERSION_RC < UpdateFile.rc_version.sub_version)) )
+	bool RCUpdates = SGetSetting(SETTING_SHOWRCUPDATES) && 
+						((smaller_version(VERSION, UpdateFile.rc_version) && !isCurrentRCVersion) || 
+						(same_version(VERSION, UpdateFile.rc_version) && VERSION_RC < UpdateFile.rc_version.sub_version));
+	try
 	{
-		RCUpdates = 1;
-	}
-
-	while(1)
-	{
-		if(redraw)
+		ClearScreen();
+		while(1)
 		{
-			if ( VersionUpdates )
-				PrintFormat( cur_off == 0, 16, 64+(16*1), "Update to v%d.%d.%d", UpdateFile.prod_version.major, UpdateFile.prod_version.minor, UpdateFile.prod_version.patch);
-			else
-				PrintFormat( cur_off == 0, 16, 64+(16*1), "No version updates\n");
-
-			if (SGetSetting(SETTING_SHOWRCUPDATES))
+			if(redraw)
 			{
+				if ( VersionUpdates )
+					PrintFormat( cur_off == 0, 16, 64+(16*1), "Update to v%d.%d.%d", UpdateFile.prod_version.major, UpdateFile.prod_version.minor, UpdateFile.prod_version.patch);
+				else
+					PrintFormat( cur_off == 0, 16, 64+(16*1), "No version updates\n");
+
 				if ( RCUpdates )
 					PrintFormat( cur_off==1, 16, 64+(16*2), "Update to v%d.%d.%d rc %d", UpdateFile.rc_version.major, UpdateFile.rc_version.minor, UpdateFile.rc_version.patch, UpdateFile.rc_version.sub_version);
 				else
-					PrintFormat( cur_off==1, 16, 64+(16*2), "No RC update\n");
-			}	
+					PrintFormat( cur_off==1, 16, 64+(16*2), "No RC update\n");	
 
-			PrintFormat( 0, TEXT_OFFSET("A(A) Download Update"), rmode->viHeight-80, "A(A) Download Update");
-			PrintFormat( 0, TEXT_OFFSET("B(B) Cancel Update"), rmode->viHeight-64, "B(B) Cancel Update");
-			redraw = 0;
+				PrintFormat( 0, TEXT_OFFSET("A(A) Download Update"), rmode->viHeight-80, "A(A) Download Update");
+				PrintFormat( 0, TEXT_OFFSET("B(B) Cancel Update"), rmode->viHeight-64, "B(B) Cancel Update");
+				redraw = 0;
 
-			if (VersionUpdates == 0 && RCUpdates == 0)
-			{
-				sleep(2);
-				return;
-			}
-		}
-
-		Input_ScanPads();
-
-		u32 pressed = Input_ButtonsDown();
-
-		if ( pressed & INPUT_BUTTON_B )
-		{
-			return;
-		}
-		if ( pressed & INPUT_BUTTON_A )
-		{
-			if(cur_off == 0 && VersionUpdates == 1)
-			{
-				DownloadedRC = 0;
-				break;
-			}
-			else if (cur_off == 1 && RCUpdates == 1)
-			{
-				DownloadedRC = 1;
-				break;
-			}
-			redraw = 1;
-		}
-		if ( pressed & INPUT_BUTTON_UP )
-		{
-			cur_off--;
-			if(cur_off < 0)
-			{
-				if (SGetSetting(SETTING_SHOWRCUPDATES))
-				{	
-					
-						cur_off = 1;			
-				}
-				else
+				if (VersionUpdates == 0 && RCUpdates == 0)
 				{
-						cur_off = 0;	
+					sleep(2);
+					break;
 				}
 			}
-			redraw = 1;
-		}
-		if ( pressed & INPUT_BUTTON_DOWN )
-		{
-			cur_off++;
-			if (SGetSetting(SETTING_SHOWRCUPDATES))
-			{
-				if(cur_off > 1)
-					cur_off = 0;
-			}
-			else
-			{
-				if(cur_off > 0)
-					cur_off = 0;
-			}
-			redraw = 1;
-		}
-		VIDEO_WaitVSync();
-	}
-//Download changelog and ask to proceed or not
-//------------------------------------------------------
-	gprintf("downloading changelog...");
-	if(DownloadedRC)
-	{
-		file_size = HttpGet("www.dacotaco.com", "/priiloader/changelog_beta.txt", Changelog, NULL);
-	}
-	else
-	{
-		file_size = HttpGet("www.dacotaco.com", "/priiloader/changelog.txt", Changelog, NULL);
-	}
-	if (file_size > 0)
-	{
-		Changelog[file_size-1] = 0; // playing it safe for future shit
-		ClearScreen();
-		char se[5];
-		u8 line = 0;
-		u8 min_line = 0;
-		u8 max_line = 0;
-		if( VI_TVMODE_ISFMT(rmode->viTVMode, VI_NTSC) || CONF_GetEuRGB60() || CONF_GetProgressiveScan() )
-			max_line = 12;
-		else
-			max_line = 17;
-		redraw = 1;
 
-		char *ptr;
-		std::vector<char*> lines;
-		if( strpbrk((char*)Changelog , "\r\n") )
-			sprintf(se, "\r\n");
-		else
-			sprintf(se, "\n");
-		ptr = strtok((char*)Changelog, se);
-		while (ptr != NULL && (u32)ptr < (u32)Changelog+file_size ) //prevent it from going to far cause strtok is fucking dangerous.
-		{
-			lines.push_back(ptr);
-			ptr = strtok (NULL, se);
+			Input_ScanPads();
+			u32 pressed = Input_ButtonsDown();
+
+			if ( pressed & INPUT_BUTTON_B )
+				break;
+			
+			if ( pressed & INPUT_BUTTON_A )
+			{
+				redraw = 1;
+				if(cur_off == 0 && VersionUpdates == 1)
+					downloadVersion = installVersion;
+				else if (cur_off == 1 && RCUpdates == 1)
+					downloadVersion = installRC;
+
+				if(downloadVersion)
+					break;				
+			}
+			if ( pressed & INPUT_BUTTON_UP )
+			{
+				cur_off--;
+				if(cur_off < 0)
+					cur_off = RCUpdates ? 1 : 0;
+				redraw = 1;
+			}
+			if ( pressed & INPUT_BUTTON_DOWN )
+			{
+				cur_off++;
+				if(cur_off > max_off)
+					cur_off = 0;
+				redraw = 1;
+			}
+			VIDEO_WaitVSync();
 		}
+	}
+	catch (const std::string& ex)
+	{
+		gprintf("CheckForUpdate Exception -> %s",ex.c_str());
+	}
+	catch (char const* ex)
+	{
+		gprintf("CheckForUpdate Exception -> %s",ex);
+	}
+	catch(...)
+	{
+		gprintf("CheckForUpdate Exception was thrown");
+	}
+
+	if(downloadVersion == 0)
+	{
+		net_deinit();
+		return;
+	}
+
+	bool confirmed = false;
+	try
+	{
+		ClearScreen();
+		//Download changelog and ask to proceed or not
+		//------------------------------------------------------
+		gprintf("downloading changelog...");
+		const auto changelogFile = downloadVersion == installRC 
+			? "/priiloader/changelog_beta.txt"
+			: "/priiloader/changelog.txt";
+		
+		file_size = HttpGet("www.dacotaco.com", changelogFile, buffer, NULL);
+		if(file_size < 0)
+			throw "changelog error " + std::to_string(file_size) + "/" + std::to_string(GetLastHttpReply());
+
+		//we are dealing with a string, so play it safe
+		buffer[file_size-1] = 0;
+		const std::string newlineType = strpbrk((char*)buffer , "\r\n") 
+			? "\r\n"
+			: "\n";
+		u16 min_line = 0;
+		u16 max_line = VI_TVMODE_ISFMT(rmode->viTVMode, VI_NTSC) || CONF_GetEuRGB60() || CONF_GetProgressiveScan()
+			? 12
+			: 17;
+		redraw = 1;
+		std::vector<std::string> lines;
+		std::string_view stringView = (char*)buffer;
+		for (auto found = stringView.find(newlineType); found != std::string_view::npos; found = stringView.find(newlineType))
+		{
+			lines.emplace_back(stringView, 0, found);
+			stringView.remove_prefix(found + 1);
+		}
+
+		if (!stringView.empty()) 
+			lines.emplace_back(stringView);
+
+		mem_free(buffer);
 		if( max_line >= lines.size() )
 			max_line = lines.size()-1;
 
@@ -2168,177 +2177,152 @@ void CheckForUpdate()
 			Input_ScanPads();
 
 			pressed = Input_ButtonsDown();
-			if ( pressed & INPUT_BUTTON_A )
+			if ( pressed & INPUT_BUTTON_A || pressed & INPUT_BUTTON_B )
 			{
-				mem_free(Changelog);
+				confirmed = pressed & INPUT_BUTTON_A;
+				ClearScreen();
 				break;
 			}
-			if ( pressed & INPUT_BUTTON_B )
+			if ( pressed & INPUT_BUTTON_DOWN && (min_line+max_line) < lines.size()-1)
 			{
-				mem_free(Changelog);
-				ClearScreen();
-				return;
+				min_line++;
+				redraw = true;
 			}
-			if ( pressed & INPUT_BUTTON_DOWN )
+			if ( pressed & INPUT_BUTTON_UP && min_line > 0)
 			{
-				if ( (min_line+max_line) < lines.size()-1 )
-				{
-					min_line++;
-					redraw = true;
-				}
-			}
-			if ( pressed & INPUT_BUTTON_UP )
-			{
-				if ( min_line > 0 )
-				{
-					min_line--;
-					redraw = true;
-				}
+				min_line--;
+				redraw = true;
 			}
 			if ( redraw )
 			{
-				for(u8 i = min_line; i <= (min_line+max_line); i++)
+				if((s32)lines.size() -1 > max_line && (min_line != (s32)lines.size() - max_line - 1) )
 				{
-					PrintFormat( 0, 16, 64 + ((line+3)*16), "                                                                ");
-					PrintFormat( 0, 16, 64 + ((line+3)*16), "%s", lines[i]);
-					if( i < lines.size()-1 && i == (min_line+max_line) )
-						PrintFormat( 0, 16, 64 + ((line+4)*16), "...");
-					else
-						PrintFormat( 0, 16, 64 + ((line+4)*16), "   ");
-					line++;
+					PrintFormat( 0,TEXT_OFFSET("-----More-----"),64+(max_line+2)*16,"-----More-----");
+				}
+				if(min_line > 0 )
+				{
+					PrintFormat( 0,TEXT_OFFSET("-----Less-----"),64,"-----Less-----");
+				}
+				for(s16 i= min_line; i<=(min_line + max_line); i++ )
+				{
+					PrintFormat( 0, 16, 64 + ((i-min_line+1)*16), "                                                                ");
+					PrintFormat( 0, 16, 64 + ((i-min_line+1)*16), lines[i].c_str());
 				}
 				redraw = false;
-				line = 0;
 			}
 			VIDEO_WaitVSync();
 		}
 	}
-	else if(file_size < 0)
+	catch (const std::string& ex)
 	{
-		if(file_size < -9)
-			mem_free(Changelog);
+		gprintf("CheckForUpdate Exception -> %s",ex.c_str());
 		PrintFormat( 1, TEXT_OFFSET("error getting changelog from server"), 224, "error getting changelog from server");
-		gprintf("CheckForUpdate : failed to get changelog.error %d, HTTP reply %d", file_size, GetLastHttpReply());
-		return;
-	}
-//The choice is made. lets download what the user wanted :)
-//--------------------------------------------------------------
-	ClearScreen();
-	gprintf("downloading %s",DownloadedRC?"rc":"update");
-	if(DownloadedRC)
-	{
-		PrintFormat( 1, TEXT_OFFSET("downloading   .   rc   ..."), 208, "downloading %d.%d.%d rc %d...", UpdateFile.rc_version.major, UpdateFile.rc_version.minor, UpdateFile.rc_version.patch, UpdateFile.rc_version.sub_version);
-		file_size = HttpGet("www.dacotaco.com", "/priiloader/Priiloader_Beta.dol", Data, NULL);
-		//download rc
-	}
-	else
-	{
-		PrintFormat( 1, TEXT_OFFSET("downloading   .  ..."), 208, "downloading %d.%d.%d ...", UpdateFile.prod_version.major, UpdateFile.prod_version.minor, UpdateFile.prod_version.patch);
-		file_size = HttpGet("www.dacotaco.com", "/priiloader/Priiloader_Update.dol", Data, NULL);
-		//download Update
-	}
-	if ( file_size <= 0 )
-	{
-		if (file_size < 0 && file_size > -4)
-		{
-			//errors connecting to server
-			gprintf("connection failure: error %d",file_size);
-		}
-		else if (file_size == -7)
-		{
-			gprintf("HTTP Error %d!",GetLastHttpReply());
-		}
-		else
-		{
-			if(file_size < -9)
-				mem_free(Data);
-			gprintf("getting update error %d",file_size);
-		}
-		PrintFormat( 1, TEXT_OFFSET("error getting file from server"), 224, "error getting file from server");
 		sleep(2);
-		return;
 	}
-	else
+	catch (char const* ex)
 	{
-		SHA1 sha; // SHA-1 class
-		unsigned int FileHash[5];
-		sha.Reset();
-		sha.Input(Data,file_size);
-		if (!sha.Result(FileHash))
-		{
-			gprintf("sha: could not compute Hash of Update!\r\nHash : 00 00 00 00 00");
-		}
-		else
-		{
-			gprintf( "Downloaded Update : %08X %08X %08X %08X %08X",
-			FileHash[0],
-			FileHash[1],
-			FileHash[2],
-			FileHash[3],
-			FileHash[4]);
-		}
-		gprintf("Online : ");
-		if (!DownloadedRC)
-		{
-			gprintf("%08X %08X %08X %08X %08X"
-					,UpdateFile.prod_sha1_hash[0]
-					,UpdateFile.prod_sha1_hash[1]
-					,UpdateFile.prod_sha1_hash[2]
-					,UpdateFile.prod_sha1_hash[3]
-					,UpdateFile.prod_sha1_hash[4]);
-		}
-		else
-		{
-			gprintf("%08X %08X %08X %08X %08X"
-					,UpdateFile.rc_sha1_hash[0]
-					,UpdateFile.rc_sha1_hash[1]
-					,UpdateFile.rc_sha1_hash[2]
-					,UpdateFile.rc_sha1_hash[3]
-					,UpdateFile.rc_sha1_hash[4]);
-		}
+		gprintf("CheckForUpdate Exception -> %s",ex);
+		PrintFormat( 1, TEXT_OFFSET("error getting changelog from server"), 224, "error getting changelog from server");
+		sleep(2);
+	}
+	catch(...)
+	{
+		gprintf("CheckForUpdate Exception was thrown");
+		PrintFormat( 1, TEXT_OFFSET("error getting changelog from server"), 224, "error getting changelog from server");
+		sleep(2);
+	}
 
-		if (
-			( !DownloadedRC && (
-			UpdateFile.prod_sha1_hash[0] == FileHash[0] &&
-			UpdateFile.prod_sha1_hash[1] == FileHash[1] &&
-			UpdateFile.prod_sha1_hash[2] == FileHash[2] &&
-			UpdateFile.prod_sha1_hash[3] == FileHash[3] &&
-			UpdateFile.prod_sha1_hash[4] == FileHash[4] ) ) ||
+	mem_free(buffer);
+	if(!confirmed)
+	{
+		net_deinit();
+		return;
+	}	
 
-			( DownloadedRC && (
-			UpdateFile.rc_sha1_hash[0] == FileHash[0] &&
-			UpdateFile.rc_sha1_hash[1] == FileHash[1] &&
-			UpdateFile.rc_sha1_hash[2] == FileHash[2] &&
-			UpdateFile.rc_sha1_hash[3] == FileHash[3] &&
-			UpdateFile.rc_sha1_hash[4] == FileHash[4] ) ) )
-		{
-			gprintf("Hash check complete. booting file...");
-		}
-		else
-		{
-			gprintf("File not the same : hash check failure!");
-			PrintFormat( 1, TEXT_OFFSET("Error Downloading Update"), 224, "Error Downloading Update");
-			sleep(5);
-			mem_free(Data);
-			return;
-		}
-
-//Load the dol
-//---------------------------------------------------
+	//The choice is made. lets download what the user wanted :)
+	//--------------------------------------------------------------
+	try
+	{
 		ClearScreen();
-		if(DownloadedRC)
+		const auto filename = downloadVersion == installRC 
+			? "/priiloader/Priiloader_Beta.dol"
+			: "/priiloader/Priiloader_Update.dol";
+		
+		gprintf("downloading %s",downloadVersion == installRC?"rc":"update");
+		gprintf("downloading %s", filename);
+		if(downloadVersion == installRC )
+			PrintFormat( 1, TEXT_OFFSET("downloading   .   rc   ..."), 208, "downloading %d.%d.%d rc %d...", UpdateFile.rc_version.major, UpdateFile.rc_version.minor, UpdateFile.rc_version.patch, UpdateFile.rc_version.sub_version);
+		else
+			PrintFormat( 1, TEXT_OFFSET("downloading   .  ..."), 208, "downloading %d.%d.%d ...", UpdateFile.prod_version.major, UpdateFile.prod_version.minor, UpdateFile.prod_version.patch);
+
+		file_size = HttpGet("www.dacotaco.com", filename, buffer, NULL);
+		switch(file_size)
+		{
+			case -1:
+			case -2:
+			case -3:
+			case -4:
+				throw "update error: connection error " + std::to_string(file_size);
+				break;
+			case -7:
+				throw "update error: HTTP " + std::to_string(GetLastHttpReply());
+				break;
+			default:
+				if(file_size < 0)
+					throw "update error: " + std::to_string(file_size);
+				break;
+		}
+
+		u32 FileHash[5] ATTRIBUTE_ALIGN(32) = {};
+		SHA_Init();
+		if ( SHA_Calculate(buffer, file_size, FileHash) < 0)
+			throw "failed to compute hash of update";
+
+		auto onlineHash = downloadVersion == installRC
+			? UpdateFile.rc_sha1_hash
+			: UpdateFile.prod_sha1_hash;
+		gprintf("Downloaded Update : %08X %08X %08X %08X %08X", FileHash[0], FileHash[1], FileHash[2], FileHash[3], FileHash[4]);
+		gprintf("Online : %08X %08X %08X %08X %08X", onlineHash[0], onlineHash[1], onlineHash[2], onlineHash[3], onlineHash[4]);
+
+		if(memcmp(FileHash, onlineHash, sizeof(FileHash)) != 0)
+			throw "File not the same : hash check failure!";
+		
+		//Load the dol
+		//---------------------------------------------------
+		ClearScreen();
+		if(downloadVersion == installRC)
 			PrintFormat( 1, TEXT_OFFSET("loading   .   rc   ..."), 208, "loading %d.%d.%d rc %d...", UpdateFile.rc_version.major, UpdateFile.rc_version.minor, UpdateFile.rc_version.patch, UpdateFile.rc_version.sub_version);
 		else
 			PrintFormat( 1, TEXT_OFFSET("loading   .  ..."), 208, "loading %d.%d.%d ...", UpdateFile.prod_version.major, UpdateFile.prod_version.minor, UpdateFile.prod_version.patch);
 
 		sleep(1);
 		//load the fresh installer
-		net_deinit();
-		BootDolFromMem(Data,1,NULL);
-		mem_free(Data);
+		BootDolFromMem(buffer,1,NULL);
 		PrintFormat( 1, TEXT_OFFSET("Error Booting Update dol"), 224, "Error Booting Update dol");
 		sleep(5);
 	}
+	catch (const std::string& ex)
+	{
+		gprintf("CheckForUpdate Exception -> %s",ex.c_str());
+		PrintFormat( 1, TEXT_OFFSET("error getting file from server"), 224, "error getting file from server");
+		sleep(2);
+	}
+	catch (char const* ex)
+	{
+		gprintf("CheckForUpdate Exception -> %s",ex);
+		PrintFormat( 1, TEXT_OFFSET("error getting file from server"), 224, "error getting file from server");
+		sleep(2);
+	}
+	catch(...)
+	{
+		gprintf("CheckForUpdate Exception was thrown");
+		PrintFormat( 1, TEXT_OFFSET("error getting file from server"), 224, "error getting file from server");
+		sleep(2);
+	}
+
+	net_deinit();
+	SHA_Close();
+	mem_free(buffer);
 	return;
 }
 void HandleWiiMoteEvent(s32 chan)
