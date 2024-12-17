@@ -176,11 +176,11 @@ int main(int argc, char **argv)
 	}
 	catch (const std::string& ex)
 	{
-		printf(ex.c_str());
+		printf("%s", ex.c_str());
 	}
 	catch (char const* ex)
 	{
-		printf(ex);
+		printf("%s", ex);
 	}
 	catch (...)
 	{
