@@ -15,6 +15,7 @@
 #define mem_free(x) if(x != NULL) { mem2_free(x,OTHER_AREA);x=NULL; }
 #define mem_align(align,size) mem2_memalign(align,size,OTHER_AREA)
 #define mem_realloc(oldPtr, newSize) mem2_realloc(oldPtr, newSize, OTHER_AREA)
+#define mem_realign(align, oldPtr, newSize) mem2_realign(align, oldPtr, newSize, OTHER_AREA);
 #define ALIGN32(x) (((x) + 31) & ~31)
 
 #ifndef ATTRIBUTE_ALIGN
@@ -48,6 +49,7 @@ void* mem2_malloc(u32 size, const int area);
 void mem2_free(void *ptr, const int area);	
 void* mem2_calloc(u32 num, u32 size, const int area);
 void* mem2_realloc(void *ptr, u32 newsize, const int area);
+void* mem2_realign(u8 align, void* ptr, u32 newsize, const int area);
 char *mem2_strdup(const char *s, const int area);
 char *mem2_strndup(const char *s, size_t n, const int area);
 

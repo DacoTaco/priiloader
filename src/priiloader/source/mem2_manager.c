@@ -147,7 +147,7 @@ bool AddMem2Area (u32 size, const int index)
 	}
 
 	SYS_SetArena2Hi(mem2_areas[index].heap_ptr);
-	__lwp_heap_init(&mem2_areas[index].heap, mem2_areas[index].heap_ptr, size, 32);
+	__lwp_heap_init(&mem2_areas[index].heap, mem2_areas[index].heap_ptr, size, 64);
 	mem2_areas[index].size = size;
 	return true;
 }
@@ -267,11 +267,11 @@ void mem2_free(void *ptr, const int area)
 	
  }
 
-void* mem2_realloc(void *ptr, u32 newsize, const int area)
+void* mem2_realign(u8 align, void* ptr, u32 newsize, const int area)
 {
 	void *newptr=NULL;
 
-	if(ptr==NULL) return mem2_malloc(newsize, area);
+	if(ptr==NULL) return mem2_memalign(align, newsize, area);
 	if(newsize==0)
 	{
 		mem2_free(ptr,area);
@@ -290,13 +290,18 @@ void* mem2_realloc(void *ptr, u32 newsize, const int area)
 
 	if(size>newsize) size=newsize;
 	
-	newptr = mem2_malloc(newsize, area);
+	newptr = mem2_memalign(align, newsize, area);
 	
 	if(newptr == NULL) return NULL;
 	memset(newptr, 0, newsize);
 	memcpy(newptr,ptr,size);
 	mem2_free(ptr,area);
 	return newptr;
+}
+
+void* mem2_realloc(void *ptr, u32 newsize, const int area)
+{
+	return mem2_realign(32, ptr, newsize, area);
 }
 
 void* mem2_calloc(u32 num, u32 size, const int area)
