@@ -60,7 +60,6 @@ public:
 string __mountPoint = SD_MOUNTPOINT;
 static mountChangedCallback __pollCallback = NULL;
 static bool _init = false;
-static bool _fatInit = false;
 static u8 notMountableFlag = 0;
 static bool _sdMounted = false;
 static bool _usbMounted = false;
@@ -172,24 +171,6 @@ void _pollMount(void)
 
 void* _mountThread(void* args)
 {
-	if(!_fatInit)
-	{
-		_fatInit = true;
-		fatInitDefault();	
-	}
-	
-	if(GetDeviceOpTab(SD_UNMOUNTPOINT) != NULL)
-	{
-		gprintf("SD: Mounted(libdvm)");
-		_sdMounted = true;
-	}
-
-	if(GetDeviceOpTab(USB_UNMOUNTPOINT) != NULL)
-	{
-		gprintf("USB: Mounted(libdvm)");
-		_usbMounted = true;
-	}
-
 	while (!quit_thread)
 	{
 		_pollMount();

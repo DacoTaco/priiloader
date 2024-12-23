@@ -122,7 +122,7 @@ s32 HttpGet(const char* host, const char* file, u8*& dataPtr, int* externalSocke
 			{
 				dataSize = atoi(httpHeader.substr(16).c_str());
 			}
-			else if (httpHeader.rfind("localtion: ", 0) == 0)
+			else if (httpHeader.rfind("location: ", 0) == 0)
 			{
 				//location
 				location = httpHeader.substr(httpHeader.find("location: "));
