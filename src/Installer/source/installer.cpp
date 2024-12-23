@@ -60,9 +60,14 @@ static signed_blob *_nandloaderTmdBlob = (signed_blob *)_nandloaderTmdBuffer;
 static tmd *_nandloaderTmd = NULL;
 static const u64 _nandloaderTitleId = 0x0000000100000200ll;
 
-
-inline void ProcessDeleteResponse( s32 ret )
+s32 DeletePriiloaderFile(std::string pathFormat, std::string fileDescription)
 {
+	char file_path[ISFS_MAXPATH] ATTRIBUTE_ALIGN(32) = {0};
+	sprintf(file_path, pathFormat.c_str(), TITLE_UPPER(_targetTitleId), TITLE_LOWER(_targetTitleId));
+	s32 ret = ISFS_Delete(file_path);
+
+	gprintf("deleting %s : %d", file_path, ret);
+	printf("%s: ", fileDescription.c_str());
 	if(ret == -106)
 	{
 		printf("\x1b[%d;%dm", 32, 1);
@@ -87,31 +92,14 @@ inline void ProcessDeleteResponse( s32 ret )
 		printf("Deleted\r\n");
 		printf("\x1b[%d;%dm", 37, 1);
 	}
-	return;
-}
-
-s32 DeletePriiloaderFile(const char* pathFormat, const char* filename, const char* fileDescription)
-{
-	char file_path[ISFS_MAXPATH] ATTRIBUTE_ALIGN(32) = {0};
-	std::string format = std::string(pathFormat);
-	if(format.back() != '/')
-		format.push_back('/');
-	
-	format += filename;
-	sprintf(file_path, format.c_str(), TITLE_UPPER(_targetTitleId), TITLE_LOWER(_targetTitleId));
-	s32 ret = ISFS_Delete(file_path);
-
-	gprintf("deleting %s : %d", file_path, ret);
-	printf("%s: ", fileDescription);
-	ProcessDeleteResponse(ret);
 
 	return ret;
 }
 
-void DeletePriiloaderFiles(InstallerAction action )
+void DeletePriiloaderFiles(InstallerAction action)
 {
-	const char* dataFolder = "/title/%08x/%08x/data/";
-	const char* contentFolder = "/title/%08x/%08x/content/";
+	const std::string dataFolder = "/title/%08x/%08x/data/";
+
 	bool settings = false;
 	bool hacks = false;
 	bool password = false;
@@ -137,27 +125,27 @@ void DeletePriiloaderFiles(InstallerAction action )
 		printf("Deleting extra Priiloader files...\r\n");
 
 	if(password)
-		DeletePriiloaderFile(dataFolder, "password.txt", "password");
+		DeletePriiloaderFile(dataFolder + "password.txt", "password");
 
 	if(settings)
-		DeletePriiloaderFile(dataFolder, "loader.ini", "Settings file");
+		DeletePriiloaderFile(dataFolder + "loader.ini", "Settings file");
 	
 	//its best we delete that ticket but its completely useless and will only get in our 
 	//way when installing again later...
 	if(ticket)
-		DeletePriiloaderFile(contentFolder, "ticket", "Ticket");
+		DeletePriiloaderFile("/title/%08x/%08x/content/ticket", "Ticket");
 	
 	if(hacks)
 	{
-		DeletePriiloaderFile(dataFolder, "hacks_s.ini", "Hacks_s.ini");
-		DeletePriiloaderFile(dataFolder, "hacks.ini", "Hacks.ini");
-		DeletePriiloaderFile(dataFolder, "hacksh_s.ini", "Hacksh_s.ini");
-		DeletePriiloaderFile(dataFolder, "hackshas.ini", "system_hacks");
+		DeletePriiloaderFile(dataFolder + "hacks_s.ini", "Hacks_s.ini");
+		DeletePriiloaderFile(dataFolder + "hacks.ini", "Hacks.ini");
+		DeletePriiloaderFile(dataFolder + "hacksh_s.ini", "Hacksh_s.ini");
+		DeletePriiloaderFile(dataFolder + "hackshas.ini", "system_hacks");
 	}
 	if(main_bin)
 	{
-		DeletePriiloaderFile(dataFolder, "main.nfo", "autoboot binary info");
-		DeletePriiloaderFile(dataFolder, "main.bin", "autoboot binary");
+		DeletePriiloaderFile(dataFolder + "main.nfo", "autoboot binary info");
+		DeletePriiloaderFile(dataFolder + "main.bin", "autoboot binary");
 	}
 	return;
 }
@@ -499,12 +487,13 @@ s32 PatchTMD( InstallerAction action )
 			break;
 	}
 
-	bool createBackup = fd < 0;
 	void* backupTmdBuffer = NULL;
 	void* applicationBuffer = NULL;
 	std::string errorMsg = "";
 	try
 	{
+		bool createBackup = fd < 0;
+		
 		//read tmd
 		ret = ISFS_Open(_tmdPath, ISFS_OPEN_READ);
 		if (ret < 0)
@@ -622,8 +611,7 @@ s32 PatchTMD( InstallerAction action )
 				throw "Invalid SM TMD";
 
 			// Update content 1 size
-			if (_smTmd->contents[1].size != priiloader_app_size)
-				_smTmd->contents[1].size = priiloader_app_size;
+			_smTmd->contents[1].size = priiloader_app_size;
 			
 			// Update content 1 hash
 			memset(appHash, 0, sizeof(appHash));

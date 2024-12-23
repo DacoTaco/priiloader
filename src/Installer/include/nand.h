@@ -42,5 +42,5 @@ typedef struct
 	u8 otherperm;
 } NandPermissions;
 
-s32 NandWrite(const std::string destination, const void* data, u32 dataSize, NandPermissions destPermissions);
-s32 NandCopy(const std::string source, const std::string destination, NandPermissions srcPermissions);
+s32 NandWrite(const std::string& destination, const void* data, u32 dataSize, NandPermissions destPermissions);
+s32 NandCopy(const std::string& source, const std::string& destination, NandPermissions srcPermissions);

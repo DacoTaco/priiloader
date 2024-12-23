@@ -34,7 +34,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "installer.h"
 #include "nand.h"
 
-s32 NandWrite(const std::string destination, const void* data, u32 dataSize, NandPermissions destPermissions)
+s32 NandWrite(const std::string& destination, const void* data, u32 dataSize, NandPermissions destPermissions)
 {
 	if(destination.empty() || data == NULL || dataSize < 1)
 		return NandActionErrors::InvalidArgument;
@@ -167,7 +167,7 @@ s32 NandWrite(const std::string destination, const void* data, u32 dataSize, Nan
 	return ret;
 }
 
-s32 NandCopy(const std::string source, const std::string destination, NandPermissions srcPermissions)
+s32 NandCopy(const std::string& source, const std::string& destination, NandPermissions srcPermissions)
 {
 	if(source.empty() || destination.empty())
 		return NandActionErrors::InvalidArgument;
