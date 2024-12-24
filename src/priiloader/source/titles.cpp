@@ -430,7 +430,6 @@ s8 SetVideoModeForTitle(u32 lowerTitleId)
 				gprintf("NTSC 480i");
 			}
 			videoMode = SYS_VIDEO_NTSC;
-			gprintf("NTSC");
 			break;
 		default:
 			gprintf("unknown titleRegion");
