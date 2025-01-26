@@ -130,7 +130,10 @@ void SysHackHashSettings( void )
 	s32 fd = 0;
 	bool redraw=true;
 	bool reload=true;
+	u8 mountedFlags = GetMountedFlags();
 	StorageDevice device = StorageDevice::Auto;
+	if (!HAS_SD_FLAG(mountedFlags) && !HAS_USB_FLAG(mountedFlags))
+		device = StorageDevice::NAND;
 
 	while(1)
 	{
@@ -140,6 +143,10 @@ void SysHackHashSettings( void )
 			ClearScreen();
 			PrintFormat(1, TEXT_OFFSET("Reloading Hacks..."), 208, "Reloading Hacks...");
 			sleep(1);
+			mountedFlags = GetMountedFlags();
+			device = StorageDevice::Auto;
+			if (!HAS_SD_FLAG(mountedFlags) && !HAS_USB_FLAG(mountedFlags))
+				device = StorageDevice::NAND;
 			reload = true;
 			min_pos = 0;
 			max_pos = 0;
@@ -186,13 +193,20 @@ void SysHackHashSettings( void )
 
 			if (_hacks.size() == 0)
 			{
-				u8 mountedFlags = GetMountedFlags();
+				mountedFlags = GetMountedFlags();
 				if (device == StorageDevice::Auto && HAS_SD_FLAG(mountedFlags) && HAS_USB_FLAG(mountedFlags))
 				{
 					device = settings->PreferredMountPoint == PreferredMountPoint::MOUNT_USB
 						? StorageDevice::SD
 						: StorageDevice::USB;
 					gprintf("switching to 2nd device...");
+					reload = 1;
+					continue;
+				}
+				else if (device != StorageDevice::NAND)
+				{
+					device = StorageDevice::NAND;
+					gprintf("switching to NAND...");
 					reload = 1;
 					continue;
 				}
