@@ -84,7 +84,7 @@ void _pollMount(void)
 	}
 
 	//or usb removed?
-	if (_usbMounted && !__io_usbstorage.isInserted())
+	if (_usbMounted && __io_usbstorage.startup() && !__io_usbstorage.isInserted())
 	{
 		fatUnmount(USB_UNMOUNTPOINT);
 		_usbMounted = false;
