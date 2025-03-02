@@ -32,7 +32,7 @@ void DCFlushRangeNoGlobalSync(void *startaddress,u32 len);
 void ICInvalidateRange(void* addr, u32 size);
 void _memcpy(void* dst, void* src, u32 len);
 void _memset(void* src, u32 data, u32 len);
-u32 _loadApplication(u8* binary, void* parameter);
+u32 _loadApplication(u8* binary, struct __argv* args);
 
 //NOTE : see loader.h about this function's definition & signature
 void _boot (_LDR_PARAMETERS)
@@ -40,7 +40,11 @@ void _boot (_LDR_PARAMETERS)
 	if(binary == NULL || (parameter == NULL && parameterCount > 0))
 		return;
 
-	u32 ep = _loadApplication(binary,(binaryType == BINARY_TYPE_DEFAULT)?parameter:NULL);
+	struct __argv* args = (binaryType == BINARY_TYPE_DEFAULT)
+		? (struct __argv*)parameter
+		: NULL;
+
+	u32 ep = _loadApplication(binary, args);
 	if( !ep || (binaryType == BINARY_TYPE_SYSTEM_MENU && ep != 0x80003400))
 		return;
 
@@ -49,79 +53,82 @@ void _boot (_LDR_PARAMETERS)
 	*(vu32*)0x800000FC = 0x2B73A840;				// CPU Clock Speed
 	*(vu32*)0x8000315C = 0x80800113;				// DI Legacy mode ?
 
-	if (binaryType == BINARY_TYPE_SYSTEM_MENU || binaryType == BINARY_TYPE_SYSTEM_MENU_VWII)
+	switch (binaryType)
 	{
-		/* apply offset patches*/
-		if(parameter != NULL && parameterCount > 0)
+		case BINARY_TYPE_DEFAULT:
+		default:
 		{
+			asm("isync");
+			//jump to entrypoint
+			((void (*)())(ep))();		
+		}
+		case BINARY_TYPE_SYSTEM_MENU_VWII:
+		case BINARY_TYPE_SYSTEM_MENU:
+		{
+			/* apply offset patches*/
 			offset_patch *patch = parameter;
-			for(u32 i = 0;i < parameterCount;i++)
+			for(u32 i = 0; patch != NULL && i < parameterCount;i++)
 			{	
 				_memcpy((void*)patch->offset,patch->patch,patch->patch_size);
 				DCFlushRangeNoGlobalSync((void*)patch->offset, patch->patch_size);
 				ICInvalidateRange((void*)patch->offset, patch->patch_size);
 				patch = (offset_patch *)((8 + patch->patch_size) + (u32)patch);
 			}
+
+			if(binaryType == BINARY_TYPE_SYSTEM_MENU)
+			{
+				mtmsr(mfmsr() & ~0x8000);
+				mtmsr(mfmsr() | 0x2002);
+				
+				//unstub asm code by crediar. basically sets the SRR0 & SRR1
+				//the rfi sets the machine state and starts executing @ SRR0
+				asm(R"(isync
+					#set MSR[DR:IR] = 00, jump to STUB
+					lis 3,0x3400@h
+					ori 3,3,0x3400@l
+					mtsrr0 3
+
+					mfmsr 3
+					li 4,0x30
+					andc 3,3,4
+					mtsrr1 3
+					rfi)");
+			}
+			else if (binaryType == BINARY_TYPE_SYSTEM_MENU_VWII)
+			{
+				// Running the entire stub of the vWii SM again crashes
+				// This is a minimal version of this stub which directly jumps to the vWii SM entry
+				asm("isync\n"
+
+					// Write 0 to 0x800000f4 (usually 0x000000f4 without address translation)
+					"lis 3, 0x800000f4@h\n"
+					"lis 4, 0x0\n"
+					"stw 4, 0x800000f4@l(3)\n"
+
+					// Load the entry address into SSR0
+					"lis 3, 0x81330400@h\n"
+					"ori 3, 3, 0x81330400@l\n"
+					"mtsrr0 3\n"
+
+					// Prepare machine state
+					"lis 4, 0x0\n"
+					// Enable FP
+					"addi 4, 4, 0x2000\n"
+					// Enable IR and DR
+					"ori 4, 4, 0x30\n"
+					// Write machine state into SRR1
+					"mtsrr1 4\n"
+
+					// load SRR1 into MSR and jump to SRR0
+					"rfi"
+				);
+			}
+
+
+			break;
 		}
-
-		if(binaryType == BINARY_TYPE_SYSTEM_MENU)
-		{
-			mtmsr(mfmsr() & ~0x8000);
-			mtmsr(mfmsr() | 0x2002);
-			
-			//unstub asm code by crediar. basically sets the SRR0 & SRR1
-			//the rfi sets the machine state and starts executing @ SRR0
-			asm(R"(isync
-				#set MSR[DR:IR] = 00, jump to STUB
-				lis 3,0x3400@h
-				ori 3,3,0x3400@l
-				mtsrr0 3
-
-				mfmsr 3
-				li 4,0x30
-				andc 3,3,4
-				mtsrr1 3
-				rfi)");
-		}
-		else if (binaryType == BINARY_TYPE_SYSTEM_MENU_VWII)
-		{
-			// Running the entire stub of the vWii SM again crashes
-			// This is a minimal version of this stub which directly jumps to the vWii SM entry
-			asm("isync\n"
-
-				// Write 0 to 0x800000f4 (usually 0x000000f4 without address translation)
-				"lis 3, 0x800000f4@h\n"
-				"lis 4, 0x0\n"
-				"stw 4, 0x800000f4@l(3)\n"
-
-				// Load the entry address into SSR0
-				"lis 3, 0x81330400@h\n"
-				"ori 3, 3, 0x81330400@l\n"
-				"mtsrr0 3\n"
-
-				// Prepare machine state
-				"lis 4, 0x0\n"
-				// Enable FP
-				"addi 4, 4, 0x2000\n"
-				// Enable IR and DR
-				"ori 4, 4, 0x30\n"
-				// Write machine state into SRR1
-				"mtsrr1 4\n"
-
-				// load SRR1 into MSR and jump to SRR0
-				"rfi"
-			);
-		}
-
-		__builtin_unreachable();
 	}
-	else // BINARY_TYPE_DEFAULT
-	{
-		asm("isync");
-		//jump to entrypoint
-		((void (*)())(ep))();
-		__builtin_unreachable();
-	}
+	__builtin_unreachable();
 }
 
 u32 _loadElf(Elf32_Ehdr *ElfHdr, u8* binary)
@@ -160,7 +167,7 @@ u32 _loadElf(Elf32_Ehdr *ElfHdr, u8* binary)
 	return (ElfHdr->e_entry & 0x3FFFFFFF) | 0x80000000;	
 }
 
-u32 _loadDol(dolhdr * hdr, u8* binary, struct __argv * args)
+u32 _loadDol(dolhdr * hdr, u8* binary)
 {
 	//copy text sections
 	for (s8 i = 0; i < 6; i++) 
@@ -203,26 +210,15 @@ u32 _loadDol(dolhdr * hdr, u8* binary, struct __argv * args)
 		DCFlushRangeNoGlobalSync((void *) hdr->addressBSS, hdr->sizeBSS);
 	}
 
-	//copy over arguments, but only if the dol is meant to have them
-	//devkitpro dol's have a magic word set & room in them to have the argument struct copied over them
-	//some others, not so much (like some bad compressed dols)
-	if (
-		( args != NULL && args->argvMagic == ARGV_MAGIC) && //our arguments are valid
-		( *(vu32*)(hdr->entrypoint + 4 | 0x80000000) == ARGV_MAGIC ) //dol supports them too
-		)
-	{
-		void* new_argv = (void*)(hdr->entrypoint + 8);
-		_memcpy(new_argv, args, sizeof(struct __argv));
-		DCFlushRangeNoGlobalSync(new_argv, 8 + sizeof(struct __argv));
-	}
 	return(hdr->entrypoint | 0x80000000);
 }
 
-u32 _loadApplication(u8* binary, void* parameter)
+u32 _loadApplication(u8* binary, struct __argv* args)
 {
 	Elf32_Ehdr *ElfHdr = (Elf32_Ehdr *)binary;
 	dolhdr *dolfile = (dolhdr *)binary;
 	EspressoAncastHeader *AncastHdr = (EspressoAncastHeader *)((u32)binary + dolfile->offsetData[0]);
+	u32 entrypoint = 0;
 
 	if( ElfHdr->e_ident[EI_MAG0] == 0x7F &&
 		ElfHdr->e_ident[EI_MAG1] == 'E' &&
@@ -232,7 +228,7 @@ u32 _loadApplication(u8* binary, void* parameter)
 		if( (ElfHdr->e_entry | 0x80000000) < 0x80003400 && (ElfHdr->e_entry | 0x80000000) >= MAX_ADDRESS )
 			return 0;
 
-		return _loadElf(ElfHdr, binary);
+		entrypoint = _loadElf(ElfHdr, binary);
 	}
 	// Note that ancast images passed to the loader need to be already decrypted
 	else if (AncastHdr->header_block.magic == ANCAST_MAGIC)
@@ -245,7 +241,7 @@ u32 _loadApplication(u8* binary, void* parameter)
 		DCFlushRangeNoGlobalSync(dest, totalImageSize);
 
 		// Set the entrypoint to the body
-		return ESPRESSO_ANCAST_LOCATION_VIRT + sizeof(EspressoAncastHeader);
+		entrypoint = ESPRESSO_ANCAST_LOCATION_VIRT + sizeof(EspressoAncastHeader);
 	}
 	else
 	{
@@ -253,9 +249,24 @@ u32 _loadApplication(u8* binary, void* parameter)
 		if( (dolfile->entrypoint | 0x80000000) < 0x80003400 || (dolfile->entrypoint | 0x80000000) >= MAX_ADDRESS )
 			return 0;
 
-		return _loadDol(dolfile, binary, (struct __argv *)parameter);
+		entrypoint = _loadDol(dolfile, binary);
 	}
-	return 0;
+
+	if(entrypoint == 0)
+		return entrypoint;
+
+	//copy over arguments, but only if the binary is meant to have them
+	//devkitpro binaries have a magic word set & room in them to have the argument struct copied over them
+	//some others, not so much (like some bad compressed dols)
+	//check if arguments & binary accepts arguments
+	if ( args != NULL && args->argvMagic == ARGV_MAGIC && *(vu32*)(entrypoint + 4 | 0x80000000) == ARGV_MAGIC )
+	{
+		void* new_argv = (void*)(entrypoint + 8);
+		_memcpy(new_argv, args, sizeof(struct __argv));
+		DCFlushRangeNoGlobalSync(new_argv, 8 + sizeof(struct __argv));
+	}
+
+	return entrypoint;
 }
 
 //copy of libogc & gcc, this is to have the loader as small as possible
