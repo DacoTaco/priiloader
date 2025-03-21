@@ -48,11 +48,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 static const u64 _targetTitleId = 0x0000000100000002LL;
 
-typedef struct init_states {
-	s8 AHBPROT;
-} init_states;
-static init_states wii_state = {};
-
 bool UserYesNoStop()
 {
 	u16 pDown;
@@ -121,15 +116,26 @@ void ClearScreen()
 }
 void InitializeSystem()
 {
-	if( IOS_GetVersion() >= 200 )
-		throw "using a non-valid IOS(" + std::to_string(IOS_GetVersion()) + ")";
+	ReloadIOS(IOS_GetVersion(), 0);
+	if( IOS_GetVersion() >= 200 || ( IOS_GetRevision() < 200 ) || ( IOS_GetRevision() > 0xFF01 ))
+		throw "non-valid IOS or IOSPAGHETTI(Cios Infected)(" + std::to_string(IOS_GetVersion()) + ") detected";
 
-	//if we are loaded without AHBPROT being disabled we will move to IOS36, and hope for fakesign lol
+	//if we are loaded without AHBPROT being disabled we will drop the sha exploit and hope for the best
 	if(ReadRegister32(0x0d800064) != 0xFFFFFFFF)
 	{
-		ReloadIOS(36, 0);
-		if ( ( IOS_GetRevision() < 200 ) || ( IOS_GetRevision() > 0xFF01 ) || ( IOS_GetVersion() != 36 ) )
-			throw "IOSPAGHETTI(Cios Infected) IOS detected";
+		//reload ios to make sure everything is cleaned up
+		ReloadIOS(IOS_GetVersion(), 0);
+
+		//use exploit to disable AHBPROT
+		if(!DisableAHBProt())
+			throw "Failed to disable AHBPROT";
+
+		//check if it worked
+		if(ReadRegister32(0x0d800064) != 0xFFFFFFFF)
+		{
+			ReloadIOS(IOS_GetVersion(), 0);
+			throw "Failed to disable AHBPROT";
+		}
 	}
 
 	//patch and reload IOS so we don't end up with possible shit from the loading application ( looking at you HBC! >_< )
@@ -146,30 +152,20 @@ void InitializeSystem()
 	else if(ReadRegister32(0x0d800064) == 0xFFFFFFFF)
 	{
 		ret = ReloadIOS(IOS_GetVersion(), 1);
-		if(ret < 0)
+		if(ret < 0 || ReadRegister32(0x0d800064) != 0xFFFFFFFF)
 			throw "failed to do AHBPROT magic: error " + std::to_string(ret);
 	}
 
-	wii_state.AHBPROT = ReadRegister32(0x0d800064) == 0xFFFFFFFF || dolphinFd >= 0;
-	if (wii_state.AHBPROT && dolphinFd < 0 && PatchIOS({ SetUidPatcher, NandAccessPatcher, FakeSignOldPatch, FakeSignPatch, EsIdentifyPatch }) < 0)
+	if (dolphinFd < 0 && PatchIOS({ SetUidPatcher, NandAccessPatcher, FakeSignOldPatch, FakeSignPatch, EsIdentifyPatch }) < 0)
 		throw "failed to patch IOS. is AHBPROT set correctly?";
-	
 
 	u64 titleID = 0;
-	if(wii_state.AHBPROT)
+	ret = ES_SetUID(_targetTitleId);
+	gprintf("ES_SetUID : %d",ret);
+	if(ret < 0)
 	{
-		ret = ES_SetUID(_targetTitleId);
-		gprintf("ES_SetUID : %d",ret);
 		//kinda unstable attempt to indentify as SM. it *seems* to work sometimes. but its nice if it does. dont know what triggers it to work tho :/
 		//if it works, ES_Identify says ticket/tmd is invalid but identifes us as SM anyway X'D
-		//but it seems to cause a crash in ipc so this is why we dont do it
-		/*ret = ES_Identify( (signed_blob *)certs_bin, certs_bin_size, (signed_blob *)su_tmd, su_tmd_size, (signed_blob *)su_tik, su_tik_size, 0);
-		gprintf("ES_Identify : %d",ret);*/
-		/*ret = ES_GetTitleID(&titleID);
-		gprintf("identified as = 0x%08X%08X",TITLE_UPPER(titleID),TITLE_LOWER(titleID));*/
-	}
-	else
-	{
 		u32 keyId = 0;
 		ret = ES_Identify( (signed_blob*)certs_bin, certs_bin_size, (signed_blob*)su_tmd, su_tmd_size, (signed_blob*)su_tik, su_tik_size, &keyId);
 		gprintf("ES_Identify : %d",ret);
@@ -182,17 +178,8 @@ void InitializeSystem()
 
 	if (ISFS_Initialize() < 0)
 		throw "Failed to init ISFS";
-	
-	auto haveNandAccess = HaveNandPermissions();
-	if(!haveNandAccess && wii_state.AHBPROT)
-	{
-		gprintf("attempting ios 36...");
-		ReloadIOS(36, 0);
-		wii_state.AHBPROT = 0;
-		haveNandAccess = HaveNandPermissions();
-	}
 
-	if(!haveNandAccess)
+	if(!HaveNandPermissions())
 		throw "missing nand access on IOS" + std::to_string(IOS_GetVersion()) + ".is it patched?";
 
 	ret = SHA_Init();
@@ -254,16 +241,13 @@ int main(int argc, char **argv)
 	}
 
 	//wait a bit for the system to settle and have all unexpected events to have happened (if any)
-	sleep(5);
+	sleep(3);
 
 	printf("\r\t         Press (+/A) to install or update Priiloader\r\n");
 	printf("\t    Press (-/Y) to remove Priiloader and restore system menu\r\n");
-	if( !wii_state.AHBPROT && IOS_GetVersion() != 36 )
-		printf("\t         Hold Down (B) with any above options to use IOS36\r\n");
 	printf("\t    Press (HOME/Start) to chicken out and quit the installer!\r\n\r\n");
 	printf("\t                         Enjoy! DacoTaco \r\n");
 
-	bool reloadIOS = false;
 	InstallerAction action = InstallerAction::None;
 	while(1)
 	{
@@ -272,7 +256,6 @@ int main(int argc, char **argv)
 		u16 pDown = WPAD_ButtonsDown(0);
 		u16 GCpDown = PAD_ButtonsDown(0);
 
-		reloadIOS = (WPAD_ButtonsHeld(0) & WPAD_BUTTON_B) || (PAD_ButtonsHeld(0) & PAD_BUTTON_B);
 		//install Priiloader
 		if (pDown & WPAD_BUTTON_PLUS || GCpDown & PAD_BUTTON_A)
 		{
@@ -288,15 +271,6 @@ int main(int argc, char **argv)
 		//Cancel
 		else if ( GCpDown & PAD_BUTTON_START || pDown & WPAD_BUTTON_HOME) 
 			break;
-	}
-
-	if(action != InstallerAction::None && reloadIOS && !wii_state.AHBPROT && IOS_GetVersion() != 36)
-	{
-		WPAD_Shutdown();
-		ReloadIOS(36, 0);
-		WPAD_Init();
-		if(!HaveNandPermissions())
-			abort("Failed to retrieve nand permissions from nand!ios 36 isn't patched!");
 	}
 
 	ClearScreen();
@@ -348,17 +322,14 @@ int main(int argc, char **argv)
 	}
 	catch (const std::string& ex)
 	{
-		gprintf("str!");
 		abort("%s", ex.c_str());
 	}
 	catch (char const* ex)
 	{
-		gprintf("char!");
 		abort(ex);
 	}
 	catch(...)
 	{
-		gprintf("eep!");
 		abort("Unknown Error Occurred");
 	}
 

@@ -48,6 +48,7 @@ extern const IosPatch FakeSignOldPatch;
 extern const IosPatch FakeSignPatch;
 extern const IosPatch EsIdentifyPatch;
 
+bool DisableAHBProt(void);
 s8 IsIOSstub(u8 ios_number);
 s32 ReloadIOS(s32 iosToLoad, s8 keepAhbprot);
 s8 PatchIOS(std::vector<IosPatch> patches);

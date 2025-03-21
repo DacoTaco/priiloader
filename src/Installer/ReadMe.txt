@@ -21,8 +21,7 @@ To access Priiloader and configure it please hold (RESET) during the boot cycle.
 Requirements:
 
 if run from HBC 1.0.7 and above, no ios patching is needed at all. however, if the installer
-has failed to get root access of the nand, then IOS36 needs to be fully patched as the installer
-will use that ios instead.
+has failed to get root access of the nand, it will try to patch IOS. if that fails, you can not install priiloader at this time.
 
 Priiloader itself does not need any ios patching (and we recommend to keep the system menu ios unpatched)
 
