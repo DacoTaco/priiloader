@@ -24,6 +24,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <string>
 #include <vector>
 #include <unistd.h>
+#include <iostream>
+#include <string>
+#include <algorithm>
+
 #include "../include/dolHeader.h"
 #include "../include/FileInfo.hpp"
 #include "../include/NandLoaderInjector.hpp"
@@ -38,6 +42,7 @@ void ShowHelp()
 	printf("parameters:\n");
 	printf("-i\t\t: display info about the dol file and exit (no other parameters are required when using -i)\n");
 	printf("-n <nandcode>\t: use the following nand code and not the default nboot.bin\n");
+	printf("-a\t\t: set application version in nandloader\n");
 	printf("-h\t\t: display this message\n");
 	printf("-f\t\t: force nandcode, overwriting any code detected in the dol file\n");
 }
@@ -86,6 +91,7 @@ int main(int argc, char **argv)
 		std::vector<std::string> argumentList;
 		bool showInfo = false;
 		bool overwriteNandLoader = false;
+		uint applicationVersion = 0;
 		//load arguments except for the first, which is just the executable path
 		for(int i = 1; i < argc;i++)
 		{
@@ -107,18 +113,73 @@ int main(int argc, char **argv)
 					ShowHelp();
 					return 0;
 				}
-				else if(argument != "-n") //all unknown arguments
+				else if(argument == "-a")
+				{
+					std::string nextArgument = argumentList[++i];
+					if(applicationVersion > 0)
+					{
+						ShowHelp();
+						return 1;
+					}
+					
+					std::string error = "";
+					try
+					{
+						auto periodCount = static_cast<int>(std::count(nextArgument.begin(), nextArgument.end(), '.'));
+						if(periodCount < 2 || periodCount > 3)
+							throw "Invalid semantic version format. expected major.minor.patch or major.minor.patch.beta";
+
+						int major = 0;
+						int minor = 0;
+						int patch = 0;
+						int beta = 0;
+
+						if (sscanf(nextArgument.c_str(), "%d.%d.%d.%d", &major, &minor, &patch, &beta) != periodCount+1)
+							throw "Failed to parse semantic version";
+						
+						if(major > 254 || minor > 254 || patch > 254 || beta > 254)
+							throw "Invalid Version Given";
+
+						applicationVersion = (major << 24) | (minor << 16) | (patch << 8) | (beta & 0xFF);
+					}
+					catch (const std::string& ex)
+					{
+						error = ex;
+					}
+					catch (char const* ex)
+					{
+						error = ex;
+					}
+					catch(...)
+					{
+						error = "Generic error parsing semantic version";
+					}
+
+					if(error.size() > 0)
+					{
+						printf("unexpected arg '%s'\n",nextArgument.c_str());
+						printf("%s\n", error.c_str());
+						ShowHelp();
+						return 0;
+					}
+				}
+				else if(argument == "-n")
+				{
+					std::string nextArgument = argumentList[++i];
+					if(nandCodeFile.size() > 0)
+					{
+						ShowHelp();
+						return 1;
+					}					
+
+					nandCodeFile = nextArgument;
+				}
+				else //all unknown arguments
 				{
 					printf("unknown arg '%s'\n",argument.c_str());
 					ShowHelp();
+					return 1;
 				}
-			}
-			else if(prev_arg == "-n")
-			{
-				if(nandCodeFile.size() > 0)
-					ShowHelp();
-
-				nandCodeFile = argument;	
 			}
 			else if(inputFile.size() == 0)
 			{
@@ -133,9 +194,7 @@ int main(int argc, char **argv)
 				printf("unexpected arg '%s'\n",argument.c_str());
 				ShowHelp();
 				return 0;
-			}	
-
-			prev_arg = argument;
+			}
 		}
 
 		if(inputFile.size() == 0 || (showInfo == false && outputFile.size() == 0))
@@ -143,7 +202,7 @@ int main(int argc, char **argv)
 			ShowHelp();
 			return 0;	
 		}
-		
+
 		//get input file info
 		auto input = std::make_unique<FileInfo>(inputFile);
 		if(showInfo)
@@ -162,12 +221,12 @@ int main(int argc, char **argv)
 		auto output = std::make_unique<FileInfo>(outputFile, false);	
 		if(nandCodeFile.size() == 0)
 		{
-			nandLoaderInjector->InjectNandLoader(input, output);
+			nandLoaderInjector->InjectNandLoader(applicationVersion, input, output);
 		}
 		else
 		{
 			auto nandLoader = std::make_unique<FileInfo>(nandCodeFile);
-			nandLoaderInjector->InjectNandLoader(input, nandLoader, output);
+			nandLoaderInjector->InjectNandLoader(applicationVersion, input, nandLoader, output);
 		}
 
 		output->WriteFile();

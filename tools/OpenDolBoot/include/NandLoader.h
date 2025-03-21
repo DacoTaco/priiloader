@@ -27,5 +27,6 @@ typedef struct {
 	unsigned int Identifier;
 	unsigned int Version;
 	unsigned int Entrypoint;
+	unsigned int ApplicationVersion;
 	unsigned char Code[];
 } NandLoader;

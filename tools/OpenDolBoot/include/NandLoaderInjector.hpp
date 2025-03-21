@@ -32,6 +32,6 @@ class NandLoaderInjector
 {	
 	public:
 		void RemoveNandLoader(std::unique_ptr<FileInfo>& input);
-		void InjectNandLoader(std::unique_ptr<FileInfo>& input, std::unique_ptr<FileInfo>& output);
-		void InjectNandLoader(std::unique_ptr<FileInfo>& input, std::unique_ptr<FileInfo>& nandloader, std::unique_ptr<FileInfo>& output);
+		void InjectNandLoader(unsigned int applicationVersion, std::unique_ptr<FileInfo>& input, std::unique_ptr<FileInfo>& output);
+		void InjectNandLoader(unsigned int applicationVersion, std::unique_ptr<FileInfo>& input, std::unique_ptr<FileInfo>& nandloader, std::unique_ptr<FileInfo>& output);
 };

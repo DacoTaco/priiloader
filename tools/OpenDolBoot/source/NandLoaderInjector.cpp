@@ -87,7 +87,7 @@ void NandLoaderInjector::RemoveNandLoader(std::unique_ptr<FileInfo>& input)
 	input->Data = newData;
 }
 
-void NandLoaderInjector::InjectNandLoader(std::unique_ptr<FileInfo>& input, std::unique_ptr<FileInfo>& nandLoader, std::unique_ptr<FileInfo>& output)
+void NandLoaderInjector::InjectNandLoader(unsigned int applicationVersion, std::unique_ptr<FileInfo>& input, std::unique_ptr<FileInfo>& nandLoader, std::unique_ptr<FileInfo>& output)
 {
 	printf("input : %s\n",input->GetFilename());
 	printf("output : %s\n", output->GetFilename());
@@ -105,10 +105,22 @@ void NandLoaderInjector::InjectNandLoader(std::unique_ptr<FileInfo>& input, std:
 	}
 
 	NandLoader* loader = (NandLoader*)&nandLoader->Data[0];
-	if (BigEndianToHost(loader->Identifier) == NANDLDR_MAGIC && (BigEndianToHost(loader->Entrypoint) != BigEndianToHost(inputHeader->entrypoint)))
+	if(applicationVersion != 0 && (BigEndianToHost(loader->Identifier) != NANDLDR_MAGIC || loader->Version < 2))
+		throw "Can only set the application version with a compatible NandLoader.";
+	
+	if (BigEndianToHost(loader->Identifier) == NANDLDR_MAGIC)
 	{
-		printf("different nboot to dol entrypoint detected! Changing\n\t0x%08X\tto\t0x%08X\n", ForceBigEndian(loader->Entrypoint), ForceBigEndian(inputHeader->entrypoint));
-		loader->Entrypoint = inputHeader->entrypoint;
+		if(BigEndianToHost(loader->Entrypoint) != BigEndianToHost(inputHeader->entrypoint))
+		{
+			printf("different nboot to dol entrypoint detected! Changing\n\t0x%08X\tto\t0x%08X\n", ForceBigEndian(loader->Entrypoint), ForceBigEndian(inputHeader->entrypoint));
+			loader->Entrypoint = inputHeader->entrypoint;
+		}
+		
+		if(BigEndianToHost(loader->ApplicationVersion) != BigEndianToHost(applicationVersion))
+		{
+			printf("writing application version 0x%08X\n", applicationVersion);
+			loader->ApplicationVersion = ForceBigEndian(applicationVersion);
+		}
 	}
 	
 	//copy header data
@@ -150,8 +162,8 @@ void NandLoaderInjector::InjectNandLoader(std::unique_ptr<FileInfo>& input, std:
 	}
 }
 
-void NandLoaderInjector::InjectNandLoader(std::unique_ptr<FileInfo>& input, std::unique_ptr<FileInfo>& output)
+void NandLoaderInjector::InjectNandLoader(unsigned int applicationVersion, std::unique_ptr<FileInfo>& input, std::unique_ptr<FileInfo>& output)
 {
 	auto nandLoader = std::make_unique<FileInfo>(internalFileName, nandloader_bin, nandloader_bin_size);
-	NandLoaderInjector::InjectNandLoader(input, nandLoader, output);
+	NandLoaderInjector::InjectNandLoader(applicationVersion, input, nandLoader, output);
 }

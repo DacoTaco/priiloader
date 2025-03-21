@@ -29,9 +29,11 @@ parameters:
 magic_identifier:
 	.long	0xC4951034
 version:
-	.long	0x00000001
+	.long	0x00000002
 entrypoint:
 	.long	0x81000000
+applicationVersion:
+	.long	0x00000000
 
 _main:
 	// HID0 = 00110c64:
