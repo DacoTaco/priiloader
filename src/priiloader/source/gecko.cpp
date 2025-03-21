@@ -78,10 +78,10 @@ void gprintf( const char *str, ... )
 
 	if(GeckoFound)
 	{
-		usb_sendbuffer( 1, astr, size );
+		usb_sendbuffer( EXI_CHANNEL_1, astr, size );
 		usb_flush(EXI_CHANNEL_1);
 	}
-
+	
 	if (DumpDebug > 0 && GetMountedFlags() > 0)
 	{
 		FILE* fd = fopen(BuildPath("/prii.log").c_str(), "ab");
