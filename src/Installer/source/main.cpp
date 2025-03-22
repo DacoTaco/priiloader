@@ -116,16 +116,28 @@ void ClearScreen()
 }
 void InitializeSystem()
 {
+	s32 dolphinFd = -1; 
+	s32 ret = 0;
+
+	//we reload IOS, losing all access rights we might have had,
+	//but cleaning up all left over so we don't end up with possible shit from the loading application ( looking at you HBC! >_< )
 	ReloadIOS(IOS_GetVersion(), 0);
-	if( IOS_GetVersion() >= 200 || ( IOS_GetRevision() < 200 ) || ( IOS_GetRevision() > 0xFF01 ))
-		throw "non-valid IOS or IOSPAGHETTI(Cios Infected)(" + std::to_string(IOS_GetVersion()) + ") detected";
 
-	//if we are loaded without AHBPROT being disabled we will drop the sha exploit and hope for the best
-	if(ReadRegister32(0x0d800064) != 0xFFFFFFFF)
+	//we don't need it in dolphin though, despite it meaning we write stuff with the wrong UID...
+	dolphinFd = IOS_Open("/dev/dolphin", IPC_OPEN_NONE); 
+	if (dolphinFd >= 0)
 	{
-		//reload ios to make sure everything is cleaned up
-		ReloadIOS(IOS_GetVersion(), 0);
-
+		IOS_Close(dolphinFd);
+		gprintf("Dolphin detected. We don't need AHBPROT");
+	}
+	else
+	{
+		if( IOS_GetVersion() >= 200 || ( IOS_GetRevision() < 200 ) || ( IOS_GetRevision() > 0xFF01 ))
+			throw "non-valid IOS or IOSPAGHETTI(Cios Infected)(" + std::to_string(IOS_GetVersion()) + ") detected";
+		
+		//patch and reload IOS 	
+		//we will need to disable AHBPROT ourselves now, which we do with the sha exploit. 
+		//drop it and hope for the best
 		//use exploit to disable AHBPROT
 		if(!DisableAHBProt())
 			throw "Failed to disable AHBPROT";
@@ -136,43 +148,25 @@ void InitializeSystem()
 			ReloadIOS(IOS_GetVersion(), 0);
 			throw "Failed to disable AHBPROT";
 		}
-	}
 
-	//patch and reload IOS so we don't end up with possible shit from the loading application ( looking at you HBC! >_< )
-	//we don't need it in dolphin though
-	s32 dolphinFd = -1; 
-	s32 ret = 0;
-	
-	dolphinFd = IOS_Open("/dev/dolphin", IPC_OPEN_NONE); 
-	if (dolphinFd >= 0)
-	{
-		IOS_Close(dolphinFd);
-		gprintf("Dolphin detected. We don't need AHBPROT");
-	}
-	else if(ReadRegister32(0x0d800064) == 0xFFFFFFFF)
-	{
-		ret = ReloadIOS(IOS_GetVersion(), 1);
-		if(ret < 0 || ReadRegister32(0x0d800064) != 0xFFFFFFFF)
-			throw "failed to do AHBPROT magic: error " + std::to_string(ret);
-	}
+		if (PatchIOS({ SetUidPatcher, NandAccessPatcher, FakeSignOldPatch, FakeSignPatch, EsIdentifyPatch }) < 0)
+			throw "failed to patch IOS. is AHBPROT set correctly?";
 
-	if (dolphinFd < 0 && PatchIOS({ SetUidPatcher, NandAccessPatcher, FakeSignOldPatch, FakeSignPatch, EsIdentifyPatch }) < 0)
-		throw "failed to patch IOS. is AHBPROT set correctly?";
+		ret = ES_SetUID(_targetTitleId);
+		gprintf("ES_SetUID : %d",ret);
+		if(ret < 0)
+		{
+			//kinda unstable attempt to indentify as SM. it *seems* to work sometimes. but its nice if it does. dont know what triggers it to work tho :/
+			//if it works, ES_Identify says ticket/tmd is invalid but identifes us as SM anyway X'D
+			u32 keyId = 0;
+			ret = ES_Identify( (signed_blob*)certs_bin, certs_bin_size, (signed_blob*)su_tmd, su_tmd_size, (signed_blob*)su_tik, su_tik_size, &keyId);
+			gprintf("ES_Identify : %d",ret);
+			if(ret < 0)
+				throw "Failed to Identify as SU, error " + std::to_string(ret);
+		}
+	}
 
 	u64 titleID = 0;
-	ret = ES_SetUID(_targetTitleId);
-	gprintf("ES_SetUID : %d",ret);
-	if(ret < 0)
-	{
-		//kinda unstable attempt to indentify as SM. it *seems* to work sometimes. but its nice if it does. dont know what triggers it to work tho :/
-		//if it works, ES_Identify says ticket/tmd is invalid but identifes us as SM anyway X'D
-		u32 keyId = 0;
-		ret = ES_Identify( (signed_blob*)certs_bin, certs_bin_size, (signed_blob*)su_tmd, su_tmd_size, (signed_blob*)su_tik, su_tik_size, &keyId);
-		gprintf("ES_Identify : %d",ret);
-		if(ret < 0)
-			throw "Failed to Identify as SU, error " + std::to_string(ret);
-	}
-
 	ES_GetTitleID(&titleID);
 	gprintf("identified as = 0x%08X%08X", TITLE_UPPER(titleID), TITLE_LOWER(titleID));
 
