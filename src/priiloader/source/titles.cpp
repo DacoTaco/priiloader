@@ -734,6 +734,7 @@ s32 LoadListTitles( void )
 	{	
 		switch (TITLE_UPPER(title_list[i]))
 		{
+			case TITLE_TYPE_HIDDEN:		// "Hidden channels" -- EULA, rgnsel
 			case TITLE_TYPE_GAMECHANNEL:// Channels installed by disc games -- WiiFit channel, etc
 			case TITLE_TYPE_DOWNLOAD:	// Normal channels / VC
 			case TITLE_TYPE_SYSTEM:		// "System channels" -- News, Weather, etc.
@@ -758,7 +759,6 @@ s32 LoadListTitles( void )
 			}
 			case TITLE_TYPE_ESSENTIAL:	// IOS, MIOS, BC, System Menu
 			case TITLE_TYPE_DISC:		// TMD installed by running a disc
-			case TITLE_TYPE_HIDDEN:		// "Hidden channels" -- EULA, rgnsel
 			case TITLE_TYPE_DLC:		// Downloadable Content for Wiiware
 			default:
 				break;
