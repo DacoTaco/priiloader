@@ -42,7 +42,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "dvd.h"
 #include "gecko.h"
 #include "mem2_manager.h"
-#include "titles.h"
+#include "titles.hpp"
 
 extern "C"
 {
@@ -76,7 +76,7 @@ void LaunchGamecubeDisc(void)
 	DVDCloseHandle();
 
 	s8 oldVideoMode = SYS_GetVideoMode();
-	s8 videoMode = SetVideoModeForTitle(gameID);
+	s8 videoMode = SetVideoModeForTitle(TitleInformation(0x0LL || gameID));
 	gprintf("video mode : 0x%02X -> 0x%02X", oldVideoMode, videoMode);
 	if (oldVideoMode != videoMode)
 		SYS_SetVideoMode(videoMode); // most gc games tested require this
@@ -253,7 +253,7 @@ void LaunchWiiDisc(void)
 	//what is even the purpose of this?
 	settime(secs_to_ticks(time(NULL) - 946684800));
 
-	SetVideoModeForTitle(gameID);
+	SetVideoModeForTitle(TitleInformation(0x0LL || gameID));
 
 	//disc related pokes to finish it off
 	//see memory map @ https://wiibrew.org/w/index.php?title=Memory_Map

@@ -24,6 +24,25 @@
 //Bin include
 #include "stub_bin.h"
 
+//HBC functions
+std::shared_ptr<TitleDescription> DetectHBC()
+{
+	if(HBCTitles.size() <= 0)
+		return NULL;
+	
+	std::shared_ptr<TitleDescription> titleDescription = NULL;
+	for(u32 i = 0; i < HBCTitles.size(); i++)
+	{
+		auto info = std::make_unique<TitleInformation>(HBCTitles[i]->TitleId);
+		if(!info->IsInstalled() || info->IsMovedToSD())
+			continue;
+		
+		titleDescription = HBCTitles[i];
+	}
+
+	return titleDescription;
+}
+
 //stub functions
 void LoadHBCStub ( void )
 {
@@ -56,13 +75,13 @@ void LoadHBCStub ( void )
 	DCFlushRange((void*)0x80001800,stub_bin_size);*/
 
 	u16 hex[2] = { 0x00,0x00};
-	title_info title = { 0x00,"None"};
-	s32 ret = DetectHBC(&title);
+	auto titleDescription = DetectHBC();
 
-	if(ret >= 0 && title.title_id != 0x00)
+	if(titleDescription != NULL)
 	{
-		hex[0] = (u16)((TITLE_LOWER(title.title_id) & 0xFFFF0000) >> 16);
-		hex[1] = (u16)(TITLE_LOWER(title.title_id) & 0x0000FFFF);
+		u32 lowerTitleId = TITLE_LOWER(titleDescription->TitleId);
+		hex[0] = (u16)((lowerTitleId & 0xFFFF0000) >> 16);
+		hex[1] = (u16)(lowerTitleId & 0x0000FFFF);
 	}
 	else
 	{
@@ -80,124 +99,31 @@ void LoadHBCStub ( void )
 	gprintf("HBC stub : Loaded");
 	return;	
 }
-void UnloadHBCStub( void )
-{
-	//some apps apparently dislike it if the stub stays in memory but for some reason isn't active :/
-	//this isn't used cause as odd as the bug sounds, it vanished...
-	memset((void*)0x80001800, 0, stub_bin_size);
-	DCFlushRange((void*)0x80001800,stub_bin_size);	
-	return;
-}
-
-//HBC functions
-s32 DetectHBC(title_info* title)
-{
-	u64 *list;
-    u32 titlecount;
-    s32 ret;
-
-	if(HBC_Titles_Size <= 0)
-	{
-		title = NULL;
-		return -1;
-	}
-
-    ret = ES_GetNumTitles(&titlecount);
-    if(ret < 0)
-	{
-		gprintf("DetectHBC : ES_GetNumTitles failure");
-		title = NULL;
-		return -1;
-	}
-
-    list = (u64*)mem_align(32, ALIGN32( titlecount * sizeof(u64) ) );
-
-    ret = ES_GetTitles(list, titlecount);
-    if(ret < 0) {
-		gprintf("DetectHBC :ES_GetTitles failure. error %d",ret);
-		mem_free(list);
-		title = NULL;
-		return -2;
-    }
-	ret = -3;
-	//lets check for all known HBC title id's.
-	for(u32 i=0; i<titlecount; i++) 
-	{
-		for(s32 arrayIndex = (ret < 0)?0:ret; arrayIndex < HBC_Titles_Size;arrayIndex++)
-		{
-			if(ret < arrayIndex && list[i] == HBC_Titles[arrayIndex].title_id)
-			{
-				gdprintf("Detected %s",HBC_Titles[arrayIndex].name_ascii.c_str());
-				ret = arrayIndex;
-			}
-		}
-
-		//we have found the latest, supported HBC. no need to proceed checking
-		if(ret >= HBC_Titles_Size-1)
-		{
-			gprintf("latest HBC detected. ret = %d",ret);
-			break;
-		}
-	}
-	mem_free(list);
-    if(ret < 0 || ret > HBC_Titles_Size -1)
-	{
-		gprintf("DetectHBC: HBC not found");
-		title = NULL;
-		return -3;
-	}
-	*title = HBC_Titles[ret];
-	return ret;
-}
 
 void LoadHBC( void )
 {
-	u64 TitleID = 0;
-
-	title_info title = { 0x00,"None"};
-	s32 ret = DetectHBC(&title);
-
-	if(ret >= 0 && title.title_id != 0x00)
-	{
-		gprintf("LoadHBC : %s detected",title.name_ascii.c_str());
-		TitleID = title.title_id;
-	}
-	else
+	auto titleDescription = DetectHBC();
+	if(titleDescription == NULL)
 	{
 		error = ERROR_BOOT_HBC;
 		return;
 	}
 	
-	u32 cnt ATTRIBUTE_ALIGN(32);
-	ES_GetNumTicketViews(TitleID, &cnt);
-	tikview *views = (tikview *)mem_align( 32, sizeof(tikview)*cnt );
-	ES_GetTicketViews(TitleID, views, cnt);
-	ClearState();
-	ShutdownMounts();
-	Input_Shutdown();
-	gprintf("starting HBC");
-	if(system_state.Init)
+	try
 	{
-		VIDEO_SetBlack(true);
-		VIDEO_Flush();
-		VIDEO_WaitVSync();
+		gprintf("LoadHBC : %s detected", titleDescription->Name.c_str());
+		auto titleInfo = std::make_unique<TitleInformation>(titleDescription->TitleId);
+		gprintf("LoadHBC : starting HBC...");
+		titleInfo->LaunchTitle();
+	}
+	catch(...)
+	{
+		error = ERROR_BOOT_HBC;
 	}
 
-	ES_LaunchTitle(TitleID, &views[0]);
-
-	//well that went wrong
-	if(system_state.Init)
-	{
-		VIDEO_SetBlack(false);
-		VIDEO_Flush();
-		VIDEO_WaitVSync();
-	}
-	Input_Init();
-	InitMounts();
-	error = ERROR_BOOT_HBC;
-	mem_free(views);
 	return;
 }
+
 void LoadBootMii( void )
 {
 	//when this was coded on 6th of Oct 2009 Bootmii ios was in IOS slot 254

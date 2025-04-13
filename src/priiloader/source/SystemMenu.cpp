@@ -31,7 +31,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "executables.h"
 #include "loader.h"
 #include "hacks.h"
-#include "titles.h"
+#include "titles.hpp"
 #include "Input.h"
 #include "settings.h"
 #include "IOS.h"
@@ -284,10 +284,6 @@ static void PatchvWiiSysMenu(u8* mem_block, u32 max_address)
 void BootMainSysMenu( void )
 {	
 	//boot info
-	const u64 TitleID=0x0000000100000002LL;
-	u32 tmdSize;
-	signed_blob* signedTmdBlob = NULL;
-	tmd* smTmd = NULL;
 	s8* ticket = NULL;
 
 	//loader & boot file
@@ -302,15 +298,9 @@ void BootMainSysMenu( void )
 	s32 fd = 0;
 	try
 	{
+		TitleInformation TitleInfo = TitleInformation(0x0000000100000002LL);
 		//get the TMD. we need the TMD, not views, as SM 1.0's boot index != last content
-		ret = GetTitleTMD(TitleID, signedTmdBlob, tmdSize);
-		if (ret < 0 )
-		{
-			error = ERROR_SYSMENU_GETTMDFAILED;
-			throw ("GetTitleTMD error " + std::to_string(ret));
-		}
-
-		smTmd = (tmd*)SIGNATURE_PAYLOAD(signedTmdBlob);
+		auto smTmd = TitleInfo.GetTMD();
 		gdprintf("ios version: %u",(u8)smTmd->sys_version);
 
 		if (smTmd->boot_index > smTmd->num_contents)
@@ -495,7 +485,8 @@ void BootMainSysMenu( void )
 
 			//attempt to patch ESIdentify & Fakesign. we adjusted the SM TMD, so fakesign is needed to let ES accept it
 			PatchIOS({FakeSignPatch, FakeSignOldPatch, EsIdentifyPatch});
-			ret = ES_Identify( (signed_blob *)certificate, certStats->file_length, signedTmdBlob, tmdSize, (signed_blob *)ticket, status->file_length, 0);
+			auto signedBlob = TitleInfo.GetRawTMD();
+			ret = ES_Identify( (signed_blob *)certificate, certStats->file_length, signedBlob, SIGNED_TMD_SIZE(signedBlob), (signed_blob *)ticket, status->file_length, 0);
 			if (ret < 0)
 			{	
 				error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
@@ -679,8 +670,6 @@ void BootMainSysMenu( void )
 		mem_free(loader_addr);
 	if(ticket)
 		mem_free(ticket);
-	if (signedTmdBlob)
-		mem_free(signedTmdBlob);
 	if(binary)
 		mem_free(binary);
 	if(fd > 0)

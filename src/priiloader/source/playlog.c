@@ -42,7 +42,7 @@ u64 getWiiTime(void)
 	return TICKS_PER_SECOND * (uTime - SECONDS_TO_2000);
 }
 
-int Playlog_Update(const char ID[6], const u8 title[84])
+int Playlog_Update(const char ID[6], const unsigned char title[84])
 {
 	s32 playrec_fd;
 	u32 sum = 0;
@@ -55,7 +55,7 @@ int Playlog_Update(const char ID[6], const u8 title[84])
 	{
 		IOS_Close(playrec_fd);
 			
-		//In case the play_rec.dat wasn´t found create one and try again
+		//In case the play_rec.dat wasnï¿½t found create one and try again
 		if(ISFS_CreateFile(PLAYRECPATH, 0, 3, 3, 3) < 0 )
 			goto error_1;
 				

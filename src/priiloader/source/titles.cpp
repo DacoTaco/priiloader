@@ -26,9 +26,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <stdarg.h>
 #include <unistd.h>
 #include <vector>
+#include <iomanip>
+#include <algorithm>
 #include <ogc/machine/processor.h>
 
-#include "titles.h"
+#include "titles.hpp"
 #include "Video.h"
 #include "font.h"
 #include "settings.h"
@@ -41,366 +43,45 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "mount.h"
 
 //The known HBC titles
-const title_info HBC_Titles[] = {
-	{ 0x0001000148415858LL, "HAXX" },
-	{ 0x000100014A4F4449LL, "JODI" },
-	{ 0x00010001AF1BF516LL, "0.7 - 1.1" },
-	{ 0x000100014C554C5ALL, "LULZ" },
-	{ 0x000100014F484243LL, "OpenHBC 1.4"}
+const std::vector<std::shared_ptr<TitleDescription>> HBCTitles = {
+	std::make_shared<TitleDescription>(0x0001000148415858LL, "HAXX"),
+	std::make_shared<TitleDescription>(0x000100014A4F4449LL, "JODI"),
+	std::make_shared<TitleDescription>(0x00010001AF1BF516LL, "0.7 - 1.1"),
+	std::make_shared<TitleDescription>(0x000100014C554C5ALL, "LULZ"),
+	std::make_shared<TitleDescription>(0x000100014F484243LL, "OpenHBC 1.4"),
 };
-const s32 HBC_Titles_Size = (s32)((sizeof(HBC_Titles) / sizeof(HBC_Titles[0])));
 
-s8 CheckTitleOnSD(u64 id)
-{
-	if (!HAS_SD_FLAG(GetMountedFlags())) //no SD mounted, lets bail out
-	{
-		gprintf("CheckTitleOnSD : no SD card inserted");
-		return 0;
-	}
+#define UNKNOWN_TITLE_NAME		"????????"
+#define UNKNOWN_TITLE_NAME_SD	"????[SD]"
 
-	char title_ID[5];
-	//Check app on SD. it might be there. not that it matters cause we can't boot from SD
-	memset(title_ID,0,5);
-	u32 title_l = id & 0xFFFFFFFF;
-	memcpy(title_ID, &title_l, 4);
-	for (s8 f=0; f<4; f++)
-	{
-		if(title_ID[f] < 0x20)
-			title_ID[f] = '.';
-		if(title_ID[f] > 0x7E)
-			title_ID[f] = '.';
-	}
-	title_ID[4]='\0';
-	std::string filepath = BuildPath("/private/wii/title/%s/content.bin", StorageDevice::SD);
-	filepath.replace(filepath.find("%s"), 2, title_ID);
-	FILE* SDHandler = fopen(filepath.c_str(),"rb");
-	if (SDHandler)
-	{
-		//content.bin is there meaning its on SD
-		fclose(SDHandler);
-		gprintf("CheckTitleOnSD : title is saved on SD");
-		return 1;
-	}
-	else
-	{
-		//title isn't on SD either. ow well...
-		gprintf("CheckTitleOnSD : content not found on NAND or SD for %08X\\%08X",(u32)(id >> 32),title_l);
-		return 0;
-	}
-}
-
-s32 GetTitleTMD(u64 titleId, signed_blob* &blob, u32 &blobSize)
-{
-	if (blob)
-		mem_free(blob);
-
-	s32 ret = 0;
-	s32 fd = -1;
-	try 
-	{
-		//IOS versions, starting with 28 have ES calls to retrieve the TMD. lets use those
-		if (IOS_GetVersion() >= 28)
-		{
-			//get the TMD. we need the TMD, not views, as SM 1.0's boot index != last content
-			ret = ES_GetStoredTMDSize(titleId, &blobSize);
-			if (ret < 0 || blobSize > MAX_SIGNED_TMD_SIZE)
-				throw ("GetTitleTMD error " + std::to_string(ret));
-
-			blob = (signed_blob*)mem_align(32, MAX_SIGNED_TMD_SIZE);
-			if (blob == NULL)
-				throw "GetTitleTMD: memalign TMD failure";
-
-			memset(blob, 0, MAX_SIGNED_TMD_SIZE);
-
-			ret = ES_GetStoredTMD(titleId, blob, blobSize);
-			if (ret < 0)
-				throw ("GetTitleTMD error " + std::to_string(ret));
-
-			return ret;
-		}
-
-		//Other IOS calls would need direct NAND Access to load the TMD.
-		//so here we go
-		gprintf("GetTitleTMD : Load TMD from nand");
-		STACK_ALIGN(fstats, TMDStatus, sizeof(fstats), 32);
-		char TMD_Path[ISFS_MAXPATH];
-		memset(TMD_Path, 0, 64);
-		sprintf(TMD_Path, "/title/%08x/%08x/content/title.tmd", TITLE_UPPER(titleId), TITLE_LOWER(titleId));
-		fd = ISFS_Open(TMD_Path, ISFS_OPEN_READ);
-		if (fd < 0)
-		{
-			ret = fd;
-			throw ("GetTitleTMD : failed to open Title TMD. ");
-		}
-
-		ret = ISFS_GetFileStats(fd, TMDStatus);
-		if (ret < 0)
-			throw ("GetTitleTMD : Failed to get TMD information. ");
-
-		blob = (signed_blob*)mem_align(32, MAX_SIGNED_TMD_SIZE);
-		if (blob == NULL)
-			throw "GetTitleTMD: memalign TMD failure";
-
-		memset(blob, 0, MAX_SIGNED_TMD_SIZE);
-
-		ret = ISFS_Read(fd, blob, TMDStatus->file_length);
-		if (ret < 0)
-			throw ("GetTitleTMD : Failed to read TMD data. ");
-
-		ISFS_Close(fd);
-	}
-	catch (const std::string& ex)
-	{
-		gprintf("GetTitleTMD Exception -> %s", ex.c_str());
-		if (blob)
-			mem_free(blob);
-
-		if (fd >= 0)
-			ISFS_Close(fd);
-	}
-	catch (char const* ex)
-	{
-		gprintf("GetTitleTMD Exception -> %s", ex);
-		if (blob)
-			mem_free(blob);
-
-		if (fd >= 0)
-			ISFS_Close(fd);
-	}
-	catch (...)
-	{
-		gprintf("GetTitleTMD Exception was thrown");
-		if (blob)
-			mem_free(blob);
-
-		if (fd >= 0)
-			ISFS_Close(fd);
-	}
-
-	return ret;
-}
-
-s8 GetTitleName(u64 id, u32 app, char* name, u8* unicodeName) 
-{	
-    /*
-		languages:
-		enum {
-			CONF_LANG_JAPANESE = 0,
-			CONF_LANG_ENGLISH,
-			CONF_LANG_GERMAN,
-			CONF_LANG_FRENCH,
-			CONF_LANG_SPANISH,
-			CONF_LANG_ITALIAN,
-			CONF_LANG_DUTCH,
-			CONF_LANG_SIMP_CHINESE,
-			CONF_LANG_TRAD_CHINESE,
-			CONF_LANG_KOREAN
-		};
-		cause we dont support unicode stuff in font.cpp we will force to use english then(1)
-		but what we should be doing otherwise : 
-		int lang = CONF_GetLanguage();
-    */
-	const int languages = 10;
-	const int lang = CONF_LANG_ENGLISH;
-	s32 ret = 0;
-	u32 cnt ATTRIBUTE_ALIGN(32) = 0;
-	IMET *imetHeader = NULL;
-	tikview *ticketViews = NULL;
-
-	try
-	{
-		imetHeader = (IMET *)mem_align(32, ALIGN32( sizeof(IMET) ) );
-		if(imetHeader == NULL)
-			throw "failed to alloc IMET header";
-		
-		memset(imetHeader,0,sizeof(IMET) );
-		ret = ES_GetNumTicketViews(id, &cnt);
-		if(ret < 0)
-			throw "GetNumTicketViews " + std::to_string(ret);
-
-		ticketViews = (tikview *)mem_align( 32, sizeof(tikview)*cnt );
-		if(ticketViews == NULL)
-			throw "Failed to alloc ticket views";
-
-		ret = ES_GetTicketViews(id, ticketViews, cnt);
-		if(ret < 0)
-			throw "ES_GetTicketViews " + std::to_string(ret);
-
-		s32 fh = ES_OpenTitleContent(id, ticketViews, 0);
-		if(fh == -106)
-		{
-			CheckTitleOnSD(id);
-			ret = -106;
-			goto return_getTitle;
-		}
-
-		if (fh >= 0)
-		{
-			//ES method
-				ret = ES_ReadContent(fh, (u8*)imetHeader, sizeof(IMET));
-				ES_CloseContent(fh);
-				if (ret < 0) 
-					throw "IMET ES_ReadContent " + std::to_string(ret);
-		} else {
-			//ES method failed. remove tikviews from memory and fall back on ISFS method
-				gprintf("GetTitleName : ES_OpenTitleContent error %d",fh);
-				char file[64] ATTRIBUTE_ALIGN(32);
-				sprintf(file, "/title/%08x/%08x/content/%08x.app", TITLE_UPPER(id), TITLE_LOWER(id), app);
-				gdprintf("GetTitleName : %s",file);
-
-				fh = ISFS_Open(file, ISFS_OPEN_READ);
-				// fuck failed. lets check SD & GTFO
-				if(fh < 0)
-				{
-					if (fh != -106)
-						throw "IMET ISFS_Open " + std::to_string(ret);
-
-					CheckTitleOnSD(id);
-					ret = -106;
-					goto return_getTitle;
-				}
-
-				// read the completed IMET header
-				ret = ISFS_Read(fh, imetHeader, sizeof(IMET));
-				ISFS_Close(fh);
-				if (ret < 0) 
-					throw "IMET ISFS_Read " + std::to_string(ret);
-		}
-
-		mem_free(ticketViews);
-		
-		// check if its a valid imet header
-		if(imetHeader->imet != 0x494d4554) 
-			throw "Invalid IMET header for " + std::to_string(TITLE_UPPER(id)) + "/" + std::to_string(TITLE_LOWER(id));
-
-		char str[languages][MAX_TITLE_NAME];
-		char str_unprocessed[languages][MAX_TITLE_NAME];
-		//clear any memory that is in the place of the array cause we dont want any confusion here
-		memset(str, 0, sizeof(str));
-		memset(str_unprocessed, 0, sizeof(str_unprocessed));
-
-		for(u8 language = 0; language < languages; language++)
-		{
-			u8 strIndex = 0;
-			for(u8 charIndex = 0; charIndex < MAX_TITLE_NAME; charIndex++)
-			{
-				char titleChar = imetHeader->names[language][charIndex];
-				//filter out any non-printable characters
-				if(titleChar >= 0x20 && titleChar <= 0x7E)
-					str[language][strIndex++] = titleChar;
-				
-				str_unprocessed[language][charIndex] = titleChar;
-			}
-			str[language][MAX_TITLE_NAME-1] = '\0';
-		}
-
-		mem_free(imetHeader);
-
-		if(str[lang][0] != '\0')
-		{
-			gdprintf("GetTitleName : title %s",str[lang]);
-			s32 nameLength = strnlen(str[lang], MAX_TITLE_NAME-1);
-			memcpy(name, str[lang], nameLength);
-			str[lang][nameLength+1] = '\0';
-
-			if(unicodeName != NULL)
-			{
-				if (str_unprocessed[lang][1] != '\0')
-					memcpy(unicodeName, &str_unprocessed[lang][0], MAX_TITLE_NAME);
-				else
-					gprintf("WARNING : empty unprocessed string");
-			}
-			
-		}
-		else
-			gprintf("GetTitleName: no name found");
-	}
-	catch (char const* ex)
-	{
-		gprintf("GetTitleName Exception : %s",ex);
-		ret = -1;
-	}
-	catch (const std::string& ex)
-	{
-		gprintf("GetTitleName Exception : %s",ex);
-		ret = -1;
-	}
-	catch(...)
-	{	
-		gprintf("GetTitleName General Exception");
-		ret = -2;
-	}
-
-return_getTitle:
-	mem_free(imetHeader);
-	mem_free(ticketViews);
-	return ret;
-}
-
-u8 GetTitleRegion(u32 lowerTitleId)
-{
-	//Taken from Dolphin
-	switch (lowerTitleId & 0xFF)
-	{
-		//PAL
-		case 'D':
-		case 'F':
-		case 'H':
-		case 'I':
-		case 'L':
-		case 'M':
-		case 'P':
-		case 'R':
-		case 'S':
-		case 'U':
-		case 'V':
-			return TITLE_PAL;
-
-			//NTSC-J
-		case 'J':
-		case 'K':
-		case 'Q':
-		case 'T':
-			return TITLE_NTSC_J;
-
-			//NTSC-U
-		default:
-			gprintf("unknown Region");
-		case 'B':
-		case 'N':
-		case 'E':
-			return TITLE_NTSC;
-	}
-}
-
-s8 VideoRegionMatches(s8 titleRegion)
+bool VideoRegionMatches(TitleRegion region)
 {
 	switch (VI_TVMODE_FMT(rmode->viTVMode))
 	{
 		case VI_NTSC:
 		case VI_DEBUG:
-			return (titleRegion == TITLE_NTSC || titleRegion == TITLE_NTSC_J);
+			return (region == TitleRegion::NTSC || region == TitleRegion::NTSC_J);
 		case VI_PAL:
 		case VI_MPAL:
 		case VI_DEBUG_PAL:
 		case VI_EURGB60:
-			return (titleRegion == TITLE_PAL);
+			return (region == TitleRegion::PAL);
 		default:
-			return 1;
+			return true;
 	}
 }
 
-s8 SetVideoModeForTitle(u32 lowerTitleId)
+s8 SetVideoModeForTitle(TitleInformation title)
 {
 	//always set video when launching disc
-	s8 titleRegion = GetTitleRegion(lowerTitleId);
+	TitleRegion titleRegion = title.GetTitleRegion();
 	bool confProg = (CONF_GetProgressiveScan() > 0) && VIDEO_HaveComponentCable();
 	bool confPAL60 = CONF_GetEuRGB60() > 0;
 	GXRModeObj* rmodeNew = rmode;
 	s8 videoMode = 0;
 	switch (titleRegion)
 	{
-		case TITLE_PAL:
+		case TitleRegion::PAL:
 			if (confProg) {          // 480p60
 				rmodeNew = &TVEurgb60Hz480Prog;
 				gprintf("PAL60 480p");
@@ -414,12 +95,12 @@ s8 SetVideoModeForTitle(u32 lowerTitleId)
 			videoMode = SYS_VIDEO_PAL;
 			break;
 
-		case TITLE_NTSC_J:
+		case TitleRegion::NTSC_J:
 			gprintf("NTSC-J");
 			goto region_ntsc;
 			break;
 
-		case TITLE_NTSC:
+		case TitleRegion::NTSC:
 			gprintf("NTSC-U");
 		region_ntsc:
 			if (confProg) {          // 480p60
@@ -443,46 +124,477 @@ s8 SetVideoModeForTitle(u32 lowerTitleId)
 	return videoMode;
 }
 
-s32 LaunchTitle(u64 titleId, u8* titleName)
+std::string GetTitleLongString(u64 titleId)
 {
-	s32 ret = 0;
-	s8 regionMatch = 1;
-	s8 titleRegion = 0;
-	u32 cnt ATTRIBUTE_ALIGN(32) = 0;
-	STACK_ALIGN(tikview,views,4,32);
+	std::stringstream stream;
+	stream << std::hex << std::setw(8) << std::setfill('0') << TITLE_UPPER(titleId) << "\\" << std::hex << std::setw(8) << std::setfill('0') << TITLE_LOWER(titleId);
+    return stream.str(); 
+}
+
+TitleInformation::~TitleInformation()
+{
+	if(_titleTMD != NULL)
+		mem_free(_titleTMD);
+}
+
+TitleInformation::TitleInformation(u64 titleId, std::string name)
+{
+	_titleId = titleId;
+
+	_titleName = {
+		.Name = name
+	};
+}
+
+TitleInformation::TitleInformation(u64 titleId)
+{
+	//if the title id isn't an essential title, we will check if its following the wii/nintendo rules
+	//the only exception is the HBC titles, as there was a version that said fuck it lol
+	auto iterator = std::find_if(HBCTitles.begin(), HBCTitles.end(), [titleId](const std::shared_ptr<TitleDescription>& hbcTitle)
+	{
+		return hbcTitle->TitleId == titleId;
+	});
+
+	if(iterator == HBCTitles.end() && titleId >> 32 != TITLE_TYPE_ESSENTIAL)
+	{
+		u32 lowerTitleId = TITLE_LOWER(titleId);
+		for(s8 i = 0; i < 4; i++)
+		{
+			s8 byte = lowerTitleId & 0xFF;
+			//does it have a non-printable character?
+			if(byte < 0x20 || byte > 0x7E)
+				throw "Invalid TitleId " + std::to_string(titleId);
+
+			lowerTitleId >>= 8;
+		}
+	}
+	
+	_titleId = titleId;
+}
+
+u64 TitleInformation::GetTitleId(){ return _titleId; }
+
+std::string TitleInformation::GetTitleIdString()
+{
+	//convert the titleId to string, converting non-printable characters to dots
+	char titleStr[5] = {0};
+	u32 titleId = TITLE_LOWER(_titleId);
+
+	for(s8 i = 0; i < 4; i++)
+	{
+		char titleCharacter = titleId >> 24;
+		if(titleCharacter < 0x20 || titleCharacter > 0x7E)
+			titleStr[i] = '.';
+		else
+			titleStr[i] = titleCharacter;
+		
+		titleId = titleId << 8;
+	}
+
+	return std::string(titleStr, 4);
+}
+
+bool TitleInformation::IsInstalled() 
+{ 	
+	/*
+		steps to check if its installed, based on what SM was doing: 
+			* Get TMD
+			* Get Content Count
+			* if content count matches -> installed
+			* if content count == 1 -> installed but moved to SD
+
+		if any error happened we will assume it is installed just in case, unless we got a not found error
+	*/
+	auto isInstalled = true;
+	try
+	{
+		auto tmd = GetTMD();
+		if(tmd == NULL)
+			return false;
+		
+		STACK_ALIGN(u32, contentCount, 1, 32);
+		*contentCount = 0;
+		auto ret = ES_GetTitleContentsCount(_titleId, contentCount);
+		switch(ret)
+		{
+			case -106:
+			{
+				isInstalled = false;
+				break;
+			}
+			default:
+			{
+				if(ret < 0)
+					throw "Failed to retrieve content count, error " + std::to_string(ret);
+				
+				isInstalled = *contentCount == 1 || *contentCount == tmd->num_contents;
+				break;
+			}
+		}
+
+		if(!isInstalled)
+			gdprintf("IsInstalled: %s not installed", GetTitleLongString(_titleId).c_str());
+	}
+	catch (const std::string& ex)
+	{
+		gprintf("IsInstalled: %s", ex.c_str());
+	}
+	catch (char const* ex)
+	{
+		gprintf("IsInstalled: %s", ex);
+	}
+	catch(...)
+	{
+		gprintf("IsInstalled: Unknown Error Occurred");
+	}
+
+	return isInstalled;
+}
+
+bool TitleInformation::IsMovedToSD()
+{
+	if (!HAS_SD_FLAG(GetMountedFlags())) //no SD mounted, lets bail out
+	{
+		gdprintf("IsMovedToSD : no SD card inserted");
+		return false;
+	}
+
+	std::string path = "/private/wii/title/" + GetTitleIdString() + "/content.bin";
+	std::string filepath = BuildPath(path.c_str(), StorageDevice::SD);
+	FILE* SDHandler = fopen(filepath.c_str(),"rb");
+	if (SDHandler)
+	{
+		//content.bin is there meaning its on SD
+		fclose(SDHandler);
+		gprintf("IsMovedToSD : %s is saved on SD", GetTitleLongString(_titleId).c_str());
+		return true;
+	}
+
+	//title isn't on SD
+	gprintf("IsMovedToSD : %s not found on SD", GetTitleLongString(_titleId).c_str());
+	return false;
+}
+
+tmd* TitleInformation::GetTMD()
+{
+	//return already fetched title TMD if we retrieved it
+	if(_titleTMD != NULL)
+		return (tmd*)SIGNATURE_PAYLOAD(_titleTMD);
+	
+	s32 ret;
+	u32 blobSize = 0;
+	signed_blob* blob = NULL;
+	s32 fd = -1;
 
 	try
 	{
-		//lets start this bitch
-		if(DVDDiscAvailable())
+		//IOS versions, starting with 28 have ES calls to retrieve the TMD. lets use those
+		if (IOS_GetVersion() >= 28)
 		{
-			gprintf("LaunchTitle : excecuting StopDisc Async...");
-			DVDStopDriveAsync();
+			ret = ES_GetStoredTMDSize(_titleId, &blobSize);
+			if(ret == -106)
+			{
+				gdprintf("GetTMD: title %s TMD not found", GetTitleLongString(_titleId));
+				return NULL;
+			}
+			
+			if (ret < 0 || blobSize > MAX_SIGNED_TMD_SIZE)
+				throw "GetTMD: failed to retrieve TMD Size via IOS of " + GetTitleLongString(_titleId) + ",error " + std::to_string(ret);
+
+			blob = (signed_blob*)mem_align(32, MAX_SIGNED_TMD_SIZE);
+			if (blob == NULL)
+				throw "GetTMD: failed to allocate TMD of " + GetTitleLongString(_titleId);
+
+			memset(blob, 0, MAX_SIGNED_TMD_SIZE);
+			ret = ES_GetStoredTMD(_titleId, blob, blobSize);
+			if (ret < 0)
+				throw "GetTMD: failed to retrieve TMD via IOS of " + GetTitleLongString(_titleId) + ",error " + std::to_string(ret);
 		}
 		else
 		{
-			gprintf("LaunchTitle : Skipping StopDisc -> no drive or disc in drive");
+			//Other IOS calls would need direct NAND Access to load the TMD.
+			//so here we go
+			gprintf("GetTMD : Load TMD from nand");
+			STACK_ALIGN(fstats, TmdStats, sizeof(fstats), 32);
+			char TmdPath[ISFS_MAXPATH];
+			memset(TmdPath, 0, 64);
+			sprintf(TmdPath, "/title/%08x/%08x/content/title.tmd", TITLE_UPPER(_titleId), TITLE_LOWER(_titleId));
+			fd = ISFS_Open(TmdPath, ISFS_OPEN_READ);
+			if (fd < 0)
+				throw "GetTMD: failed to open TMD of " + GetTitleLongString(_titleId) + ",error " + std::to_string(fd);
+
+			ret = ISFS_GetFileStats(fd, TmdStats);
+			if (ret < 0)
+				throw "GetTMD: failed to file info of " + GetTitleLongString(_titleId) + ",error " + std::to_string(ret);
+
+			blob = (signed_blob*)mem_align(32, MAX_SIGNED_TMD_SIZE);
+			if (blob == NULL)
+				throw "GetTMD: failed to allocate TMD of " + GetTitleLongString(_titleId);
+
+			memset(blob, 0, MAX_SIGNED_TMD_SIZE);
+			ret = ISFS_Read(fd, blob, TmdStats->file_length);
+			if (ret < 0)
+				throw "GetTMD: failed read TMD of " + GetTitleLongString(_titleId) + ",error " + std::to_string(ret);
+
+			ISFS_Close(fd);
 		}
 
-		if (ES_GetNumTicketViews(titleId, &cnt) < 0)
+		_titleTMD = blob;
+		return (tmd*)SIGNATURE_PAYLOAD(_titleTMD);
+	}
+	catch(...)
+	{
+		if(blob)
+			mem_free(blob);
+
+		if(fd >= 0)
+			ISFS_Close(fd);
+		
+		throw;
+	}
+}
+
+signed_blob* TitleInformation::GetRawTMD()
+{
+	//return already fetched title TMD if we retrieved it
+	if(_titleTMD != NULL)
+		return _titleTMD;
+
+	this->GetTMD();
+	return _titleTMD;
+}
+
+TitleRegion TitleInformation::GetTitleRegion()
+{
+	//Taken from Dolphin
+	switch (TITLE_LOWER(_titleId) & 0xFF)
+	{
+		//PAL
+		case 'D':
+		case 'F':
+		case 'H':
+		case 'I':
+		case 'L':
+		case 'M':
+		case 'P':
+		case 'R':
+		case 'S':
+		case 'U':
+		case 'V':
+			return TitleRegion::PAL;
+
+			//NTSC-J
+		case 'J':
+		case 'K':
+		case 'Q':
+		case 'T':
+			return TitleRegion::NTSC_J;
+
+			//NTSC-U
+		default:
+			gdprintf("unknown Region");
+		case 'B':
+		case 'N':
+		case 'E':
+			return TitleRegion::NTSC;
+	}
+}
+
+TitleName TitleInformation::GetTitleName()
+{
+	if(_titleName.Name[0] != '\0')
+		return _titleName;
+	
+	IMET *imetHeader = NULL;
+	tikview *ticketViews = NULL;
+	try
+	{
+		imetHeader = (IMET *)mem_align(32, ALIGN32( sizeof(IMET) ) );
+		if(imetHeader == NULL)
+			throw "failed to alloc IMET header of title" + GetTitleLongString(_titleId);
+		
+		memset(imetHeader, 0, sizeof(IMET));
+		u32 cnt ATTRIBUTE_ALIGN(32) = 0;
+		s32 ret = ES_GetNumTicketViews(_titleId, &cnt);
+		if(ret < 0)
+			throw "failed to retrieve Tickets Size of " + GetTitleLongString(_titleId) + ",error " + std::to_string(ret);
+
+		ticketViews = (tikview *)mem_align( 32, sizeof(tikview)*cnt );
+		if(ticketViews == NULL)
+			throw "failed to allocate ticket views of " + GetTitleLongString(_titleId);
+
+		ret = ES_GetTicketViews(_titleId, ticketViews, cnt);
+		if(ret < 0)
+			throw "failed to retrieve Ticket views of " + GetTitleLongString(_titleId) + ",error " + std::to_string(ret);
+
+		s32 fh = ES_OpenTitleContent(_titleId, ticketViews, 0);
+		//if its not there, we will look on the SD and throw exception.
+		//maybe its moved to SD, idk.
+		if(fh == -106)
+		{
+			if(this->IsMovedToSD())
+			{
+				_titleName = {
+					.Name = UNKNOWN_TITLE_NAME_SD,
+					.UnicodeName = {0}
+				};
+
+				return _titleName;
+			}
+			throw "failed to retrieve title content of " + GetTitleLongString(_titleId) + ",error " + std::to_string(ret);
+		}
+
+		//no longer need the ticket views
+		mem_free(ticketViews);
+
+		if (fh >= 0)
+		{
+			//ES method
+			ret = ES_ReadContent(fh, (u8*)imetHeader, sizeof(IMET));
+			ES_CloseContent(fh);
+			if (ret < 0) 
+				throw "failed to read(ES) title content of " + GetTitleLongString(_titleId) + ",error " + std::to_string(ret);
+		}
+		else
+		{
+			//ES method failed, lets fallback to direct access
+			gprintf("GetTitleName: ES_OpenTitleContent error %d", fh);
+			const u32 contentId = this->GetTMD()->contents[0].cid;
+			char file[ISFS_MAXPATH] ATTRIBUTE_ALIGN(32);
+			sprintf(file, "/title/%08x/%08x/content/%08x.app", TITLE_UPPER(_titleId), TITLE_LOWER(_titleId), contentId);
+
+			fh = ISFS_Open(file, ISFS_OPEN_READ);
+			// fuck failed. lets check SD & GTFO
+			if(fh < 0)
+			{
+				if(fh == -106 && this->IsMovedToSD())
+				{
+					_titleName = { 
+						.Name = UNKNOWN_TITLE_NAME_SD, 
+						.UnicodeName = {0}
+					};
+
+					return _titleName;
+				}
+
+				throw "failed to open title content of " + GetTitleLongString(_titleId) + ",error " + std::to_string(fh);
+			}
+
+			// read the completed IMET header
+			ret = ISFS_Read(fh, imetHeader, sizeof(IMET));
+			ISFS_Close(fh);
+			if (ret < 0) 
+				throw "failed to read title content of " + GetTitleLongString(_titleId) + ",error " + std::to_string(fh);
+		}
+
+		// check if its a valid imet header
+		if(imetHeader->imet != IMET_HEADER_ID) 
+			throw "Invalid IMET header for " + GetTitleLongString(_titleId);
+
+		/*
+			because we dont support unicode stuff in font.cpp we will force to use english.
+			but what we should be doing otherwise : 
+			int lang = CONF_GetLanguage();
+			languages is currently set to the last language (korean) + 1 to get the max value
+		*/
+		const int lang = CONF_LANG_ENGLISH;
+		char str[MAX_TITLE_NAME] = {0};
+		char str_unprocessed[MAX_TITLE_NAME] = {0};
+
+		u8 index = 0;
+		for(u8 charIndex = 0; charIndex < MAX_TITLE_NAME; charIndex++)
+		{
+			char titleChar = imetHeader->names[lang][charIndex];
+			//filter out any non-printable characters
+			if(titleChar >= 0x20 && titleChar <= 0x7E)
+				str[index++] = titleChar;
+			
+			str_unprocessed[charIndex] = titleChar;
+		}
+
+		mem_free(imetHeader);
+		str[MAX_TITLE_NAME-1] = '\0';
+		str_unprocessed[MAX_TITLE_NAME-1] = '\0';
+		gdprintf("GetTitleName : title %s", str);
+		if(str[0] == '\0')
+			throw "no name found";
+
+		_titleName = {
+			.Name = str
+		};
+
+		memcpy(_titleName.UnicodeName, str_unprocessed, MAX_TITLE_NAME);
+	}
+	catch (const std::string& ex)
+	{
+		gprintf("GetTitleName: %s", ex.c_str());
+		_titleName = { 
+			.Name = UNKNOWN_TITLE_NAME, 
+			.UnicodeName = {0}
+		};
+	}
+	catch (char const* ex)
+	{
+		gprintf("GetTitleName: %s", ex);
+		_titleName = { 
+			.Name = UNKNOWN_TITLE_NAME, 
+			.UnicodeName = {0}
+		};
+	}
+	catch(...)
+	{
+		gprintf("GetTitleName: Unknown Error Occurred");
+		_titleName = { 
+			.Name = UNKNOWN_TITLE_NAME, 
+			.UnicodeName = {0}
+		};
+	}
+
+	if(imetHeader)
+		mem_free(imetHeader);
+	if(ticketViews)
+		mem_free(ticketViews);
+
+	return _titleName;
+}
+
+void TitleInformation::LaunchTitle()
+{
+	//lets start this bitch
+	if(DVDDiscAvailable())
+	{
+		gprintf("LaunchTitle : excecuting StopDisc Async...");
+		DVDStopDriveAsync();
+	}
+	else
+		gprintf("LaunchTitle : Skipping StopDisc -> no drive or disc in drive");
+
+	try
+	{
+		u32 cnt ATTRIBUTE_ALIGN(32) = 0;
+		STACK_ALIGN(tikview, views, 4, 32);
+
+		if (ES_GetNumTicketViews(_titleId, &cnt) < 0)
 			throw "GetNumTicketViews failure";
 
-		if (ES_GetTicketViews(titleId, views, cnt) < 0 )
+		if (ES_GetTicketViews(_titleId, views, cnt) < 0 )
 			throw "ES_GetTicketViews failure!";
-			
-		if(titleName != NULL && wcslen((wchar_t*)titleName))
+
+		auto titleName = this->GetTitleName();
+		if(titleName.UnicodeName[0] != '\0' && wcslen((wchar_t*)titleName.UnicodeName))
 		{
 			//kill play_rec.dat if its already there...
 			ISFS_Delete(PLAYRECPATH);
 			//and create it with the new info :)
 			std::string id;
-			id.push_back(TITLE_LOWER(titleId));
-			Playlog_Update(id.c_str(), titleName);
+			id.push_back(TITLE_LOWER(_titleId));
+			Playlog_Update(id.c_str(), titleName.UnicodeName);
 		}
 		else
 		{
 			gprintf("no title name to use in play_rec");
 		}
+
 		net_wc24cleanup();
 		ClearState();
 		SetNandBootInfo();
@@ -498,17 +610,17 @@ s32 LaunchTitle(u64 titleId, u8* titleName)
 			VIDEO_WaitVSync();
 		}
 
-		titleRegion = GetTitleRegion(TITLE_LOWER(titleId));
-		regionMatch = VideoRegionMatches(titleRegion);
+		auto titleRegion = this->GetTitleRegion();
+		auto regionMatches = VideoRegionMatches(titleRegion);
 
 		//if our region mismatched, we need to also verify against our list of known HBC channels
-		if (!regionMatch)
+		if (!regionMatches)
 		{
-			for (s32 hbcIndex = 0; hbcIndex < HBC_Titles_Size; hbcIndex++)
+			for (u32 hbcIndex = 0; hbcIndex < HBCTitles.size(); hbcIndex++)
 			{
-				if (HBC_Titles[hbcIndex].title_id == titleId)
+				if (HBCTitles[hbcIndex]->TitleId == _titleId)
 				{
-					regionMatch = 1;
+					regionMatches = true;
 					break;
 				}
 			}
@@ -519,9 +631,9 @@ s32 LaunchTitle(u64 titleId, u8* titleName)
 		// * not (known) HBC
 		// * titleType == TITLE_TYPE_DOWNLOAD 
 		// * TITLE_GAMEID_TYPE(gameId) != H,W or O
-		if (!regionMatch && TITLE_UPPER(titleId) == TITLE_TYPE_DOWNLOAD)
+		if (!regionMatches && TITLE_UPPER(_titleId) == TITLE_TYPE_DOWNLOAD)
 		{
-			switch (TITLE_GAMEID_TYPE(TITLE_LOWER(titleId)))
+			switch (TITLE_GAMEID_TYPE(TITLE_LOWER(_titleId)))
 			{
 				case 'C':
 				case 'E':
@@ -532,7 +644,7 @@ s32 LaunchTitle(u64 titleId, u8* titleName)
 				case 'N':
 				case 'P':
 				case 'Q':
-					gprintf("LaunchTitle : Region Mismatch ! %d -> %d", VI_TVMODE_FMT(rmode->viTVMode), titleRegion);
+					gprintf("LaunchTitle : (%08X\\%08X) Region Mismatch ! %d -> %d", _titleId, VI_TVMODE_FMT(rmode->viTVMode), titleRegion);
 					ShutdownVideo();
 					// calling SetVideoModeForTitle to force video mode here would inexplicably revert (correct) 480p to 480i sometimes; see issue #376
 					break;
@@ -545,7 +657,7 @@ s32 LaunchTitle(u64 titleId, u8* titleName)
 			}
 		}
 
-		ret = ES_LaunchTitle(titleId, &views[0]);
+		ES_LaunchTitle(_titleId, &views[0]);
 
 		//failed to launch title
 		InitVideo();
@@ -556,25 +668,23 @@ s32 LaunchTitle(u64 titleId, u8* titleName)
 			VIDEO_WaitVSync();
 		}
 		Input_Init();
+
+		throw "failed to launch";
 	}
 	catch (char const* ex)
 	{
-		gprintf("LaunchTitle Exception : %s",ex);
-		ret = -1;
+		gprintf("LaunchTitle (%s) Exception : %s", GetTitleLongString(_titleId).c_str(), ex);
 	}
 	catch (const std::string& ex)
 	{
-		gprintf("LaunchTitle Exception : %s",ex);
-		ret = -1;
+		gprintf("LaunchTitle (%s) Exception : %s", GetTitleLongString(_titleId).c_str(), ex);
 	}
 	catch(...)
 	{	
-		gprintf("LaunchTitle General Exception");
-		ret = -2;
+		gprintf("LaunchTitle (%s) General Exception", GetTitleLongString(_titleId).c_str());
 	}
 
 	while(DVDAsyncBusy());
-	return ret;
 }
 
 s32 LoadListTitles( void )
@@ -616,76 +726,35 @@ s32 LoadListTitles( void )
 		sleep(3);
 		return ret;
 	}
-	std::vector<title_info> titles;
-	titles.clear();
-	title_info GoBackInfo;
-	GoBackInfo.name_ascii = "<-- Go Back";
-	titles.push_back(GoBackInfo);
-	tmd_view *rTMD;
-	char temp_name[MAX_TITLE_NAME];
-	char title_ID[5];
+
+	std::vector<std::unique_ptr<TitleInformation>> titles;
+	titles.emplace_back(std::make_unique<TitleInformation>(0, "<-- Go Back"));
+
 	for(u32 i = 0;i < count;i++)
 	{	
-		//u32 titletype = title_list[i] >> 32;
-		switch (title_list[i] >> 32)
+		switch (TITLE_UPPER(title_list[i]))
 		{
 			case TITLE_TYPE_GAMECHANNEL:// Channels installed by disc games -- WiiFit channel, etc
 			case TITLE_TYPE_DOWNLOAD:	// Normal channels / VC
 			case TITLE_TYPE_SYSTEM:		// "System channels" -- News, Weather, etc.
 			{
-				u32 tmd_size;
-				ret = ES_GetTMDViewSize(title_list[i], &tmd_size);
-				if(ret<0)
+				auto titleid = title_list[i];
+				try
 				{
-					gprintf("WARNING : GetTMDViewSize error %d on title %x-%x",ret,(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
-					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMDSize error on 00000000-00000000!"))*13/2))>>1, 208+32, "WARNING : TMDSize error on %08X-%08X",(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
-					sleep(3);
-
-					ClearScreen();
-					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("loading titles..."))*13/2))>>1, 208+16, "loading titles...");
-					continue;
-				}
-				rTMD = (tmd_view*)mem_align( 32, ALIGN32(tmd_size) );
-				if( rTMD == NULL )
-				{
-					mem_free(title_list);
-					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to MemAlign TMD!"))*13/2))>>1, 208+32, "Failed to MemAlign TMD!");
-					sleep(3);
-					return 0;
-				}
-				memset(rTMD,0, tmd_size );
-				ret = ES_GetTMDView(title_list[i], (u8*)rTMD, tmd_size);
-				if(ret<0)
-				{
-					gprintf("WARNING : GetTMDView error %d on title %x-%x",ret,(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
-					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("WARNING : TMD error on 00000000-00000000!"))*13/2))>>1, 208+32, "WARNING : TMD error on %08X-%08X!",(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
-					sleep(3);
-					mem_free(rTMD);
+					auto titleInformation = std::make_unique<TitleInformation>(titleid);
+					if(!titleInformation.get()->IsInstalled())
+						break;
 					
-					ClearScreen();
-					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("loading titles..."))*13/2))>>1, 208+16, "loading titles...");
-					continue;
+					auto name = titleInformation.get()->GetTitleName();
+					titles.emplace_back(std::move (titleInformation));
+					gprintf("LoadListTitles : added %d , title id %08X/%08X(%s)", titles.size()-1, TITLE_UPPER(titleid), TITLE_LOWER(titleid), name.Name.c_str());
 				}
-				memset(temp_name, 0, sizeof(temp_name));
-				title_info temp;
-				temp.title_id = 0;
-				temp.name_ascii.clear();
-				memset(temp.name_unicode, 0, MAX_TITLE_NAME);
-				temp.content_id = 0;
-				ret = GetTitleName(rTMD->title_id,rTMD->contents[0].cid,temp_name,temp.name_unicode);
-				if ( ret != -106 )
+				catch(...)
 				{
-					if(temp_name[0] == '\0')
-						sprintf(temp_name,"????????");
-					temp.title_id = rTMD->title_id;
-					temp.name_ascii = temp_name;
-					temp.content_id = rTMD->contents[0].cid;
-					titles.push_back(temp);
-					gprintf("LoadListTitles : added %d , title id %08X/%08X(%s)",titles.size()-1,TITLE_UPPER(temp.title_id),TITLE_LOWER(temp.title_id),temp.name_ascii.c_str());
+					gprintf("LoadListTitles: failed to load title %08X/%08X", TITLE_UPPER(titleid), TITLE_LOWER(titleid));
 				}
-				
-				mem_free(rTMD);
-				//break;
+
+				break;
 			}
 			case TITLE_TYPE_ESSENTIAL:	// IOS, MIOS, BC, System Menu
 			case TITLE_TYPE_DISC:		// TMD installed by running a disc
@@ -696,8 +765,9 @@ s32 LoadListTitles( void )
 		}
 	}
 	mem_free(title_list);
+
 	//done detecting titles. lets list them
-	if(titles.size() == 0)
+	if(titles.size() <= 1)
 	{
 		PrintFormat( 1, ((rmode->viWidth /2)-((strlen("ERROR : No VC/Wiiware channels found"))*13/2))>>1, 208+32, "ERROR : No VC/Wiiware channels found");
 		sleep(3);
@@ -792,7 +862,7 @@ s32 LoadListTitles( void )
 			ClearScreen();
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Loading title..."))*13/2))>>1, 208, "Loading title...");
 
-			LaunchTitle(titles[cur_off].title_id, titles[cur_off].name_unicode);
+			titles[cur_off].get()->LaunchTitle();
 
 			PrintFormat( 1, ((rmode->viWidth /2)-((strlen("Failed to Load Title!"))*13/2))>>1, 224, "Failed to Load Title!");
 			sleep(3);
@@ -811,24 +881,21 @@ s32 LoadListTitles( void )
 			}
 			for(; i<=(min_pos + max_pos); i++ )
 			{
-				if(i == 0)
+				try
 				{
-					PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "%s                             ",titles[i].name_ascii.c_str());
-				}
-				else
-				{
-					memset(title_ID,0,5);
-					u32 title_l = titles[i].title_id & 0xFFFFFFFF;
-					memcpy(title_ID, &title_l, 4);
-					for (s8 f=0; f<4; f++)
+					auto titleName = titles[i]->GetTitleName();
+					if(i == 0)
 					{
-						if(title_ID[f] < 0x20)
-							title_ID[f] = '.';
-						if(title_ID[f] > 0x7E)
-							title_ID[f] = '.';
+						PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "%s                             ", titleName.Name.c_str());
 					}
-					title_ID[4]='\0';
-					PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "(%d)%s(%s)                              ",i,titles[i].name_ascii.c_str(), title_ID);
+					else
+					{
+						PrintFormat( cur_off==i, 16, 64+(i-min_pos+1)*16, "(%d)%s(%s)                              ", i, titleName.Name.c_str(), titles[i]->GetTitleIdString().c_str());
+					}
+				}
+				catch(...)
+				{
+					gprintf("oh ow, exception in printing title %d", i);
 				}
 				//gprintf("lolid : %s - %x & %x ",title_ID,titles[i].title_id,(titles[i].title_id & 0x00000000FFFFFFFF) << 32);			
 			}

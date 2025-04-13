@@ -23,14 +23,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #ifndef _HBC_H_
 #define _HBC_H_
 
-#include "titles.h"
+#include <memory>
+#include "titles.hpp"
 
 //HBC reload stub functions
 void LoadHBCStub ( void );
-void UnloadHBCStub( void );
 
 //HBC Functions
-s32 DetectHBC(title_info* title);
+std::shared_ptr<TitleDescription> DetectHBC();
 void LoadHBC( void );
 void LoadBootMii( void );
 

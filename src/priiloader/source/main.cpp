@@ -63,7 +63,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "password.h"
 #include "HTTP_Parser.h"
 #include "dvd.h"
-#include "titles.h"
+#include "titles.hpp"
 #include "DiscContent.h"
 #include "mem2_manager.h"
 #include "HomebrewChannel.h"

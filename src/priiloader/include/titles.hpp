@@ -24,6 +24,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define _TITLES_H_
 
 #include <gccore.h>
+#include <vector>
+#include <memory>
 
 //defines
 #define TITLE_TYPE_INVALID              0x00000000
@@ -40,20 +42,16 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define TITLE_LOWER(x)                  (u32)(x & 0xFFFFFFFF)
 #define TITLE_GAMEID_TYPE(x)            (u8)((x >> 24) & 0x000000FF)
 
-#define TITLE_NTSC                      0
-#define TITLE_NTSC_J                    1
-#define TITLE_PAL                       2
-
 #define MAX_TITLE_NAME					84
+#define IMET_HEADER_ID					0x494d4554
 
 //structs & classes
 //-------------------
-typedef struct {
-	u64 title_id;
-	std::string name_ascii;
-	u8 name_unicode[MAX_TITLE_NAME];
-	u32 content_id;
-} title_info;
+enum TitleRegion {
+	NTSC = 0,
+	NTSC_J = 1,
+	PAL = 2
+};
 
 //copy pasta from wiibrew
 typedef struct {
@@ -67,17 +65,46 @@ typedef struct {
     u8 crypto[16]; // MD5 of 0x40 to 0x640 in header. crypto should be all 0's when calculating final MD5
 } IMET;
 
+typedef struct {
+	std::string Name;
+	unsigned char UnicodeName[MAX_TITLE_NAME];
+} TitleName;
+
+class TitleDescription
+{
+public:
+	TitleDescription(u64 titleId, std::string name) : TitleId(titleId), Name(name){};
+	u64 TitleId;
+	std::string Name;
+};
+
+class TitleInformation 
+{	
+private:
+	signed_blob* _titleTMD = NULL;
+	u64 _titleId = 0;
+	TitleName _titleName = { .Name = "" };
+public:
+	explicit TitleInformation(u64 titleId);
+	explicit TitleInformation(u64 titleId, std::string name);
+	~TitleInformation();
+	u64 GetTitleId();
+	std::string GetTitleIdString();
+	bool IsInstalled();
+	bool IsMovedToSD();
+	tmd* GetTMD();
+	signed_blob* GetRawTMD();
+	TitleRegion GetTitleRegion();
+	TitleName GetTitleName();
+	void LaunchTitle();
+};
+
 //The known HBC titles
-extern const title_info HBC_Titles[];
-extern const s32 HBC_Titles_Size;
+extern const std::vector<std::shared_ptr<TitleDescription>> HBCTitles;
 
 //functions
 //-------------
-s8 CheckTitleOnSD(u64 id);
-s32 GetTitleTMD(u64 titleId, signed_blob*& blob, u32& blobSize);
-s8 GetTitleName(u64 id, u32 app, char* name,u8* _dst_uncode_name);
-u8 GetTitleRegion(u32 lowerTitleId);
-s8 SetVideoModeForTitle(u32 lowerTitleId);
+s8 SetVideoModeForTitle(TitleInformation title);
 s32 LoadListTitles( void );
 
 #endif
