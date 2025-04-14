@@ -91,7 +91,7 @@ int main(int argc, char **argv)
 		std::vector<std::string> argumentList;
 		bool showInfo = false;
 		bool overwriteNandLoader = false;
-		uint applicationVersion = 0;
+		uint32_t applicationVersion = 0;
 		//load arguments except for the first, which is just the executable path
 		for(int i = 1; i < argc;i++)
 		{
