@@ -39,6 +39,7 @@ bool IsUsbGeckoDetected()
 {
 	return GeckoFound;
 }
+
 void InitGDBDebug(void)
 {
 	DEBUG_Init(GDBSTUB_DEVICE_USB, 1);
@@ -53,32 +54,11 @@ void CheckForGecko(void)
 	return;
 }
 
-void gprintf( const char *str, ... )
+static void __write_str(const char* str, const u32 len)
 {
-	if(!GeckoFound && (!DumpDebug || GetMountedFlags() <= 0))
-		return;
-
-	char astr[2048];
-	s32 size = 0;
-	memset(astr, 0, sizeof(astr));
-
-	// Current date/time based on current system, converted to tm struct for local timezone
-	time_t LeTime = time(0);
-	struct tm* localtm = localtime(&LeTime);
-
-	char nstr[2048];
-	memset(nstr, 0, 2048);
-	snprintf(nstr, 2048, "%02d:%02d:%02d : %s\r\n", localtm->tm_hour, localtm->tm_min, localtm->tm_sec, str);
-
-	va_list ap;
-	va_start(ap, str);
-	size = vsnprintf(astr, 2047, nstr, ap);
-	va_end(ap);
-	astr[size] = '\0';
-
 	if(GeckoFound)
 	{
-		usb_sendbuffer( EXI_CHANNEL_1, astr, size );
+		usb_sendbuffer( EXI_CHANNEL_1, str, len );
 		usb_flush(EXI_CHANNEL_1);
 	}
 	
@@ -87,12 +67,92 @@ void gprintf( const char *str, ... )
 		FILE* fd = fopen(BuildPath("/prii.log").c_str(), "ab");
 		if(fd != NULL)
 		{
-			fwrite(astr,1,size,fd);
+			fwrite(str, 1, len, fd);
 			fclose(fd);
 		}
 	}
-	return;
 }
+
+void gprintf( const char *str, ... )
+{
+	if(!GeckoFound && (!DumpDebug || GetMountedFlags() <= 0))
+		return;
+
+	//lets first compile the input
+	char* inputBuffer = NULL;
+	char* outputBuffer = NULL;
+	u32 bufferLength = 0x100;
+	u32 length;
+	va_list args;
+
+	// Current date/time based on current system, converted to tm struct for local timezone
+	time_t LeTime = time(0);
+	struct tm* localtm = localtime(&LeTime);
+
+	while(true)
+	{
+		char* tmp = (char*)realloc(inputBuffer, bufferLength);
+		if(!tmp)
+		{
+			const char* err = "Failed to allocate input prefix\r\n";
+			__write_str(err, strlen(err));
+			return;
+		}
+
+		inputBuffer = tmp;
+		length = snprintf(inputBuffer, bufferLength, "%02d:%02d:%02d : %s\r\n", localtm->tm_hour, localtm->tm_min, localtm->tm_sec, str);
+		if(length > 0 && length >= bufferLength)
+		{
+			bufferLength = length+1;
+			continue;
+		}
+
+		break;
+	}
+
+	if(length <= 0)
+	{
+		const char* err = "Failed to prepare input prefix\r\n";
+		__write_str(err, strlen(err));
+		return;
+	}
+
+	//string prefix has been created, now lets plug in the args
+	while(true)
+	{
+		char* tmp = (char*)realloc(outputBuffer, bufferLength);
+		if(!tmp)
+		{
+			const char* err = "Failed to allocate input prefix\r\n";
+			__write_str(err, strlen(err));
+			return;
+		}
+
+		outputBuffer = tmp;
+		va_start(args, str);
+		length = vsnprintf(outputBuffer, bufferLength, inputBuffer, args);
+		va_end(args);
+		if(length > 0 && length >= bufferLength)
+		{
+			bufferLength = length+1;
+			continue;
+		}
+		
+		break;
+	}
+
+	if(length <= 0)
+	{
+		const char* err = "Failed to prepare output prefix\r\n";
+		__write_str(err, strlen(err));
+		return;
+	}
+	
+	__write_str(outputBuffer, length);
+	free(inputBuffer);
+	free(outputBuffer);
+}
+
 void SetDumpDebug( u8 value )
 {
 	DumpDebug = value > 0 ? 1 : 0;
