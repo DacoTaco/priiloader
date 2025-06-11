@@ -287,7 +287,7 @@ s8 IsIOSstub(u8 ios_number)
 		return 1;
 	}
 	memset(ios_tmd, 0, tmd_size);
-	ES_GetTMDView(0x0000000100000000ULL | ios_number, (u8*)ios_tmd, tmd_size);
+	ES_GetTMDView(0x0000000100000000ULL | ios_number, ios_tmd, tmd_size);
 	gdprintf("isIOSstub : IOS %d is rev %d(0x%x) with tmd size of %u and %u contents", ios_number, ios_tmd->title_version, ios_tmd->title_version, tmd_size, ios_tmd->num_contents);
 	/*Stubs have a few things in common:
 	- title version : it is mostly 65280 , or even better : in hex the last 2 digits are 0.

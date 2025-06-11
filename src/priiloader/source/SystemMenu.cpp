@@ -70,7 +70,7 @@ u32 GetSysMenuIOS( void )
 		return 0;
 	}
 	memset(rTMD,0, tmd_size );
-	r = ES_GetTMDView(TitleID, (u8*)rTMD, tmd_size);
+	r = ES_GetTMDView(TitleID, rTMD, tmd_size);
 	if(r<0)
 	{
 		gprintf("GetSysMenuIOS : GetTMDView error %d",r);
@@ -105,7 +105,7 @@ u32 GetSysMenuVersion( void )
 		return 0;
 	}
 	memset(rTMD,0, tmd_size );
-	r = ES_GetTMDView(TitleID, (u8*)rTMD, tmd_size);
+	r = ES_GetTMDView(TitleID, rTMD, tmd_size);
 	if(r<0)
 	{
 		gprintf("SysMenuVersion : GetTMDView error %d",r);
