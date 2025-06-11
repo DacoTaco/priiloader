@@ -234,46 +234,37 @@ s8 GetTitleName(u64 id, u32 app, char* name, u8* unicodeName)
 			goto return_getTitle;
 		}
 
-		switch(fh >= 0)
+		if(fh >= 0) //ES method
 		{
-			//ES method
-			case true:
+			ret = ES_ReadContent(fh, (u8*)imetHeader, sizeof(IMET));
+			ES_CloseContent(fh);
+			if (ret < 0) 
+				throw "IMET ES_ReadContent " + std::to_string(ret);
+		}
+		else //ES method failed. remove tikviews from memory and fall back on ISFS method
+		{
+			gprintf("GetTitleName : ES_OpenTitleContent error %d",fh);
+			char file[64] ATTRIBUTE_ALIGN(32);
+			sprintf(file, "/title/%08x/%08x/content/%08x.app", TITLE_UPPER(id), TITLE_LOWER(id), app);
+			gdprintf("GetTitleName : %s",file);
+
+			fh = ISFS_Open(file, ISFS_OPEN_READ);
+			// fuck failed. lets check SD & GTFO
+			if(fh < 0)
 			{
-				ret = ES_ReadContent(fh, (u8*)imetHeader, sizeof(IMET));
-				ES_CloseContent(fh);
-				if (ret < 0) 
-					throw "IMET ES_ReadContent " + std::to_string(ret);
-				break;
+				if (fh != -106)
+					throw "IMET ISFS_Open " + std::to_string(ret);
+
+				CheckTitleOnSD(id);
+				ret = -106;
+				goto return_getTitle;
 			}
 
-			//ES method failed. remove tikviews from memory and fall back on ISFS method
-			case false:
-			default:
-			{
-				gprintf("GetTitleName : ES_OpenTitleContent error %d",fh);
-				char file[64] ATTRIBUTE_ALIGN(32);
-				sprintf(file, "/title/%08x/%08x/content/%08x.app", TITLE_UPPER(id), TITLE_LOWER(id), app);
-				gdprintf("GetTitleName : %s",file);
-
-				fh = ISFS_Open(file, ISFS_OPEN_READ);
-				// fuck failed. lets check SD & GTFO
-				if(fh < 0)
-				{
-					if (fh != -106)
-						throw "IMET ISFS_Open " + std::to_string(ret);
-
-					CheckTitleOnSD(id);
-					ret = -106;
-					goto return_getTitle;
-				}
-
-				// read the completed IMET header
-				ret = ISFS_Read(fh, imetHeader, sizeof(IMET));
-				ISFS_Close(fh);
-				if (ret < 0) 
-					throw "IMET ISFS_Read " + std::to_string(ret);
-				break;
-			}
+			// read the completed IMET header
+			ret = ISFS_Read(fh, imetHeader, sizeof(IMET));
+			ISFS_Close(fh);
+			if (ret < 0) 
+				throw "IMET ISFS_Read " + std::to_string(ret);
 		}
 
 		mem_free(ticketViews);
@@ -515,7 +506,7 @@ s32 LoadListTitles( void )
 					return 0;
 				}
 				memset(rTMD,0, tmd_size );
-				ret = ES_GetTMDView(title_list[i], (u8*)rTMD, tmd_size);
+				ret = ES_GetTMDView(title_list[i], rTMD, tmd_size);
 				if(ret<0)
 				{
 					gprintf("WARNING : GetTMDView error %d on title %x-%x",ret,(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
