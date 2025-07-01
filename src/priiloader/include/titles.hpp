@@ -26,6 +26,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <gccore.h>
 #include <vector>
 #include <memory>
+#include <string>
 
 //defines
 #define TITLE_TYPE_INVALID              0x00000000
@@ -44,6 +45,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #define MAX_TITLE_NAME					84
 #define IMET_HEADER_ID					0x494d4554
+
+#define SYSTEMMENU_TITLEID				((u64)0x0000000100000002LL)
 
 //structs & classes
 //-------------------
@@ -104,7 +107,8 @@ extern const std::vector<std::shared_ptr<TitleDescription>> HBCTitles;
 
 //functions
 //-------------
-s8 SetVideoModeForTitle(TitleInformation title);
+void SetVideoInterfaceConfig(std::shared_ptr<TitleInformation> title);
+s8 SetVideoModeForTitle(std::shared_ptr<TitleInformation> title);
 s32 LoadListTitles( void );
 
 #endif

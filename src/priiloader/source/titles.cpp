@@ -29,6 +29,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <iomanip>
 #include <algorithm>
 #include <ogc/machine/processor.h>
+#include <ogc/conf.h>
 
 #include "titles.hpp"
 #include "Video.h"
@@ -54,6 +55,8 @@ const std::vector<std::shared_ptr<TitleDescription>> HBCTitles = {
 #define UNKNOWN_TITLE_NAME		"????????"
 #define UNKNOWN_TITLE_NAME_SD	"????[SD]"
 
+#define HW_VI1CFG 0x0d800018
+
 bool VideoRegionMatches(TitleRegion region)
 {
 	switch (VI_TVMODE_FMT(rmode->viTVMode))
@@ -71,10 +74,26 @@ bool VideoRegionMatches(TitleRegion region)
 	}
 }
 
-s8 SetVideoModeForTitle(TitleInformation title)
+void SetVideoInterfaceConfig(std::shared_ptr<TitleInformation> title)
+{
+	bool isJpRegion = title == NULL
+		? CONF_GetRegion() == CONF_REGION_JP
+		: title->GetTitleRegion() == TitleRegion::NTSC_J;
+
+	//if the region is JP, we will set the bit, otherwise clear it
+	s32 vi1cfg = read32(HW_VI1CFG);
+	if (isJpRegion)
+		vi1cfg |= (1 << 17); //set the bit
+	else
+		vi1cfg &= ~(1 << 17); //clear the bit
+
+	write32(HW_VI1CFG, vi1cfg);
+}
+
+s8 SetVideoModeForTitle(std::shared_ptr<TitleInformation> title)
 {
 	//always set video when launching disc
-	TitleRegion titleRegion = title.GetTitleRegion();
+	TitleRegion titleRegion = title->GetTitleRegion();
 	bool confProg = (CONF_GetProgressiveScan() > 0) && VIDEO_HaveComponentCable();
 	bool confPAL60 = CONF_GetEuRGB60() > 0;
 	GXRModeObj* rmodeNew = rmode;
@@ -97,6 +116,7 @@ s8 SetVideoModeForTitle(TitleInformation title)
 
 		case TitleRegion::NTSC_J:
 			gprintf("NTSC-J");
+			SetVideoInterfaceConfig(title);
 			goto region_ntsc;
 			break;
 
@@ -148,28 +168,31 @@ TitleInformation::TitleInformation(u64 titleId, std::string name)
 
 TitleInformation::TitleInformation(u64 titleId)
 {
+	_titleId = titleId;
+
 	//if the title id isn't an essential title, we will check if its following the wii/nintendo rules
 	//the only exception is the HBC titles, as there was a version that said fuck it lol
+	if(TITLE_UPPER(titleId) == TITLE_TYPE_ESSENTIAL)
+		return;
+	
 	auto iterator = std::find_if(HBCTitles.begin(), HBCTitles.end(), [titleId](const std::shared_ptr<TitleDescription>& hbcTitle)
 	{
 		return hbcTitle->TitleId == titleId;
 	});
 
-	if(iterator == HBCTitles.end() && titleId >> 32 != TITLE_TYPE_ESSENTIAL)
-	{
-		u32 lowerTitleId = TITLE_LOWER(titleId);
-		for(s8 i = 0; i < 4; i++)
-		{
-			s8 byte = lowerTitleId & 0xFF;
-			//does it have a non-printable character?
-			if(byte < 0x20 || byte > 0x7E)
-				throw "Invalid TitleId " + std::to_string(titleId);
+	if(iterator != HBCTitles.end())
+		return;
 
-			lowerTitleId >>= 8;
-		}
+	u32 lowerTitleId = TITLE_LOWER(titleId);
+	for(s8 i = 0; i < 4; i++)
+	{
+		s8 byte = lowerTitleId & 0xFF;
+		//does it have a non-printable character?
+		if(byte < 0x20 || byte > 0x7E)
+			throw "Invalid TitleId " + std::to_string(TITLE_UPPER(titleId)) + std::to_string(TITLE_LOWER(titleId)) + ", found " + std::to_string(byte);
+
+		lowerTitleId >>= 8;
 	}
-	
-	_titleId = titleId;
 }
 
 u64 TitleInformation::GetTitleId(){ return _titleId; }
@@ -645,8 +668,9 @@ void TitleInformation::LaunchTitle()
 				case 'P':
 				case 'Q':
 					gprintf("LaunchTitle : (%08X\\%08X) Region Mismatch ! %d -> %d", _titleId, VI_TVMODE_FMT(rmode->viTVMode), titleRegion);
+					//calling SetVideoModeForTitle to force video mode here would inexplicably revert (correct) 480p to 480i sometimes; see issue #376
+					//instead we call SetupVideoInterfaceConfig later on to setup the VICFG bits and just shut down video				
 					ShutdownVideo();
-					// calling SetVideoModeForTitle to force video mode here would inexplicably revert (correct) 480p to 480i sometimes; see issue #376
 					break;
 				case 'H':
 				case 'O':
@@ -657,6 +681,7 @@ void TitleInformation::LaunchTitle()
 			}
 		}
 
+		SetVideoInterfaceConfig(std::shared_ptr<TitleInformation>(this));
 		ES_LaunchTitle(_titleId, &views[0]);
 
 		//failed to launch title

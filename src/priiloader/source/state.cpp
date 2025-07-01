@@ -29,6 +29,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "state.h"
 #include "mem2_manager.h"
 #include "gecko.h"
+#include "titles.hpp"
 
 #define HW_VISOLID (*(vu32*) 0xcd800024)
 
@@ -172,7 +173,7 @@ s32 SetNandBootInfo(void)
 {
 	u64 launcher ATTRIBUTE_ALIGN(32) = 0;
 	if(ES_GetTitleID(&launcher) < 0)
-		launcher = 0x0000000100000002LL;
+		launcher = SYSTEMMENU_TITLEID;
 
 	NANDBootInfo BootInfo ATTRIBUTE_ALIGN(32);
 	memset(&BootInfo,0,sizeof(NANDBootInfo));

@@ -76,7 +76,14 @@ void LaunchGamecubeDisc(void)
 	DVDCloseHandle();
 
 	s8 oldVideoMode = SYS_GetVideoMode();
-	s8 videoMode = SetVideoModeForTitle(TitleInformation(0x0LL || gameID));
+	if(system_state.Init)
+	{
+		VIDEO_SetBlack(true);
+		VIDEO_Flush();
+		VIDEO_WaitVSync();
+	}
+
+	s8 videoMode = SetVideoModeForTitle(std::make_shared<TitleInformation>(0x0LL | gameID));
 	gprintf("video mode : 0x%02X -> 0x%02X", oldVideoMode, videoMode);
 	if (oldVideoMode != videoMode)
 		SYS_SetVideoMode(videoMode); // most gc games tested require this
@@ -86,11 +93,14 @@ void LaunchGamecubeDisc(void)
 	*(u32*)0xcc003024 |= 7;
 
 	gprintf("booting BC...");
-	VIDEO_SetBlack(true);
-	VIDEO_Flush();
-	VIDEO_WaitVSync();
 
 	ret = WII_LaunchTitle(BC_Title_Id);
+	if(system_state.Init)
+	{
+		VIDEO_SetBlack(false);
+		VIDEO_Flush();
+		VIDEO_WaitVSync();
+	}
 	throw "launching BC failed(" + std::to_string(ret) + ")";
 }
 
@@ -252,8 +262,15 @@ void LaunchWiiDisc(void)
 	//i don't know why this is done. all loaders do it, but dolphin doesnt. 
 	//what is even the purpose of this?
 	settime(secs_to_ticks(time(NULL) - 946684800));
-
-	SetVideoModeForTitle(TitleInformation(0x0LL || gameID));
+	
+	//prepare video
+	if(system_state.Init)
+	{
+		VIDEO_SetBlack(true);
+		VIDEO_Flush();
+		VIDEO_WaitVSync();
+	}
+	SetVideoModeForTitle(std::make_shared<TitleInformation>(0x0LL | gameID));
 
 	//disc related pokes to finish it off
 	//see memory map @ https://wiibrew.org/w/index.php?title=Memory_Map
@@ -308,6 +325,13 @@ void LaunchWiiDisc(void)
 
 	_CPU_ISR_Restore(level);
 	gprintf("Failed");
+
+	if(system_state.Init)
+	{
+		VIDEO_SetBlack(false);
+		VIDEO_Flush();
+		VIDEO_WaitVSync();
+	}
 
 	//cleanup everything
 	if (partitionOpened)

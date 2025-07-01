@@ -2452,6 +2452,7 @@ int main(int argc, char **argv)
 	}
 
 	SetDumpDebug(SGetSetting(SETTING_DUMPGECKOTEXT));
+	SetVideoInterfaceConfig(NULL);
 	s16 Bootstate = CheckBootState();
 	u32 GcShutdownFlag = *(u32*)0x80003164;
 	gprintf("BootState:%d", Bootstate );

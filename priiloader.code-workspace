@@ -57,7 +57,8 @@
 		"C_Cpp.default.intelliSenseMode": "gcc-x86",
 		"C_Cpp.default.compilerPath": "${DKP_HOME}/devkitPPC/bin/powerpc-eabi-gcc",
 		"C_Cpp.default.defines": [
-			"HW_RVL"
+			"HW_RVL",
+			"GEKKO"
 		],
 		"C_Cpp.default.includePath": [
 			"${DKP_HOME}/portlibs/ppc/include/**",

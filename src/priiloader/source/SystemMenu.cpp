@@ -54,7 +54,7 @@ static s32 sysver = -1;
 u32 GetSysMenuIOS( void )
 {
 	//Get sysversion from TMD
-	u64 TitleID = 0x0000000100000002LL;
+	u64 TitleID = SYSTEMMENU_TITLEID;
 	u32 tmd_size;
 
 	s32 r = ES_GetTMDViewSize(TitleID, &tmd_size);
@@ -89,7 +89,7 @@ u32 GetSysMenuVersion( void )
 		return sysver;
 
 	//Get sysversion from TMD
-	u64 TitleID = 0x0000000100000002LL;
+	u64 TitleID = SYSTEMMENU_TITLEID;
 	u32 tmd_size;
 	s32 r = ES_GetTMDViewSize(TitleID, &tmd_size);
 	if(r<0)
@@ -298,9 +298,9 @@ void BootMainSysMenu( void )
 	s32 fd = 0;
 	try
 	{
-		TitleInformation TitleInfo = TitleInformation(0x0000000100000002LL);
+		auto TitleInfo = std::make_unique<TitleInformation>(SYSTEMMENU_TITLEID);
 		//get the TMD. we need the TMD, not views, as SM 1.0's boot index != last content
-		auto smTmd = TitleInfo.GetTMD();
+		auto smTmd = TitleInfo->GetTMD();
 		gdprintf("ios version: %u",(u8)smTmd->sys_version);
 
 		if (smTmd->boot_index > smTmd->num_contents)
@@ -485,7 +485,7 @@ void BootMainSysMenu( void )
 
 			//attempt to patch ESIdentify & Fakesign. we adjusted the SM TMD, so fakesign is needed to let ES accept it
 			PatchIOS({FakeSignPatch, FakeSignOldPatch, EsIdentifyPatch});
-			auto signedBlob = TitleInfo.GetRawTMD();
+			auto signedBlob = TitleInfo->GetRawTMD();
 			ret = ES_Identify( (signed_blob *)certificate, certStats->file_length, signedBlob, SIGNED_TMD_SIZE(signedBlob), (signed_blob *)ticket, status->file_length, 0);
 			if (ret < 0)
 			{	
