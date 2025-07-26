@@ -150,12 +150,6 @@ static bool DecryptvWiiSysMenu(void* data)
 		return false;
 	}
 
-	if (anc->info_block.console_type != ANCAST_CONSOLE_TYPE_RETAIL)
-	{
-		gprintf("invalid ancast console type");
-		return false;
-	}
-
 	// Verify body hash
 	u32 hash[5] ATTRIBUTE_ALIGN(32) = {};
 	SHA_Init();
@@ -180,8 +174,25 @@ static bool DecryptvWiiSysMenu(void* data)
 
 	// Decrypt the ancast body
 	static const u8 vwii_ancast_retail_key[0x10] = { 0x2e, 0xfe, 0x8a, 0xbc, 0xed, 0xbb, 0x7b, 0xaa, 0xe3, 0xc0, 0xed, 0x92, 0xfa, 0x29, 0xf8, 0x66 };
+	static const u8 vwii_ancast_devel_key[0x10] = { 0x26, 0xaf, 0xf4, 0xbb, 0xac, 0x88, 0xbb, 0x76, 0x9d, 0xfc, 0x54, 0xdd, 0x56, 0xd8, 0xef, 0xbd };
 	static u8 vwii_ancast_iv[0x10] = { 0x59, 0x6d, 0x5a, 0x9a, 0xd7, 0x05, 0xf9, 0x4f, 0xe1, 0x58, 0x02, 0x6f, 0xea, 0xa7, 0xb8, 0x87 };
-	if (AES_Decrypt(vwii_ancast_retail_key, sizeof(vwii_ancast_retail_key), vwii_ancast_iv, sizeof(vwii_ancast_iv), anc + 1, anc + 1, anc->info_block.body_size) < 0)
+
+	int ret;
+	if (anc->info_block.console_type == ANCAST_CONSOLE_TYPE_RETAIL)
+	{
+		ret = AES_Decrypt(vwii_ancast_retail_key, sizeof(vwii_ancast_retail_key), vwii_ancast_iv, sizeof(vwii_ancast_iv), anc + 1, anc + 1, anc->info_block.body_size);
+	}
+	else if (anc->info_block.console_type == ANCAST_CONSOLE_TYPE_DEV)
+	{
+		ret = AES_Decrypt(vwii_ancast_devel_key, sizeof(vwii_ancast_devel_key), vwii_ancast_iv, sizeof(vwii_ancast_iv), anc + 1, anc + 1, anc->info_block.body_size);
+	}
+	else
+	{
+		gprintf("invalid ancast console type");
+		return false;
+	}
+
+	if (ret < 0)
 	{
 		gprintf("failed to decrypt ancast body");
 		return false;
