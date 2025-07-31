@@ -56,17 +56,31 @@ enum TitleRegion {
 	PAL = 2
 };
 
+typedef struct {
+	u32 Signature; // "IMET"
+	u32 Unknown[0x02];  // 0x0000060000000003 fixed, unknown purpose
+	u32 Sizes[0x03]; // icon.bin, banner.bin, sound.bin
+	u32 Flags; // unknown
+	u8 Names[0x0A][0x54]; // Japanese, English, German, French, Spanish, Italian, Dutch, Simplified Chinese, Traditional Chinese, Korean
+	u8 Padding[0x24C]; // padding
+	u8 HeaderMD5[0x10]; // MD5 of IMET header content (without leading zeroes). crypto should be all 0's when calculating final MD5
+} IMETHeader;
+static_assert(sizeof(IMETHeader) == 0x5C0);
+
 //copy pasta from wiibrew
 typedef struct {
-    u8 zeroes[128]; // padding
-    u32 imet; // "IMET"
-    u8 unk[8];  // 0x0000060000000003 fixed, unknown purpose
-    u32 sizes[3]; // icon.bin, banner.bin, sound.bin
-    u32 flag1; // unknown
-    u8 names[10][84]; // Japanese, English, German, French, Spanish, Italian, Dutch, unknown, unknown, Korean
-    u8 zeroes_2[588]; // padding
-    u8 crypto[16]; // MD5 of 0x40 to 0x640 in header. crypto should be all 0's when calculating final MD5
-} IMET;
+	u8 BuildString[0x30]; // e.g., "MajoraUS.0902121645", "FEQJ_dbg_090313.0903131526", "game.1004270952", "WPSE_6762_USA_FINAL.0909241831"
+	u8 Builder[0x10]; // e.g., "vcburner@BUILDV", "katayama@KATAYA", "@PIMPC", "builder@MUSCLE"
+	u8 Zeroes[0x40]; // padding
+	IMETHeader Header; // IMET header
+} NandOpeningBanner;
+static_assert(sizeof(NandOpeningBanner) == 0x640);
+
+typedef struct {
+	u8 Zeroes[0x40]; // padding
+	IMETHeader Header; // IMET header
+} DiscOpeningBanner;
+static_assert(sizeof(DiscOpeningBanner) == 0x600);
 
 typedef struct {
 	std::string Name;
