@@ -428,15 +428,16 @@ TitleName TitleInformation::GetTitleName()
 	if(_titleName.Name[0] != '\0')
 		return _titleName;
 	
-	IMET *imetHeader = NULL;
+	void* openingBanner = NULL;
 	tikview *ticketViews = NULL;
 	try
 	{
-		imetHeader = (IMET *)mem_align(32, ALIGN32( sizeof(IMET) ) );
-		if(imetHeader == NULL)
+		//we allocate the NandIMET size since it is the bigger of the 2 versions
+		openingBanner = (void*)mem_align(32, ALIGN32( sizeof(NandOpeningBanner) ) );
+		if(openingBanner == NULL)
 			throw "failed to alloc IMET header of title" + GetTitleLongString(_titleId);
 		
-		memset(imetHeader, 0, sizeof(IMET));
+		memset(openingBanner, 0, sizeof(NandOpeningBanner));
 		u32 cnt ATTRIBUTE_ALIGN(32) = 0;
 		s32 ret = ES_GetNumTicketViews(_titleId, &cnt);
 		if(ret < 0)
@@ -462,7 +463,8 @@ TitleName TitleInformation::GetTitleName()
 					.UnicodeName = {0}
 				};
 
-				return _titleName;
+				mem_free(openingBanner);
+				return _titleName;				
 			}
 			throw "failed to retrieve title content of " + GetTitleLongString(_titleId) + ",error " + std::to_string(ret);
 		}
@@ -473,7 +475,7 @@ TitleName TitleInformation::GetTitleName()
 		if (fh >= 0)
 		{
 			//ES method
-			ret = ES_ReadContent(fh, (u8*)imetHeader, sizeof(IMET));
+			ret = ES_ReadContent(fh, (u8*)openingBanner, sizeof(NandOpeningBanner));
 			ES_CloseContent(fh);
 			if (ret < 0) 
 				throw "failed to read(ES) title content of " + GetTitleLongString(_titleId) + ",error " + std::to_string(ret);
@@ -504,14 +506,18 @@ TitleName TitleInformation::GetTitleName()
 			}
 
 			// read the completed IMET header
-			ret = ISFS_Read(fh, imetHeader, sizeof(IMET));
+			ret = ISFS_Read(fh, openingBanner, sizeof(NandOpeningBanner));
 			ISFS_Close(fh);
 			if (ret < 0) 
 				throw "failed to read title content of " + GetTitleLongString(_titleId) + ",error " + std::to_string(fh);
 		}
 
+		auto imetHeader = ((NandOpeningBanner*)openingBanner)->Header;
+		if(imetHeader.Signature != IMET_HEADER_ID)
+			imetHeader = ((DiscOpeningBanner*)openingBanner)->Header;
+
 		// check if its a valid imet header
-		if(imetHeader->imet != IMET_HEADER_ID) 
+		if(imetHeader.Signature != IMET_HEADER_ID) 
 			throw "Invalid IMET header for " + GetTitleLongString(_titleId);
 
 		/*
@@ -527,7 +533,7 @@ TitleName TitleInformation::GetTitleName()
 		u8 index = 0;
 		for(u8 charIndex = 0; charIndex < MAX_TITLE_NAME; charIndex++)
 		{
-			char titleChar = imetHeader->names[lang][charIndex];
+			char titleChar = imetHeader.Names[lang][charIndex];
 			//filter out any non-printable characters
 			if(titleChar >= 0x20 && titleChar <= 0x7E)
 				str[index++] = titleChar;
@@ -535,7 +541,7 @@ TitleName TitleInformation::GetTitleName()
 			str_unprocessed[charIndex] = titleChar;
 		}
 
-		mem_free(imetHeader);
+		mem_free(openingBanner);
 		str[MAX_TITLE_NAME-1] = '\0';
 		str_unprocessed[MAX_TITLE_NAME-1] = '\0';
 		gdprintf("GetTitleName : title %s", str);
@@ -573,8 +579,8 @@ TitleName TitleInformation::GetTitleName()
 		};
 	}
 
-	if(imetHeader)
-		mem_free(imetHeader);
+	if(openingBanner)
+		mem_free(openingBanner);
 	if(ticketViews)
 		mem_free(ticketViews);
 
