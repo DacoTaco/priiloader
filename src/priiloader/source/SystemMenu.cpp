@@ -379,7 +379,7 @@ void BootMainSysMenu( void )
 		gprintf("loading hacks");
 		LoadSystemHacks(StorageDevice::NAND);
 
-		Input_Shutdown();
+		Input_Shutdown(false);
 		ShutdownMounts();
 		USB_Deinitialize();
 		gprintf("subsystems shutdown");

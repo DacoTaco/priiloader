@@ -627,7 +627,7 @@ void TitleInformation::LaunchTitle()
 		net_wc24cleanup();
 		ClearState();
 		SetNandBootInfo();
-		Input_Shutdown();
+		Input_Shutdown(false);
 		ShutdownMounts();
 
 		gdprintf("waiting for drive to stop...");

@@ -1076,7 +1076,7 @@ s8 BootDolFromMem(void* binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		gprintf("BootDolFromMem : shutting down...");
 
 		ClearState();
-		Input_Shutdown();
+		Input_Shutdown(false);
 
 		if(DVDAsyncBusy())
 		{
@@ -1289,7 +1289,7 @@ s8 BootDolFromFile( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<st
 }
 void BootDvdDrive(void)
 {
-	Input_Shutdown();
+	Input_Shutdown(false);
 	ShutdownMounts();
 	USB_Deinitialize();
 
@@ -2548,7 +2548,7 @@ int main(int argc, char **argv)
 					gprintf("Shutting down...\n");
 					DVDStopDriveAsync();
 					ShutdownMounts();
-					Input_Shutdown();
+					Input_Shutdown(true);
 					USB_Deinitialize();
 					*(vu32*)0xCD8000C0 &= ~0x20;
 					while(DVDAsyncBusy());
@@ -2835,7 +2835,7 @@ int main(int argc, char **argv)
 			VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
 			DVDStopDrive();
 			DVDCloseHandle();
-			Input_Shutdown();
+			Input_Shutdown(true);
 			ShutdownMounts();
 			USB_Deinitialize();
 			if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )

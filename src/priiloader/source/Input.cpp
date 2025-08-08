@@ -157,18 +157,23 @@ s8 Input_Init( void )
 	_input_init = 1;
 	return r;
 }
-void Input_Shutdown( void )
+void Input_Shutdown( bool disconnectWPAD )
 {
 	if (!_input_init)
 		return;
 	
-	for (int i = 0;i < WPAD_MAX_WIIMOTES ;i++)
+	// Only disconnect WPAD when shutting down the system. 
+	// without disconnecting, wiimotes will stay in seeking state and reconnect
+	if(disconnectWPAD)
 	{
-		if(WPAD_Probe(i,0) < 0)
-			continue;
-		WPAD_Flush(i);
-		WPAD_Disconnect(i);
-	}
+		for (int i = 0;i < WPAD_MAX_WIIMOTES ;i++)
+		{
+			if(WPAD_Probe(i,0) < 0)
+				continue;
+			WPAD_Flush(i);
+			WPAD_Disconnect(i);
+		}
+	}	
 
 	WPAD_Shutdown();
 

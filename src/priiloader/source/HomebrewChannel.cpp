@@ -168,7 +168,7 @@ void LoadBootMii( void )
 	}
 	
 	u8 currentIOS = IOS_GetVersion();
-	Input_Shutdown();
+	Input_Shutdown(true);
 	ShutdownMounts();
 	IOS_ReloadIOS(254);
 	//launching bootmii failed. lets wait a bit for the launch(it could be delayed) and then load the other ios back
