@@ -53,7 +53,7 @@
 			"**/META.XML": true,
 		},
 		"C_Cpp.default.cStandard": "c17",
-		"C_Cpp.default.cppStandard": "gnu++17",
+		"C_Cpp.default.cppStandard": "gnu++23",
 		"C_Cpp.default.intelliSenseMode": "gcc-x86",
 		"C_Cpp.default.compilerPath": "${DKP_HOME}/devkitPPC/bin/powerpc-eabi-gcc",
 		"C_Cpp.default.defines": [
