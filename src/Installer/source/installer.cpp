@@ -500,7 +500,7 @@ s32 PatchTMD( InstallerAction action )
 			throw "failed to open TMD";
 
 		fd = ret;
-		STACK_ALIGN(fstats, fileStatus, sizeof(fstats), 32);
+		STACK_ALIGN(fstats, fileStatus, 1, 32);
 		ret = ISFS_GetFileStats(fd, fileStatus);
 		if (ret < 0)
 			throw "failed to get TMD information";

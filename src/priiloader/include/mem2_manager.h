@@ -28,6 +28,10 @@
 													type *name = (type*)(((u32)(_al__##name)) + ((alignment) - (((u32)(_al__##name))&((alignment)-1))))
 #endif
 
+//the type could have an array of content, which is obviously not calculated in the sizeof that STACK_ALIGN does
+//hence we fake the cnt by calculating how many times type fits in the size
+#define CALCULATE_CNT(type, size) (((size - (size % sizeof(type)))/sizeof(type))+1)
+
 enum mem2_areas_enum {
 	VIDEO_AREA,
 	GUI_AREA,

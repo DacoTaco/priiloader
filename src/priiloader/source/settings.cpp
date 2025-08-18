@@ -121,7 +121,7 @@ LoadSettingsResult LoadSettings( void )
 		return error == ERROR_NONE ? LOADSETTINGS_INI_CREATED : LOADSETTINGS_FAIL;
 	}
 
-	STACK_ALIGN(fstats,status,sizeof(fstats),32);
+	STACK_ALIGN(fstats, status, 1, 32);
 	memset(status,0,sizeof(fstats));
 	ISFS_GetFileStats(fd,status);
 	if ( status->file_length != sizeof(Settings) )

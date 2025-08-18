@@ -80,7 +80,7 @@ s32 NandWrite(const std::string& destination, const void* data, u32 dataSize, Na
 			throw "Failed to write temp file " + tempDestinationPath;
 		
 		//write done. open file and calculate hash
-		STACK_ALIGN(fstats, fileStatus, sizeof(fstats), 32);
+		STACK_ALIGN(fstats, fileStatus, 1, 32);
 		memset(fileStatus, 0, sizeof(fstats));
 		ret = ISFS_Open(tempDestinationPath.c_str(), ISFS_OPEN_READ);
 		if(ret < 0)
@@ -189,7 +189,7 @@ s32 NandCopy(const std::string& source, const std::string& destination, NandPerm
 			throw "Failed to open source " + source;
 
 		fileDescriptor = ret;
-		STACK_ALIGN(fstats, fileStatus, sizeof(fstats), 32);
+		STACK_ALIGN(fstats, fileStatus, 1, 32);
 		ret = ISFS_GetFileStats(fileDescriptor, fileStatus);
 		if(ret < 0)
 			throw "Failed to get information about " + source;

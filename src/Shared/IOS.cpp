@@ -280,7 +280,10 @@ s8 IsIOSstub(u8 ios_number)
 		return 1;
 	}
 
-	STACK_ALIGN(tmd_view, ios_tmd, ALIGN32(tmd_size), 32);
+	//the tmd_view has an array of contents, which is obviously not calculated in the sizeof that STACK_ALIGN does
+	//hence we fake the cnt by calculating how many times tmd_view fits in the tmd_size
+	const u32 cnt = ((tmd_size - (tmd_size % sizeof(tmd_view)))/sizeof(tmd_view))+1;
+	STACK_ALIGN(tmd_view, ios_tmd, cnt, 32);
 	if (!ios_tmd)
 	{
 		gdprintf("isIOSstub : TMD alloc failure");

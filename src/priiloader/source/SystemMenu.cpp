@@ -341,7 +341,7 @@ void BootMainSysMenu( void )
 			throw "error opening " + std::to_string(fileID) + ".app : errno " + std::to_string(fd);
 		}
 
-		STACK_ALIGN(fstats, status, sizeof(fstats), 32);
+		STACK_ALIGN(fstats, status, 1, 32);
 		memset( status, 0, sizeof(fstats) );
 		ret = ISFS_GetFileStats( fd, status);
 		if( ret < 0 || status->file_length == 0)
@@ -476,7 +476,7 @@ void BootMainSysMenu( void )
 				throw ("ES_Identify: ISFS_Open error " + std::to_string(ret));
 			}
 
-			STACK_ALIGN(fstats, certStats, sizeof(fstats), 32);
+			STACK_ALIGN(fstats, certStats, 1, 32);
 			memset( certStats, 0, sizeof(fstats) );
 			ret = ISFS_GetFileStats( fd, certStats);
 			if( ret < 0 || certStats->file_length == 0)
@@ -485,7 +485,7 @@ void BootMainSysMenu( void )
 				throw ("ES_Identify: ISFS_GetFileStats error " + std::to_string(ret));
 			}
 
-			STACK_ALIGN(u32, certificate, certStats->file_length, 32);
+			STACK_ALIGN(u8, certificate, certStats->file_length, 32);
 			memset( certificate, 0, certStats->file_length );
 			ret = ISFS_Read(fd, certificate, certStats->file_length);
 			if(ret < 0 || (u32)ret < certStats->file_length)

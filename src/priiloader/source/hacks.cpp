@@ -85,7 +85,7 @@ bool GetLine(bool reading_nand, std::string& line, u32 fileSize)
 		//get current file position
 		if (reading_nand)
 		{	
-			STACK_ALIGN(fstats, status, sizeof(fstats), 32);
+			STACK_ALIGN(fstats, status, 1, 32);
 			ISFS_GetFileStats(nand_file_handler, status);
 			file_pos = status->file_pos;
 		}
@@ -421,7 +421,7 @@ s8 LoadSystemHacks(StorageDevice source)
 	}
 
 	//read the hacks file size
-	STACK_ALIGN(fstats, status, sizeof(fstats), 32);
+	STACK_ALIGN(fstats, status, 1, 32);
 	u32 fileSize = 0;
 	switch(source)
 	{
@@ -527,7 +527,7 @@ s8 LoadSystemHacks(StorageDevice source)
 
 	if(nand_file_handler > 0)
 	{
-		STACK_ALIGN(fstats, status, sizeof(fstats), 32);
+		STACK_ALIGN(fstats, status, 1, 32);
 		memset( status, 0, sizeof(fstats) );
 
 		if(ISFS_GetFileStats( nand_file_handler, status)<0)

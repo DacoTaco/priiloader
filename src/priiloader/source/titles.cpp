@@ -338,7 +338,7 @@ tmd* TitleInformation::GetTMD()
 			//Other IOS calls would need direct NAND Access to load the TMD.
 			//so here we go
 			gprintf("GetTMD : Load TMD from nand");
-			STACK_ALIGN(fstats, TmdStats, sizeof(fstats), 32);
+			STACK_ALIGN(fstats, TmdStats, 1, 32);
 			char TmdPath[ISFS_MAXPATH];
 			memset(TmdPath, 0, 64);
 			sprintf(TmdPath, "/title/%08x/%08x/content/title.tmd", TITLE_UPPER(_titleId), TITLE_LOWER(_titleId));
@@ -601,11 +601,10 @@ void TitleInformation::LaunchTitle()
 	try
 	{
 		u32 cnt ATTRIBUTE_ALIGN(32) = 0;
-		STACK_ALIGN(tikview, views, 4, 32);
-
 		if (ES_GetNumTicketViews(_titleId, &cnt) < 0)
 			throw "GetNumTicketViews failure";
 
+		STACK_ALIGN(tikview, views, cnt, 32);
 		if (ES_GetTicketViews(_titleId, views, cnt) < 0 )
 			throw "ES_GetTicketViews failure!";
 

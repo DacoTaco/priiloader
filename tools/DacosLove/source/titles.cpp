@@ -490,13 +490,13 @@ s32 LoadListTitles( void )
 #endif
 			
 			u32 cnt ATTRIBUTE_ALIGN(32) = 0;
-			STACK_ALIGN(tikview,views,4,32);
-
 			if (ES_GetNumTicketViews(titles[cur_off].title_id, &cnt) < 0)
 			{
 				gprintf("GetNumTicketViews failure");
 				goto failure;
 			}
+
+			STACK_ALIGN(tikview,views,cnt,32);
 			if (ES_GetTicketViews(titles[cur_off].title_id, views, cnt) < 0 )
 			{
 				gprintf("ES_GetTicketViews failure!");

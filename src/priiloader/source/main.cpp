@@ -41,7 +41,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <ogc/usb.h>
 #include <ogc/machine/processor.h>
 #include <ogc/machine/asm.h>
-#include <ogc/lwp_watchdog.h>
 
 #include <sys/dir.h>
 #include <vector>
@@ -1625,7 +1624,7 @@ void InstallLoadDOL( void )
 					ISFS_Close( fd );
 					mem_free( buf );
 					//dol is saved. lets save the extra info now
-					STACK_ALIGN(_dol_settings,dol_settings,sizeof(_dol_settings),32);
+					STACK_ALIGN(_dol_settings, dol_settings, 1, 32);
 					memset(dol_settings,0,sizeof(_dol_settings));
 					dol_settings->HW_AHBPROT_bit = app_list[cur_off].HW_AHBPROT_ENABLED;
 					dol_settings->argument_count = app_list[cur_off].args.size();
@@ -1668,8 +1667,6 @@ void InstallLoadDOL( void )
 					}
 					else
 					{
-						STACK_ALIGN(s8,null,1,32);
-						memset(null,0,1);
 						//write the ahbprot byte and arg count by all at once since ISFS_Write fails like that
 						ISFS_Write(fd,&dol_settings->HW_AHBPROT_bit,sizeof(s16));//s8(AHBPROT)+s8(argument count)+u32(arg lenght) = 6 bytes
 						if(dol_settings->arg_cli_length > 0)
@@ -1677,6 +1674,7 @@ void InstallLoadDOL( void )
 						if(dol_settings->arg_command_line != NULL && dol_settings->arg_cli_length > 0)
 							ISFS_Write(fd, dol_settings->arg_command_line, dol_settings->arg_cli_length);
 						ISFS_Close( fd );
+						mem_free(dol_settings->arg_command_line);
 					}
 					PrintFormat( 0, ((rmode->viWidth /2)-((strlen("\"%s\" installed")+strlen(app_list[cur_off].app_name.c_str()))*13/2))>>1, 240, "\"%s\" installed", app_list[cur_off].app_name.c_str());
 				}
@@ -1796,9 +1794,9 @@ void AutoBootDol( void )
 	struct __argv *argv = NULL;
 	try
 	{
-		STACK_ALIGN(_dol_settings,dol_settings,sizeof(_dol_settings),32);
+		STACK_ALIGN(_dol_settings, dol_settings, 1, 32);
 		memset(dol_settings,0,sizeof(_dol_settings));
-		STACK_ALIGN(fstats,status,sizeof(fstats),32);
+		STACK_ALIGN(fstats, status, 1, 32);
 		memset(status,0,sizeof(fstats));
 
 		try
@@ -1853,7 +1851,7 @@ void AutoBootDol( void )
 
 			if(dol_settings->argument_count > 0)
 			{
-				STACK_ALIGN(char,arguments,dol_settings->arg_cli_length,32);
+				STACK_ALIGN(char, arguments, dol_settings->arg_cli_length, 32);
 				if(!arguments)
 					throw "failed to allocate arguments";
 
@@ -2457,7 +2455,7 @@ int main(int argc, char **argv)
 	u32 GcShutdownFlag = *(u32*)0x80003164;
 	gprintf("BootState:%d", Bootstate );
 	memset(&system_state,0,sizeof(wii_state));
-	STACK_ALIGN(StateFlags, flags, sizeof(StateFlags), 32);
+	STACK_ALIGN(StateFlags, flags, 1, 32);
 	GetStateFlags(flags);
 	gprintf("Bootstate %u detected. DiscState %u ,ReturnTo %u & Flags %u & checksum %u (gcflag : 0x%08X)", flags->type, flags->discstate, flags->returnto, flags->flags, flags->checksum, GcShutdownFlag);
 	s8 magicWord = CheckMagicWords();
