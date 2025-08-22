@@ -98,7 +98,6 @@ int main(int argc, char **argv)
 			argumentList.push_back(argv[i]);
 		}	
 
-		std::string prev_arg = "";
 		for(unsigned int i = 0; i < argumentList.size();i++)
 		{
 			std::string argument = argumentList[i];
@@ -129,18 +128,21 @@ int main(int argc, char **argv)
 						if(periodCount < 2 || periodCount > 3)
 							throw "Invalid semantic version format. expected major.minor.patch or major.minor.patch.beta";
 
-						int major = 0;
-						int minor = 0;
-						int patch = 0;
-						int beta = 0;
+						unsigned int major = 0;
+						unsigned int minor = 0;
+						unsigned int patch = 0;
+						unsigned int beta = 0;
 
-						if (sscanf(nextArgument.c_str(), "%d.%d.%d.%d", &major, &minor, &patch, &beta) != periodCount+1)
+						if (sscanf(nextArgument.c_str(), "%u.%u.%u.%u", &major, &minor, &patch, &beta) != periodCount+1)
 							throw "Failed to parse semantic version";
 						
-						if(major > 254 || minor > 254 || patch > 254 || beta > 254)
+						if (major > 254 || minor > 254 || patch > 254 || beta > 254)
 							throw "Invalid Version Given";
 
-						applicationVersion = (major << 24) | (minor << 16) | (patch << 8) | (beta & 0xFF);
+						applicationVersion = ((major & 0xFF) << 24) | 
+						                    ((minor & 0xFF) << 16) | 
+						                    ((patch & 0xFF) << 8) | 
+						                    (beta & 0xFF);
 					}
 					catch (const std::string& ex)
 					{

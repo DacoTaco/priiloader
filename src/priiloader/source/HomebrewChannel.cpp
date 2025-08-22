@@ -15,7 +15,7 @@
 #include "gecko.h"
 #include "error.h"
 #include "state.h"
-#include "IOS.h"
+#include "IOS.hpp"
 #include "HomebrewChannel.h"
 #include "font.h"
 #include "Input.h"
@@ -55,8 +55,8 @@ void LoadHBCStub ( void )
 		return;
 	}*/
 	//load Stub, contains JODI by default.
-	memcpy((void*)0x80001800, stub_bin, stub_bin_size);
-	DCFlushRange((void*)0x80001800,stub_bin_size);
+	memcpy(reinterpret_cast<void*>(0x80001800), stub_bin, stub_bin_size);
+	DCFlushRange(reinterpret_cast<void*>(0x80001800),stub_bin_size);
 	
 	//see if changes are needed to change it to the right ID
 	//TODO : try the "LOADKTHX" function of the stub instead of changing titleID
@@ -92,9 +92,9 @@ void LoadHBCStub ( void )
 		(hex[0] != 0x00 && hex[1] != 0x00) &&
 		(hex[0] != 0xAF1B && hex[1] != 0xF516)) //these are the default values in the loaded stub
 	{
-		*(vu16*)0x80001F62 = hex[0];
-		*(vu16*)0x80001F6A = hex[1];
-		DCFlushRange((void*)0x80001800,stub_bin_size);
+		*(reinterpret_cast<vu16*>(0x80001F62)) = hex[0];
+		*(reinterpret_cast<vu16*>(0x80001F6A)) = hex[1];
+		DCFlushRange(reinterpret_cast<void*>(0x80001800),stub_bin_size);
 	}
 	gprintf("HBC stub : Loaded");
 	return;	

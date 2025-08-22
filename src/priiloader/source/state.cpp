@@ -31,14 +31,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "gecko.h"
 #include "titles.hpp"
 
-#define HW_VISOLID (*(vu32*) 0xcd800024)
+#define HW_VISOLID (*(reinterpret_cast<vu32*>(0xcd800024)))
 
 wii_state system_state;
 const char* _statePath = "/title/00000001/00000002/data/state.dat\0";
 
 s32 CheckBootState( void )
 {
-	StateFlags *sf = (StateFlags *)mem_align( 32,  ALIGN32(sizeof(StateFlags)) );
+	StateFlags *sf = static_cast<StateFlags *>(mem_align( 32,  ALIGN32(sizeof(StateFlags)) ));
 	if(sf == NULL)
 		return 0;
 	memset( sf, 0, sizeof(StateFlags) );
@@ -76,7 +76,7 @@ s32 GetStateFlags( StateFlags* state )
 	
 	return 0;
 }
-static u32 __CalcChecksum(u32 *buf, int len)
+static u32 __CalcChecksum(const u32 *buf, int len)
 {
 	u32 sum = 0;
 	int i;
@@ -92,7 +92,7 @@ s32 ClearState( void )
 }
 s32 SetBootState( u8 type , u8 flags , u8 returnto , u8 discstate )
 {
-	StateFlags *sf = (StateFlags *)mem_align( 32, sizeof(StateFlags) );
+	StateFlags *sf = static_cast<StateFlags *>(mem_align( 32, sizeof(StateFlags) ));
 	memset( sf, 0, sizeof(StateFlags) );
 
 	s32 fd = ISFS_Open(_statePath, ISFS_OPEN_RW );
@@ -114,7 +114,7 @@ s32 SetBootState( u8 type , u8 flags , u8 returnto , u8 discstate )
 	sf->returnto = returnto;
 	sf->flags = flags;
 	sf->discstate = discstate;
-	sf->checksum= __CalcChecksum((u32*)sf, sizeof(StateFlags));
+	sf->checksum= __CalcChecksum(reinterpret_cast<u32*>(sf), sizeof(StateFlags));
 
 	if(ISFS_Seek( fd, 0, 0 )<0)
 	{
@@ -138,7 +138,7 @@ s32 SetBootState( u8 type , u8 flags , u8 returnto , u8 discstate )
 s8 VerifyNandBootInfo ( void )
 {
 	// path : /shared2/sys/NANDBOOTINFO
-	NANDBootInfo *Boot_Info = (NANDBootInfo *)mem_align( 32, sizeof(NANDBootInfo) );
+	NANDBootInfo *Boot_Info = static_cast<NANDBootInfo *>(mem_align( 32, sizeof(NANDBootInfo) ));
 	memset( Boot_Info, 0, sizeof(NANDBootInfo) );
 
 	s32 fd = ISFS_Open("/shared2/sys/NANDBOOTINFO", ISFS_OPEN_READ );
@@ -180,7 +180,7 @@ s32 SetNandBootInfo(void)
 	BootInfo.apptype = 0x80;
 	BootInfo.titletype = 2;
 	BootInfo.launcher = launcher;
-	BootInfo.checksum = __CalcChecksum((u32*)&BootInfo,sizeof(NANDBootInfo));
+	BootInfo.checksum = __CalcChecksum(reinterpret_cast<u32*>(&BootInfo),sizeof(NANDBootInfo));
 
 	s32 fd = ISFS_Open("/shared2/sys/NANDBOOTINFO", ISFS_OPEN_RW );
 	if(fd < 0)

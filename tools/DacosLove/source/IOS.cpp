@@ -25,14 +25,14 @@ bool isIOSstub(u8 ios_number)
 		gdprintf("isIOSstub : ES_GetTMDViewSize fail,ios %d",ios_number);
 		return true;
 	}
-	ios_tmd = (tmd_view *)mem_align( 32, ALIGN32(tmd_size) );
+	 ios_tmd = static_cast<tmd_view *>(mem_align( 32, ALIGN32(tmd_size) ));
 	if(!ios_tmd)
 	{
 		gdprintf("isIOSstub : TMD alloc failure");
 		return true;
 	}
 	memset(ios_tmd , 0, tmd_size);
-	ES_GetTMDView(0x0000000100000000ULL | ios_number, (u8*)ios_tmd , tmd_size);
+	ES_GetTMDView(0x0000000100000000ULL | ios_number, ios_tmd, tmd_size);
 	gdprintf("isIOSstub : IOS %d is rev %d(0x%x) with tmd size of %u and %u contents",ios_number,ios_tmd->title_version,ios_tmd->title_version,tmd_size,ios_tmd->num_contents);
 	/*Stubs have a few things in common:
 	- title version : it is mostly 65280 , or even better : in hex the last 2 digits are 0. 
@@ -84,15 +84,15 @@ s32 ReloadIos(s32 Ios_version,s8* bool_ahbprot_after_reload)
 			  0x4698,          // mov r8, r3      ; store it for the DVD video bitcheck later
 			  0x07DB           // lsls r3, r3, #31; check AHBPROT bit
 			};
-			u8* mem_block = (u8*)read32(0x80003130);
+			u8* mem_block = reinterpret_cast<u8*>(read32(0x80003130));
 			while((u32)mem_block < 0x93FFFFFF)
 			{
 				u32 address = (u32)mem_block;
 				if (!memcmp(mem_block, es_set_ahbprot, sizeof(es_set_ahbprot)))
 				{
 					//pointers suck but do the trick. the installer uses a more safe method in its official, closed source version.but untill people start nagging ill use pointers
-					*(u8*)(address+8) = 0x23;
-					*(u8*)(address+9) = 0xFF;
+					*(reinterpret_cast<u8*>(address+8)) = 0x23;
+					*(reinterpret_cast<u8*>(address+9)) = 0xFF;
 					DCFlushRange((u8 *)((address) >> 5 << 5), (sizeof(es_set_ahbprot) >> 5 << 5) + 64);
 					ICInvalidateRange((u8 *)((address) >> 5 << 5), (sizeof(es_set_ahbprot) >> 5 << 5) + 64);
 					break;

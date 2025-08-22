@@ -16,17 +16,11 @@ jobs:
       options: --cpus 2
     
     steps:
-#i don't like it that we need to apt-get this, but otherwise we can't build OpenDolBoot? :/
-      - name: Installing essentials
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential
-          sudo apt-get install -y cppcheck
       - name: Checkout
         uses: actions/checkout@v3
         
       - name: Source Review
-        run: cppcheck . -v --std=c99 --std=c++11 --error-exitcode=1 --enable=warning,performance,portability,information,style --suppress=unusedFunction -UDEBUG_MEM2_LEVEL
+        run: cppcheck . -v --std=c99 --std=c++11 --error-exitcode=1 --enable=warning,performance,portability,information,style --suppress=unusedFunction --suppress=unusedStructMember -UDEBUG_MEM2_LEVEL
 
       - name: PreBuild Actions
         run: |

@@ -31,7 +31,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <gccore.h>
 #include <ogc/machine/processor.h>
 
-#include "IOS.h"
+#include "IOS.hpp"
 #include "gecko.h"
 
 #ifndef ALIGN32
@@ -220,20 +220,20 @@ bool DisableAHBProt()
 		if(fd < 0)
 			throw "Failed to open /dev/sha : " + std::to_string(fd);
 		
-		params = (ioctlv*)memalign(sizeof(ioctlv) * 4, 32);
+		params = static_cast<ioctlv*>(memalign(sizeof(ioctlv) * 4, 32));
 		if(params == NULL)
 			throw "failed to alloc IOS call data";
 
 		//overwrite the thread 0 state with address 0 (0x80000000)
 		memset(params, 0, sizeof(ioctlv) * 4);
-		params[1].data	= (void*)0xFFFE0028;
+		params[1].data	= reinterpret_cast<void*>(0xFFFE0028);
 		params[1].len	= 0;
 		DCFlushRange(params, sizeof(ioctlv) * 4);
 
 		//set code to disable ahbprot and stay in loop
-		memcpy((void*)0x80000000, IOSPayload.data(), IOSPayload.size());
-		DCFlushRange((void*)0x80000000, IOSPayload.size());
-		ICInvalidateRange((void*)0x80000000, IOSPayload.size());
+		memcpy(reinterpret_cast<void*>(0x80000000), IOSPayload.data(), IOSPayload.size());
+		DCFlushRange(reinterpret_cast<void*>(0x80000000), IOSPayload.size());
+		ICInvalidateRange(reinterpret_cast<void*>(0x80000000), IOSPayload.size());
 
 		//send sha init command
 		gprintf("Dropping IOS bomb...");
@@ -361,7 +361,7 @@ s8 PatchIOS(std::vector<IosPatch> patches)
 	//look in MEM2
 	gprintf("Patching IOS in MEM2...");
 	u32 patchesFound = 0;
-	u8* mem_block = (u8*)ReadRegister32(0x80003130);
+	u8* mem_block = reinterpret_cast<u8*>(ReadRegister32(0x80003130));
 	u32 mem_length = 0x93FFFFFF - (u32)mem_block;
 	if(mem_length > 0x03FFFFFF)
 		mem_length = 0x100;
@@ -412,7 +412,7 @@ s8 PatchIOSKernel(std::vector<IosPatch> patches)
 
 	gprintf("Patching IOS kernel...");
 	u32 patchesFound = 0;
-	u8* mem_block = (u8*)SRAMADDR(0xFFFF0000);
+	u8* mem_block = reinterpret_cast<u8*>(SRAMADDR(0xFFFF0000));
 	while ((u32)mem_block < SRAMADDR(0xFFFFFFFF))
 	{
 		auto iterator = std::find_if(patches.begin(), patches.end(), [&patchesFound, mem_block](const IosPatch& iosPatch)

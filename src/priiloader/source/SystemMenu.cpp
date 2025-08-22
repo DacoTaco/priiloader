@@ -34,7 +34,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "titles.hpp"
 #include "Input.h"
 #include "settings.h"
-#include "IOS.h"
+#include "IOS.hpp"
 #include "state.h"
 #include "patches.h"
 #include "Video.h"
@@ -64,7 +64,7 @@ u32 GetSysMenuIOS( void )
 		return 0;
 	}
 
-	tmd_view *rTMD = (tmd_view*)mem_align( 32, ALIGN32(tmd_size) );
+	tmd_view *rTMD = static_cast<tmd_view*>(mem_align( 32, ALIGN32(tmd_size) ));
 	if( rTMD == NULL )
 	{
 		return 0;
@@ -98,7 +98,7 @@ u32 GetSysMenuVersion( void )
 		return 0;
 	}
 
-	tmd_view *rTMD = (tmd_view*)mem_align( 32, ALIGN32(tmd_size) );
+	tmd_view *rTMD = static_cast<tmd_view*>(mem_align( 32, ALIGN32(tmd_size) ));
 	if( rTMD == NULL )
 	{
 		gdprintf("SysMenuVersion : memalign failure");
@@ -120,7 +120,7 @@ u32 GetSysMenuVersion( void )
 
 static bool DecryptvWiiSysMenu(void* data)
 {
-	dolhdr* dol = (dolhdr*) data;
+	dolhdr* dol = static_cast<dolhdr*>(data);
 
 	// The ancast image will be in the first data section
 	EspressoAncastHeader* anc = (EspressoAncastHeader*) ((u32) data + dol->offsetData[0]);
@@ -153,7 +153,7 @@ static bool DecryptvWiiSysMenu(void* data)
 	// Verify body hash
 	u32 hash[5] ATTRIBUTE_ALIGN(32) = {};
 	SHA_Init();
-	if (SHA_Calculate((u8 *)(anc + 1), anc->info_block.body_size, hash) < 0)
+	if (SHA_Calculate(reinterpret_cast<u8 *>(anc + 1), anc->info_block.body_size, hash) < 0)
 	{
 		gprintf("failed to calculate ancast hash");
 		return false;
@@ -213,7 +213,7 @@ static void PatchvWiiSysMenu(u8* mem_block, u32 max_address)
 	{
 		if (!memcmp(mem_block + add, ipc_wait_hash, sizeof(ipc_wait_hash)))
 		{
-			memcpy((u8 *)mem_block + add, ipc_wait_patch, sizeof(ipc_wait_patch) );
+			memcpy(mem_block + add, ipc_wait_patch, sizeof(ipc_wait_patch) );
 			DCFlushRange((u8 *)((add+(u32)mem_block) >> 5 << 5), (sizeof(ipc_wait_patch) >> 5 << 5) + 64);
 			break;
 		}
@@ -226,7 +226,7 @@ static void PatchvWiiSysMenu(u8* mem_block, u32 max_address)
 	static u32 active_content_hash_us[] = { 0x38600001, 0x482836f9 };
 	static u32 active_content_hash_eu[] = { 0x38600001, 0x48283785 };
 	static u32 active_content_patch[] = { 0x38600009 };
-	u32* active_content_hash;
+	const u32* active_content_hash;
 	u32 active_content_hash_size;
 	switch (GetSysMenuVersion() & 0xf)
 	{
@@ -251,7 +251,7 @@ static void PatchvWiiSysMenu(u8* mem_block, u32 max_address)
 	{
 		if (!memcmp(mem_block + add, active_content_hash, active_content_hash_size))
 		{
-			memcpy((u8 *)mem_block + add, active_content_patch, sizeof(active_content_patch) );
+			memcpy(mem_block + add, active_content_patch, sizeof(active_content_patch) );
 			DCFlushRange((u8 *)((add+(u32)mem_block) >> 5 << 5), (sizeof(active_content_patch) >> 5 << 5) + 64);
 			break;
 		}
@@ -263,7 +263,7 @@ static void PatchvWiiSysMenu(u8* mem_block, u32 max_address)
 	static u32 vi_init_hash_jp[] = { 0x9421ffe0, 0x7c0802a6, 0x3c80816b };
 	static u32 vi_init_hash_us_eu[] = { 0x9421ffe0, 0x7c0802a6, 0x3c808168 };
 	static u32 vi_init_patch[] = { 0x4e800020 };
-	u32* vi_init_hash;
+	const u32* vi_init_hash;
 	u32 vi_init_hash_size;
 	switch (GetSysMenuVersion() & 0xf)
 	{
@@ -285,7 +285,7 @@ static void PatchvWiiSysMenu(u8* mem_block, u32 max_address)
 	{
 		if (!memcmp(mem_block + add, vi_init_hash, vi_init_hash_size))
 		{
-			memcpy((u8 *)mem_block + add, vi_init_patch, sizeof(vi_init_patch) );
+			memcpy(mem_block + add, vi_init_patch, sizeof(vi_init_patch) );
 			DCFlushRange((u8 *)((add+(u32)mem_block) >> 5 << 5), (sizeof(vi_init_patch) >> 5 << 5) + 64);
 			break;
 		}
@@ -452,7 +452,7 @@ void BootMainSysMenu( void )
 			}
 
 			//create buffer
-			ticket = (s8*)mem_align( 32, ALIGN32(status->file_length) );
+			ticket = static_cast<s8*>(mem_align( 32, ALIGN32(status->file_length) ));
 			if( ticket == NULL )
 			{
 				error = ERROR_MALLOC;
@@ -497,7 +497,7 @@ void BootMainSysMenu( void )
 			//attempt to patch ESIdentify & Fakesign. we adjusted the SM TMD, so fakesign is needed to let ES accept it
 			PatchIOS({FakeSignPatch, FakeSignOldPatch, EsIdentifyPatch});
 			auto signedBlob = TitleInfo->GetRawTMD();
-			ret = ES_Identify( (signed_blob *)certificate, certStats->file_length, signedBlob, SIGNED_TMD_SIZE(signedBlob), (signed_blob *)ticket, status->file_length, 0);
+			ret = ES_Identify( reinterpret_cast<signed_blob *>(certificate), certStats->file_length, signedBlob, SIGNED_TMD_SIZE(signedBlob), reinterpret_cast<signed_blob *>(ticket), status->file_length, 0);
 			if (ret < 0)
 			{	
 				error=ERROR_SYSMENU_ESDIVERFIY_FAILED;
@@ -511,7 +511,7 @@ void BootMainSysMenu( void )
 		//ES_SetUID(TitleID);
 
 		gprintf("Hacks:%d",system_hacks.size());
-		u8* mem_block = (u8*)binary;
+		u8* mem_block = static_cast<u8*>(binary);
 		u32 max_address = (u32)(mem_block + bootfile_size);
 		u32 size = 0;
 		u32 patch_cnt = 0;
@@ -554,7 +554,7 @@ void BootMainSysMenu( void )
 		
 		if(size > 0)
 		{
-			patch_ptr = (u8*)mem_align(32,size);
+			patch_ptr = static_cast<u8*>(mem_align(32,size));
 			if(patch_ptr == NULL)
 				throw "failed to malloc memory for patches";
 		}
@@ -576,7 +576,7 @@ void BootMainSysMenu( void )
 				//we copy these to mem2 for the loader to apply
 				if(system_hacks[i].patches[y].offset > 0 && patch_ptr != NULL)
 				{
-					offset_patch* patch = (offset_patch*)(patch_ptr + size);
+					offset_patch* patch = reinterpret_cast<offset_patch*>(patch_ptr + size);
 					size += 8 + system_hacks[i].patches[y].patch.size();
 
 					patch->offset = system_hacks[i].patches[y].offset;
@@ -607,7 +607,7 @@ void BootMainSysMenu( void )
 						if ( !memcmp(mem_block+add, temp_hash ,sizeof(temp_hash)) )
 						{
 							gprintf("Found %s @ 0x%X, patching hash # %d...",system_hacks[i].desc.c_str(), add, y+1);
-							memcpy((u8*)mem_block+add,temp_patch,sizeof(temp_patch) );
+							memcpy(mem_block+add,temp_patch,sizeof(temp_patch) );
 							DCFlushRange((u8 *)((add+(u32)mem_block) >> 5 << 5), (sizeof(temp_patch) >> 5 << 5) + 64);
 							break;
 						}
@@ -626,7 +626,7 @@ void BootMainSysMenu( void )
 		}
 
 		//prepare loader
-		loader_addr = (void*)mem_align(32,loader_bin_size);
+		loader_addr = static_cast<void*>(mem_align(32,loader_bin_size));
 		if(!loader_addr)
 			throw "failed to alloc the loader";
 

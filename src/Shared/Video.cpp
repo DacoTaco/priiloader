@@ -65,8 +65,8 @@ const static void _configureVideoMode(GXRModeObj* videoMode, bool initConsole)
 	xfb = MEM_K0_TO_K1(xfb);
 
 	// set video mode register
-	*(vu32*)0x800000CC = VI_TVMODE_FMT(rmode->viTVMode);
-	DCFlushRange((void*)0x800000CC, 4);
+	*reinterpret_cast<vu32*>(0x800000CC) = VI_TVMODE_FMT(rmode->viTVMode);
+	DCFlushRange(reinterpret_cast<void*>(0x800000CC), 4);
 
 	//set video mode
 	VIDEO_SetBlack(true);
@@ -92,7 +92,7 @@ const static void _configureVideoMode(GXRModeObj* videoMode, bool initConsole)
 void ShutdownVideo(void)
 {
 	//de-init video
-	vu16* const _viReg = (u16*)0xCC002000;
+	vu16* const _viReg = reinterpret_cast<vu16*>(0xCC002000);
 	if ((_viReg[1] & 0x0001))
 	{
 		//reset & de-init the regs. at least that should work according to libogc

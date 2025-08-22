@@ -36,7 +36,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "mem2_manager.h"
 #include "gecko.h"
 
-u32 trans_font(u32 value, int add_color[4])
+u32 trans_font(u32 value, const int add_color[4])
 {
 	if (!add_color) 
 		gprintf("SOMEONE DONE FUCKED UP!!!");
@@ -58,7 +58,7 @@ u32 trans_font(u32 value, int add_color[4])
 void PrintCharY( int xx, int yy, char c )
 {
 	//selected text
-	unsigned long* fb = (unsigned long*)VIDEO_GetCurrentFramebuffer();
+	unsigned long* fb = reinterpret_cast<unsigned long*>(VIDEO_GetCurrentFramebuffer());
 
 	int change_color[4] = {10,30,50,-10};
 
@@ -95,7 +95,7 @@ void PrintCharY( int xx, int yy, char c )
 }
 void PrintCharW( int xx, int yy, char c )
 {
-	unsigned long* fb = (unsigned long*)VIDEO_GetCurrentFramebuffer();
+	unsigned long* fb = reinterpret_cast<unsigned long*>(VIDEO_GetCurrentFramebuffer());
 
 	if( fb == NULL )
 		return;
@@ -121,7 +121,7 @@ void PrintCharW( int xx, int yy, char c )
 		}
 	}
 }
-void PrintString( int col, int x, int y, char *str )
+void PrintString( int col, int x, int y, const char *str )
 {
 	int i=0;
 	//the string_max works, but is hacky imo. its better to use the numbers later on dont you think?

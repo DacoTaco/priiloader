@@ -52,7 +52,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "HomebrewChannel.h"
 #include "mem2_manager.h"
 #include "rapidxml.hpp"
-#include "input.h"
+#include "Input.h"
 
 //loader files
 #include "patches.h"
@@ -118,6 +118,7 @@ s8 BootDolFromMem(u8* binary, u8 HW_AHBPROT_ENABLED, struct __argv* args)
 		return -1;
 
 	void* loader_addr = NULL;
+	loader_t loader = NULL;
 	u8 ret = 1;
 
 	try
@@ -134,14 +135,14 @@ s8 BootDolFromMem(u8* binary, u8 HW_AHBPROT_ENABLED, struct __argv* args)
 		}
 
 		//prepare loader
-		loader_addr = (void*)mem_align(32, loader_bin_size);
+		loader_addr = mem_align(32, loader_bin_size);
 		if (!loader_addr)
 			throw "failed to alloc the loader";
 
 		memcpy(loader_addr, loader_bin, loader_bin_size);
 		DCFlushRange(loader_addr, loader_bin_size);
 		ICInvalidateRange(loader_addr, loader_bin_size);
-		SET_LOADER_ADDRESS(loader_addr);
+		loader = (loader_t)loader_addr;
 
 
 		gprintf("BootDolFromMem : shutting down...");
@@ -241,9 +242,7 @@ s8 BootDolFromMem(u8* binary, u8 HW_AHBPROT_ENABLED, struct __argv* args)
 		ret = -7;
 	}
 
-	if (loader_addr)
-		mem_free(loader_addr);
-
+	mem_free(loader_addr);
 	return ret;
 }
 
@@ -265,7 +264,7 @@ s8 BootDolFromFile(const char* Dir, u8 HW_AHBPROT_ENABLED, const std::vector<std
 		_path.append(Dir);
 		gprintf("going to boot %s", _path.c_str());
 
-		args = (struct __argv*)mem_align(32, sizeof(__argv));
+		args = static_cast<struct __argv*>(mem_align(32, sizeof(__argv)));
 		if (!args)
 			throw "arg malloc failed";
 
@@ -288,7 +287,7 @@ s8 BootDolFromFile(const char* Dir, u8 HW_AHBPROT_ENABLED, const std::vector<std
 		}
 
 		//allocate memory for the arguments
-		args->commandLine = (char*)mem_malloc(args->length);
+		args->commandLine = static_cast<char*>(mem_malloc(args->length));
 		if (args->commandLine == NULL)
 		{
 			args->commandLine = 0;
@@ -329,7 +328,7 @@ s8 BootDolFromFile(const char* Dir, u8 HW_AHBPROT_ENABLED, const std::vector<std
 		u32 size = ftell(dol);
 		fseek(dol, 0, 0);
 
-		binary = (u8*)mem_align(32, ALIGN32(size));
+		binary = static_cast<u8*>(mem_align(32, ALIGN32(size)));
 		if (!binary)
 			throw "failed to alloc the binary";
 
@@ -453,7 +452,7 @@ void InstallLoadDOL(void)
 					fseek(app_bin, 0, SEEK_END);
 					size = ftell(app_bin);
 					rewind(app_bin);
-					buf = (char*)mem_malloc(size + 1);
+					buf = static_cast<char*>(mem_malloc(size + 1));
 					if (!buf)
 					{
 						gdprintf("buf == NULL");
@@ -720,14 +719,14 @@ u32 GetSysMenuVersion(void)
 		return 0;
 	}
 
-	tmd_view* rTMD = (tmd_view*)mem_align(32, ALIGN32(tmd_size));
+	tmd_view* rTMD = static_cast<tmd_view*>(mem_align(32, ALIGN32(tmd_size)));
 	if (rTMD == NULL)
 	{
 		gdprintf("SysMenuVersion : memalign failure");
 		return 0;
 	}
 	memset(rTMD, 0, tmd_size);
-	r = ES_GetTMDView(TitleID, (u8*)rTMD, tmd_size);
+	r = ES_GetTMDView(TitleID, rTMD, tmd_size);
 	if (r < 0)
 	{
 		gprintf("SysMenuVersion : GetTMDView error %d", r);
@@ -817,7 +816,7 @@ u8 PatchIOS( void )
 #endif
 
 	//patching. according to sven writex is better then vu pointers (but failed before obviously) and even better would be to load ios(into memory) from nand,patch it, and let starlet load it
-	u8* mem_block = (u8*)read32(0x80003130);
+	u8* mem_block = reinterpret_cast<u8*>(read32(0x80003130));
 	s8 patches_applied = 0;
 	while((u32)mem_block < 0x93AFFFFF)
 	{
@@ -854,9 +853,9 @@ u8 PatchIOS( void )
 			_write8(address, 0x46);
 			_write8(address + 1, 0xC0);
 			patches_applied++;
-			DCFlushRange((u8*)((address) >> 5 << 5), (sizeof(setuid_old) >> 5 << 5) + 64);
+			DCFlushRange(reinterpret_cast<u8*>((address) >> 5 << 5), (sizeof(setuid_old) >> 5 << 5) + 64);
 #ifdef DEBUG
-			printf("value is now 0x%X & 0x%X\r\n", *(vu32*)(address), *(vu32*)(address + 4));
+			printf("value is now 0x%X & 0x%X\r\n", *reinterpret_cast<vu32*>(address), *reinterpret_cast<vu32*>(address + 4));
 #endif
 			goto continue_loop;
 		}
@@ -867,10 +866,10 @@ u8 PatchIOS( void )
 			_write8(address + 2, 0xE0);
 			_write8(address + 3, 0x01);
 			patches_applied++;
-			DCFlushRange((u32*)address, 64);
-			ICInvalidateRange((u8*)((address) >> 5 << 5), (sizeof(old_nand_Table) >> 5 << 5) + 64);
+			DCFlushRange(reinterpret_cast<void*>(address), 64);
+			ICInvalidateRange(reinterpret_cast<u8*>((address) >> 5 << 5), (sizeof(old_nand_Table) >> 5 << 5) + 64);
 #ifdef DEBUG
-			printf("value is now 0x%X\r\n", *(vu32*)address);
+			printf("value is now 0x%X\r\n", *reinterpret_cast<vu32*>(address));
 #endif
 			goto continue_loop;
 		}
@@ -880,10 +879,10 @@ u8 PatchIOS( void )
 			_write8(address + 8, 0x23); // li r3, 0xFF.aka, make it look like the TMD had max settings
 			_write8(address + 9, 0xFF);
 			patches_applied++;
-			DCFlushRange((u8*)((address) >> 5 << 5), (sizeof(es_set_ahbprot) >> 5 << 5) + 64);
-			ICInvalidateRange((u8*)((address) >> 5 << 5), (sizeof(es_set_ahbprot) >> 5 << 5) + 64);
+			DCFlushRange(reinterpret_cast<u8*>((address) >> 5 << 5), (sizeof(es_set_ahbprot) >> 5 << 5) + 64);
+			ICInvalidateRange(reinterpret_cast<u8*>((address) >> 5 << 5), (sizeof(es_set_ahbprot) >> 5 << 5) + 64);
 #ifdef DEBUG
-			printf("value is now 0x%X\r\n", *(vu32*)address);
+			printf("value is now 0x%X\r\n", *reinterpret_cast<vu32*>(address));
 #endif
 			goto continue_loop;
 		}
@@ -892,9 +891,9 @@ u8 PatchIOS( void )
 			printf("Found Hash check @ 0x%X, patching...\r\n", address);
 			_write8(address + 1, 0);
 			patches_applied++;
-			DCFlushRange((u8*)((address) >> 5 << 5), (sizeof(trucha_hash1) >> 5 << 5) + 64);
+			DCFlushRange(reinterpret_cast<u8*>((address) >> 5 << 5), (sizeof(trucha_hash1) >> 5 << 5) + 64);
 #ifdef DEBUG
-			printf("value is now 0x%X\r\n", *(vu32*)address);
+			printf("value is now 0x%X\r\n", *reinterpret_cast<vu32*>(address));
 #endif
 			goto continue_loop;
 		}
@@ -903,9 +902,9 @@ u8 PatchIOS( void )
 			printf("Found Hash check2 @ 0x%X, patching...\r\n", address);
 			_write8(address + 1, 0);
 			patches_applied++;
-			DCFlushRange((u8*)((address) >> 5 << 5), (sizeof(trucha_hash2) >> 5 << 5) + 64);
+			DCFlushRange(reinterpret_cast<u8*>((address) >> 5 << 5), (sizeof(trucha_hash2) >> 5 << 5) + 64);
 #ifdef DEBUG
-			printf("value is now 0x%X\r\n", *(vu32*)address);
+			printf("value is now 0x%X\r\n", *reinterpret_cast<vu32*>(address));
 #endif
 			goto continue_loop;
 		}
@@ -918,7 +917,7 @@ u8 PatchIOS( void )
 			DCFlushRange((u8*)((address) >> 5 << 5), (sizeof(identifyCheck) >> 5 << 5) + 64);
 			ICInvalidateRange((u8*)((address) >> 5 << 5), (sizeof(identifyCheck) >> 5 << 5) + 64);
 #ifdef DEBUG
-			printf("value is now 0x%X & 0x%X\r\n", *(vu32*)(address), *(vu32*)(address + 4));
+			printf("value is now 0x%X & 0x%X\r\n", *reinterpret_cast<vu32*>(address), *reinterpret_cast<vu32*>(address + 4));
 #endif
 			goto continue_loop;
 		}
@@ -929,7 +928,7 @@ u8 PatchIOS( void )
 			patches_applied++;
 			DCFlushRange((u8*)((address) >> 5 << 5), (sizeof(downgrade_fix) >> 5 << 5) + 64);
 #ifdef DEBUG
-			printf("value is now 0x%X\r\n", *(vu32*)(address + 13));
+			printf("value is now 0x%X\r\n", *reinterpret_cast<vu32*>(address + 13));
 #endif
 			goto continue_loop;
 		}
@@ -945,7 +944,7 @@ u8 PatchIOS( void )
 				patches_applied++;
 			DCFlushRange((u8*)((address) >> 5 << 5), (sizeof(SysTitleInstall_pt1) >> 5 << 5) + 64);
 #ifdef DEBUG
-			printf("value is now 0x%X\r\n", *(vu32*)(address + 4));
+			printf("value is now 0x%X\r\n", *reinterpret_cast<vu32*>(address + 4));
 #endif
 			goto continue_loop;
 		}
@@ -958,9 +957,9 @@ u8 PatchIOS( void )
 			pt2_found++;
 			if (pt2_found >= 2)
 				patches_applied++;
-			DCFlushRange((u8*)((address) >> 5 << 5), (sizeof(SysTitleInstall_pt1) >> 5 << 5) + 64);
+			DCFlushRange(reinterpret_cast<u8*>((address) >> 5 << 5), (sizeof(SysTitleInstall_pt1) >> 5 << 5) + 64);
 #ifdef DEBUG
-			printf("value is now 0x%X\r\n", *(vu32*)(address + 4));
+			printf("value is now 0x%X\r\n", *reinterpret_cast<vu32*>(address + 4));
 #endif
 			goto continue_loop;
 		}
@@ -972,7 +971,7 @@ u8 PatchIOS( void )
 			patches_applied++;
 			DCFlushRange((u8*)((address) >> 5 << 5), (sizeof(SysTitleInstall_pt1) >> 5 << 5) + 64);
 #ifdef DEBUG
-			printf("value is now 0x%X\r\n", *(vu32*)(address + 4));
+			printf("value is now 0x%X\r\n", *reinterpret_cast<vu32*>(address + 4));
 #endif
 			goto continue_loop;
 		}
@@ -980,7 +979,6 @@ u8 PatchIOS( void )
 
 continue_loop:
 		mem_block++;
-		continue;
 	}
 
 #ifdef VWII_MODE
@@ -1011,28 +1009,28 @@ int main(int argc, char **argv)
 	gprintf("Daco's Love : Priiloader core rev 148 & 0.8B1");
 	gprintf("Built   : %s %s", __DATE__, __TIME__ );
 	gprintf("Version : 0.2");
-	gprintf("Firmware: %d.%d.%d", *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143 );
+	gprintf("Firmware: %d.%d.%d", *reinterpret_cast<vu16*>(0x80003140), *reinterpret_cast<vu8*>(0x80003142), *reinterpret_cast<vu8*>(0x80003143));
 
-	*(vu32*)0x80000020 = 0x0D15EA5E;				// Magic word (how did the console boot?)
-	*(vu32*)0x800000F8 = 0x0E7BE2C0;				// Bus Clock Speed
-	*(vu32*)0x800000FC = 0x2B73A840;				// CPU Clock Speed
+	*reinterpret_cast<vu32*>(0x80000020) = 0x0D15EA5E;				// Magic word (how did the console boot?)
+	*reinterpret_cast<vu32*>(0x800000F8) = 0x0E7BE2C0;				// Bus Clock Speed
+	*reinterpret_cast<vu32*>(0x800000FC) = 0x2B73A840;				// CPU Clock Speed
 
-	*(vu32*)0x80000040 = 0x00000000;				// Debugger present?
-	*(vu32*)0x80000044 = 0x00000000;				// Debugger Exception mask
-	*(vu32*)0x80000048 = 0x00000000;				// Exception hook destination 
-	*(vu32*)0x8000004C = 0x00000000;				// Temp for LR
-	*(vu32*)0x80003100 = 0x01800000;				// Physical Mem1 Size
-	*(vu32*)0x80003104 = 0x01800000;				// Console Simulated Mem1 Size
+	*reinterpret_cast<vu32*>(0x80000040) = 0x00000000;				// Debugger present?
+	*reinterpret_cast<vu32*>(0x80000044) = 0x00000000;				// Debugger Exception mask
+	*reinterpret_cast<vu32*>(0x80000048) = 0x00000000;				// Exception hook destination 
+	*reinterpret_cast<vu32*>(0x8000004C) = 0x00000000;				// Temp for LR
+	*reinterpret_cast<vu32*>(0x80003100) = 0x01800000;				// Physical Mem1 Size
+	*reinterpret_cast<vu32*>(0x80003104) = 0x01800000;				// Console Simulated Mem1 Size
 
-	*(vu32*)0x80003118 = 0x04000000;				// Physical Mem2 Size
-	*(vu32*)0x8000311C = 0x04000000;				// Console Simulated Mem2 Size
+	*reinterpret_cast<vu32*>(0x80003118) = 0x04000000;				// Physical Mem2 Size
+	*reinterpret_cast<vu32*>(0x8000311C) = 0x04000000;				// Console Simulated Mem2 Size
 
-	*(vu32*)0x80003120 = 0x93400000;				// MEM2 end address ?
+	*reinterpret_cast<vu32*>(0x80003120) = 0x93400000;				// MEM2 end address ?
 
 	s32 r = ISFS_Initialize();
 	if( r < 0 )
 	{
-		*(vu32*)0xCD8000C0 |= 0x20;
+		*reinterpret_cast<vu32*>(0xCD8000C0) |= 0x20;
 		error=ERROR_ISFS_INIT;
 	}
 
@@ -1124,7 +1122,7 @@ int main(int argc, char **argv)
 		if( redraw )
 		{
 			PrintFormat( 0, (rmode->viWidth - (strlen("Daco's Love v0.2")*13/2)), rmode->viHeight-48, "Daco's Love v0.2");
-			PrintFormat( 0, 16, rmode->viHeight-64, "IOS v%d", (*(vu32*)0x80003140)>>16 );
+			PrintFormat( 0, 16, rmode->viHeight-64, "IOS v%d", (*reinterpret_cast<vu32*>(0x80003140))>>16 );
 			PrintFormat( 0, 16, rmode->viHeight-48, "Systemmenu v%d", SysVersion );			
 			PrintFormat( 0, 16, rmode->viHeight-20, "Daco's Love = Priiloader");
 			PrintFormat( cur_off==0, ((rmode->viWidth /2)-((strlen("Homebrew Channel"))*13/2))>>1, 80, "Homebrew Channel");
@@ -1142,7 +1140,7 @@ int main(int argc, char **argv)
 		}
 		if(system_state.Shutdown )
 		{
-			*(vu32*)0xCD8000C0 &= ~0x20;
+			*reinterpret_cast<vu32*>(0xCD8000C0) &= ~0x20;
 			//when we are in preloader itself we should make the video black or de-init it before the user thinks its not shutting down...
 			//TODO : fade to black if possible without a gfx lib?
 			//STM_SetVIForceDimming ?

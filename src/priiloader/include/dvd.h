@@ -100,8 +100,8 @@ s32 DVDInquiry();
 s32 DVDAudioBufferConfig(u8 enable, s8 buffer_size);
 
 //Command execution
-s32 DVDExecuteCommand(u32 command, u8 do_async, void* input, s32 input_size, void* output, s32 output_size, ipccallback callback);
-s32 DVDExecuteVCommand(s32 command, bool do_async, s32 cnt_in, s32 cnt_io, void* cmd_input, u32 cmd_input_size, void* input, u32 input_size, ipccallback callback, void* userdata);
+s32 DVDExecuteCommand(u32 command, u8 do_async, const void* input, s32 input_size, void* output, s32 output_size, ipccallback callback);
+s32 DVDExecuteVCommand(s32 command, bool do_async, s32 cnt_in, s32 cnt_io, const void* cmd_input, u32 cmd_input_size, const void* input, u32 input_size, ipccallback callback, void* userdata);
 
 #ifdef __cplusplus
    }

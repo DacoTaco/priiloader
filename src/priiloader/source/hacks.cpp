@@ -94,7 +94,7 @@ bool GetLine(bool reading_nand, std::string& line, u32 fileSize)
 			file_pos = ftell(fat_file_handler);
 		}
 
-		buf = (char*)mem_align(32,max_size+1);
+		buf = static_cast<char*>(mem_align(32,max_size+1));
 		if (!buf)
 		{
 			error = ERROR_MALLOC;
@@ -120,9 +120,9 @@ bool GetLine(bool reading_nand, std::string& line, u32 fileSize)
 			s32 ret = 0;
 
 			if (reading_nand)
-				ret = ISFS_Read(nand_file_handler, (void*)addr, len );
+				ret = ISFS_Read(nand_file_handler, reinterpret_cast<void*>(addr), len );
 			else
-				ret = fread( (void*)addr, sizeof( char ), len, fat_file_handler );
+				ret = fread( reinterpret_cast<void*>(addr), sizeof( char ), len, fat_file_handler );
 
 			if(ret <= 0)
 			{
@@ -134,7 +134,7 @@ bool GetLine(bool reading_nand, std::string& line, u32 fileSize)
 
 			//flush memory so we are not hitting cache with the read data
 			//we do +1 so any null terminator is also flushed
-			DCFlushRange((void*)addr, ALIGN32(ret+1));
+			DCFlushRange(reinterpret_cast<void*>(addr), ALIGN32(ret+1));
 			read_cnt += ret;
 
 			if(strnlen(buf,max_size+1) >= max_size)
@@ -161,9 +161,9 @@ bool GetLine(bool reading_nand, std::string& line, u32 fileSize)
 
 		//cut off any carriage returns
 		if(cut_string.back() == '\r')
-			cut_string = cut_string.substr(0, cut_string.length() - 1);
+			cut_string.pop_back();
 		if(cut_string.front() == '\r')
-			cut_string = cut_string.substr(1, cut_string.length() - 1);
+			cut_string.erase(0, 1);
 
 		line = cut_string;
 
@@ -203,10 +203,9 @@ bool _processLine(system_hack& hack, std::string &line)
 		gdprintf("processing '%s'",line.c_str());
 
 		//if the line has a comment we will strip everything after the comment character
-		if(line.find("#") != std::string::npos)
-		{
-			line = line.substr(0,line.find("#"));
-		}
+		auto commentPos = line.find("#");
+		if(commentPos != std::string::npos)
+			line.erase(commentPos);
 
 		//trim all trailing spaces. if we end up with an empty line we just return
 		line = trim(line);
@@ -539,7 +538,7 @@ s8 LoadSystemHacks(StorageDevice source)
 		//if the file is not the same size as the loaded hacks, we ignore the file
 		if(status->file_length == system_hacks.size())
 		{
-			u8 *fbuf = (u8 *)mem_align( 32, ALIGN32(status->file_length) );
+			u8 *fbuf = static_cast<u8 *>(mem_align( 32, ALIGN32(status->file_length) ));
 			if( fbuf == NULL )
 			{
 				error = ERROR_MALLOC;

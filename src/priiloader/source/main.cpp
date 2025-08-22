@@ -66,7 +66,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "DiscContent.h"
 #include "mem2_manager.h"
 #include "HomebrewChannel.h"
-#include "IOS.h"
+#include "IOS.hpp"
 #include "mount.h"
 #include "rapidxml.hpp"
 #include "rapidxml_utils.hpp"
@@ -267,7 +267,7 @@ void SysHackHashSettings( void )
 					fseek( in, 0, 0);
 
 					//always have an aligned buffer/file
-					char *buf = (char*)mem_align( 32, ALIGN32(size) );
+					char *buf = static_cast<char*>(mem_align( 32, ALIGN32(size) ));
 					memset( buf, 0, ALIGN32(size) );
 					fread( buf, sizeof( char ), size, in );
 
@@ -492,7 +492,7 @@ void SetSettings( void )
 	//get a list of all installed IOSs
 	u32 TitleCount = 0;
 	ES_GetNumTitles(&TitleCount);
-	u64 *TitleIDs=(u64*)mem_align(32, TitleCount * sizeof(u64) );
+	u64 *TitleIDs=static_cast<u64*>(mem_align(32, TitleCount * sizeof(u64) ));
 	ES_GetTitles(TitleIDs, TitleCount);
 	shellsort(TitleIDs, TitleCount);
 
@@ -1044,7 +1044,7 @@ s8 BootDolFromMem(void* binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 	if(binary == NULL)
 		return -1;
 
-	void* loader_addr = NULL;
+	u32* loader_addr = NULL;
 	loader_t loader = NULL;
 	u8 ret = 1;
 
@@ -1062,7 +1062,7 @@ s8 BootDolFromMem(void* binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		}
 
 		//prepare loader
-		loader_addr = (void*)mem_align(32,loader_bin_size);
+		loader_addr = static_cast<u32*>(mem_align(32,loader_bin_size));
 		if(!loader_addr)
 			throw "failed to alloc the loader";
 
@@ -1162,9 +1162,7 @@ s8 BootDolFromMem(void* binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 		ret = -7;
 	}
 
-	if(loader_addr)
-		mem_free(loader_addr);
-
+	mem_free(loader_addr);
 	return ret;
 }
 
@@ -1183,7 +1181,7 @@ s8 BootDolFromFile( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<st
 		std::string _path = Dir;
 		gprintf("going to boot %s",_path.c_str());
 
-		args = (struct __argv*)mem_align(32,sizeof(__argv));
+		args = static_cast<struct __argv*>(mem_align(32,sizeof(__argv)));
 		if(!args)
 			throw "arg malloc failed";
 
@@ -1201,12 +1199,12 @@ s8 BootDolFromFile( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<st
 		//loading args
 		for(u32 i = 0; i < args_list.size(); i++)
 		{
-			if(args_list[i].c_str())
+			if(args_list[i].size() > 0)
 				args->length += strnlen(args_list[i].c_str(),128)+1;
 		}
 
 		//allocate memory for the arguments
-		args->commandLine = (char*) mem_malloc(args->length);
+		args->commandLine = static_cast<char*>(mem_malloc(args->length));
 		if(args->commandLine == NULL)
 		{
 			args->commandLine = 0;
@@ -1225,7 +1223,7 @@ s8 BootDolFromFile( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<st
 				u32 pos = _path.size() +1;
 				for(u32 i = 0; i < args_list.size(); i++)
 				{
-					if(args_list[i].c_str())
+					if(args_list[i].size() > 0)
 					{
 						strcpy(&args->commandLine[pos], args_list[i].c_str());
 						pos += strlen(args_list[i].c_str())+1;
@@ -1247,7 +1245,7 @@ s8 BootDolFromFile( const char* Dir , u8 HW_AHBPROT_ENABLED,const std::vector<st
 		u32 size = ftell(dol);
 		fseek( dol, 0, 0);
 
-		binary = (u8*)mem_align( 32, ALIGN32(size) );
+		binary = static_cast<u8*>(mem_align( 32, ALIGN32(size) ));
 		if(!binary)
 			throw "failed to alloc the binary";
 
@@ -1387,7 +1385,7 @@ void InstallLoadDOL( void )
 					fseek (app_bin , 0 , SEEK_END);
 					size = ftell(app_bin);
 					rewind (app_bin);
-					buf = (char*)mem_malloc(size+1);
+					buf = static_cast<char*>(mem_malloc(size+1));
 					if(!buf)
 					{
 						gdprintf("buf == NULL");
@@ -1593,7 +1591,7 @@ void InstallLoadDOL( void )
 			unsigned int size = ftell( dol );
 			fseek( dol, 0, 0 );
 
-			char *buf = (char*)mem_align( 32, ALIGN32(sizeof( char ) * size) );
+			char *buf = static_cast<char*>(mem_align( 32, ALIGN32(sizeof( char ) * size) ));
 			if(buf != NULL)
 			{
 				memset( buf, 0, sizeof( char ) * size );
@@ -1630,18 +1628,18 @@ void InstallLoadDOL( void )
 					dol_settings->argument_count = app_list[cur_off].args.size();
 					for(u32 i = 0;i < app_list[cur_off].args.size();i++)
 					{
-						if(app_list[cur_off].args[i].c_str())
+						if(app_list[cur_off].args[i].size() > 0)
 							dol_settings->arg_cli_length += strnlen(app_list[cur_off].args[i].c_str(),128)+1;
 					}
 					dol_settings->arg_cli_length += 1;
 
-					dol_settings->arg_command_line = (char*)mem_align(32,dol_settings->arg_cli_length+1);
+					dol_settings->arg_command_line = static_cast<char*>(mem_align(32,dol_settings->arg_cli_length+1));
 					if(dol_settings->arg_command_line != NULL)
 					{
 						u32 pos = 0;
 						for(u32 i = 0; i < app_list[cur_off].args.size(); i++)
 						{
-							if(app_list[cur_off].args[i].c_str())
+							if(app_list[cur_off].args[i].size() > 0)
 							{
 								strcpy(&dol_settings->arg_command_line[pos], app_list[cur_off].args[i].c_str());
 								pos += strlen(app_list[cur_off].args[i].c_str())+1;
@@ -1820,7 +1818,7 @@ void AutoBootDol( void )
 				throw "invalid HW_AHBPROT bit";
 			}
 
-			argv = (__argv*)mem_align(32,sizeof(__argv));
+			argv = reinterpret_cast<__argv*>(mem_align(32,sizeof(__argv)));
 			if(!argv)
 			{
 				error = ERROR_MALLOC;
@@ -1840,7 +1838,7 @@ void AutoBootDol( void )
 				argv->length += dol_settings->arg_cli_length;
 			}
 
-			argv->commandLine = (char*) mem_align(32,argv->length);
+			argv->commandLine = static_cast<char*>(mem_align(32,argv->length));
 			if(!argv->commandLine)
 				throw "failed to alloc memory for cli";
 			
@@ -1916,7 +1914,7 @@ void AutoBootDol( void )
 			throw "failed to get stats of main.bin";
 		}
 
-		binary = (u8*)mem_align(32,status->file_length);
+		binary = static_cast<u8*>(mem_align(32,status->file_length));
 		if(!binary)
 		{
 			error = ERROR_MALLOC;
@@ -2150,7 +2148,7 @@ void CheckForUpdate()
 
 		//we are dealing with a string, so play it safe
 		buffer[file_size-1] = 0;
-		const std::string newlineType = strpbrk((char*)buffer , "\r\n") 
+		const std::string newlineType = strpbrk(reinterpret_cast<const char*>(buffer) , "\r\n") 
 			? "\r\n"
 			: "\n";
 		u16 min_line = 0;
@@ -2159,7 +2157,7 @@ void CheckForUpdate()
 			: 17;
 		redraw = 1;
 		std::vector<std::string> lines;
-		std::string_view stringView = (char*)buffer;
+		std::string_view stringView = reinterpret_cast<const char*>(buffer);
 		for (auto found = stringView.find(newlineType); found != std::string_view::npos; found = stringView.find(newlineType))
 		{
 			lines.emplace_back(stringView, 0, found);
@@ -2378,7 +2376,7 @@ void Autoboot_System( void )
 }
 s8 CheckMagicWords( void )
 {
-	vu32* addr = (vu32*)MAGIC_WORD_ADDRESS_1;	
+	const vu32* addr = reinterpret_cast<vu32*>(MAGIC_WORD_ADDRESS_1);
 	while (addr != NULL)
 	{
 		//0x4461636f = "Daco" in hex, 0x50756e65 = "Pune", 0x41627261 = "Abra"  
@@ -2389,8 +2387,8 @@ s8 CheckMagicWords( void )
 		else if(*addr == 0x41627261)
 			return MAGIC_WORD_ABRA;
 
-		if (addr != (vu32*)MAGIC_WORD_ADDRESS_2)
-			addr = (vu32*)MAGIC_WORD_ADDRESS_2;
+		if (addr != reinterpret_cast<vu32*>(MAGIC_WORD_ADDRESS_2))
+			addr = reinterpret_cast<vu32*>(MAGIC_WORD_ADDRESS_2);
 		else
 			break;
 	}
@@ -2398,10 +2396,10 @@ s8 CheckMagicWords( void )
 }
 void ClearMagicWord( void )
 {
-	*(vu32*)MAGIC_WORD_ADDRESS_1 = 0x00000000;
-	DCFlushRange((void*)MAGIC_WORD_ADDRESS_1,4);
-	*(vu32*)MAGIC_WORD_ADDRESS_2 = 0x00000000;
-	DCFlushRange((void*)MAGIC_WORD_ADDRESS_2,4);
+	*reinterpret_cast<vu32*>(MAGIC_WORD_ADDRESS_1) = 0x00000000;
+	DCFlushRange(reinterpret_cast<void*>(MAGIC_WORD_ADDRESS_1),4);
+	*reinterpret_cast<vu32*>(MAGIC_WORD_ADDRESS_2) = 0x00000000;
+	DCFlushRange(reinterpret_cast<void*>(MAGIC_WORD_ADDRESS_2),4);
 	return;
 }
 
@@ -2414,7 +2412,7 @@ int main(int argc, char **argv)
 	gprintf("priiloader");
 	gprintf("Built   : %s %s", __DATE__, __TIME__ );
 	gprintf("Version : %d.%d.%d (rev %s)", VERSION.major, VERSION.minor, VERSION.patch, GIT_REV_STR);
-	gprintf("Firmware: %d.%d.%d", *(vu16*)0x80003140, *(vu8*)0x80003142, *(vu8*)0x80003143 );
+	gprintf("Firmware: %d.%d.%d", *reinterpret_cast<vu16*>(0x80003140), *reinterpret_cast<vu8*>(0x80003142), *reinterpret_cast<vu8*>(0x80003143) );
 
 	/**(vu32*)0x80000020 = 0x0D15EA5E;				// Magic word (how did the console boot?)
 	*(vu32*)0x800000F8 = 0x0E7BE2C0;				// Bus Clock Speed
@@ -2435,13 +2433,13 @@ int main(int argc, char **argv)
 	s32 r = ISFS_Initialize();
 	if( r < 0 )
 	{
-		*(vu32*)0xCD8000C0 |= 0x20;
+		*(reinterpret_cast<vu32*>(0xCD8000C0)) |= 0x20;
 		error=ERROR_ISFS_INIT;
 	}
 
 	AddMem2Area (14*1024*1024, OTHER_AREA);
 	LoadHBCStub();
-	gprintf("\"Magic Priiloader word\": %x - %x",*(vu32*)MAGIC_WORD_ADDRESS_2 ,*(vu32*)MAGIC_WORD_ADDRESS_1);
+	gprintf("\"Magic Priiloader word\": %x - %x",*(reinterpret_cast<vu32*>(MAGIC_WORD_ADDRESS_2)),*(reinterpret_cast<vu32*>(MAGIC_WORD_ADDRESS_1)));
 
 	bool isFirstTimeUse = LoadSettings() == LOADSETTINGS_INI_CREATED;
 	if(SGetSetting(SETTING_DUMPGECKOTEXT) == 1)
@@ -2452,7 +2450,7 @@ int main(int argc, char **argv)
 	SetDumpDebug(SGetSetting(SETTING_DUMPGECKOTEXT));
 	SetVideoInterfaceConfig(NULL);
 	s16 Bootstate = CheckBootState();
-	u32 GcShutdownFlag = *(u32*)0x80003164;
+	u32 GcShutdownFlag = *(reinterpret_cast<u32*>(0x80003164));
 	gprintf("BootState:%d", Bootstate );
 	memset(&system_state,0,sizeof(wii_state));
 	STACK_ALIGN(StateFlags, flags, 1, 32);
@@ -2548,7 +2546,7 @@ int main(int argc, char **argv)
 					ShutdownMounts();
 					Input_Shutdown(true);
 					USB_Deinitialize();
-					*(vu32*)0xCD8000C0 &= ~0x20;
+					*(reinterpret_cast<vu32*>(0xCD8000C0)) &= ~0x20;
 					while(DVDAsyncBusy());
 					DVDCloseHandle();
 					if( SGetSetting(SETTING_IGNORESHUTDOWNMODE) )
@@ -2674,7 +2672,7 @@ int main(int argc, char **argv)
 	}
 	_sync();
 #ifdef DEBUG
-	gdprintf("priiloader v%d.%d.%d DEBUG (Sys:%d)(IOS:%d)(%s %s)", VERSION.major, VERSION.minor, VERSION.patch, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
+	gdprintf("priiloader v%d.%d.%d DEBUG (Sys:%d)(IOS:%d)(%s %s)", VERSION.major, VERSION.minor, VERSION.patch, SysVersion, (*reinterpret_cast<vu32*>(0x80003140))>>16, __DATE__, __TIME__);
 #elif VERSION_RC > 0
 	gprintf("priiloader v%d.%d.%d RC %d (Sys:%d)(IOS:%d)(%s %s)", VERSION.major, VERSION.minor, VERSION.patch, VERSION.sub_version, SysVersion, (*(vu32*)0x80003140)>>16, __DATE__, __TIME__);
 #endif
@@ -2789,7 +2787,7 @@ int main(int argc, char **argv)
 
 		if( redraw )
 		{
-			PrintFormat( 0, 16, rmode->viHeight-96, "IOS v%d", (*(vu32*)0x80003140)>>16 );
+			PrintFormat( 0, 16, rmode->viHeight-96, "IOS v%d", (*reinterpret_cast<vu32*>(0x80003140))>>16 );
 			PrintFormat( 0, 16, rmode->viHeight-80, "Systemmenu v%d", SysVersion );
 #if VERSION_RC > 0
 			PrintFormat( 0, 16, rmode->viHeight - 64, "Priiloader v%d.%d.%d(RC%d)", VERSION.major, VERSION.minor, VERSION.patch, VERSION.sub_version);
@@ -2828,7 +2826,7 @@ int main(int argc, char **argv)
 		}
 		if( system_state.Shutdown )
 		{
-			*(vu32*)0xCD8000C0 &= ~0x20;
+			*(reinterpret_cast<vu32*>(0xCD8000C0)) &= ~0x20;
 			ClearState();
 			VIDEO_ClearFrameBuffer( rmode, xfb, COLOR_BLACK);
 			DVDStopDrive();

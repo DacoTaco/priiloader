@@ -46,11 +46,11 @@ typedef struct {
 	std::string Filename;
 	unsigned int FileSize;
 	unsigned char* Data;
-} FileInfo;
+} BootloaderFileInfo;
 
 const unsigned int baseAddress = 0x80004000;
 
-int WriteFile(FileInfo* info)
+int WriteFile(BootloaderFileInfo* info)
 {
 	if (info == NULL)
 		return -1;
@@ -65,7 +65,7 @@ int WriteFile(FileInfo* info)
 	return 1;
 }
 
-int ReadFile(FileInfo* info)
+int ReadFile(BootloaderFileInfo* info)
 {
 	if (info == NULL || info->Filename.size() == 0)
 		return -1;
@@ -74,7 +74,7 @@ int ReadFile(FileInfo* info)
 	unsigned char* data = NULL;
 	unsigned int size = 0;
 #ifdef DEBUG
-	printf("reading %s ...\r\n", info.Filename.c_str());
+	printf("reading %s ...\r\n", info->Filename.c_str());
 #endif
 
 	file = fopen(info->Filename.c_str(), "rb");
@@ -86,7 +86,7 @@ int ReadFile(FileInfo* info)
 	rewind(file);
 
 	// allocate memory to contain the whole file:
-	data = (unsigned char*)malloc(size);
+	data = static_cast<unsigned char*>(malloc(size));
 	if (data == NULL)
 	{
 		printf("Memory error\r\n");
@@ -117,8 +117,8 @@ void ShowHelp()
 
 int main(int argc, char** argv)
 {
-	FileInfo outputFileInfo;
-	FileInfo inputFileInfo;
+	BootloaderFileInfo outputFileInfo;
+	BootloaderFileInfo inputFileInfo;
 	std::vector<std::string> argumentList;
 
 	printf("bootloader - tool to add a bootloader to a wii binary\r\n\r\n");
@@ -184,14 +184,14 @@ int main(int argc, char** argv)
 		};
 
 		outputFileInfo.FileSize = ALIGN32(sizeof(dolhdr)) + sizeof(_startup) + inputFileInfo.FileSize + ALIGN16(loader_bin_size);
-		outputFileInfo.Data = (unsigned char*)malloc(outputFileInfo.FileSize);
+		outputFileInfo.Data = static_cast<unsigned char*>(malloc(outputFileInfo.FileSize));
 		if (outputFileInfo.Data == NULL)
 			throw "failed to allocate memory";
 
 		memset(outputFileInfo.Data, 0, outputFileInfo.FileSize);
 
 		//add entrypoint
-		dolhdr* dolHdr = (dolhdr*)outputFileInfo.Data;
+		dolhdr* dolHdr = reinterpret_cast<dolhdr*>(outputFileInfo.Data);
 		dolHdr->entrypoint = SwapEndian(baseAddress);
 		dolHdr->addressText[0] = SwapEndian(baseAddress);
 		dolHdr->offsetText[0] = SwapEndian(ALIGN32(sizeof(dolhdr)));
@@ -218,7 +218,7 @@ int main(int argc, char** argv)
 		_startup[6] = (_startup[6] & 0xFFFF0000) | (loaderAddress & 0x0000FFFF);
 
 		//copy data, can't use memcpy as we need to flip endianness...
-		unsigned int* data = (unsigned int*)&outputFileInfo.Data[ALIGN32(sizeof(dolhdr))];
+		unsigned int* data = reinterpret_cast<unsigned int*>(&outputFileInfo.Data[ALIGN32(sizeof(dolhdr))]);
 		for (int i = 0; i < (sizeof(_startup) / sizeof(unsigned int)); i++)
 			data[i] = SwapEndian(_startup[i]);
 

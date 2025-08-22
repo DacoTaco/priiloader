@@ -26,7 +26,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <ogc/isfs.h>
 #include <ogc/ipc.h>
 
-#define LT_CHIPREVID (*(vu32*) 0xcd8005a0)
+#define LT_CHIPREVID (*(reinterpret_cast<vu32*>(0xcd8005a0)))
 
 static WiiUConfig wiiuConfig;
 static WiiUArgs wiiuArgs;

@@ -32,7 +32,7 @@ s16 GetLastHttpReply( void )
 	return lastStatusCode;
 }
 
-s32 HttpGet(const char* host, const char* file, u8*& dataPtr, int* externalSocket)
+s32 HttpGet(const char* host, const char* file, u8*& dataPtr, const int* externalSocket)
 {
 	//reset last reply
 	lastStatusCode = 0;
@@ -205,7 +205,7 @@ s32 HttpGet(const char* host, const char* file, u8*& dataPtr, int* externalSocke
 	//http headers have been parsed. lets receive the actual data now.
 	if (dataSize > 0)
 	{
-		dataPtr = (u8*)mem_malloc(dataSize);
+		dataPtr = static_cast<u8*>(mem_malloc(dataSize));
 		if (dataPtr == NULL)
 		{
 			ret = -11;
@@ -243,14 +243,9 @@ s32 HttpGet(const char* host, const char* file, u8*& dataPtr, int* externalSocke
 		//reallocate dataPtr as we read from it if we dont know the expected size
 		if (dataSize <= 0)
 		{
-			if (dataPtr == NULL)
-			{
-				dataPtr = (u8*)mem_malloc(dataRead + bytesTransfered);
-			}
-			else
-			{
-				dataPtr = (u8*)mem_realloc(dataPtr, dataRead + bytesTransfered);
-			}
+			dataPtr = dataPtr == NULL
+				? static_cast<u8*>(mem_malloc(bytesTransfered))
+				: static_cast<u8*>(mem_realloc(dataPtr, dataRead + bytesTransfered));
 
 			memcpy(dataPtr + dataRead, buffer, bytesTransfered);
 			DCFlushRange(dataPtr + dataRead, bytesTransfered);
@@ -289,7 +284,7 @@ s32 ConnectSocket(const char *hostname, u32 port)
 	else
 	{
 		//resolving hostname
-		struct hostent *host = 0;
+		const struct hostent *host = 0;
 		host = net_gethostbyname(hostname);
 		if ( host == NULL )
 		{
@@ -303,7 +298,7 @@ s32 ConnectSocket(const char *hostname, u32 port)
 			memcpy(&connect_addr.sin_addr, host->h_addr_list[0], host->h_length);
 		}
 	}
-	if (net_connect(socket, (struct sockaddr*)&connect_addr , sizeof(connect_addr)) == -1 )
+	if (net_connect(socket, reinterpret_cast<struct sockaddr*>(&connect_addr) , sizeof(connect_addr)) == -1 )
 	{
 		net_close(socket);
 		return -3;

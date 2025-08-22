@@ -324,7 +324,7 @@ tmd* TitleInformation::GetTMD()
 			if (ret < 0 || blobSize > MAX_SIGNED_TMD_SIZE)
 				throw "GetTMD: failed to retrieve TMD Size via IOS of " + GetTitleLongString(_titleId) + ",error " + std::to_string(ret);
 
-			blob = (signed_blob*)mem_align(32, MAX_SIGNED_TMD_SIZE);
+			blob = static_cast<signed_blob*>(mem_align(32, MAX_SIGNED_TMD_SIZE));
 			if (blob == NULL)
 				throw "GetTMD: failed to allocate TMD of " + GetTitleLongString(_titleId);
 
@@ -350,7 +350,7 @@ tmd* TitleInformation::GetTMD()
 			if (ret < 0)
 				throw "GetTMD: failed to file info of " + GetTitleLongString(_titleId) + ",error " + std::to_string(ret);
 
-			blob = (signed_blob*)mem_align(32, MAX_SIGNED_TMD_SIZE);
+			blob = static_cast<signed_blob*>(mem_align(32, MAX_SIGNED_TMD_SIZE));
 			if (blob == NULL)
 				throw "GetTMD: failed to allocate TMD of " + GetTitleLongString(_titleId);
 
@@ -433,7 +433,7 @@ TitleName TitleInformation::GetTitleName()
 	try
 	{
 		//we allocate the NandIMET size since it is the bigger of the 2 versions
-		openingBanner = (void*)mem_align(32, ALIGN32( sizeof(NandOpeningBanner) ) );
+	openingBanner = static_cast<void*>(mem_align(32, ALIGN32( sizeof(NandOpeningBanner) ) ));
 		if(openingBanner == NULL)
 			throw "failed to alloc IMET header of title" + GetTitleLongString(_titleId);
 		
@@ -443,7 +443,7 @@ TitleName TitleInformation::GetTitleName()
 		if(ret < 0)
 			throw "failed to retrieve Tickets Size of " + GetTitleLongString(_titleId) + ",error " + std::to_string(ret);
 
-		ticketViews = (tikview *)mem_align( 32, sizeof(tikview)*cnt );
+	ticketViews = static_cast<tikview *>(mem_align( 32, sizeof(tikview)*cnt ));
 		if(ticketViews == NULL)
 			throw "failed to allocate ticket views of " + GetTitleLongString(_titleId);
 
@@ -475,7 +475,7 @@ TitleName TitleInformation::GetTitleName()
 		if (fh >= 0)
 		{
 			//ES method
-			ret = ES_ReadContent(fh, (u8*)openingBanner, sizeof(NandOpeningBanner));
+			ret = ES_ReadContent(fh, static_cast<u8*>(openingBanner), sizeof(NandOpeningBanner));
 			ES_CloseContent(fh);
 			if (ret < 0) 
 				throw "failed to read(ES) title content of " + GetTitleLongString(_titleId) + ",error " + std::to_string(ret);
@@ -512,9 +512,9 @@ TitleName TitleInformation::GetTitleName()
 				throw "failed to read title content of " + GetTitleLongString(_titleId) + ",error " + std::to_string(fh);
 		}
 
-		auto imetHeader = ((NandOpeningBanner*)openingBanner)->Header;
+		auto imetHeader = static_cast<NandOpeningBanner*>(openingBanner)->Header;
 		if(imetHeader.Signature != IMET_HEADER_ID)
-			imetHeader = ((DiscOpeningBanner*)openingBanner)->Header;
+			imetHeader = static_cast<DiscOpeningBanner*>(openingBanner)->Header;
 
 		// check if its a valid imet header
 		if(imetHeader.Signature != IMET_HEADER_ID) 
@@ -609,7 +609,7 @@ void TitleInformation::LaunchTitle()
 			throw "ES_GetTicketViews failure!";
 
 		auto titleName = this->GetTitleName();
-		if(titleName.UnicodeName[0] != '\0' && wcslen((wchar_t*)titleName.UnicodeName))
+		if(titleName.UnicodeName[0] != '\0' && wcslen(reinterpret_cast<wchar_t*>(titleName.UnicodeName)))
 		{
 			//kill play_rec.dat if its already there...
 			ISFS_Delete(PLAYRECPATH);
@@ -739,7 +739,7 @@ s32 LoadListTitles( void )
 	}
 	gdprintf("%u titles",count);
 
-	u64* title_list = (u64*)mem_align( 32, ALIGN32(sizeof(u64)*count) );
+	u64* title_list = static_cast<u64*>(mem_align( 32, ALIGN32(sizeof(u64)*count) ));
 	if(title_list == NULL)
 	{
 		gprintf("LoadListTitles : fail to memalign list");

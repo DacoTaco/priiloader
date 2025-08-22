@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <memory>
 #include "../../src/Shared/sha1.h"
 #include "../../src/Shared/version.h"
 
@@ -34,7 +35,7 @@ void Display_Parameters(void)
 bool Data_Need_Swapping(void)
 {
 	int test_var = 1;
-	char* cptr = (char*)&test_var;
+	const char* cptr = (char*)&test_var;
 
 	//true means little ending
 	//false means big endian
@@ -48,7 +49,7 @@ inline void endian_swap(unsigned int& x)
 		(x << 24);
 }
 
-char WriteV1UpdateFile(UpdateStructV1* update)
+char WriteV1UpdateFile(std::unique_ptr<UpdateStructV1>& update)
 {
 	//write the version file
 	printf("writing v1 version file...\n");
@@ -74,15 +75,15 @@ char WriteV1UpdateFile(UpdateStructV1* update)
 		endian_swap(update->prod_version);
 	}
 
-	fwrite(update, 1, sizeof(UpdateStructV1), outputBin);
-	fwrite(update, 1, sizeof(UpdateStructV1), outputDat);
+	fwrite(update.get(), 1, sizeof(UpdateStructV1), outputBin);
+	fwrite(update.get(), 1, sizeof(UpdateStructV1), outputDat);
 	fclose(outputBin);
 	fclose(outputDat);
 	printf("done!\n");
 	return 1;
 }
 
-char WriteUpdateFile(UpdateStruct* update)
+char WriteUpdateFile(const std::unique_ptr<UpdateStruct>& update)
 {
 	//write the version file
 	printf("writing v2 version file...\n");
@@ -107,7 +108,7 @@ char WriteUpdateFile(UpdateStruct* update)
 	return 1;
 }
 
-char CalculateBinaryHash(char* filename, unsigned int* hash)
+char CalculateBinaryHash(const char* filename, unsigned int* hash)
 {
 	if (filename == NULL || hash == NULL)
 		return -1;
@@ -157,7 +158,7 @@ int main(int argc, char **argv)
 {
 	printf("\t\tDacoTaco's Online Update Hash Generator\n");
 	printf("\t\t-------------------------------------------\n\n");
-	if ( argc < 1 && (strcmp(argv[1],"-h") == 0 || strcmp(argv[1],"-H") == 0 || argc == 1))
+	if (argc == 1 || (argc > 1 && (strcmp(argv[1],"-h") == 0 || strcmp(argv[1],"-H") == 0)))
 	{
 		Display_Parameters();
 		exit(0);
@@ -203,7 +204,7 @@ int main(int argc, char **argv)
 	rc_version.major = major & 0xFF;
 	rc_version.minor = minor & 0xFF;
 	rc_version.patch = patch & 0xFF;
-	rc_version.sub_version = atoi((const char*)argv[5]);
+	rc_version.sub_version = atoi(argv[5]);
 
 	printf("calculating Hash of -STABLE- dol version %u.%u.%u...\n", version.major, version.minor, version.patch);
 	if( CalculateBinaryHash(InputProdFile, prodSHA1Hash) < 0)
@@ -225,32 +226,30 @@ int main(int argc, char **argv)
 	}
 
 	//write the v2 version file
-	UpdateStruct* UpdateFile = (UpdateStruct*)malloc(sizeof(UpdateStruct));
-	if (UpdateFile == NULL)
+	auto UpdateFile = std::unique_ptr<UpdateStruct>(new UpdateStruct());
+	if (!UpdateFile)
 	{
 		printf("failed to allocate UpdateFile\n");
 		goto _exit;
 	}
-	memset(UpdateFile, 0, sizeof(UpdateStruct));
+	memset(UpdateFile.get(), 0, sizeof(UpdateStruct));
 	memcpy(UpdateFile->prod_sha1_hash, prodSHA1Hash, sizeof(UpdateFile->prod_sha1_hash));
 	memcpy(UpdateFile->rc_sha1_hash, rcSHA1Hash, sizeof(UpdateFile->rc_sha1_hash));
 	UpdateFile->prod_version = version;
 	UpdateFile->rc_version = rc_version;
 	if (WriteUpdateFile(UpdateFile) < 0)
 	{
-		free(UpdateFile);
 		goto _exit;
 	}
-	free(UpdateFile);
 
 	//write v1 version file
-	UpdateStructV1* UpdateFileV1 = (UpdateStructV1*)malloc(sizeof(UpdateStructV1));
-	if (UpdateFileV1 == NULL)
+	auto UpdateFileV1 = std::unique_ptr<UpdateStructV1>(new UpdateStructV1());
+	if (!UpdateFileV1)
 	{
 		printf("failed to allocate UpdateFile\n");
 		goto _exit;
 	}
-	memset(UpdateFileV1, 0, sizeof(UpdateStructV1));
+	memset(UpdateFileV1.get(), 0, sizeof(UpdateStructV1));
 	memcpy(UpdateFileV1->prod_sha1_hash, prodSHA1Hash, sizeof(UpdateFileV1->prod_sha1_hash));
 	memcpy(UpdateFileV1->rc_sha1_hash, rcSHA1Hash, sizeof(UpdateFileV1->rc_sha1_hash));
 	UpdateFileV1->prod_version = (unsigned int)((version.major << 8) | (version.minor*10) | (version.patch));
@@ -258,10 +257,8 @@ int main(int argc, char **argv)
 	UpdateFileV1->rc_number = rc_version.sub_version;
 	if (WriteV1UpdateFile(UpdateFileV1) < 0)
 	{
-		free(UpdateFileV1);
 		goto _exit;
 	}
-	free(UpdateFileV1);
 
 _exit:
 	sleep(5);

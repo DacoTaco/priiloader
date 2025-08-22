@@ -60,7 +60,7 @@ static signed_blob *_nandloaderTmdBlob = (signed_blob *)_nandloaderTmdBuffer;
 static tmd *_nandloaderTmd = NULL;
 static const u64 _nandloaderTitleId = 0x0000000100000200ll;
 
-s32 DeletePriiloaderFile(std::string pathFormat, std::string fileDescription)
+s32 DeletePriiloaderFile(const std::string& pathFormat, const std::string& fileDescription)
 {
 	char file_path[ISFS_MAXPATH] ATTRIBUTE_ALIGN(32) = {0};
 	sprintf(file_path, pathFormat.c_str(), TITLE_UPPER(_targetTitleId), TITLE_LOWER(_targetTitleId));
@@ -152,7 +152,7 @@ void DeletePriiloaderFiles(InstallerAction action)
 
 bool PriiloaderInstalled(void)
 {
-	printf("Checking for Priiloader...\r\n");				
+	printf("Checking for Priiloader...\r\n");
 	gprintf("Checking for SystemMenu Dol");
 	s32 fd = ISFS_Open(_copyBootAppPath, ISFS_OPEN_RW);
 	if (fd < 0)
@@ -201,7 +201,7 @@ void InitializeInstaller(u64 titleId, bool isvWii)
 	if (ret < 0)
 		throw "Unable to get stored tmd";
 	
-	_smTmd = (tmd*)SIGNATURE_PAYLOAD(_tmdBlob);
+	_smTmd = reinterpret_cast<tmd*>(SIGNATURE_PAYLOAD(_tmdBlob));
 	gprintf("sm version : %d", _smTmd->title_version);
 
 	if(_smTmd->title_version > 0x2000)
@@ -247,7 +247,7 @@ void InitializeInstaller(u64 titleId, bool isvWii)
 		if (ret < 0)
 			throw "Unable to get stored nandloader tmd";
 
-		_nandloaderTmd = (tmd*)SIGNATURE_PAYLOAD(_nandloaderTmdBlob);
+		_nandloaderTmd = reinterpret_cast<tmd*>(SIGNATURE_PAYLOAD(_nandloaderTmdBlob));
 		for(u8 i=0; i < _nandloaderTmd->num_contents; ++i)
 		{
 			if (_nandloaderTmd->contents[i].index == _nandloaderTmd->boot_index)
@@ -532,8 +532,8 @@ s32 PatchTMD( InstallerAction action )
 			ISFS_Close(fd);
 		}
 
-		signed_blob * backupTmdBlob = (signed_blob *)backupTmdBuffer;
-		tmd* backupTmd = (tmd*)SIGNATURE_PAYLOAD(backupTmdBlob);
+		signed_blob * backupTmdBlob = static_cast<signed_blob *>(backupTmdBuffer);
+		const tmd* backupTmd = reinterpret_cast<tmd*>(SIGNATURE_PAYLOAD(backupTmdBlob));
 		//create TMD backup if needed
 		if(createBackup || backupTmd->title_version != _smTmd->title_version)
 		{

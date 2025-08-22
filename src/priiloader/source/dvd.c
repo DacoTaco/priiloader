@@ -219,7 +219,7 @@ s32 DVDInquiry()
 	return DVDExecuteCommand(DVD_CMD_IDENTIFY, false, NULL, 0, dummy, 0x20, NULL);
 }
 
-s32 DVDExecuteVCommand(s32 command, bool do_async, s32 cnt_in, s32 cnt_io, void* cmd_input, u32 cmd_input_size, void* input, u32 input_size, ipccallback callback, void* userdata)
+s32 DVDExecuteVCommand(s32 command, bool do_async, s32 cnt_in, s32 cnt_io, const void* cmd_input, u32 cmd_input_size, const void* input, u32 input_size, ipccallback callback, void* userdata)
 {
 	if (DVDAsyncBusy()) // async was called or the dvd drive has no disk/not connected. lets not do this then since we dont support multiple asyncs...yet :P
 		return -1;
@@ -262,7 +262,7 @@ s32 DVDExecuteVCommand(s32 command, bool do_async, s32 cnt_in, s32 cnt_io, void*
 	return 1;
 }
 
-s32 DVDExecuteCommand(u32 command, u8 do_async, void* input, s32 input_size, void* output, s32 output_size, ipccallback callback)
+s32 DVDExecuteCommand(u32 command, u8 do_async, const void* input, s32 input_size, void* output, s32 output_size, ipccallback callback)
 {
 	if (DVDAsyncBusy()) // async was called or the dvd drive has no disk/not connected. lets not do this then since we dont support multiple asyncs...yet :P
 		return -1;

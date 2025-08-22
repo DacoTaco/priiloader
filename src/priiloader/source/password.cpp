@@ -35,16 +35,15 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "Video.h"
 #include "mount.h"
 
-bool check_pass( char* pass )
+bool check_pass( const char* pass )
 {
-	char letter[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-	char lettera[] = "abcdefghijklmnopqrstuvwxyz0123456789";
+	const char letter[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+	const char lettera[] = "abcdefghijklmnopqrstuvwxyz0123456789";
 	int len = strlen(pass);
 	int i = 1;
 	char pass2[len];
 	sprintf(pass2, "%s", pass);
-	char * pch;
-	pch = strpbrk(letter, pass);
+	const char* pch = strpbrk(letter, pass);
 	while (pch != NULL)
 	{
 		i++;
@@ -96,12 +95,12 @@ void InstallPassword( void )
 			}
 			else
 			{
-				fstats *pstatus = (fstats *)mem_align( 32, sizeof( fstats ) );
+				fstats *pstatus = static_cast<fstats *>(mem_align( 32, sizeof( fstats ) ));
 				ISFS_GetFileStats( pfd, pstatus);
 				psize = pstatus->file_length;
 				mem_free( pstatus );
 				mem_free( pbuf );
-				pbuf = (char*)mem_align( 32, ALIGN32(psize) );
+				pbuf = static_cast<char*>(mem_align( 32, ALIGN32(psize) ));
 				if( pbuf == NULL )
 				{
 					error = ERROR_MALLOC;
@@ -193,7 +192,7 @@ void InstallPassword( void )
 			unsigned int size = ftell( passtxt );
 			fseek( passtxt, 0, 0 );
 
-			char *buf = (char*)mem_align( 32, sizeof( char ) * size );
+			char *buf = static_cast<char*>(mem_align( 32, sizeof( char ) * size ));
 			memset( buf, 0, sizeof( char ) * size );
 
 			fread( buf, sizeof( char ), size, passtxt );
@@ -276,7 +275,7 @@ void password_check( void )
 		gprintf("password_check: ISFS_Open(password.txt) failure. error %d\r\n",cpfd);
 		return;
 	}
-	fstats *cpstatus = (fstats *)mem_align( 32, sizeof( fstats ) );
+	fstats *cpstatus = static_cast<fstats *>(mem_align( 32, sizeof( fstats ) ));
 	if(cpstatus == NULL)
 	{
 		error = ERROR_MALLOC;
@@ -285,7 +284,7 @@ void password_check( void )
 	ISFS_GetFileStats( cpfd, cpstatus);
 	mem_free( cpstatus );
 
-	cpbuf = (char*)mem_align( 32, ALIGN32(cpstatus->file_length+1) );
+	cpbuf = static_cast<char*>(mem_align( 32, ALIGN32(cpstatus->file_length+1) ));
 	if( cpbuf == NULL )
 	{
 		error = ERROR_MALLOC;
@@ -341,7 +340,7 @@ void password_check( void )
 		char_status[i] = 0;
 	}
 	if(file == NULL)
- 		file = (char*)"wii_secure.dol";
+		file = const_cast<char*>("wii_secure.dol");
 
 	path = BuildPath("/%s");
 	path.replace(path.find("%s"), 2, file);

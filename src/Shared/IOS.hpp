@@ -58,19 +58,19 @@ s8 PatchIOSKernel(std::vector<IosPatch> patches);
 //this can cause some issues sometimes when patching ios in mem2
 static inline u8 ReadRegister8(u32 address)
 {
-	DCFlushRange((void*)(0xC0000000 | address), 2);
+	DCFlushRange(reinterpret_cast<void*>(0xC0000000 | address), 2);
 	return read8(address);
 }
 
 static inline u16 ReadRegister16(u32 address)
 {
-	DCFlushRange((void*)(0xC0000000 | address), 4);
+	DCFlushRange(reinterpret_cast<void*>(0xC0000000 | address), 4);
 	return read16(address);
 }
 
 static inline u32 ReadRegister32(u32 address)
 {
-	DCFlushRange((void*)(0xC0000000 | address), 8);
+	DCFlushRange(reinterpret_cast<void*>(0xC0000000 | address), 8);
 	return read32(address);
 }
 

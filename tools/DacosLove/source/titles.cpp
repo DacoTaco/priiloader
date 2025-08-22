@@ -100,7 +100,7 @@ s8 GetTitleName(u64 id, u32 app, char* name, u8* _dst_uncode_name)
 	gdprintf("GetTitleName : %s",file);
 	u32 cnt ATTRIBUTE_ALIGN(32);
 	cnt = 0;
-	IMET *data = (IMET *)mem_align(32, ALIGN32( sizeof(IMET) ) );
+	IMET *data = static_cast<IMET*>(mem_align(32, ALIGN32( sizeof(IMET) ) ));
 	if(data == NULL)
 	{
 		gprintf("GetTitleName : IMET header align failure");
@@ -114,7 +114,7 @@ s8 GetTitleName(u64 id, u32 app, char* name, u8* _dst_uncode_name)
 		mem_free(data);
 		return -1;
 	}
-	tikview *views = (tikview *)mem_align( 32, sizeof(tikview)*cnt );
+	tikview *views = static_cast<tikview*>(mem_align( 32, sizeof(tikview)*cnt ));
 	if(views == NULL)
 	{
 		mem_free(data);
@@ -171,7 +171,7 @@ s8 GetTitleName(u64 id, u32 app, char* name, u8* _dst_uncode_name)
 	else
 	{
 		//ES method
-		r = ES_ReadContent(fh,(u8*)data,sizeof(IMET));
+		r = ES_ReadContent(fh, reinterpret_cast<u8*>(data), sizeof(IMET));
 		if (r < 0) {
 			gprintf("GetTitleName : ES_ReadContent error %d",r);
 			ES_CloseContent(fh);
@@ -261,7 +261,7 @@ s32 LoadListTitles( void )
 	}
 	gdprintf("%u titles",count);
 
-	u64* title_list = (u64*)mem_align( 32, ALIGN32(sizeof(u64)*count) );
+	u64* title_list = static_cast<u64*>(mem_align( 32, ALIGN32(sizeof(u64)*count) ));
 	if(title_list == NULL)
 	{
 		gprintf("LoadListTitles : fail to memalign list");
@@ -308,7 +308,7 @@ s32 LoadListTitles( void )
 					PrintFormat( 1, ((rmode->viWidth /2)-((strlen("loading titles..."))*13/2))>>1, 208+16, "loading titles...");
 					continue;
 				}
-				rTMD = (tmd_view*)mem_align( 32, ALIGN32(tmd_size) );
+				rTMD = static_cast<tmd_view*>(mem_align( 32, ALIGN32(tmd_size) ));
 				if( rTMD == NULL )
 				{
 					mem_free(title_list);
@@ -317,7 +317,7 @@ s32 LoadListTitles( void )
 					return 0;
 				}
 				memset(rTMD,0, tmd_size );
-				ret = ES_GetTMDView(title_list[i], (u8*)rTMD, tmd_size);
+				ret = ES_GetTMDView(title_list[i], rTMD, tmd_size);
 				if(ret<0)
 				{
 					gprintf("WARNING : GetTMDView error %d on title %x-%x",ret,(u32)(title_list[i] >> 32),(u32)(title_list[i] & 0xFFFFFFFF));
@@ -502,7 +502,7 @@ s32 LoadListTitles( void )
 				gprintf("ES_GetTicketViews failure!");
 				goto failure;
 			}
-			if(wcslen((wchar_t*)titles[cur_off].name_unicode))
+			if(wcslen(reinterpret_cast<const wchar_t*>(titles[cur_off].name_unicode)))
 			{
 				//kill play_rec.dat if its already there...
 				ISFS_Delete(PLAYRECPATH);

@@ -38,11 +38,11 @@ static __inline__ bool __lwp_heap_blockin(heap_cntrl *heap,heap_block *block)
 {
 	return ((u32)block>=(u32)heap->start && (u32)block<=(u32)heap->final);
 }
-static __inline__ bool __lwp_heap_blockfree(heap_block *block)
+static __inline__ bool __lwp_heap_blockfree(const heap_block *block)
 {
 	return !(block->front_flag&HEAP_BLOCK_USED);
 }
-static __inline__ u32 __lwp_heap_blocksize(heap_block *block)
+static __inline__ u32 __lwp_heap_blocksize(const heap_block *block)
 {
 	return (block->front_flag&~HEAP_BLOCK_USED);
 }

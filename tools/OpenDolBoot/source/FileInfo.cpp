@@ -66,7 +66,7 @@ FileInfo::FileInfo(const std::string& filename, const unsigned char* data, const
 		throw "invalid filename";
 	
 	FileName = filename;
-	Data = std::vector<unsigned char>((unsigned char*)data, ((unsigned char*)data) + size);
+	Data = std::vector<unsigned char>(data, data + size);
 }
 
 void FileInfo::WriteFile()

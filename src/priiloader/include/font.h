@@ -24,4 +24,4 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "Global.h"
 
 void PrintFormat(int col, int x, int y, const char *str, ... );
-void PrintString( int col, int x, int y, char *str );
+void PrintString( int col, int x, int y, const char *str );

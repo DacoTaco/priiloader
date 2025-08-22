@@ -41,7 +41,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 //functions
 //--------------
-s32 HttpGet(const char *host, const char *file, u8*& Data, int* externalSocket);
+s32 HttpGet(const char *host, const char *file, u8*& Data, const int* externalSocket);
 s32 ConnectSocket(const char *hostname, u32 port);
 s16 GetLastHttpReply( void );
 

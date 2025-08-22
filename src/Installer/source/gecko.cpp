@@ -65,7 +65,7 @@ void gprintf( const char *str, ... )
 
 	// Current date/time based on current system, converted to tm struct for local timezone
 	time_t LeTime = time(0);
-	struct tm* localtm = localtime(&LeTime);
+	const struct tm* localtm = localtime(&LeTime);
 
 	char nstr[2048];
 	memset(nstr,0,2048);

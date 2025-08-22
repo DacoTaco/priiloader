@@ -33,6 +33,12 @@ typedef struct
 		} ATTRIBUTE_PACKED;
 	};
 } playrec_struct;
+static_assert(sizeof(playrec_struct) == 0x80);
+static_assert(offsetof(playrec_struct, name) == 0x4);
+static_assert(offsetof(playrec_struct, ticks_boot) == 0x58);
+static_assert(offsetof(playrec_struct, ticks_last) == 0x60);
+static_assert(offsetof(playrec_struct, title_id) == 0x68);
+static_assert(offsetof(playrec_struct, unknown) == 0x6E);
 
 // Thanks to Dr. Clipper
 u64 getWiiTime(void)

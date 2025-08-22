@@ -33,6 +33,12 @@ typedef struct
 		} ATTRIBUTE_PACKED;
 	};
 } playrec_struct;
+static_assert(sizeof(playrec_struct) == 0x80);
+static_assert(offsetof(playrec_struct, name) == 0x4);
+static_assert(offsetof(playrec_struct, ticks_boot) == 0x58);
+static_assert(offsetof(playrec_struct, ticks_last) == 0x60);
+static_assert(offsetof(playrec_struct, title_id) == 0x68);
+static_assert(offsetof(playrec_struct, unknown) == 0x6E);
 
 // Thanks to Dr. Clipper
 u64 getWiiTime(void)
@@ -55,7 +61,7 @@ int Playlog_Update(const char ID[6], const u8 title[84])
 	{
 		IOS_Close(playrec_fd);
 			
-		//In case the play_rec.dat wasn´t found create one and try again
+		//In case the play_rec.dat wasnï¿½t found create one and try again
 		if(ISFS_CreateFile(PLAYRECPATH, 0, 3, 3, 3) < 0 )
 			goto error_1;
 				

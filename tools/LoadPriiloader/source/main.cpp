@@ -55,7 +55,7 @@ void LoadThroughDol()
 		return;
 	}
 
-	signed_blob *TMD = (signed_blob *)memalign( 32, (tmd_size+32)&(~31) );
+	signed_blob *TMD = static_cast<signed_blob*>(memalign(32, (tmd_size+32)&(~31)));
 	if( TMD == NULL )
 	{
 		gprintf("failed to allocate TMD\n");
@@ -71,7 +71,7 @@ void LoadThroughDol()
 		return;
 	}
 	
-	tmd *rTMD = (tmd *)(TMD+(0x140/sizeof(tmd *)));
+	tmd *rTMD = reinterpret_cast<tmd*>(TMD+(0x140/sizeof(tmd*)));
 #ifdef DEBUG
 	printf("num_contents:%08X\n", rTMD->num_contents );
 #endif
@@ -98,7 +98,7 @@ void LoadThroughDol()
 	}
 
 
-	char * file = (char*)memalign( 32, 256 );
+	char * file = static_cast<char*>(memalign(32, 256));
 	if( file == NULL )
 	{
 		free( TMD );
@@ -117,7 +117,7 @@ void LoadThroughDol()
 		return;
 	}
 
-	Elf32_Ehdr *ElfHdr = (Elf32_Ehdr *)memalign( 32, (sizeof( Elf32_Ehdr )+32)&(~31) );
+	Elf32_Ehdr *ElfHdr = static_cast<Elf32_Ehdr*>(memalign(32, (sizeof(Elf32_Ehdr)+32)&(~31)));
 	if( ElfHdr == NULL )
 	{
 		gprintf("failed to allign elf header\n");
@@ -133,7 +133,7 @@ void LoadThroughDol()
 		gprintf("read error\n");
 		return;
 	}
-	dolhdr *hdr = (dolhdr *)memalign(32, (sizeof( dolhdr )+32)&(~31) );
+	dolhdr *hdr = static_cast<dolhdr*>(memalign(32, (sizeof(dolhdr)+32)&(~31)));
 	if( hdr == NULL )
 	{
 		gprintf("dol header allign error\n");
@@ -185,13 +185,13 @@ void LoadThroughDol()
 			//	free( tbuf);
 
 			//} else {
-				if(ISFS_Read( fd, (void*)(hdr->addressText[i]), hdr->sizeText[i] )<0)
+				if(ISFS_Read( fd, reinterpret_cast<void*>(hdr->addressText[i]), hdr->sizeText[i] )<0)
 				{
 					gprintf("read after seek error\n");
 					return;
 				}
 			//}
-			DCInvalidateRange( (void*)(hdr->addressText[i]), hdr->sizeText[i] );
+			DCInvalidateRange( reinterpret_cast<void*>(hdr->addressText[i]), hdr->sizeText[i] );
 
 			gprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr->offsetText[i]), hdr->addressText[i], hdr->sizeText[i]);
 		}
@@ -221,20 +221,20 @@ void LoadThroughDol()
 			//	free( tbuf);
 
 			//} else {
-				if( ISFS_Read( fd, (void*)(hdr->addressData[i]), hdr->sizeData[i] )<0)
+				if( ISFS_Read( fd, reinterpret_cast<void*>(hdr->addressData[i]), hdr->sizeData[i] )<0)
 				{
 					gprintf("read offsetdata error\n");
 					return;
 				}
 			//}
 
-			DCInvalidateRange( (void*)(hdr->addressData[i]), hdr->sizeData[i] );
+			DCInvalidateRange( reinterpret_cast<void*>(hdr->addressData[i]), hdr->sizeData[i] );
 
 			gprintf("\t%08x\t\t%08x\t\t%08x\t\t\n", (hdr->offsetData[i]), hdr->addressData[i], hdr->sizeData[i]);
 		}
 	}
 
-	entrypoint = (void (*)())(hdr->entrypoint);
+	entrypoint = reinterpret_cast<void(*)()>(hdr->entrypoint);
 
 	if( entrypoint == 0x00000000 )
 	{
@@ -264,13 +264,13 @@ void LoadThroughDol()
 void LoadThroughMagicWord()
 {
 	//retarded that this is the only way without touching the settings of priiloader or load the dol...
-	printf("magic word is %x\n",*(vu32*)MAGIC_WORD_ADDRESS);
-	*(vu32*)MAGIC_WORD_ADDRESS = 0x4461636f; // "Daco" , causes priiloader to skip autoboot and load the priiloader menu
+	printf("magic word is %x\n", *reinterpret_cast<volatile u32*>(MAGIC_WORD_ADDRESS));
+	*reinterpret_cast<volatile u32*>(MAGIC_WORD_ADDRESS) = 0x4461636f; // "Daco" , causes priiloader to skip autoboot and load the priiloader menu
 	//*(vu32*)MAGIC_WORD_ADDRESS = 0x50756e65; // "Pune" , causes priiloader to skip autoboot and load Sys Menu
-	*(vu32*)MAGIC_WORD_ADDRESS2 = *(vu32*)MAGIC_WORD_ADDRESS;
-	DCFlushRange((void*)MAGIC_WORD_ADDRESS, 4);
-	DCFlushRange((void*)MAGIC_WORD_ADDRESS2, 4);
-	printf("magic word changed to %x\n",*(vu32*)MAGIC_WORD_ADDRESS);
+	*reinterpret_cast<volatile u32*>(MAGIC_WORD_ADDRESS2) = *reinterpret_cast<volatile u32*>(MAGIC_WORD_ADDRESS);
+	DCFlushRange(reinterpret_cast<void*>(MAGIC_WORD_ADDRESS), 4);
+	DCFlushRange(reinterpret_cast<void*>(MAGIC_WORD_ADDRESS2), 4);
+	printf("magic word changed to %x\n", *reinterpret_cast<volatile u32*>(MAGIC_WORD_ADDRESS));
 
 	printf("resetting...\n");
 	sleep(2);

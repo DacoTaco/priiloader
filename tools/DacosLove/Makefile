@@ -18,9 +18,9 @@ include $(DEVKITPPC)/wii_rules
 TARGET		:=	$(notdir $(CURDIR))
 BUILD		:=	build
 SOURCES		:=	source  
-LOADER		:=  ../../loader
+LOADER		:=  ../../src/loader
 DATA		:=	data  
-INCLUDES	:=  include ../../loader/include
+INCLUDES	:=  include ../../src/loader/include
 ENTRYPOINT	:=	0x81000000
 LOADERFILE	:=	loader.bin
 
@@ -119,16 +119,15 @@ $(BUILD): pre_build
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 	@./OpenDolBoot $(TARGET).dol $(TARGET).app
 
-pre_build:
+pre_build: build_deps
 	@echo
-	@test -s $(OPENDOLBOOT) || echo Building $(OPENDOLBOOT) ...; g++ ../OpenDolBoot/source/OpenDolBoot.cpp -o $(OPENDOLBOOT);
+	@test -s $(OPENDOLBOOT) || cp ../OpenDolBoot/OpenDolBoot $(OPENDOLBOOT)
 
-ifeq ($(wildcard $(LOADER)/loader.bin),)
-	@echo "loader is missing (loader.bin)."
-	@echo "please run 'make clean' followed by 'make' in the root directory to rebuild priiloader"
-	@echo
-	@exit 1
-endif
+build_deps:
+	@echo "Building dependencies..."
+	@make -C ../../src/loader
+	@make -C ../bootloader
+	@make -C ../OpenDolBoot
 
 #---------------------------------------------------------------------------------
 clean:

@@ -106,7 +106,7 @@ LoadSettingsResult LoadSettings( void )
 	if(settings == NULL)
 	{
 		//the settings still need to be aligned/allocated. so lets do that
-		settings = (Settings*)mem_align( 32, ALIGN32( sizeof( Settings ) ) );
+		settings = static_cast<Settings*>(mem_align( 32, ALIGN32( sizeof( Settings ) ) ));
 	}
 	if(settings == NULL)
 		return LOADSETTINGS_FAIL;

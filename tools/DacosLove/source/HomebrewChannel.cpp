@@ -47,8 +47,8 @@ void LoadHBCStub ( void )
 		return;
 	}*/
 	//load Stub, contains JODI by default.
-	memcpy((void*)0x80001800, stub_bin, stub_bin_size);
-	DCFlushRange((void*)0x80001800,stub_bin_size);
+	memcpy(reinterpret_cast<void*>(0x80001800), stub_bin, stub_bin_size);
+	DCFlushRange(reinterpret_cast<void*>(0x80001800), stub_bin_size);
 	
 	//see if changes are needed to change it to the right ID
 	//TODO : try the "LOADKTHX" function of the stub instead of changing titleID
@@ -57,14 +57,14 @@ void LoadHBCStub ( void )
 	//(12:55:06 PM) megazig: DacoTaco: the trick of overwriting their memset does. without nopping then memset it does not
 	/*
 	//disable the memset that disables this LOADKTHX function in the stub
-	*(u32*)0x800019B0 = 0x60000000; 
-	DCFlushRange((void*)0x800019A0, 0x20);
+	*reinterpret_cast<u32*>(0x800019B0) = 0x60000000; 
+	DCFlushRange(reinterpret_cast<void*>(0x800019A0), 0x20);
 	//set up the LOADKTHX parameters
-	*(u32*)(*(u32*)0x80002760) = 0x4c4f4144;
-	*(u32*)((*(u32*)0x80002760)+4) = 0x4b544858;
-	*(u32*)0x80002F08 = 0x00010001;
-	*(u32*)0x80002F0C = 0x4441434F;
-	DCFlushRange((void*)0x80001800,stub_bin_size);*/
+	*reinterpret_cast<u32*>(*reinterpret_cast<u32*>(0x80002760)) = 0x4c4f4144;
+	*reinterpret_cast<u32*>(*reinterpret_cast<u32*>(0x80002760) + 4) = 0x4b544858;
+	*reinterpret_cast<u32*>(0x80002F08) = 0x00010001;
+	*reinterpret_cast<u32*>(0x80002F0C) = 0x4441434F;
+	DCFlushRange(reinterpret_cast<void*>(0x80001800), stub_bin_size);*/
 
 	u16 hex[2] = { 0x00,0x00};
 	title_info title = { 0x00,"None"};
@@ -84,9 +84,9 @@ void LoadHBCStub ( void )
 		(hex[0] != 0x00 && hex[1] != 0x00) &&
 		(hex[0] != 0xAF1B && hex[1] != 0xF516)) //these are the default values in the loaded stub
 	{
-		*(vu16*)0x80001F62 = hex[0];
-		*(vu16*)0x80001F6A = hex[1];
-		DCFlushRange((void*)0x80001800,stub_bin_size);
+		*(reinterpret_cast<vu16*>(0x80001F62)) = hex[0];
+		*(reinterpret_cast<vu16*>(0x80001F6A)) = hex[1];
+		DCFlushRange(reinterpret_cast<void*>(0x80001800),stub_bin_size);
 	}
 	gprintf("HBC stub : Loaded");
 	return;	
@@ -95,8 +95,8 @@ void UnloadHBCStub( void )
 {
 	//some apps apparently dislike it if the stub stays in memory but for some reason isn't active :/
 	//this isn't used cause as odd as the bug sounds, it vanished...
-	memset((void*)0x80001800, 0, stub_bin_size);
-	DCFlushRange((void*)0x80001800,stub_bin_size);	
+	memset(reinterpret_cast<void*>(0x80001800), 0, stub_bin_size);
+	DCFlushRange(reinterpret_cast<void*>(0x80001800),stub_bin_size);
 	return;
 }
 
@@ -121,7 +121,7 @@ s32 DetectHBC(title_info* title)
 		return -1;
 	}
 
-    list = (u64*)mem_align(32, ALIGN32( titlecount * sizeof(u64) ) );
+	list = static_cast<u64*>(mem_align(32, ALIGN32( titlecount * sizeof(u64) ) ));
 
     ret = ES_GetTitles(list, titlecount);
     if(ret < 0) {
@@ -181,7 +181,7 @@ void LoadHBC( void )
 	
 	u32 cnt ATTRIBUTE_ALIGN(32);
 	ES_GetNumTicketViews(TitleID, &cnt);
-	tikview *views = (tikview *)mem_align( 32, sizeof(tikview)*cnt );
+	 tikview *views = static_cast<tikview *>(mem_align( 32, sizeof(tikview)*cnt ));
 	ES_GetTicketViews(TitleID, views, cnt);
 	ClearState();
 	Input_Shutdown();

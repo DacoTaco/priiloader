@@ -131,7 +131,7 @@ void _boot (_LDR_PARAMETERS)
 	__builtin_unreachable();
 }
 
-u32 _loadElf(Elf32_Ehdr *ElfHdr, u8* binary)
+u32 _loadElf(const Elf32_Ehdr *ElfHdr, u8* binary)
 {
 	for( s32 i=0; i < ElfHdr->e_phnum; ++i )
 	{

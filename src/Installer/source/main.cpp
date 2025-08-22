@@ -33,7 +33,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "nand.h"
 #include "installer.h"
 #include "gecko.h"
-#include "IOS.h"
+#include "IOS.hpp"
 #include "Video.h"
 #include "vWii.h"
 
@@ -159,7 +159,7 @@ void InitializeSystem()
 			//kinda unstable attempt to indentify as SM. it *seems* to work sometimes. but its nice if it does. dont know what triggers it to work tho :/
 			//if it works, ES_Identify says ticket/tmd is invalid but identifes us as SM anyway X'D
 			u32 keyId = 0;
-			ret = ES_Identify( (signed_blob*)certs_bin, certs_bin_size, (signed_blob*)su_tmd, su_tmd_size, (signed_blob*)su_tik, su_tik_size, &keyId);
+			ret = ES_Identify( reinterpret_cast<const signed_blob*>(certs_bin), certs_bin_size, reinterpret_cast<const signed_blob*>(su_tmd), su_tmd_size, reinterpret_cast<const signed_blob*>(su_tik), su_tik_size, &keyId);
 			gprintf("ES_Identify : %d",ret);
 			if(ret < 0)
 				throw "Failed to Identify as SU, error " + std::to_string(ret);

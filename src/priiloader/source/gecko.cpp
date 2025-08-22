@@ -87,11 +87,11 @@ void gprintf( const char *str, ... )
 
 	// Current date/time based on current system, converted to tm struct for local timezone
 	time_t LeTime = time(0);
-	struct tm* localtm = localtime(&LeTime);
+	const struct tm* localtm = localtime(&LeTime);
 
 	while(true)
 	{
-		char* tmp = (char*)realloc(inputBuffer, bufferLength);
+		char* tmp = static_cast<char*>(realloc(inputBuffer, bufferLength));
 		if(!tmp)
 		{
 			const char* err = "Failed to allocate input prefix\r\n";
@@ -120,7 +120,7 @@ void gprintf( const char *str, ... )
 	//string prefix has been created, now lets plug in the args
 	while(true)
 	{
-		char* tmp = (char*)realloc(outputBuffer, bufferLength);
+		char* tmp = static_cast<char*>(realloc(outputBuffer, bufferLength));
 		if(!tmp)
 		{
 			const char* err = "Failed to allocate input prefix\r\n";
@@ -165,7 +165,7 @@ void SetDumpDebug( u8 value )
 	FILE* fd = fopen(BuildPath("/prii.log").c_str(), "ab");
 	if (fd != NULL)
 	{
-		char str[] = "--------gecko_output_enabled------\r\n\0";
+		const char str[] = "--------gecko_output_enabled------\r\n\0";
 		fwrite(str, 1, strlen(str), fd);
 		fclose(fd);
 	}

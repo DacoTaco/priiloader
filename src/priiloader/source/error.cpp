@@ -86,7 +86,7 @@ void ShowError ( void )
 	if( error >= 0 )
 	{
 		if( SGetSetting( SETTING_LIDSLOTONERROR ) )
-			*(vu32*)0xCD8000C0 |= 0x20;
+			*(reinterpret_cast<vu32*>(0xCD8000C0)) |= 0x20;
 
 		switch( error )
 		{

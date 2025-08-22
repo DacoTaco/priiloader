@@ -38,7 +38,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "error.h"
 #include "Input.h"
 #include "mount.h"
-#include "IOS.h"
+#include "IOS.hpp"
 #include "dvd.h"
 #include "gecko.h"
 #include "mem2_manager.h"
@@ -57,13 +57,13 @@ void ApploaderInitCallback(const char* fmt, ...)
 
 void LaunchGamecubeDisc(void)
 {
-	u32 gameID = *(u32*)0x80000000;
+	u32 gameID = *reinterpret_cast<u32*>(0x80000000);
 	gprintf("GameID 0x%08X", gameID);
 
 	//gamecube games MUST have this called after reading the ID
 	//if any command is done before this, this will error out.
 	//see https://wiibrew.org/wiki//dev/di#0xE4_DVDLowAudioBufferConfig
-	s32 ret = DVDAudioBufferConfig(*(u8*)0x80000008, *(u8*)0x80000009);
+	s32 ret = DVDAudioBufferConfig(*(reinterpret_cast<u8*>(0x80000008)), *(reinterpret_cast<u8*>(0x80000009)));
 	if (ret < 0)
 		throw "Failed to set audio streaming config (" + std::to_string(ret) + ")";
 
@@ -83,14 +83,14 @@ void LaunchGamecubeDisc(void)
 		VIDEO_WaitVSync();
 	}
 
-	s8 videoMode = SetVideoModeForTitle(std::make_shared<TitleInformation>(0x0LL | gameID));
+	s8 videoMode = SetVideoModeForTitle(std::make_shared<TitleInformation>(TITLE_COMBINE(TITLE_TYPE_DISC, gameID)));
 	gprintf("video mode : 0x%02X -> 0x%02X", oldVideoMode, videoMode);
 	if (oldVideoMode != videoMode)
 		SYS_SetVideoMode(videoMode); // most gc games tested require this
 
 	//set bootstate for when we come back & set reset state for gc mode
 	SetBootState(TYPE_UNKNOWN, FLAGS_STARTGCGAME, RETURN_TO_MENU, DISCSTATE_GC);
-	*(u32*)0xcc003024 |= 7;
+	*(reinterpret_cast<u32*>(0xcc003024)) |= 7;
 
 	gprintf("booting BC...");
 
@@ -119,7 +119,7 @@ void LaunchWiiDisc(void)
 	dvd_main dvd_entry [[gnu::noreturn]] = NULL;
 
 	//get game ID
-	gameID = *(u32*)0x80000000;
+	gameID = *(reinterpret_cast<u32*>(0x80000000));
 	gprintf("GameID 0x%08X", gameID);
 
 	//Read game name. offset 0x20 - 0x400 
@@ -131,11 +131,11 @@ void LaunchWiiDisc(void)
 	PrintFormat(1, TEXT_OFFSET(gameName), 224, gameName);
 	gprintf("loading %s...", gameName);
 
-	tableOfContent = (DVDTableOfContent*)mem_align(32, 0x20);
-	partitionsInfo = (DVDPartitionInfo*)mem_align(32, 0x20);
+	tableOfContent = static_cast<DVDTableOfContent*>(mem_align(32, 0x20));
+	partitionsInfo = static_cast<DVDPartitionInfo*>(mem_align(32, 0x20));
 	//tmd has a max size of 0x49E4(MAX_SIGNED_TMD_SIZE) + align up for extra space
 	u32 tmdsize = ((MAX_SIGNED_TMD_SIZE + 0x100 - 1) & ~(0x100 - 1));
-	tmd_buf = (u8*)mem_align(32, tmdsize);
+	tmd_buf = static_cast<u8*>(mem_align(32, tmdsize));
 
 	if (tableOfContent == NULL || partitionsInfo == NULL || tmd_buf == NULL)
 		throw "Failed to allocate memory";
@@ -168,13 +168,13 @@ void LaunchWiiDisc(void)
 
 	//attempt to patch IOS to keep ahbprot when loading a TMD, because opening the partition kinda resets it
 	PatchIOS({ AhbProtPatcher });
-	signed_blob* mTMD = (signed_blob*)tmd_buf;
+	signed_blob* mTMD = reinterpret_cast<signed_blob*>(tmd_buf);
 	ret = DVDOpenPartition(bootGameInfo->offset, NULL, NULL, 0, mTMD);
 	if (ret <= 0)
 		throw "Failed to open Partition (" + std::to_string(ret) + ")";
 
 	partitionOpened = 1;
-	tmd* rTMD = (tmd*)SIGNATURE_PAYLOAD(mTMD);
+	tmd* rTMD = reinterpret_cast<tmd*>(SIGNATURE_PAYLOAD(mTMD));
 	u8 requiredIOS = rTMD->sys_version & 0xFF;
 	gprintf("game title: 0x%16llX", rTMD->title_id);
 	gprintf("ios : %d", requiredIOS);
@@ -206,7 +206,7 @@ void LaunchWiiDisc(void)
 			throw "Failed to init dvd drive (" + std::to_string(ret) + ")";
 
 		//this is required. many commands don't work before having called ReadID (like opening the partition)
-		ret = DVDReadGameID((u8*)0x80000000, 0x20);
+		ret = DVDReadGameID(reinterpret_cast<u8*>(0x80000000), 0x20);
 		if (ret <= 0)
 			throw "Failed to re-read Game info (" + std::to_string(ret) + ")";
 
@@ -216,7 +216,7 @@ void LaunchWiiDisc(void)
 		partitionOpened = 1;
 	}
 
-	ret = DVDRead(0x00, (void*)0x80000000, 0x20);
+	ret = DVDRead(0x00, reinterpret_cast<void*>(0x80000000), 0x20);
 	if (ret <= 0)
 		throw "Failed to read partition header(" + std::to_string(ret) + ")";
 
@@ -230,11 +230,11 @@ void LaunchWiiDisc(void)
 
 	//Continue reading the apploader now that we have the header
 	//TODO (?) : replace this address with a mem2 address if possible?
-	ret = DVDRead(APPLOADER_HDR_OFFSET + sizeof(apploader_hdr), (void*)0x81200000, appldr_header.size + appldr_header.trailersize);
+	ret = DVDRead(APPLOADER_HDR_OFFSET + sizeof(apploader_hdr), reinterpret_cast<void*>(0x81200000), appldr_header.size + appldr_header.trailersize);
 	if (ret <= 0)
 		throw "Failed to read start of apploader (" + std::to_string(ret) + ")";
-	DCFlushRange((void*)0x81200000, appldr_header.size + appldr_header.trailersize);
-	ICInvalidateRange((void*)0x81200000, appldr_header.size + appldr_header.trailersize);
+	DCFlushRange(reinterpret_cast<void*>(0x81200000), appldr_header.size + appldr_header.trailersize);
+	ICInvalidateRange(reinterpret_cast<void*>(0x81200000), appldr_header.size + appldr_header.trailersize);
 
 	ICSync();
 	app_entry = (apploader_entry)appldr_header.entry;
@@ -270,32 +270,45 @@ void LaunchWiiDisc(void)
 		VIDEO_Flush();
 		VIDEO_WaitVSync();
 	}
-	SetVideoModeForTitle(std::make_shared<TitleInformation>(0x0LL | gameID));
+	SetVideoModeForTitle(std::make_shared<TitleInformation>(TITLE_COMBINE(TITLE_TYPE_DISC, gameID)));
 
 	//disc related pokes to finish it off
 	//see memory map @ https://wiibrew.org/w/index.php?title=Memory_Map
 	//and @ https://www.gc-forever.com/yagcd/chap4.html#sec4
-	*(vu32*)0x80000020 = 0x0D15EA5E;				// Boot from DVD
-	*(vu32*)0x80000024 = 0x00000001;				// Version
-	*(vu32*)0x80000028 = 0x01800000;				// Memory Size (Physical) 24MB
-	*(vu32*)0x8000002C = 0x00000023;				// Production Board Model
-													// Video Mode (set by ConfigureVideoMode)
-	*(vu32*)0x800000E4 = 0x8008f7b8;				// Thread Pointer
-	*(vu32*)0x800000F0 = 0x01800000;				// Dev Debugger Monitor Address
-	*(vu32*)0x800000F8 = 0x0E7BE2C0;				// Bus Clock Speed
-	*(vu32*)0x800000FC = 0x2B73A840;				// CPU Clock Speed
-	*(vu32*)0x800030C0 = 0x00000000;				// EXI
-	*(vu32*)0x800030C4 = 0x00000000;				// EXI
-	*(vu32*)0x800030DC = 0x00000000;				// Time
-	*(vu32*)0x800030D8 = 0XFFFFFFFF;				// Time
-	*(vu32*)0x800030E0 = 0x00000000;				// PADInit
-	*(vu32*)0x800030E4 = 0x00008201;				// Console type
-	*(vu32*)0x800030F0 = 0x00000000;				// Apploader parameters
-	*(vu32*)0x8000315C = 0x80800113;				// DI Legacy mode ? OSInit/apploader?
-	*(vu32*)0x80003180 = *(vu32*)0x80000000;		// Enable WC24 by having the game id's the same
-	*(vu32*)0x80003184 = 0x80000000;				// Application Type, 0x80 = Disc, 0x81 = NAND
-	*(vu32*)0x8000318C = 0x00000000;				// Title Booted from NAND
-	*(vu32*)0x80003190 = 0x00000000;				// Title Booted from NAND
+	*reinterpret_cast<vu32*>(0x80000020) = 0x0D15EA5E;				// Boot from DVD
+	*reinterpret_cast<vu32*>(0x80000024) = 0x00000001;				// Version
+	*reinterpret_cast<vu32*>(0x80000028) = 0x01800000;				// Memory Size (Physical) 24MB
+	*reinterpret_cast<vu32*>(0x8000002C) = 0x00000023;				// Production Board Model
+	*reinterpret_cast<vu32*>(0x800000E4) = 0x8008f7b8;				// Thread Pointer
+	*reinterpret_cast<vu32*>(0x800000F0) = 0x01800000;				// Dev Debugger Monitor Address
+	*reinterpret_cast<vu32*>(0x800000F8) = 0x0E7BE2C0;				// Bus Clock Speed
+	*reinterpret_cast<vu32*>(0x800000FC) = 0x2B73A840;				// CPU Clock Speed
+	*reinterpret_cast<vu32*>(0x800030C0) = 0x00000000;				// EXI
+	*reinterpret_cast<vu32*>(0x800030C4) = 0x00000000;				// EXI
+	*reinterpret_cast<vu32*>(0x800030DC) = 0x00000000;				// Time
+	*reinterpret_cast<vu32*>(0x800030D8) = 0XFFFFFFFF;				// Time
+	*reinterpret_cast<vu32*>(0x800030E0) = 0x00000000;				// PADInit
+	*reinterpret_cast<vu32*>(0x800030E4) = 0x00008201;				// Console type
+	*reinterpret_cast<vu32*>(0x800030F0) = 0x00000000;				// Apploader parameters
+	*reinterpret_cast<vu32*>(0x8000315C) = 0x80800113;				// DI Legacy mode ? OSInit/apploader?
+	*reinterpret_cast<vu32*>(0x80003180) = *reinterpret_cast<vu32*>(0x80000000);		// Enable WC24 by having the game id's the same
+	*reinterpret_cast<vu32*>(0x80003184) = 0x80000000;				// Application Type, 0x80 = Disc, 0x81 = NAND
+	*reinterpret_cast<vu32*>(0x8000318C) = 0x00000000;				// Title Booted from NAND
+	*reinterpret_cast<vu32*>(0x80003190) = 0x00000000;				// Title Booted from NAND
+	*reinterpret_cast<vu32*>(0x800000F8) = 0x0E7BE2C0;				// Bus Clock Speed
+	*reinterpret_cast<vu32*>(0x800000FC) = 0x2B73A840;				// CPU Clock Speed
+	*reinterpret_cast<vu32*>(0x800030C0) = 0x00000000;				// EXI
+	*reinterpret_cast<vu32*>(0x800030C4) = 0x00000000;				// EXI
+	*reinterpret_cast<vu32*>(0x800030DC) = 0x00000000;				// Time
+	*reinterpret_cast<vu32*>(0x800030D8) = 0XFFFFFFFF;				// Time
+	*reinterpret_cast<vu32*>(0x800030E0) = 0x00000000;				// PADInit
+	*reinterpret_cast<vu32*>(0x800030E4) = 0x00008201;				// Console type
+	*reinterpret_cast<vu32*>(0x800030F0) = 0x00000000;				// Apploader parameters
+	*reinterpret_cast<vu32*>(0x8000315C) = 0x80800113;				// DI Legacy mode ? OSInit/apploader?
+	*reinterpret_cast<vu32*>(0x80003180) = *reinterpret_cast<vu32*>(0x80000000);		// Enable WC24 by having the game id's the same
+	*reinterpret_cast<vu32*>(0x80003184) = 0x80000000;				// Application Type, 0x80 = Disc, 0x81 = NAND
+	*reinterpret_cast<vu32*>(0x8000318C) = 0x00000000;				// Title Booted from NAND
+	*reinterpret_cast<vu32*>(0x80003190) = 0x00000000;				// Title Booted from NAND
 
 	//Extra pokes that could have a use, but we can do without
 	//They aren't found in dolphin, nor GeckoOS so.... meh
@@ -310,7 +323,7 @@ void LaunchWiiDisc(void)
 	*(vu32*)0x80003120 = 0x93400000;				// BAT
 	*(vu32*)0x80003138 = 0x00000011;				// Console type*/
 
-	DCFlushRange((void*)0x80000000, 0x3200);
+	DCFlushRange(reinterpret_cast<void*>(0x80000000), 0x3200);
 
 	gprintf("booting binary (0x%08X)...", dvd_entry);
 	u32 level;
@@ -360,30 +373,30 @@ void BootDiscContent(void)
 		if (ret <= 0)
 			throw "Failed to Reset Drive (" + std::to_string(ret) + ")";
 
-		memset((char*)0x80000000, 0, 0x20);
-		ICInvalidateRange((u32*)0x80000000, 0x20);
-		DCFlushRange((u32*)0x80000000, 0x20);
+		memset(reinterpret_cast<char*>(0x80000000), 0, 0x20);
+		ICInvalidateRange(reinterpret_cast<u32*>(0x80000000), 0x20);
+		DCFlushRange(reinterpret_cast<u32*>(0x80000000), 0x20);
 
 		ret = DVDInquiry();
 		if (ret <= 0)
 			throw "Failed to Identify (" + std::to_string(ret) + ")";
 
 		//Read Game ID. required to do certain commands, also needed to check disc type.
-		ret = DVDReadGameID((u8*)0x80000000, 0x20);
+		ret = DVDReadGameID(reinterpret_cast<u8*>(0x80000000), 0x20);
 		if (ret <= 0)
 			throw "Failed to Read Game info (" + std::to_string(ret) + ")";
 
-		ICInvalidateRange((u32*)0x80000000, 0x20);
-		DCFlushRange((u32*)0x80000000, 0x20);
+		ICInvalidateRange(reinterpret_cast<u32*>(0x80000000), 0x20);
+		DCFlushRange(reinterpret_cast<u32*>(0x80000000), 0x20);
 
 		//verify disc type
-		if (*((u32*)0x8000001C) == GCDVD_MAGIC_VALUE)
+		if (*reinterpret_cast<u32*>(0x8000001C) == GCDVD_MAGIC_VALUE)
 		{
 			gprintf("GC disc detected");
 			LaunchGamecubeDisc();
 		}
 
-		if (*((u32*)0x80000018) != WIIDVD_MAGIC_VALUE)
+		if (*reinterpret_cast<u32*>(0x80000018) != WIIDVD_MAGIC_VALUE)
 			throw "Unknown Disc inserted.";
 
 		LaunchWiiDisc();
