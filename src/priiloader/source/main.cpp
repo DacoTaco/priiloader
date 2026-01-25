@@ -1124,7 +1124,7 @@ s8 BootDolFromMem(void* binary , u8 HW_AHBPROT_ENABLED, struct __argv *args )
 			VIDEO_Flush();
 			VIDEO_WaitVSync();
 		}
-		__exception_closeall();
+		IRQ_Disable();
 
 		gprintf("BootDolFromMem : starting binary... 0x%08X",loader_addr);	
 		ICSync();

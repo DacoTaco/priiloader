@@ -645,7 +645,7 @@ void BootMainSysMenu( void )
 		__STM_Close();
 		__IPC_Reinitialize();
 		__IOS_ShutdownSubsystems();
-		__exception_closeall();
+		IRQ_Disable();
 		gprintf("launching sys menu... 0x%08X",loader_addr);
 		
 		//loader
