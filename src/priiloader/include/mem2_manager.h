@@ -22,12 +22,6 @@
 #define ATTRIBUTE_ALIGN(v)							[[gnu::aligned(v)]]
 #endif
 
-#ifndef STACK_ALIGN
-// courtesy of Marcan
-#define STACK_ALIGN(type, name, cnt, alignment)		u8 _al__##name[((sizeof(type)*(cnt)) + (alignment) + (((sizeof(type)*(cnt))%(alignment)) > 0 ? ((alignment) - ((sizeof(type)*(cnt))%(alignment))) : 0))]; \
-													type *name = (type*)(((u32)(_al__##name)) + ((alignment) - (((u32)(_al__##name))&((alignment)-1))))
-#endif
-
 //the type could have an array of content, which is obviously not calculated in the sizeof that STACK_ALIGN does
 //hence we fake the cnt by calculating how many times type fits in the size
 #define CALCULATE_CNT(type, size) (((size - (size % sizeof(type)))/sizeof(type))+1)
