@@ -329,7 +329,6 @@ void LaunchWiiDisc(void)
 	u32 level;
 	__IOS_ShutdownSubsystems();
 	ISFS_Deinitialize();
-	__exception_closeall();
 	_CPU_ISR_Disable(level);
 	mtmsr(mfmsr() & ~0x8000);
 	mtmsr(mfmsr() | 0x2002);
