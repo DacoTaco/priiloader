@@ -146,9 +146,13 @@ s8 SetVideoModeForTitle(std::shared_ptr<TitleInformation> title)
 
 std::string GetTitleLongString(u64 titleId)
 {
-	std::stringstream stream;
-	stream << std::hex << std::setw(8) << std::setfill('0') << TITLE_UPPER(titleId) << "\\" << std::hex << std::setw(8) << std::setfill('0') << TITLE_LOWER(titleId);
-    return stream.str(); 
+	const s32 MAX_TITLE_STRING = 19;
+	std::string titlestring;
+    titlestring.resize(MAX_TITLE_STRING);
+
+    snprintf(&titlestring[0], MAX_TITLE_STRING,"%08X\\%08X",TITLE_UPPER(titleId),TITLE_LOWER(titleId));
+    
+    return titlestring; 
 }
 
 TitleInformation::~TitleInformation()
