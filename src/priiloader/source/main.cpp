@@ -47,6 +47,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <algorithm>
 #include <time.h>
 
+#include <tinyxml2.h>
+
 
 //Project files
 #include "Input.h"
@@ -68,8 +70,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "HomebrewChannel.h"
 #include "IOS.hpp"
 #include "mount.h"
-#include "rapidxml.hpp"
-#include "rapidxml_utils.hpp"
 #include "SystemMenu.h"
 #include "vWii.h"
 
@@ -1408,28 +1408,27 @@ void InstallLoadDOL( void )
 
 					try
 					{
-						rapidxml::xml_document<> doc;
-						doc.parse<0>(buf);
-						rapidxml::xml_node<>* appNode = doc.first_node("app");
-						rapidxml::xml_node<>* node = NULL;
+						tinyxml2::XMLDocument document;
+						document.Parse(buf);
+						auto appNode = document.FirstChildElement("app");
 						if (appNode == NULL)
 							throw "No app node found";
 						
-						node = appNode->first_node("name");
+						auto node = appNode->FirstChildElement("name");
 						if (node != NULL)
-							temp.app_name = (std::string)node->value();
+							temp.app_name = (std::string)node->GetText();
 
-						if (appNode->first_node("no_ios_reload") != NULL || appNode->first_node("ahb_access") != NULL)
+						if (appNode->FirstChildElement("no_ios_reload") != NULL || appNode->FirstChildElement("ahb_access") != NULL)
 							temp.HW_AHBPROT_ENABLED = 1;
 
-						node = appNode->first_node("arguments");
+						node = appNode->FirstChildElement("arguments");
 						if (node != NULL)
 						{
-							rapidxml::xml_node<>* arg = node->first_node("arg");
+							auto arg = node->FirstChildElement("arg");
 							while (arg != NULL)
 							{
-								temp.args.push_back((std::string)arg->value());
-								arg = arg->next_sibling("arg");
+								temp.args.push_back((std::string)arg->GetText());
+								arg = arg->NextSiblingElement("arg");
 							}
 						}
 					}
