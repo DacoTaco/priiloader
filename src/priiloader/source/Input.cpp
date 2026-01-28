@@ -88,7 +88,7 @@ void *kbd_thread (void *arg)
 {
 	while (!kbd_should_quit) 
 	{
-		if(!USBKeyboard_IsConnected() && USBKeyboard_Open(KBEventHandler))
+		if(!USBKeyboard_IsConnected() && USBKeyboard_Open(KBEventHandler) >= 0)
 		{
 			//wake up the keyboard by sending it a command.
 			//im looking at you, you bastard LINQ keyboard.
@@ -179,7 +179,9 @@ void Input_Shutdown( bool disconnectWPAD )
 
 	//signal thread to exit, if it would hang on a USBRead the close will cancel it.
 	kbd_should_quit = true;
-	USBKeyboard_Close();
+	if(USBKeyboard_IsConnected())
+		USBKeyboard_Close();
+	
 	USBKeyboard_Deinitialize();	
 
 	if (kbd_handle != LWP_THREAD_NULL) {
