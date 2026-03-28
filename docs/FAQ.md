@@ -59,12 +59,15 @@ To add WiFi connection you must do a manual setup.
 
 **Wii System Update**  
 If you start the Wii Update, it can end in an endless loop. (If you don't have the **[Block Online Updates]** hack enabled)  
-If you don't have [<u>evWii</u>](https://github.com/GaryOderNichts/evwii) installed and **Enable 4 second power press** option enabled, the only thing to do is pull out the power cord.
+If you don't have [<u>evWii</u>](https://github.com/GaryOderNichts/evwii) installed and **Enable 4-second power press** option enabled, the only thing to do is pull out the power cord.
 
 **Format Wii System Memory**  
 Yup, it works. It will also leave hidden channels installed, and WC24 configuration too.
 
-***All other settings work as they should...***
+***All other settings work as they should, BUT there are two known problems...***
+1) If the Standby is enabled, Power Off from the title would end up in just going to the Wii System Menu instead of shutting off WiiU
+2) Any newly added Bluetooth devices/controllers in the WiiU Mode will need to be reconnected after entering Wii Mode.
+(To prevent this, disable the hack so the Bluetooth device list can be copied to Wii Mode, so it won't get deleted after exiting. You can re-enable it after that.)
 
 
 ## Can Priiloader help you boot Wii Discs directly from the WiiU Disc icon?  
@@ -88,10 +91,10 @@ To do that you need to:
 Currently, there are only some *smaller* issues that can occur on WiiU...
 
 - **vWii Only - Gecko Dump to SD bug**  
-When Auto-booting to the System Menu while booting from the Aroma environment via the Wii Menu icon.  
-Gecko Dumping to SD will not log properly. This issue is FAT driver and Aroma-related and hopefully will be fixed.  
+When auto-booting to the System Menu while booting from the Aroma environment via the Wii Menu icon.  
+Gecko Dumping to SD will not log properly. This issue is FAT driver and Aroma-related; it will hopefully be fixed in the future.  
 
-- **vWii Only - Using MyMenuify or Wii-Themer to change the System Menu theme when Priiloader is installed will cause brick**  
-It is recommended to use [<u>CSM-installer</u>](https://github.com/Naim2000/csm-installer/releases) for the Wii System Menu Theme installation or make sure to use the latest version of MyMenuifyMod.
+- **vWii Only - Using MyMenuify or Wii-Themer to change the System Menu theme when Priiloader is installed will cause BRICK**  
+It is recommended to use [<u>CSM-installer</u>](https://github.com/Naim2000/csm-installer/releases) for the Wii System Menu Theme installation.
 If you do brick by using an older version, use [<u>vWii Decaffeinator</u>](https://github.com/GaryOderNichts/vWii-Decaffeinator) to unbrick.
 *(You will only need to reinstall the System Menu to unbrick!)*
