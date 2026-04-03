@@ -167,6 +167,7 @@ int main(int argc, char** argv)
 			throw "failed to read input file";
 
 		unsigned int _startup[] = {
+			0x7c13fba6, //instruction for emulators to pickup wii mode
 			//setup parameters for loader
 			0x3c608000, //lis 3,0x80004000@h
 			0x60634000, //ori 3,3,0x80004000@l
@@ -179,7 +180,6 @@ int main(int argc, char** argv)
 			0x7d0903a6, //mtctr 8
 			0x7d0803a6, //mtlr 8
 			0x4e800020, //blr
-			0x00000000, //padding
 			0x00000000, //padding
 		};
 
@@ -212,10 +212,10 @@ int main(int argc, char** argv)
 		memcpy(&outputFileInfo.Data[SwapEndian(dolHdr->offsetData[0])], inputFileInfo.Data, inputFileInfo.FileSize);
 
 		//calculate & set binary/loader addresses in startup		
-		_startup[0] = (_startup[0] & 0xFFFF0000) | (binaryAddress >> 16);
-		_startup[1] = (_startup[1] & 0xFFFF0000) | (binaryAddress & 0x0000FFFF);
-		_startup[5] = (_startup[5] & 0xFFFF0000) | (loaderAddress >> 16);
-		_startup[6] = (_startup[6] & 0xFFFF0000) | (loaderAddress & 0x0000FFFF);
+		_startup[1] = (_startup[1] & 0xFFFF0000) | (binaryAddress >> 16);
+		_startup[2] = (_startup[2] & 0xFFFF0000) | (binaryAddress & 0x0000FFFF);
+		_startup[6] = (_startup[6] & 0xFFFF0000) | (loaderAddress >> 16);
+		_startup[7] = (_startup[7] & 0xFFFF0000) | (loaderAddress & 0x0000FFFF);
 
 		//copy data, can't use memcpy as we need to flip endianness...
 		unsigned int* data = reinterpret_cast<unsigned int*>(&outputFileInfo.Data[ALIGN32(sizeof(dolhdr))]);
