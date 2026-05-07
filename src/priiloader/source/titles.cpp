@@ -74,7 +74,7 @@ bool VideoRegionMatches(TitleRegion region)
 	}
 }
 
-void SetVideoInterfaceConfig(std::shared_ptr<TitleInformation> title)
+void SetVideoInterfaceConfig(TitleInformation* title)
 {
 	bool isJpRegion = title == NULL
 		? CONF_GetRegion() == CONF_REGION_JP
@@ -88,6 +88,11 @@ void SetVideoInterfaceConfig(std::shared_ptr<TitleInformation> title)
 		vi1cfg &= ~(1 << 17); //clear the bit
 
 	write32(HW_VI1CFG, vi1cfg);
+}
+
+void SetVideoInterfaceConfig(std::shared_ptr<TitleInformation> title)
+{
+	SetVideoInterfaceConfig(title.get());
 }
 
 s8 SetVideoModeForTitle(std::shared_ptr<TitleInformation> title)
@@ -690,7 +695,7 @@ void TitleInformation::LaunchTitle()
 			}
 		}
 
-		SetVideoInterfaceConfig(std::shared_ptr<TitleInformation>(this));
+		SetVideoInterfaceConfig(this);
 		ES_LaunchTitle(_titleId, &views[0]);
 
 		//failed to launch title

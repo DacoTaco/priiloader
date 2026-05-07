@@ -1849,9 +1849,6 @@ void AutoBootDol( void )
 			if(dol_settings->argument_count > 0)
 			{
 				STACK_ALIGN(char, arguments, dol_settings->arg_cli_length, 32);
-				if(!arguments)
-					throw "failed to allocate arguments";
-
 				memset(arguments,0,dol_settings->arg_cli_length);
 				ISFS_Seek(fd , ((u32)&dol_settings->arg_command_line) - (u32)(dol_settings) ,SEEK_SET);
 				if( ISFS_Read( fd, arguments, dol_settings->arg_cli_length ) < dol_settings->arg_cli_length)

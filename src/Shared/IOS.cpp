@@ -284,11 +284,6 @@ s8 IsIOSstub(u8 ios_number)
 	//hence we fake the cnt by calculating how many times tmd_view fits in the tmd_size
 	const u32 cnt = ((tmd_size - (tmd_size % sizeof(tmd_view)))/sizeof(tmd_view))+1;
 	STACK_ALIGN(tmd_view, ios_tmd, cnt, 32);
-	if (!ios_tmd)
-	{
-		gdprintf("isIOSstub : TMD alloc failure");
-		return 1;
-	}
 	memset(ios_tmd, 0, tmd_size);
 	ES_GetTMDView(0x0000000100000000ULL | ios_number, ios_tmd, tmd_size);
 	gdprintf("isIOSstub : IOS %d is rev %d(0x%x) with tmd size of %u and %u contents", ios_number, ios_tmd->title_version, ios_tmd->title_version, tmd_size, ios_tmd->num_contents);
