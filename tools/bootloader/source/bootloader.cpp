@@ -167,23 +167,26 @@ int main(int argc, char** argv)
 			throw "failed to read input file";
 
 		unsigned int _startup[] = {
-			0x7c13fba6, //instruction for emulators to pickup wii mode
-			//setup parameters for loader
-			0x3c608000, //lis 3,0x80004000@h
-			0x60634000, //ori 3,3,0x80004000@l
+			//setup parameters for loader : _boot(void* binary, void* parameter, u32 parameterCount, u8 binaryType)
+			0x3c608000, //lis 3,binaryAddress@h
+			0x60634000, //ori 3,3,binaryAddress@l
 			0x38800000, //li 4,0
 			0x38a00000, //li 5,0
 			0x38c00000, //li 6,0
-			//jump to loader
-			0x3d008000, //lis 8,0x80004030@h
-			0x61084030, //ori 8,8,0x80004030@l
+			//jump to loader; CTR must hold loaderAddress - loader _startup.s uses mfctr to set its own stack
+			0x3d008000, //lis 8,loaderAddress@h
+			0x61084030, //ori 8,8,loaderAddress@l
 			0x7d0903a6, //mtctr 8
 			0x7d0803a6, //mtlr 8
 			0x4e800020, //blr
+			// Emulators scan text sections for mtspr HID4 opcodes to detect Wii DOLs.
+			// The instruction must be present but must NOT execute since changing HID4 can cause all kind of instability in the loader
+			// it could even cause things in binaries to stop doing anything at all
+			0x7c13fba6, //mtspr HID4,r0
 			0x00000000, //padding
 		};
 
-		outputFileInfo.FileSize = ALIGN32(sizeof(dolhdr)) + sizeof(_startup) + inputFileInfo.FileSize + ALIGN16(loader_bin_size);
+		outputFileInfo.FileSize = ALIGN32(sizeof(dolhdr)) + ALIGN32(sizeof(_startup)) + inputFileInfo.FileSize + ALIGN32(loader_bin_size);
 		outputFileInfo.Data = static_cast<unsigned char*>(malloc(outputFileInfo.FileSize));
 		if (outputFileInfo.Data == NULL)
 			throw "failed to allocate memory";
@@ -195,13 +198,13 @@ int main(int argc, char** argv)
 		dolHdr->entrypoint = SwapEndian(baseAddress);
 		dolHdr->addressText[0] = SwapEndian(baseAddress);
 		dolHdr->offsetText[0] = SwapEndian(ALIGN32(sizeof(dolhdr)));
-		dolHdr->sizeText[0] = SwapEndian(sizeof(_startup));
+		dolHdr->sizeText[0] = SwapEndian(ALIGN32(sizeof(_startup)));  // ALIGN32 so section boundaries are 32-byte aligned for Ghidra compatibility
 
 		//add loader
 		unsigned int loaderAddress = SwapEndian(dolHdr->addressText[0]) + SwapEndian(dolHdr->sizeText[0]);
 		dolHdr->addressText[1] = SwapEndian(loaderAddress);
 		dolHdr->offsetText[1] = SwapEndian(SwapEndian(dolHdr->offsetText[0]) + SwapEndian(dolHdr->sizeText[0]));
-		dolHdr->sizeText[1] = SwapEndian(ALIGN16(loader_bin_size));
+		dolHdr->sizeText[1] = SwapEndian(ALIGN32(loader_bin_size));  // ALIGN32 so section boundaries are 32-byte aligned for Ghidra compatibility
 		memcpy(&outputFileInfo.Data[SwapEndian(dolHdr->offsetText[1])], loader_bin, loader_bin_size);
 
 		//add input file
@@ -212,10 +215,10 @@ int main(int argc, char** argv)
 		memcpy(&outputFileInfo.Data[SwapEndian(dolHdr->offsetData[0])], inputFileInfo.Data, inputFileInfo.FileSize);
 
 		//calculate & set binary/loader addresses in startup		
-		_startup[1] = (_startup[1] & 0xFFFF0000) | (binaryAddress >> 16);
-		_startup[2] = (_startup[2] & 0xFFFF0000) | (binaryAddress & 0x0000FFFF);
-		_startup[6] = (_startup[6] & 0xFFFF0000) | (loaderAddress >> 16);
-		_startup[7] = (_startup[7] & 0xFFFF0000) | (loaderAddress & 0x0000FFFF);
+		_startup[0] = (_startup[0] & 0xFFFF0000) | (binaryAddress >> 16);
+		_startup[1] = (_startup[1] & 0xFFFF0000) | (binaryAddress & 0x0000FFFF);
+		_startup[5] = (_startup[5] & 0xFFFF0000) | (loaderAddress >> 16);
+		_startup[6] = (_startup[6] & 0xFFFF0000) | (loaderAddress & 0x0000FFFF);
 
 		//copy data, can't use memcpy as we need to flip endianness...
 		unsigned int* data = reinterpret_cast<unsigned int*>(&outputFileInfo.Data[ALIGN32(sizeof(dolhdr))]);
