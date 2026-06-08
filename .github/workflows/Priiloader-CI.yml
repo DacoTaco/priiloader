@@ -17,7 +17,7 @@ jobs:
     
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
         
       - name: Source Review
         run: cppcheck . -v --std=c99 --std=c++11 --error-exitcode=1 --enable=warning,performance,portability,information,style --suppress=unusedFunction --suppress=unusedStructMember -UDEBUG_MEM2_LEVEL
