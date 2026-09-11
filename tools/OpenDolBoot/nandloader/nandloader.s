@@ -146,7 +146,9 @@ _main:
 	lis		r3, -0x8000
 	li		r4, 0x0
 	stw		r4, 0xf4(r3)
-	li		r4, entrypoint@l
-	lwz		r4, 0x3400(r4)
+	lis		r4, entrypoint@ha
+	lwz		r4, entrypoint@l(r4)
 	mtlr	r4
 	blr
+
+.balign 32, 0

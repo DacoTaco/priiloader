@@ -28,7 +28,7 @@ BUILD		:=	build
 CFLAGS		= -Os $(INCLUDE) -save-temps -fno-asynchronous-unwind-tables -fno-builtin
 CXXFLAGS	= $(CFLAGS)
 CPPFLAGS 	= $(MACHDEP) $(INCLUDE)
-LDFLAGS		= -nostartfiles -Wl,-Map,$(notdir $@).map
+LDFLAGS		= -nostartfiles -Ttext=0x80003400 -Wl,-Map,$(notdir $@).map
 ASFLAGS		= -D_LANGUAGE_ASSEMBLY
 
 #---------------------------------------------------------------------------------

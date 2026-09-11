@@ -30,6 +30,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "../include/dolHeader.h"
 #include "../include/nandloader.bin.h"
 
+#define ALIGN32(x) (((x) + 31) & ~31)
+
 const std::string internalFileName = "internal";
 const unsigned int nandLoaderLocation = 0x80003400;
 
@@ -123,11 +125,17 @@ void NandLoaderInjector::InjectNandLoader(unsigned int applicationVersion, std::
 		}
 	}
 	
+	// The nandloader section, like all dol sections, needs to be 32-byte aligned.
+	// this also means that when writing the nandloader, we need to add optional padding too
+	const auto nandLoaderSize = ALIGN32(nandLoader->GetFileSize());
+	const auto nandLoaderPadding = nandLoaderSize - nandLoader->GetFileSize();
+
 	//copy header data
   	std::copy(input->Data.begin(), input->Data.begin() + headerSize, std::back_inserter(output->Data));
 	
 	//copy in nandloader & set header
 	std::copy(nandLoader->Data.begin(), nandLoader->Data.end(), std::back_inserter(output->Data));
+	output->Data.resize(output->Data.size() + nandLoaderPadding, 0);
 
 	//copy in other binary data
 	std::copy(input->Data.begin() + headerSize, input->Data.end(), std::back_inserter(output->Data));
@@ -136,7 +144,7 @@ void NandLoaderInjector::InjectNandLoader(unsigned int applicationVersion, std::
 	dolHeader* outputHeader = (dolHeader*)&output->Data[0];
 	outputHeader->addressText[0] = ForceBigEndian(nandLoaderLocation);
 	outputHeader->offsetText[0] = ForceBigEndian(headerSize);
-	outputHeader->sizeText[0] = ForceBigEndian(nandLoader->GetFileSize());
+	outputHeader->sizeText[0] = ForceBigEndian(nandLoaderSize);
 	for(int i = 0;i < MAX_TEXT_SECTIONS;i++)
 	{
 		if(!inputHeader->sizeText[i] || !inputHeader->addressText[i] || !inputHeader->offsetText[i])
@@ -146,7 +154,7 @@ void NandLoaderInjector::InjectNandLoader(unsigned int applicationVersion, std::
 		printf("moving text section #%d...\n",i);
 		outputHeader->addressText[i+1] = inputHeader->addressText[i];
 		outputHeader->sizeText[i+1] = inputHeader->sizeText[i];
-		outputHeader->offsetText[i+1] = ForceBigEndian(BigEndianToHost(inputHeader->offsetText[i]) + nandLoader->GetFileSize());
+		outputHeader->offsetText[i+1] = ForceBigEndian(BigEndianToHost(inputHeader->offsetText[i]) + nandLoaderSize);
 	}
 
 	for(int i = 0;i < MAX_DATA_SECTIONS;i++)
@@ -158,7 +166,7 @@ void NandLoaderInjector::InjectNandLoader(unsigned int applicationVersion, std::
 		printf("copying data section #%d...\n",i);
 		outputHeader->addressData[i] = inputHeader->addressData[i];
 		outputHeader->sizeData[i] = inputHeader->sizeData[i];
-		outputHeader->offsetData[i] = ForceBigEndian(BigEndianToHost(inputHeader->offsetData[i]) + nandLoader->GetFileSize());
+		outputHeader->offsetData[i] = ForceBigEndian(BigEndianToHost(inputHeader->offsetData[i]) + nandLoaderSize);
 	}
 }
 
