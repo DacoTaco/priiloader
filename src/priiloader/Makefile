@@ -159,7 +159,7 @@ post_build:
 	$(SILENTMSG) -----------------------------------------------
 	$(SILENTMSG) creating priiloader.app for installer
 	$(SILENTMSG)
-	$(SILENTCMD) $(OPENDOLBOOT) $(OUTPUT).dol ../Installer/data/priiloader.app
+	$(SILENTCMD) $(OPENDOLBOOT) -a $(GITTAG) $(OUTPUT).dol ../Installer/data/priiloader.app
 
 #---------------------------------------------------------------------------------
 clean:
