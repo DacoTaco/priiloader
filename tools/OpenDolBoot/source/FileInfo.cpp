@@ -25,7 +25,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <vector>
 #include <memory>
 
-#include "../include/common.h"
+#include "../include/Common.hpp"
 #include "../include/FileInfo.hpp"
 
 unsigned int FileInfo::GetFileSize()

@@ -25,16 +25,15 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <vector>
 #include <memory>
 
-#include "../include/common.h"
+#include "../include/Common.hpp"
 #include "../include/NandLoaderInjector.hpp"
 #include "../include/NandLoader.h"
-#include "../include/dolHeader.h"
+#include "../include/DolBinary.hpp"
 #include "../include/nandloader.bin.h"
 
 const std::string internalFileName = "internal";
-const unsigned int nandLoaderLocation = 0x80003400;
 
-void NandLoaderInjector::RemoveNandLoader(std::unique_ptr<FileInfo> &input)
+void NandLoaderInjector::RemoveNandLoader(std::unique_ptr<DolBinary> &input)
 {
 	auto nandLoaderSize = 0;
 	auto nandLoaderOffset = 0;
@@ -47,7 +46,7 @@ void NandLoaderInjector::RemoveNandLoader(std::unique_ptr<FileInfo> &input)
 
 	for (auto i = 0; i < MAX_TEXT_SECTIONS; i++)
 	{
-		if (ForceBigEndian(header->addressText[i]) != nandLoaderLocation && nandLoaderOffset == 0)
+		if (ForceBigEndian(header->addressText[i]) != NandLoaderLocation && nandLoaderOffset == 0)
 			continue;
 
 		if (nandLoaderOffset == 0)
@@ -88,7 +87,7 @@ void NandLoaderInjector::RemoveNandLoader(std::unique_ptr<FileInfo> &input)
 	input->Data = newData;
 }
 
-void NandLoaderInjector::InjectNandLoader(unsigned int applicationVersion, std::unique_ptr<FileInfo> &input, std::unique_ptr<FileInfo> &nandLoader, std::unique_ptr<FileInfo> &output)
+void NandLoaderInjector::InjectNandLoader(unsigned int applicationVersion, std::unique_ptr<DolBinary> &input, std::unique_ptr<FileInfo> &nandLoader, std::unique_ptr<FileInfo> &output)
 {
 	printf("input : %s\n", input->GetFilename());
 	printf("output : %s\n", output->GetFilename());
@@ -101,7 +100,7 @@ void NandLoaderInjector::InjectNandLoader(unsigned int applicationVersion, std::
 
 	for (auto i = 0; i < MAX_TEXT_SECTIONS; i++)
 	{
-		if (BigEndianToHost(inputHeader->addressText[i]) == nandLoaderLocation)
+		if (BigEndianToHost(inputHeader->addressText[i]) == NandLoaderLocation)
 			throw "Binary already contains nandloader";
 	}
 
@@ -141,7 +140,7 @@ void NandLoaderInjector::InjectNandLoader(unsigned int applicationVersion, std::
 
 	// set output header
 	dolHeader *outputHeader = (dolHeader *)&output->Data[0];
-	outputHeader->addressText[0] = ForceBigEndian(nandLoaderLocation);
+	outputHeader->addressText[0] = ForceBigEndian(NandLoaderLocation);
 	outputHeader->offsetText[0] = ForceBigEndian(headerSize);
 	outputHeader->sizeText[0] = ForceBigEndian(nandLoaderSize);
 	for (int i = 0; i < MAX_TEXT_SECTIONS; i++)
@@ -169,7 +168,7 @@ void NandLoaderInjector::InjectNandLoader(unsigned int applicationVersion, std::
 	}
 }
 
-void NandLoaderInjector::InjectNandLoader(unsigned int applicationVersion, std::unique_ptr<FileInfo> &input, std::unique_ptr<FileInfo> &output)
+void NandLoaderInjector::InjectNandLoader(unsigned int applicationVersion, std::unique_ptr<DolBinary> &input, std::unique_ptr<FileInfo> &output)
 {
 	auto nandLoader = std::make_unique<FileInfo>(internalFileName, nandloader_bin, nandloader_bin_size);
 	NandLoaderInjector::InjectNandLoader(applicationVersion, input, nandLoader, output);

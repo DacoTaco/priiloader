@@ -28,13 +28,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <string>
 #include <algorithm>
 
-#include "../include/dolHeader.h"
+#include "../include/DolBinary.hpp"
 #include "../include/FileInfo.hpp"
 #include "../include/NandLoaderInjector.hpp"
 #include "../include/nandloader.bin.h"
 
 const std::string internalFileName = "internal";
-const unsigned int nandLoaderLocation = 0x80003400;
 
 void ShowHelp()
 {
@@ -46,36 +45,17 @@ void ShowHelp()
 	printf("-h\t\t: display this message\n");
 	printf("-f\t\t: force nandcode, overwriting any code detected in the dol file\n");
 }
-void ShowDolInformation(std::unique_ptr<FileInfo> &input)
+void ShowDolInformation(std::unique_ptr<DolBinary> &input)
 {
-	dolHeader *header = (dolHeader *)&input->Data[0];
-	if (header == NULL)
-		throw "Invalid dol header read";
-
-	if (!input->IsAligned())
-		printf("WARNING: input file is not 32 byte aligned, this may cause issues with booting!\n\n");
-
 	printf("input: %s\n", input->GetFilename());
-	printf("Entrypoint: 0x%08X\nBSS Address : 0x%08X\nBSS Size: 0x%08X\n\n", (unsigned int)ForceBigEndian(header->entrypoint), (unsigned int)ForceBigEndian(header->addressBSS), (unsigned int)ForceBigEndian(header->sizeBSS));
+	printf("Entrypoint: 0x%08X\nBSS Address : 0x%08X\nBSS Size: 0x%08X\n\n", input->GetEntryPoint(), input->GetBSSAddress(), input->GetBSSSize());
 	printf("Text Sections:\n");
-	for (int i = 0; i < 6; i++)
-	{
-		if (header->sizeText[i] && header->addressText[i] && header->offsetText[i])
-		{
-			// valid info. swap and display
-			printf("offset : 0x%08X\taddress : 0x%08X\tsize : 0x%08X\n", (unsigned int)ForceBigEndian(header->offsetText[i]), (unsigned int)ForceBigEndian(header->addressText[i]), (unsigned int)ForceBigEndian(header->sizeText[i]));
-		}
-	}
+	for (auto &section : input->TextSections)
+		printf("offset : 0x%08lX\taddress : 0x%08X\tsize : 0x%08X\n", section.Offset, section.Address, section.Size);
 
 	printf("\nData Sections:\n");
-	for (int i = 0; i <= 10; i++)
-	{
-		if (header->sizeData[i] && header->addressData[i] && header->offsetData[i])
-		{
-			// valid info. swap and display
-			printf("offset : 0x%08X\taddress : 0x%08X\tsize : 0x%08X\n", (unsigned int)ForceBigEndian(header->offsetData[i]), (unsigned int)ForceBigEndian(header->addressData[i]), (unsigned int)ForceBigEndian(header->sizeData[i]));
-		}
-	}
+	for (auto &section : input->DataSections)
+		printf("offset : 0x%08lX\taddress : 0x%08X\tsize : 0x%08X\n", section.Offset, section.Address, section.Size);
 }
 int main(int argc, char **argv)
 {
@@ -209,16 +189,11 @@ int main(int argc, char **argv)
 		}
 
 		// get input file info
-		auto input = std::make_unique<FileInfo>(inputFile);
+		auto input = std::make_unique<DolBinary>(inputFile);
+		input->Validate(!showInfo);
 		if (showInfo)
 		{
 			ShowDolInformation(input);
-			return 0;
-		}
-
-		if (!input->IsAligned())
-		{
-			printf("ERROR: input file is not 32 byte aligned, this WILL cause issues with booting!\n\naborting...\n");
 			return 0;
 		}
 

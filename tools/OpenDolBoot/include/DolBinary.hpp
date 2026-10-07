@@ -20,22 +20,20 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #pragma once
 
-#ifdef WIN32
-#include <winsock2.h>
-#include <windows.h>
-#define SwapEndian(x) _byteswap_ulong(x)
-#else
-#include <arpa/inet.h>
-#define SwapEndian(x) __builtin_bswap32(x)
-#endif
-#define IsBigEndian() (htonl(47) == 47)
-#define ForceBigEndian(x) (IsBigEndian() ? x : SwapEndian(x))
-#define BigEndianToHost(x) (!IsBigEndian() ? SwapEndian(x) : x)
+#include <cstddef>
+#include <string>
+#include <string.h>
+#include <unistd.h>
+#include <vector>
 
-#define MAX_TEXT_SECTIONS	7
-#define MAX_DATA_SECTIONS	11
+#include "Common.hpp"
+#include "FileInfo.hpp"
 
-typedef struct {
+#define MAX_TEXT_SECTIONS 7
+#define MAX_DATA_SECTIONS 11
+
+typedef struct
+{
 	unsigned int offsetText[MAX_TEXT_SECTIONS];
 	unsigned int offsetData[MAX_DATA_SECTIONS];
 	unsigned int addressText[MAX_TEXT_SECTIONS];
@@ -49,3 +47,40 @@ typedef struct {
 } dolHeader;
 
 static_assert(sizeof(dolHeader) == 0x100);
+
+const unsigned int NandLoaderLocation = 0x80003400;
+
+class DOLSection
+{
+public:
+	unsigned int Address;
+	unsigned int Size;
+	std::size_t Offset;
+	unsigned char Index;
+	const unsigned char *Data;
+
+	bool IsAligned() const
+	{
+		return ALIGN32(Address) == Address && ALIGN32(Size) == Size;
+	}
+
+	bool IsNandLoaderSection() const
+	{
+		return (Address | 0x80000000) == NandLoaderLocation;
+	}
+};
+
+class DolBinary : public FileInfo
+{
+public:
+	std::vector<DOLSection> TextSections;
+	std::vector<DOLSection> DataSections;
+	unsigned int GetEntryPoint();
+	unsigned int GetBSSAddress();
+	unsigned int GetBSSSize();
+
+	explicit DolBinary(const std::string &filename);
+	~DolBinary() {}
+
+	void Validate(bool throwOnError);
+};

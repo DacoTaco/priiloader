@@ -25,13 +25,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <memory>
 
 #include "FileInfo.hpp"
+#include "DolBinary.hpp"
 
-#define VERSION "0.4"
+#define VERSION "0.5"
 
-class NandLoaderInjector 
-{	
-	public:
-		void RemoveNandLoader(std::unique_ptr<FileInfo>& input);
-		void InjectNandLoader(unsigned int applicationVersion, std::unique_ptr<FileInfo>& input, std::unique_ptr<FileInfo>& output);
-		void InjectNandLoader(unsigned int applicationVersion, std::unique_ptr<FileInfo>& input, std::unique_ptr<FileInfo>& nandloader, std::unique_ptr<FileInfo>& output);
+class NandLoaderInjector
+{
+public:
+	void RemoveNandLoader(std::unique_ptr<DolBinary> &input);
+	void InjectNandLoader(unsigned int applicationVersion, std::unique_ptr<DolBinary> &input, std::unique_ptr<FileInfo> &output);
+	void InjectNandLoader(unsigned int applicationVersion, std::unique_ptr<DolBinary> &input, std::unique_ptr<FileInfo> &nandloader, std::unique_ptr<FileInfo> &output);
 };
