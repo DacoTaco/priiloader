@@ -29,7 +29,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #ifdef WIN32
 #include <windows.h>
-#define sleep(x) Sleep(x*1000)
+#define sleep(x) Sleep(x * 1000)
 #define SwapEndian(x) _byteswap_ulong(x)
 #define SwapEndian16(x) _byteswap_ushort(x)
 #else
@@ -42,20 +42,21 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define ALIGN32(x) (((x) + 31) & ~31)
 #define ALIGN16(x) (((x) + 15) & ~15)
 
-typedef struct {
+typedef struct
+{
 	std::string Filename;
 	unsigned int FileSize;
-	unsigned char* Data;
+	unsigned char *Data;
 } BootloaderFileInfo;
 
 const unsigned int baseAddress = 0x80004000;
 
-int WriteFile(BootloaderFileInfo* info)
+int WriteFile(BootloaderFileInfo *info)
 {
 	if (info == NULL)
 		return -1;
 
-	FILE* file;
+	FILE *file;
 	file = fopen(info->Filename.c_str(), "wb+");
 	if (!file)
 		return -2;
@@ -65,13 +66,13 @@ int WriteFile(BootloaderFileInfo* info)
 	return 1;
 }
 
-int ReadFile(BootloaderFileInfo* info)
+int ReadFile(BootloaderFileInfo *info)
 {
 	if (info == NULL || info->Filename.size() == 0)
 		return -1;
 
-	FILE* file;
-	unsigned char* data = NULL;
+	FILE *file;
+	unsigned char *data = NULL;
 	unsigned int size = 0;
 #ifdef DEBUG
 	printf("reading %s ...\r\n", info->Filename.c_str());
@@ -86,7 +87,7 @@ int ReadFile(BootloaderFileInfo* info)
 	rewind(file);
 
 	// allocate memory to contain the whole file:
-	data = static_cast<unsigned char*>(malloc(size));
+	data = static_cast<unsigned char *>(malloc(size));
 	if (data == NULL)
 	{
 		printf("Memory error\r\n");
@@ -94,7 +95,7 @@ int ReadFile(BootloaderFileInfo* info)
 		return -3;
 	}
 	memset(data, 0, size);
-	//copy the file into the buffer:
+	// copy the file into the buffer:
 	if (fread(data, 1, size, file) != size)
 	{
 		fclose(file);
@@ -115,7 +116,7 @@ void ShowHelp()
 	exit(0);
 }
 
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
 	BootloaderFileInfo outputFileInfo;
 	BootloaderFileInfo inputFileInfo;
@@ -127,7 +128,7 @@ int main(int argc, char** argv)
 		ShowHelp();
 	}
 
-	//load arguments except for the first, which is just the executable path
+	// load arguments except for the first, which is just the executable path
 	for (int i = 1; i < argc; i++)
 	{
 		argumentList.push_back(argv[i]);
@@ -151,7 +152,7 @@ int main(int argc, char** argv)
 		{
 			outputFileInfo.Filename = argument;
 		}
-		else //there was an unexpected parameter
+		else // there was an unexpected parameter
 		{
 			printf("unexpected arg '%s'\r\n", argument.c_str());
 			ShowHelp();
@@ -163,65 +164,68 @@ int main(int argc, char** argv)
 
 	try
 	{
-		if(ReadFile(&inputFileInfo) < 0 || inputFileInfo.Data == NULL || inputFileInfo.FileSize == 0)
+		if (ReadFile(&inputFileInfo) < 0 || inputFileInfo.Data == NULL || inputFileInfo.FileSize == 0)
 			throw "failed to read input file";
 
+		if (inputFileInfo.FileSize % 32 != 0)
+			throw "input MUST be 32 byte aligned or its not bootable by IOS/IPL/Apploaders";
+
 		unsigned int _startup[] = {
-			//setup parameters for loader : _boot(void* binary, void* parameter, u32 parameterCount, u8 binaryType)
-			0x3c608000, //lis 3,binaryAddress@h
-			0x60634000, //ori 3,3,binaryAddress@l
-			0x38800000, //li 4,0
-			0x38a00000, //li 5,0
-			0x38c00000, //li 6,0
-			//jump to loader; CTR must hold loaderAddress - loader _startup.s uses mfctr to set its own stack
-			0x3d008000, //lis 8,loaderAddress@h
-			0x61084030, //ori 8,8,loaderAddress@l
-			0x7d0903a6, //mtctr 8
-			0x7d0803a6, //mtlr 8
-			0x4e800020, //blr
+			// setup parameters for loader : _boot(void* binary, void* parameter, u32 parameterCount, u8 binaryType)
+			0x3c608000, // lis 3,binaryAddress@h
+			0x60634000, // ori 3,3,binaryAddress@l
+			0x38800000, // li 4,0
+			0x38a00000, // li 5,0
+			0x38c00000, // li 6,0
+			// jump to loader; CTR must hold loaderAddress - loader _startup.s uses mfctr to set its own stack
+			0x3d008000, // lis 8,loaderAddress@h
+			0x61084030, // ori 8,8,loaderAddress@l
+			0x7d0903a6, // mtctr 8
+			0x7d0803a6, // mtlr 8
+			0x4e800020, // blr
 			// Emulators scan text sections for mtspr HID4 opcodes to detect Wii DOLs.
 			// The instruction must be present but must NOT execute since changing HID4 can cause all kind of instability in the loader
 			// it could even cause things in binaries to stop doing anything at all
-			0x7c13fba6, //mtspr HID4,r0
-			0x00000000, //padding
+			0x7c13fba6, // mtspr HID4,r0
+			0x00000000, // padding
 		};
 
 		outputFileInfo.FileSize = ALIGN32(sizeof(dolhdr)) + ALIGN32(sizeof(_startup)) + inputFileInfo.FileSize + ALIGN32(loader_bin_size);
-		outputFileInfo.Data = static_cast<unsigned char*>(malloc(outputFileInfo.FileSize));
+		outputFileInfo.Data = static_cast<unsigned char *>(malloc(outputFileInfo.FileSize));
 		if (outputFileInfo.Data == NULL)
 			throw "failed to allocate memory";
 
 		memset(outputFileInfo.Data, 0, outputFileInfo.FileSize);
 
-		//add entrypoint
-		dolhdr* dolHdr = reinterpret_cast<dolhdr*>(outputFileInfo.Data);
+		// add entrypoint
+		dolhdr *dolHdr = reinterpret_cast<dolhdr *>(outputFileInfo.Data);
 		dolHdr->entrypoint = SwapEndian(baseAddress);
 		dolHdr->addressText[0] = SwapEndian(baseAddress);
 		dolHdr->offsetText[0] = SwapEndian(ALIGN32(sizeof(dolhdr)));
-		dolHdr->sizeText[0] = SwapEndian(ALIGN32(sizeof(_startup)));  // ALIGN32 so section boundaries are 32-byte aligned for Ghidra compatibility
+		dolHdr->sizeText[0] = SwapEndian(ALIGN32(sizeof(_startup))); // ALIGN32 so section boundaries are 32-byte aligned for Ghidra compatibility
 
-		//add loader
+		// add loader
 		unsigned int loaderAddress = SwapEndian(dolHdr->addressText[0]) + SwapEndian(dolHdr->sizeText[0]);
 		dolHdr->addressText[1] = SwapEndian(loaderAddress);
 		dolHdr->offsetText[1] = SwapEndian(SwapEndian(dolHdr->offsetText[0]) + SwapEndian(dolHdr->sizeText[0]));
-		dolHdr->sizeText[1] = SwapEndian(ALIGN32(loader_bin_size));  // ALIGN32 so section boundaries are 32-byte aligned for Ghidra compatibility
+		dolHdr->sizeText[1] = SwapEndian(ALIGN32(loader_bin_size)); // ALIGN32 so section boundaries are 32-byte aligned for Ghidra compatibility
 		memcpy(&outputFileInfo.Data[SwapEndian(dolHdr->offsetText[1])], loader_bin, loader_bin_size);
 
-		//add input file
+		// add input file
 		unsigned int binaryAddress = SwapEndian(dolHdr->addressText[1]) + SwapEndian(dolHdr->sizeText[1]);
 		dolHdr->addressData[0] = SwapEndian(binaryAddress);
 		dolHdr->offsetData[0] = SwapEndian(SwapEndian(dolHdr->offsetText[1]) + SwapEndian(dolHdr->sizeText[1]));
 		dolHdr->sizeData[0] = SwapEndian(inputFileInfo.FileSize);
 		memcpy(&outputFileInfo.Data[SwapEndian(dolHdr->offsetData[0])], inputFileInfo.Data, inputFileInfo.FileSize);
 
-		//calculate & set binary/loader addresses in startup		
+		// calculate & set binary/loader addresses in startup
 		_startup[0] = (_startup[0] & 0xFFFF0000) | (binaryAddress >> 16);
 		_startup[1] = (_startup[1] & 0xFFFF0000) | (binaryAddress & 0x0000FFFF);
 		_startup[5] = (_startup[5] & 0xFFFF0000) | (loaderAddress >> 16);
 		_startup[6] = (_startup[6] & 0xFFFF0000) | (loaderAddress & 0x0000FFFF);
 
-		//copy data, can't use memcpy as we need to flip endianness...
-		unsigned int* data = reinterpret_cast<unsigned int*>(&outputFileInfo.Data[ALIGN32(sizeof(dolhdr))]);
+		// copy data, can't use memcpy as we need to flip endianness...
+		unsigned int *data = reinterpret_cast<unsigned int *>(&outputFileInfo.Data[ALIGN32(sizeof(dolhdr))]);
 		for (int i = 0; i < (sizeof(_startup) / sizeof(unsigned int)); i++)
 			data[i] = SwapEndian(_startup[i]);
 
@@ -229,12 +233,12 @@ int main(int argc, char** argv)
 		free(outputFileInfo.Data);
 		free(inputFileInfo.Data);
 	}
-	catch (const std::string& ex)
+	catch (const std::string &ex)
 	{
 		printf("bootloader Exception -> %s\r\n", ex.c_str());
 		exit(1);
 	}
-	catch (char const* ex)
+	catch (char const *ex)
 	{
 		printf("bootloader Exception -> %s\r\n", ex);
 		exit(1);

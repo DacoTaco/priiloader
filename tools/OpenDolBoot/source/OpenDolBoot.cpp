@@ -46,38 +46,41 @@ void ShowHelp()
 	printf("-h\t\t: display this message\n");
 	printf("-f\t\t: force nandcode, overwriting any code detected in the dol file\n");
 }
-void ShowDolInformation(std::unique_ptr<FileInfo>& input)
+void ShowDolInformation(std::unique_ptr<FileInfo> &input)
 {
-	dolHeader* header = (dolHeader*)&input->Data[0];
-	if(header == NULL)
+	dolHeader *header = (dolHeader *)&input->Data[0];
+	if (header == NULL)
 		throw "Invalid dol header read";
 
+	if (!input->IsAligned())
+		printf("WARNING: input file is not 32 byte aligned, this may cause issues with booting!\n\n");
+
 	printf("input: %s\n", input->GetFilename());
-	printf("Entrypoint: 0x%08X\nBSS Address : 0x%08X\nBSS Size: 0x%08X\n\n", (unsigned int)ForceBigEndian(header->entrypoint) , (unsigned int)ForceBigEndian(header->addressBSS) , (unsigned int)ForceBigEndian(header->sizeBSS) );
+	printf("Entrypoint: 0x%08X\nBSS Address : 0x%08X\nBSS Size: 0x%08X\n\n", (unsigned int)ForceBigEndian(header->entrypoint), (unsigned int)ForceBigEndian(header->addressBSS), (unsigned int)ForceBigEndian(header->sizeBSS));
 	printf("Text Sections:\n");
-	for(int i = 0;i < 6;i++)
+	for (int i = 0; i < 6; i++)
 	{
-		if(header->sizeText[i] && header->addressText[i] && header->offsetText[i])
+		if (header->sizeText[i] && header->addressText[i] && header->offsetText[i])
 		{
-			//valid info. swap and display
+			// valid info. swap and display
 			printf("offset : 0x%08X\taddress : 0x%08X\tsize : 0x%08X\n", (unsigned int)ForceBigEndian(header->offsetText[i]), (unsigned int)ForceBigEndian(header->addressText[i]), (unsigned int)ForceBigEndian(header->sizeText[i]));
 		}
 	}
 
 	printf("\nData Sections:\n");
-	for(int i = 0;i <= 10;i++)
+	for (int i = 0; i <= 10; i++)
 	{
-		if(header->sizeData[i] && header->addressData[i] && header->offsetData[i])
+		if (header->sizeData[i] && header->addressData[i] && header->offsetData[i])
 		{
-			//valid info. swap and display
+			// valid info. swap and display
 			printf("offset : 0x%08X\taddress : 0x%08X\tsize : 0x%08X\n", (unsigned int)ForceBigEndian(header->offsetData[i]), (unsigned int)ForceBigEndian(header->addressData[i]), (unsigned int)ForceBigEndian(header->sizeData[i]));
 		}
 	}
 }
 int main(int argc, char **argv)
 {
-	printf("DacoTaco's OpenDolboot : Version %s\n\n",VERSION);
-	if(argc < 3)
+	printf("DacoTaco's OpenDolboot : Version %s\n\n", VERSION);
+	if (argc < 3)
 	{
 		ShowHelp();
 		return 0;
@@ -92,40 +95,40 @@ int main(int argc, char **argv)
 		bool showInfo = false;
 		bool overwriteNandLoader = false;
 		uint32_t applicationVersion = 0;
-		//load arguments except for the first, which is just the executable path
-		for(int i = 1; i < argc;i++)
+		// load arguments except for the first, which is just the executable path
+		for (int i = 1; i < argc; i++)
 		{
 			argumentList.push_back(argv[i]);
-		}	
+		}
 
-		for(unsigned int i = 0; i < argumentList.size();i++)
+		for (unsigned int i = 0; i < argumentList.size(); i++)
 		{
 			std::string argument = argumentList[i];
-			if(argument[0] == '-')
+			if (argument[0] == '-')
 			{
-				if(argument == "-i")
+				if (argument == "-i")
 					showInfo = true;
-				else if(argument == "-f")
+				else if (argument == "-f")
 					overwriteNandLoader = true;
-				else if(argument == "-h") // -h / help
+				else if (argument == "-h") // -h / help
 				{
 					ShowHelp();
 					return 0;
 				}
-				else if(argument == "-a")
+				else if (argument == "-a")
 				{
 					std::string nextArgument = argumentList[++i];
-					if(applicationVersion > 0)
+					if (applicationVersion > 0)
 					{
 						ShowHelp();
 						return 1;
 					}
-					
+
 					std::string error = "";
 					try
 					{
 						auto periodCount = static_cast<int>(std::count(nextArgument.begin(), nextArgument.end(), '.'));
-						if(periodCount < 2 || periodCount > 3)
+						if (periodCount < 2 || periodCount > 3)
 							throw "Invalid semantic version format. expected major.minor.patch or major.minor.patch.beta";
 
 						unsigned int major = 0;
@@ -133,95 +136,101 @@ int main(int argc, char **argv)
 						unsigned int patch = 0;
 						unsigned int beta = 0;
 
-						if (sscanf(nextArgument.c_str(), "%u.%u.%u.%u", &major, &minor, &patch, &beta) != periodCount+1)
+						if (sscanf(nextArgument.c_str(), "%u.%u.%u.%u", &major, &minor, &patch, &beta) != periodCount + 1)
 							throw "Failed to parse semantic version";
-						
+
 						if (major > 254 || minor > 254 || patch > 254 || beta > 254)
 							throw "Invalid Version Given";
 
-						applicationVersion = ((major & 0xFF) << 24) | 
-						                    ((minor & 0xFF) << 16) | 
-						                    ((patch & 0xFF) << 8) | 
-						                    (beta & 0xFF);
+						applicationVersion = ((major & 0xFF) << 24) |
+											 ((minor & 0xFF) << 16) |
+											 ((patch & 0xFF) << 8) |
+											 (beta & 0xFF);
 					}
-					catch (const std::string& ex)
+					catch (const std::string &ex)
 					{
 						error = ex;
 					}
-					catch (char const* ex)
+					catch (char const *ex)
 					{
 						error = ex;
 					}
-					catch(...)
+					catch (...)
 					{
 						error = "Generic error parsing semantic version";
 					}
 
-					if(error.size() > 0)
+					if (error.size() > 0)
 					{
-						printf("unexpected arg '%s'\n",nextArgument.c_str());
+						printf("unexpected arg '%s'\n", nextArgument.c_str());
 						printf("%s\n", error.c_str());
 						ShowHelp();
 						return 0;
 					}
 				}
-				else if(argument == "-n")
+				else if (argument == "-n")
 				{
 					std::string nextArgument = argumentList[++i];
-					if(nandCodeFile.size() > 0)
+					if (nandCodeFile.size() > 0)
 					{
 						ShowHelp();
 						return 1;
-					}					
+					}
 
 					nandCodeFile = nextArgument;
 				}
-				else //all unknown arguments
+				else // all unknown arguments
 				{
-					printf("unknown arg '%s'\n",argument.c_str());
+					printf("unknown arg '%s'\n", argument.c_str());
 					ShowHelp();
 					return 1;
 				}
 			}
-			else if(inputFile.size() == 0)
+			else if (inputFile.size() == 0)
 			{
 				inputFile = argument;
 			}
-			else if(showInfo == false && outputFile.size() == 0)
+			else if (showInfo == false && outputFile.size() == 0)
 			{
 				outputFile = argument;
 			}
-			else //there was an unexpected parameter
+			else // there was an unexpected parameter
 			{
-				printf("unexpected arg '%s'\n",argument.c_str());
+				printf("unexpected arg '%s'\n", argument.c_str());
 				ShowHelp();
 				return 0;
 			}
 		}
 
-		if(inputFile.size() == 0 || (showInfo == false && outputFile.size() == 0))
+		if (inputFile.size() == 0 || (showInfo == false && outputFile.size() == 0))
 		{
 			ShowHelp();
-			return 0;	
+			return 0;
 		}
 
-		//get input file info
+		// get input file info
 		auto input = std::make_unique<FileInfo>(inputFile);
-		if(showInfo)
+		if (showInfo)
 		{
 			ShowDolInformation(input);
 			return 0;
 		}
 
-		//if the overwrite flag was set, we will attempt to remove the nandloader of the input
-		//this will make it possible to always inject our own code
+		if (!input->IsAligned())
+		{
+			printf("ERROR: input file is not 32 byte aligned, this WILL cause issues with booting!\n\naborting...\n");
+			return 0;
+		}
+
+		// if the overwrite flag was set, we will attempt to remove the nandloader of the input
+		// this will make it possible to always inject our own code
 		auto nandLoaderInjector = std::make_unique<NandLoaderInjector>();
-		if(overwriteNandLoader)
+		if (overwriteNandLoader)
 			nandLoaderInjector->RemoveNandLoader(input);
 
-		//set & allocate new file data
-		auto output = std::make_unique<FileInfo>(outputFile, false);	
-		if(nandCodeFile.size() == 0)
+		// set & allocate new file data
+		auto output = std::make_unique<FileInfo>(outputFile, false);
+		if (nandCodeFile.size() == 0)
 		{
 			nandLoaderInjector->InjectNandLoader(applicationVersion, input, output);
 		}
@@ -235,11 +244,11 @@ int main(int argc, char **argv)
 		printf("Done! check %s to verify!\n", output->GetFilename());
 		return 0;
 	}
-	catch (const std::string& ex)
+	catch (const std::string &ex)
 	{
 		printf("%s", ex.c_str());
 	}
-	catch (char const* ex)
+	catch (char const *ex)
 	{
 		printf("%s", ex);
 	}

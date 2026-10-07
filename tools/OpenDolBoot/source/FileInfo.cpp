@@ -24,6 +24,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <string.h>
 #include <vector>
 #include <memory>
+
+#include "../include/common.h"
 #include "../include/FileInfo.hpp"
 
 unsigned int FileInfo::GetFileSize()
@@ -31,50 +33,55 @@ unsigned int FileInfo::GetFileSize()
 	return Data.size();
 }
 
-const char* FileInfo::GetFilename()
+bool FileInfo::IsAligned()
+{
+	return GetFileSize() == ALIGN32(GetFileSize());
+}
+
+const char *FileInfo::GetFilename()
 {
 	return FileName.c_str();
 }
 
-FileInfo::FileInfo(const std::string& filename, bool readData)
+FileInfo::FileInfo(const std::string &filename, bool readData)
 {
-	if(filename.size() == 0)
+	if (filename.size() == 0)
 		throw "invalid filename";
-	
+
 	FileName = filename;
-	if(!readData)
+	if (!readData)
 		return;
 
-	//open a pointer that is managed by c++, that does fopen to create it, and fclose when it goes out of scope
-	auto file = std::unique_ptr<std::FILE, int(*)(std::FILE*)>(std::fopen(FileName.c_str(), "rb"), &std::fclose);
-	if(file == nullptr)
+	// open a pointer that is managed by c++, that does fopen to create it, and fclose when it goes out of scope
+	auto file = std::unique_ptr<std::FILE, int (*)(std::FILE *)>(std::fopen(FileName.c_str(), "rb"), &std::fclose);
+	if (file == nullptr)
 		throw "failed to open " + FileName;
 
 	std::fseek(file.get(), 0, SEEK_END);
-    auto fileSize = std::ftell(file.get());
-    std::rewind(file.get());
+	auto fileSize = std::ftell(file.get());
+	std::rewind(file.get());
 
-	//copy the file into the buffer:
+	// copy the file into the buffer:
 	Data.resize(fileSize);
-    if (fread(&Data[0], 1, fileSize, file.get()) != fileSize) 
-        throw "failed to read file data";    
+	if (fread(&Data[0], 1, fileSize, file.get()) != fileSize)
+		throw "failed to read file data";
 }
 
-FileInfo::FileInfo(const std::string& filename, const unsigned char* data, const unsigned int size)
+FileInfo::FileInfo(const std::string &filename, const unsigned char *data, const unsigned int size)
 {
-	if(filename.size() == 0)
+	if (filename.size() == 0)
 		throw "invalid filename";
-	
+
 	FileName = filename;
 	Data = std::vector<unsigned char>(data, data + size);
 }
 
 void FileInfo::WriteFile()
 {
-	//open a pointer that is managed by c++, that does fopen to create it, and fclose when it goes out of scope
-	auto file = std::unique_ptr<std::FILE, int(*)(std::FILE*)>(std::fopen(FileName.c_str(), "wb"), &std::fclose);
-	if(file == nullptr)
+	// open a pointer that is managed by c++, that does fopen to create it, and fclose when it goes out of scope
+	auto file = std::unique_ptr<std::FILE, int (*)(std::FILE *)>(std::fopen(FileName.c_str(), "wb"), &std::fclose);
+	if (file == nullptr)
 		throw "failed to open " + FileName + " for writing";
-	
+
 	std::fwrite(&Data[0], 1, Data.size(), file.get());
 }

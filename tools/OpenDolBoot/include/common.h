@@ -18,23 +18,4 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#pragma once
-#include <string>
-#include <string.h>
-#include <unistd.h>
-
-class FileInfo
-{
-	std::string FileName;
-
-public:
-	explicit FileInfo(const std::string &filename) : FileInfo(filename, true) {}
-	explicit FileInfo(const std::string &filename, bool readData);
-	explicit FileInfo(const std::string &filename, const unsigned char *data, const unsigned int size);
-	~FileInfo() {}
-	std::vector<unsigned char> Data;
-	const char *GetFilename();
-	unsigned int GetFileSize();
-	bool IsAligned();
-	void WriteFile();
-};
+#define ALIGN32(x) (((x) + 31) & ~31)
